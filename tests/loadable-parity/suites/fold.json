@@ -125,9 +125,22 @@
     },
     {
       "id": "incremental_open_producer",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify that a completed folded line is delivered before the input producer closes, for both pipe and terminal output.",
-      "reason": "Requires a future isolated open-producer and PTY driver that can hold stdin open, send a width-overflowing prefix, and observe output before EOF; the current one-shot fixture runner captures output only after the script exits."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-fold-open-pipe-producer-terminal-output"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fold-open-producer-pipe-output"
+        },
+        {
+          "group": "terminal",
+          "id": "fold-terminal-partial-line"
+        }
+      ]
     },
     {
       "id": "repeated-direct-options",

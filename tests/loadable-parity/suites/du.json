@@ -130,9 +130,14 @@
     },
     {
       "id": "one-filesystem-boundary",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check that -x excludes a nested directory on a different device while retaining the root filesystem total.",
-      "reason": "Requires a disposable VM or controlled fixture with two mounted filesystems and a GNU du comparison across that boundary. The mandated runner does not provide a separate mounted fixture filesystem; do not attempt a mount in this suite."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-du-one-filesystem-boundary"
+        }
+      ]
     },
     {
       "id": "dereference-target-first",

@@ -37,31 +37,44 @@
       "id": "pty-round-trip",
       "purpose": "Defer an end-to-end session covering PTY allocation, prompt matching, sendline input, EOF, close, and child exit status.",
       "kind": "deferred",
-      "reason": "Requires a future disposable Linux VM with a controlled private PTY child and a bounded independent Tcl Expect reference transcript. This suite does not claim PTY session behavior passed."
+      "reason": "Remaining obligations: r1: The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package."
     },
     {
       "id": "alt-pattern-buffering",
       "purpose": "Defer validation of expect-alt first-pattern priority, regex match capture, matches spanning reads, and zero-timeout draining of already-ready bytes.",
       "kind": "deferred",
-      "reason": "Requires a future disposable VM or deterministic PTY mock that can schedule input chunks and readiness, plus an independent Tcl Expect oracle for pattern selection. No operation result is claimed."
+      "reason": "Remaining obligations: r1: The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package."
     },
     {
       "id": "deadline-eof-timeout",
       "purpose": "Defer checks that a positive timeout bounds the entire wait during continuous output and that EOF and timeout produce distinct documented statuses.",
       "kind": "deferred",
-      "reason": "Requires a future disposable VM with a deterministic PTY producer and clock/readiness control so the continuous-output deadline and EOF boundary can be compared against a documented Tcl Expect reference without timing ambiguity."
+      "reason": "Remaining obligations: r1: The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package."
     },
     {
       "id": "transcript-logging",
       "purpose": "Qualify PTY transcript ordering, outgoing markers, multiple log descriptors and log_user behavior; regular-file input logging is separately exercised.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable VM with a deterministic private PTY producer and independent transcript encoder to verify interleaved input/output ordering. Existing regular-file FD contracts do not establish terminal scheduling behavior."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/expect/private-transcript"
+        },
+        {
+          "group": "shell",
+          "id": "migration-expect-transcript-encoder"
+        },
+        {
+          "group": "shell",
+          "id": "migration-expect-transcript-pty"
+        }
+      ]
     },
     {
       "id": "secret-handle-delivery",
       "purpose": "Defer send-secret validation, including delivery through the crypto secret-handle interface without exposing the secret in shell variables or logs.",
       "kind": "deferred",
-      "reason": "Requires a future disposable VM with the bashcrypto_secret_write_fd integration and a synthetic secret-handle provider/mock plus an isolated PTY receiver. No secret-delivery behavior is claimed as passed."
+      "reason": "Remaining obligations: r3: Unobservable on the parity candidate: build.sh links every loadable of config/bash-loadables.list statically into one binary, so expect's weak bashcrypto_secret_write_fd always resolves to crypto.c. The diagnostic path exists only in a build without crypto (config/profiles.json 'desktop' includes expect, and neither it nor 'core' includes crypto). Root request filed with the exact case."
     },
     {
       "id": "send-private-descriptor",

@@ -60,9 +60,17 @@ Each case has a unique portable `id`, a `purpose`, and a `kind`:
   requires a specific explanation in `purpose` (for inherently varying artifacts).
 * `contract`: no matching external CLI exists. Supply an independent, documented
   expected `stdout` string or `stdout_base64`. Do not describe this as GNU parity.
-* `deferred`: supply `reason` describing the missing disposable VM, hardware,
-  privileged mock, terminal driver, or reference dependency. No script executes,
-  and this does not count as a pass.
+* `deferred`: supply `reason` describing the current missing assertion, fixture,
+  driver capability, hardware or reference dependency. Update obsolete reasons
+  when an environment becomes available. No script executes, and this does not
+  count as a pass.
+* `migrated`: the original scenario is fully represented by named checks in
+  `replacement_cases`, a list of `{ "group": "terminal", "id": "case-id" }`
+  references. The runner emits `MIGRATED` metadata without executing a script.
+  This is neither a pass nor an additional behavioral case. The deferral ledger
+  and evidence review must verify every original obligation on both builds;
+  candidate mismatches remain failures in the replacement results. Partial
+  coverage, missing results, skips and harness errors cannot retire a deferral.
 
 Runnable cases need `script`, `expected_status` (integer), and `stderr`:
 `empty`, `nonempty` (diagnostic wording may vary), or `exact`. Contract cases
@@ -92,3 +100,4 @@ crash reproduction, sandbox probing or exploit tests are outside this suite.
 Missing references and optional loadables are `SKIP`; unavailable environments
 are `DEFERRED`; invalid GNU expectations or harness failures are `ERROR`;
 candidate differences are `FAIL`. Only executed, verified comparisons are `PASS`.
+`MIGRATED` counts point to replacement checks; do not add them to executed totals.

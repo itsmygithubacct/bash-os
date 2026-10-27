@@ -1,0 +1,286 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-bashclear-default",
+      "loadable": "bashclear",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Invoke the bashclear entry point on a controlling PTY and check bytes, termios and window-size preservation.",
+      "oracle": "ncurses clear with matching arguments and the same terminal state. Python TIOCGWINSZ independently reads the window dimensions before and after.",
+      "comparison": "Exact raw PTY bytes against clear; independent unchanged winsize predicate and full termios restoration.",
+      "candidate_script": "before=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); bashclear ; rc=$?; after=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); [[ $before == \"$after\" ]] && echo unchanged > winsize || echo changed > winsize; exit \"$rc\"",
+      "reference_script": "before=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); clear ; rc=$?; after=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); [[ $before == \"$after\" ]] && echo unchanged > winsize || echo changed > winsize; exit \"$rc\"",
+      "steps": [],
+      "compare_screen": true,
+      "expected_status": 0,
+      "expected_files": {
+        "winsize": "unchanged\n"
+      },
+      "requires": [
+        "clear",
+        "python3"
+      ],
+      "covers": [
+        "clear/pty-terminal-attributes",
+        "bashclear/pty-terminal-attributes"
+      ]
+    },
+    {
+      "id": "migration-bashclear-keep-scrollback",
+      "loadable": "bashclear",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Invoke the bashclear entry point on a controlling PTY and check bytes, termios and window-size preservation.",
+      "oracle": "ncurses clear with matching arguments and the same terminal state. Python TIOCGWINSZ independently reads the window dimensions before and after.",
+      "comparison": "Exact raw PTY bytes against clear; independent unchanged winsize predicate and full termios restoration.",
+      "candidate_script": "before=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); bashclear -x; rc=$?; after=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); [[ $before == \"$after\" ]] && echo unchanged > winsize || echo changed > winsize; exit \"$rc\"",
+      "reference_script": "before=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); clear -x; rc=$?; after=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); [[ $before == \"$after\" ]] && echo unchanged > winsize || echo changed > winsize; exit \"$rc\"",
+      "steps": [],
+      "compare_screen": true,
+      "expected_status": 0,
+      "expected_files": {
+        "winsize": "unchanged\n"
+      },
+      "requires": [
+        "clear",
+        "python3"
+      ],
+      "covers": [
+        "clear/pty-terminal-attributes",
+        "bashclear/pty-terminal-attributes"
+      ]
+    },
+    {
+      "id": "migration-bashclear-vt100",
+      "loadable": "bashclear",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Invoke the bashclear entry point on a controlling PTY and check bytes, termios and window-size preservation.",
+      "oracle": "ncurses clear with matching arguments and the same terminal state. Python TIOCGWINSZ independently reads the window dimensions before and after.",
+      "comparison": "Exact raw PTY bytes against clear; independent unchanged winsize predicate and full termios restoration.",
+      "candidate_script": "before=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); bashclear -T vt100; rc=$?; after=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); [[ $before == \"$after\" ]] && echo unchanged > winsize || echo changed > winsize; exit \"$rc\"",
+      "reference_script": "before=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); clear -T vt100; rc=$?; after=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); [[ $before == \"$after\" ]] && echo unchanged > winsize || echo changed > winsize; exit \"$rc\"",
+      "steps": [],
+      "compare_screen": true,
+      "expected_status": 0,
+      "expected_files": {
+        "winsize": "unchanged\n"
+      },
+      "requires": [
+        "clear",
+        "python3"
+      ],
+      "covers": [
+        "clear/pty-terminal-attributes",
+        "bashclear/pty-terminal-attributes"
+      ]
+    },
+    {
+      "id": "migration-bashclear-linux",
+      "loadable": "bashclear",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Invoke the bashclear entry point on a controlling PTY and check bytes, termios and window-size preservation.",
+      "oracle": "ncurses clear with matching arguments and the same terminal state. Python TIOCGWINSZ independently reads the window dimensions before and after.",
+      "comparison": "Exact raw PTY bytes against clear; independent unchanged winsize predicate and full termios restoration.",
+      "candidate_script": "before=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); bashclear -T linux; rc=$?; after=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); [[ $before == \"$after\" ]] && echo unchanged > winsize || echo changed > winsize; exit \"$rc\"",
+      "reference_script": "before=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); clear -T linux; rc=$?; after=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); [[ $before == \"$after\" ]] && echo unchanged > winsize || echo changed > winsize; exit \"$rc\"",
+      "steps": [],
+      "compare_screen": true,
+      "expected_status": 0,
+      "expected_files": {
+        "winsize": "unchanged\n"
+      },
+      "requires": [
+        "clear",
+        "python3"
+      ],
+      "covers": [
+        "clear/pty-terminal-attributes",
+        "bashclear/pty-terminal-attributes"
+      ]
+    },
+    {
+      "id": "migration-tty-pty-exact-name-silence",
+      "loadable": "tty",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Check tty against the actual stdin terminal path, including the terminating newline, and require tty -s to return 0 without output.",
+      "oracle": "GNU tty and Python os.ttyname(0) on the same private slave; raw name bytes are checked before conversion to a fixed marker.",
+      "comparison": "Independently verified exact pathname bytes; full raw PTY output has only the verifier/status markers, so silent mode cannot emit unnoticed bytes.",
+      "script": "tty > name; first=$?\n/usr/bin/python3 -c 'import os,pathlib;assert pathlib.Path(\"name\").read_bytes()==os.fsencode(os.ttyname(0))+bytes([10]);print(\"name=exact\")' || exit 90\nrm -f name\ntty -s; quiet=$?; printf \"status=%s,%s\\n\" \"$first\" \"$quiet\"",
+      "steps": [
+        {
+          "expect": "\\Aname=exact\\r\\nstatus=0,0\\r\\n\\Z"
+        }
+      ],
+      "compare_screen": true,
+      "expected_status": 0,
+      "requires": [
+        "tty",
+        "python3"
+      ],
+      "covers": [
+        "tty/terminal_name_pty"
+      ]
+    },
+    {
+      "id": "migration-clear-full-device",
+      "loadable": "clear",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Observe the status and diagnostic after an ENOSPC write and verify output from the same shell afterwards.",
+      "oracle": "ncurses clear; trusted setup independently proves the guest /dev/full produces ENOSPC.",
+      "comparison": "Exact observed status and diagnostic bytes, plus continued shell output.",
+      "setup_script": "/usr/bin/python3 - <<'PY'\nimport errno,os\nfd=os.open(\"/dev/full\",os.O_WRONLY)\ntry:\n try: os.write(fd,b\"x\")\n except OSError as e: assert e.errno==errno.ENOSPC\n else: raise AssertionError(\"/dev/full accepted a byte\")\nfinally: os.close(fd)\nPY",
+      "script": "clear -T xterm-256color > /dev/full 2> diagnostic; printf \"status=%s\\n\" \"$?\"; printf \"recovered\\n\"",
+      "expected_status": 0,
+      "requires": [
+        "clear",
+        "python3"
+      ],
+      "covers": [
+        "clear/output-failure-and-shell-recovery"
+      ]
+    },
+    {
+      "id": "migration-clear-short-write",
+      "loadable": "clear",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Force a four-byte partial clear write at a 1024-byte file-size limit, then EFBIG; compare status/diagnostic and shell continuation.",
+      "oracle": "ncurses clear -T vt100; the known ESC[H ESC[J sequence crosses the file-size limit after four bytes. Bash ignores SIGXFSZ for this bounded child shell.",
+      "comparison": "Exact resulting 1024 bytes, diagnostic tree, status and subsequent output; the size limit is confined to the disposable subshell.",
+      "setup_script": "/usr/bin/python3 -c 'from pathlib import Path;Path(\"short.out\").write_bytes(b\"x\"*1020)'",
+      "script": "( trap \"\" XFSZ; ulimit -f 1; clear -T vt100 >> short.out 2> diagnostic; printf \"status=%s\\n\" \"$?\"; printf \"recovered\\n\" )",
+      "expected_status": 0,
+      "expected_files": {
+        "short.out": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\u001b[H\u001b"
+      },
+      "requires": [
+        "clear",
+        "python3"
+      ],
+      "covers": [
+        "clear/output-failure-and-shell-recovery"
+      ]
+    },
+    {
+      "id": "migration-clear-hung-up-pty",
+      "loadable": "clear",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Run clear with stdout on a hung-up PTY (verified EIO), then restore stdout and print from the same shell.",
+      "oracle": "ncurses clear on an independently created private PTY; Python verifies EIO before either implementation runs.",
+      "comparison": "Exact error diagnostics and recorded clear status against ncurses; the recovery file proves the invoking shell continues after restoring its output.",
+      "script": "/usr/bin/python3 hungup.py \"$BASH\"",
+      "files": {
+        "hungup.py": "import errno,os,subprocess,sys\nmaster,slave=os.openpty();os.close(master)\ntry:\n try: os.write(slave,b\"probe\")\n except OSError as e: assert e.errno==errno.EIO\n else: raise AssertionError(\"closed PTY accepted a byte\")\n script='clear -T xterm-256color; rc=$?; printf \"%s\\\\n\" \"$rc\" > status; exec 1>recovery; printf \"recovered\\\\n\"'\n run=subprocess.run([sys.argv[1],\"--noprofile\",\"--norc\",\"-c\",script],stdin=subprocess.DEVNULL,stdout=slave,stderr=subprocess.PIPE,timeout=5)\n sys.stdout.buffer.write(run.stderr);sys.exit(run.returncode)\nfinally: os.close(slave)\n"
+      },
+      "expected_status": 0,
+      "expected_files": {
+        "recovery": "recovered\n"
+      },
+      "requires": [
+        "clear",
+        "python3"
+      ],
+      "covers": [
+        "clear/output-failure-and-shell-recovery"
+      ]
+    },
+    {
+      "id": "migration-clear-default-winsize",
+      "loadable": "clear",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Invoke the clear entry point on a controlling PTY and check bytes, termios and window-size preservation.",
+      "oracle": "ncurses clear with matching arguments and the same terminal state. Python TIOCGWINSZ independently reads the window dimensions before and after.",
+      "comparison": "Exact raw PTY bytes against clear; independent unchanged winsize predicate and full termios restoration.",
+      "steps": [],
+      "compare_screen": true,
+      "expected_status": 0,
+      "expected_files": {
+        "winsize": "unchanged\n"
+      },
+      "requires": [
+        "clear",
+        "python3"
+      ],
+      "covers": [
+        "clear/pty-terminal-attributes"
+      ],
+      "script": "before=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); clear ; rc=$?; after=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); [[ $before == \"$after\" ]] && echo unchanged > winsize || echo changed > winsize; exit \"$rc\""
+    },
+    {
+      "id": "migration-clear-keep-scrollback-winsize",
+      "loadable": "clear",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Invoke the clear entry point on a controlling PTY and check bytes, termios and window-size preservation.",
+      "oracle": "ncurses clear with matching arguments and the same terminal state. Python TIOCGWINSZ independently reads the window dimensions before and after.",
+      "comparison": "Exact raw PTY bytes against clear; independent unchanged winsize predicate and full termios restoration.",
+      "steps": [],
+      "compare_screen": true,
+      "expected_status": 0,
+      "expected_files": {
+        "winsize": "unchanged\n"
+      },
+      "requires": [
+        "clear",
+        "python3"
+      ],
+      "covers": [
+        "clear/pty-terminal-attributes"
+      ],
+      "script": "before=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); clear -x; rc=$?; after=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); [[ $before == \"$after\" ]] && echo unchanged > winsize || echo changed > winsize; exit \"$rc\""
+    },
+    {
+      "id": "migration-clear-vt100-winsize",
+      "loadable": "clear",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Invoke the clear entry point on a controlling PTY and check bytes, termios and window-size preservation.",
+      "oracle": "ncurses clear with matching arguments and the same terminal state. Python TIOCGWINSZ independently reads the window dimensions before and after.",
+      "comparison": "Exact raw PTY bytes against clear; independent unchanged winsize predicate and full termios restoration.",
+      "steps": [],
+      "compare_screen": true,
+      "expected_status": 0,
+      "expected_files": {
+        "winsize": "unchanged\n"
+      },
+      "requires": [
+        "clear",
+        "python3"
+      ],
+      "covers": [
+        "clear/pty-terminal-attributes"
+      ],
+      "script": "before=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); clear -T vt100; rc=$?; after=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); [[ $before == \"$after\" ]] && echo unchanged > winsize || echo changed > winsize; exit \"$rc\""
+    },
+    {
+      "id": "migration-clear-linux-winsize",
+      "loadable": "clear",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Invoke the clear entry point on a controlling PTY and check bytes, termios and window-size preservation.",
+      "oracle": "ncurses clear with matching arguments and the same terminal state. Python TIOCGWINSZ independently reads the window dimensions before and after.",
+      "comparison": "Exact raw PTY bytes against clear; independent unchanged winsize predicate and full termios restoration.",
+      "steps": [],
+      "compare_screen": true,
+      "expected_status": 0,
+      "expected_files": {
+        "winsize": "unchanged\n"
+      },
+      "requires": [
+        "clear",
+        "python3"
+      ],
+      "covers": [
+        "clear/pty-terminal-attributes"
+      ],
+      "script": "before=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); clear -T linux; rc=$?; after=$(/usr/bin/python3 -c 'import fcntl,termios;print(fcntl.ioctl(0,termios.TIOCGWINSZ,b\"\\0\"*8).hex())'); [[ $before == \"$after\" ]] && echo unchanged > winsize || echo changed > winsize; exit \"$rc\""
+    }
+  ]
+}

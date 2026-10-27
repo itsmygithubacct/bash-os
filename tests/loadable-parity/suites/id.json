@@ -117,13 +117,18 @@
       "id": "id-real-effective-identity",
       "kind": "deferred",
       "purpose": "Exercise -r and the euid/egid fields when real and effective credentials differ.",
-      "reason": "Requires a future disposable VM or reviewed identity mock that can launch the tested Bash with ruid != euid and rgid != egid and matching synthetic passwd/group records. The provided runner starts one identity and removes capabilities; do not create or modify host accounts or set-id credentials. Compare id -ru, id -rg, and default output with GNU id in that fixture."
+      "reason": "Distinct real and effective credentials can only be created by a privileged launcher; an unprivileged fixture or a single-uid bubblewrap user namespace cannot create ruid != euid. Bash also resets euid to ruid at startup unless invoked with -p, so the launcher must start both shells with -p."
     },
     {
       "id": "id-named-user-supplementary-groups",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise supplementary group lookup for a second account with multiple group memberships.",
-      "reason": "Requires a future disposable VM or reviewed NSS mock with a private passwd/group database containing a second user and multiple supplementary group memberships visible identically to GNU id and both Bash binaries. The provided runner supplies only its runner record and one group, and fixture scripts cannot safely change /etc account data. Compare id USER and id -G USER there."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-id-named-supplementary-groups"
+        }
+      ]
     },
     {
       "id": "gnu-help-option",

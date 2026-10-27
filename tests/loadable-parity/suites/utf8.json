@@ -114,7 +114,7 @@
       "id": "unicode17-exhaustive-grapheme-reference",
       "kind": "deferred",
       "purpose": "Exercise the complete Unicode grapheme boundary corpus through length and slice operations.",
-      "reason": "DEFERRED: the harness does not supply a pinned Unicode 17 GraphemeBreakTest.txt corpus or an independent grapheme oracle. A future disposable fixture environment must provide both (for example, the pinned corpus plus a pinned Python regex \\X implementation) before exhaustive results can be claimed. The small rule examples above remain runnable contract checks."
+      "reason": "The normative reference group already executes the complete expressible corpus with the pinned Unicode 17 GraphemeBreakTest and an independent oracle (the file's own break marks); no utf8 grapheme assertion failed. The only remainder is the NUL subset, which the interface cannot express."
     },
     {
       "id": "empty-strings-and-slice-boundaries",

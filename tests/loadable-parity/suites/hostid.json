@@ -130,9 +130,18 @@
     },
     {
       "id": "controlled-etc-hostid",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify precedence and byte interpretation when a system /etc/hostid is present.",
-      "reason": "Requires a disposable VM or reviewed privileged mock that starts with /etc/hostid set to a known 32-bit fixture, then runs both GNU hostid and the loadable against that same system configuration. The current runner exposes no writable system path, and the suite must not alter machine identity."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-hostid-etc-hostid-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-hostid-override-precedence-r2"
+        }
+      ]
     }
   ]
 }

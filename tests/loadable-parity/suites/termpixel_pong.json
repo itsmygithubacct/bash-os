@@ -91,13 +91,13 @@
       "id": "two-player-interaction",
       "kind": "deferred",
       "purpose": "Live paddle movement, pause, serve delay, scoring, win condition, and restart need injected keyboard events and controlled elapsed time.",
-      "reason": "DEFERRED: run only in a future disposable VM with a PTY input driver and controllable monotonic clock. The current fixture runner has no PTY event/clock API, and a pipe-driven --frames case cannot provide stable gameplay reference results."
+      "reason": "Never executed. Every gameplay obligation depends on elapsed-time physics (termpixel_pong.c:240-245), with no controllable clock or fixed step in the candidate."
     },
     {
       "id": "ai-and-terminal-loop",
       "kind": "deferred",
       "purpose": "AI reaction/accuracy behavior and raw-terminal key handling require a live terminal loop with deterministic frame timing.",
-      "reason": "DEFERRED: requires a future disposable VM or reviewed terminal/clock mock that can inject keys, control frame timing, and inspect terminal restoration. No interactive operation is executed here."
+      "reason": "Never executed. Raw-mode entry, key exit and restoration are implementable with the PTY driver. Deterministic AI dynamics need a controllable clock that neither the candidate nor the driver offers (a time namespace offsets CLOCK_MONOTONIC but does not freeze it)."
     }
   ]
 }

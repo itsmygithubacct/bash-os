@@ -41,7 +41,7 @@
       "id": "named-group-resolution",
       "kind": "deferred",
       "purpose": "Compare a valid named group, an unknown group name, and a numeric group ID against GNU using a controlled group database; verify status and resulting metadata for successful calls.",
-      "reason": "Requires a future disposable VM or resolver/chown syscall mock with synthetic group mappings and distinct permitted GIDs. Current cases only reapply the existing group of private fixture files; no account database is modified."
+      "reason": "Numeric and unknown-name obligations executed and passed; named resolution through chgrp itself never ran, and distinct-gid resolution needs driver-provisioned identities."
     },
     {
       "id": "numeric-group-effects",

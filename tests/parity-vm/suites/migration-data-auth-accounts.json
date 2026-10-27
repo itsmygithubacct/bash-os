@@ -1,0 +1,121 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 15,
+   "files": {
+    "passwd.fixture": "alice:x:1001:1001:Alice A:/home/alice:/bin/sh\nbob:x:1002:1002::/home/bob:/bin/bash\nroot:x:0:0:root:/root:/bin/sh\nmaxid:x:4294967294:4294967294:max:/m:/bin/sh\nminus1:x:4294967295:1:reserved:/m:/bin/sh\nover:x:4294967296:1:overflow:/o:/bin/sh\nneg:x:-1:1:signed:/n:/bin/sh\nalpha:x:12a:1:nonnumeric:/a:/bin/sh\nemptyuid:x::1:empty:/e:/bin/sh\nbadgid:x:7:4294967295:gid:/g:/bin/sh\nshort:x:1:1:/s:/bin/sh\nlong:x:1:1:g:/l:/bin/sh:extra\n:x:5:5:noname:/n:/bin/sh\n\ndup:x:2001:2001:first:/d1:/bin/sh\ndup:x:2002:2002:second:/d2:/bin/sh\ndupbad:x:abc:1::/:/bin/sh\ndupbad:x:3001:3001::/db:/bin/sh\n",
+    "shadow.fixture": "alice:$6$saltsalt$abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH:19000:0:99999:7:::\nbob::19000:0:99999:7:::\nroot:*:19000:0:99999:7:::\nmaxid:!$6$x$y:19000:0:99999:7:::\ndup:!:19000::::::\ndupbad:$argon2id$v=19$m=65536,t=3,p=1$00000000000000000000000000000000$1111111111111111111111111111111111111111111111111111111111111111:19000:0:99999:7:::\n",
+    "group.fixture": "alice:x:1001:\n"
+   },
+   "id": "migration-passwd-list-projection",
+   "loadable": "passwd",
+   "purpose": "passwd list and list -l over a private database with empty fields, malformed rows (6 and 8 fields, empty name, blank line), uid/gid boundaries and duplicates.",
+   "oracle": "passwd(5) seven colon-separated fields projected by an in-script /usr/bin/awk -F: reference (and an independent Python projection used to precompute the fixed expectations); uid_t/gid_t are unsigned 32-bit with (uid_t)-1 reserved; password status letters follow shadow-utils passwd -S (L: hash starts with ! or *, NP: empty, P: otherwise). Only private relative PHCLIB_* files are read; /etc/passwd's real 'parity' account must not be found.",
+   "comparison": "Exact list and list -l bytes, plus cmp against the in-script awk projection; usage error for an unknown list argument.",
+   "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport PHCLIB_PASSWD=passwd.fixture PHCLIB_SHADOW=shadow.fixture PHCLIB_GROUP=group.fixture BASHPASSWD_KERNEL_SECRETS=0\n/usr/bin/awk -F: 'NF == 7 && $1 != \"\" { print $1 }' passwd.fixture > awk.list\n/usr/bin/awk -F: 'NF == 7 && $1 != \"\" { print $1 \":\" $3 \":\" $4 \":\" $6 \":\" $7 }' passwd.fixture > awk.long\npasswd list > c.list; printf 'list-rc=%d\\n' \"$?\"\n/usr/bin/cmp -s c.list awk.list && printf 'list=awk-match\\n' || printf 'list=awk-differ\\n'\n/usr/bin/cat c.list\npasswd list -l > c.long; printf 'long-rc=%d\\n' \"$?\"\n/usr/bin/cmp -s c.long awk.long && printf 'long=awk-match\\n' || printf 'long=awk-differ\\n'\n/usr/bin/cat c.long\npasswd list -x > /dev/null 2> err; printf 'bad-arg-rc=%d\\n' \"$?\"\n/usr/bin/rm -f c.list c.long awk.list awk.long err\n",
+   "expected_status": 0,
+   "stdout": "list-rc=0\nlist=awk-match\nalice\nbob\nroot\nmaxid\nminus1\nover\nneg\nalpha\nemptyuid\nbadgid\ndup\ndup\ndupbad\ndupbad\nlong-rc=0\nlong=awk-match\nalice:1001:1001:/home/alice:/bin/sh\nbob:1002:1002:/home/bob:/bin/bash\nroot:0:0:/root:/bin/sh\nmaxid:4294967294:4294967294:/m:/bin/sh\nminus1:4294967295:1:/m:/bin/sh\nover:4294967296:1:/o:/bin/sh\nneg:-1:1:/n:/bin/sh\nalpha:12a:1:/a:/bin/sh\nemptyuid::1:/e:/bin/sh\nbadgid:7:4294967295:/g:/bin/sh\ndup:2001:2001:/d1:/bin/sh\ndup:2002:2002:/d2:/bin/sh\ndupbad:abc:1:/:/bin/sh\ndupbad:3001:3001:/db:/bin/sh\nbad-arg-rc=2\n",
+   "requires": [
+    "awk",
+    "cmp",
+    "cat"
+   ],
+   "covers": [
+    "passwd/readonly_database_queries"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 15,
+   "files": {
+    "passwd.fixture": "alice:x:1001:1001:Alice A:/home/alice:/bin/sh\nbob:x:1002:1002::/home/bob:/bin/bash\nroot:x:0:0:root:/root:/bin/sh\nmaxid:x:4294967294:4294967294:max:/m:/bin/sh\nminus1:x:4294967295:1:reserved:/m:/bin/sh\nover:x:4294967296:1:overflow:/o:/bin/sh\nneg:x:-1:1:signed:/n:/bin/sh\nalpha:x:12a:1:nonnumeric:/a:/bin/sh\nemptyuid:x::1:empty:/e:/bin/sh\nbadgid:x:7:4294967295:gid:/g:/bin/sh\nshort:x:1:1:/s:/bin/sh\nlong:x:1:1:g:/l:/bin/sh:extra\n:x:5:5:noname:/n:/bin/sh\n\ndup:x:2001:2001:first:/d1:/bin/sh\ndup:x:2002:2002:second:/d2:/bin/sh\ndupbad:x:abc:1::/:/bin/sh\ndupbad:x:3001:3001::/db:/bin/sh\n",
+    "shadow.fixture": "alice:$6$saltsalt$abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH:19000:0:99999:7:::\nbob::19000:0:99999:7:::\nroot:*:19000:0:99999:7:::\nmaxid:!$6$x$y:19000:0:99999:7:::\ndup:!:19000::::::\ndupbad:$argon2id$v=19$m=65536,t=3,p=1$00000000000000000000000000000000$1111111111111111111111111111111111111111111111111111111111111111:19000:0:99999:7:::\n",
+    "group.fixture": "alice:x:1001:\n"
+   },
+   "id": "migration-passwd-info-boundaries",
+   "loadable": "passwd",
+   "purpose": "passwd info for valid, boundary, malformed, duplicate, missing and host-only accounts, plus info usage errors.",
+   "oracle": "passwd(5) seven colon-separated fields projected by an in-script /usr/bin/awk -F: reference (and an independent Python projection used to precompute the fixed expectations); uid_t/gid_t are unsigned 32-bit with (uid_t)-1 reserved; password status letters follow shadow-utils passwd -S (L: hash starts with ! or *, NP: empty, P: otherwise). Only private relative PHCLIB_* files are read; /etc/passwd's real 'parity' account must not be found. The first well-formed row for a name wins; rows whose uid or gid is not a decimal below 4294967295 are not accounts.",
+   "comparison": "Exact status and stdout per name; stderr is not asserted here (see the success-silence case).",
+   "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport PHCLIB_PASSWD=passwd.fixture PHCLIB_SHADOW=shadow.fixture PHCLIB_GROUP=group.fixture BASHPASSWD_KERNEL_SECRETS=0\nfor n in alice bob root maxid dup dupbad minus1 over neg alpha emptyuid badgid short long nosuch parity; do\n  passwd info \"$n\" > out 2> /dev/null; rc=$?\n  printf 'info %s rc=%d out=[%s]\\n' \"$n\" \"$rc\" \"$(< out)\"\ndone\npasswd info > /dev/null 2>&1; printf 'missing-user-rc=%d\\n' \"$?\"\npasswd info alice bob > /dev/null 2>&1; printf 'extra-user-rc=%d\\n' \"$?\"\npasswd info '' > out 2> /dev/null; printf 'empty-name rc=%d out=[%s]\\n' \"$?\" \"$(< out)\"\n/usr/bin/rm -f out\n",
+   "expected_status": 0,
+   "stdout": "info alice rc=0 out=[alice uid=1001 gid=1001 home=/home/alice shell=/bin/sh password=P]\ninfo bob rc=0 out=[bob uid=1002 gid=1002 home=/home/bob shell=/bin/bash password=NP]\ninfo root rc=0 out=[root uid=0 gid=0 home=/root shell=/bin/sh password=L]\ninfo maxid rc=0 out=[maxid uid=4294967294 gid=4294967294 home=/m shell=/bin/sh password=L]\ninfo dup rc=0 out=[dup uid=2001 gid=2001 home=/d1 shell=/bin/sh password=L]\ninfo dupbad rc=0 out=[dupbad uid=3001 gid=3001 home=/db shell=/bin/sh password=P]\ninfo minus1 rc=1 out=[]\ninfo over rc=1 out=[]\ninfo neg rc=1 out=[]\ninfo alpha rc=1 out=[]\ninfo emptyuid rc=1 out=[]\ninfo badgid rc=1 out=[]\ninfo short rc=1 out=[]\ninfo long rc=1 out=[]\ninfo nosuch rc=1 out=[]\ninfo parity rc=1 out=[]\nmissing-user-rc=2\nextra-user-rc=2\nempty-name rc=1 out=[]\n",
+   "covers": [
+    "passwd/readonly_database_queries"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 15,
+   "files": {
+    "passwd.fixture": "carol:x:1003:1003:Carol:/home/carol:\n",
+    "shadow.fixture": "carol:!:19000:0:99999:7:::\n"
+   },
+   "id": "migration-passwd-info-empty-shell-default",
+   "loadable": "passwd",
+   "purpose": "An account whose shell field is empty reports the passwd(5) default shell.",
+   "oracle": "passwd(5): 'If this field is empty, it defaults to the value /bin/sh.' Private relative fixture only.",
+   "comparison": "Exact status and stdout.",
+   "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport PHCLIB_PASSWD=passwd.fixture PHCLIB_SHADOW=shadow.fixture PHCLIB_GROUP=group.fixture BASHPASSWD_KERNEL_SECRETS=0\npasswd info carol 2> /dev/null; printf 'rc=%d\\n' \"$?\"\n",
+   "expected_status": 0,
+   "stdout": "carol uid=1003 gid=1003 home=/home/carol shell=/bin/sh password=L\nrc=0\n",
+   "covers": [
+    "passwd/readonly_database_queries"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 15,
+   "files": {
+    "passwd.fixture": "alice:x:1001:1001:Alice A:/home/alice:/bin/sh\nbob:x:1002:1002::/home/bob:/bin/bash\nroot:x:0:0:root:/root:/bin/sh\nmaxid:x:4294967294:4294967294:max:/m:/bin/sh\nminus1:x:4294967295:1:reserved:/m:/bin/sh\nover:x:4294967296:1:overflow:/o:/bin/sh\nneg:x:-1:1:signed:/n:/bin/sh\nalpha:x:12a:1:nonnumeric:/a:/bin/sh\nemptyuid:x::1:empty:/e:/bin/sh\nbadgid:x:7:4294967295:gid:/g:/bin/sh\nshort:x:1:1:/s:/bin/sh\nlong:x:1:1:g:/l:/bin/sh:extra\n:x:5:5:noname:/n:/bin/sh\n\ndup:x:2001:2001:first:/d1:/bin/sh\ndup:x:2002:2002:second:/d2:/bin/sh\ndupbad:x:abc:1::/:/bin/sh\ndupbad:x:3001:3001::/db:/bin/sh\n",
+    "shadow.fixture": "alice:$6$saltsalt$abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH:19000:0:99999:7:::\nbob::19000:0:99999:7:::\nroot:*:19000:0:99999:7:::\nmaxid:!$6$x$y:19000:0:99999:7:::\ndup:!:19000::::::\ndupbad:$argon2id$v=19$m=65536,t=3,p=1$00000000000000000000000000000000$1111111111111111111111111111111111111111111111111111111111111111:19000:0:99999:7:::\n",
+    "group.fixture": "alice:x:1001:\n"
+   },
+   "id": "migration-passwd-info-success-silent",
+   "loadable": "passwd",
+   "purpose": "A successful info query for usable (P), empty (NP) and locked (L) accounts writes no diagnostic.",
+   "oracle": "Builtin convention: diagnostics accompany failure statuses; status letters per shadow-utils passwd -S semantics, where every state is a successful query.",
+   "comparison": "Exact status and stderr presence per account.",
+   "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport PHCLIB_PASSWD=passwd.fixture PHCLIB_SHADOW=shadow.fixture PHCLIB_GROUP=group.fixture BASHPASSWD_KERNEL_SECRETS=0\nfor n in alice bob root; do\n  passwd info \"$n\" > /dev/null 2> err; rc=$?\n  [[ -s err ]] && d=yes || d=no\n  printf '%s rc=%d diag=%s\\n' \"$n\" \"$rc\" \"$d\"\ndone\n/usr/bin/rm -f err\n",
+   "expected_status": 0,
+   "stdout": "alice rc=0 diag=no\nbob rc=0 diag=no\nroot rc=0 diag=no\n",
+   "covers": [
+    "passwd/readonly_database_queries"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 15,
+   "files": {
+    "passwd.fixture": "alice:x:1001:1001::/home/alice:/bin/sh\nbadid:x:abc:1::/:/bin/sh\n",
+    "shadow.fixture": "alice:!:19000:0:99999:7:::\n"
+   },
+   "id": "migration-su-argument-usage-and-lookup",
+   "loadable": "su",
+   "purpose": "Option parsing (-, -l, --login, --no-login, --keep-env, --unsafe-keep-env, -c CMD, -cCMD, --), default target root, extra arguments, missing -c argument, unknown flags, invalid and boundary-length names, malformed account rows and an unreadable database. Every form ends before authentication: the private database has no root and no reachable target, so no terminal is opened, nothing forks and -c commands never run.",
+   "oracle": "su usage synopsis (su [--login|--no-login] [--keep-env] [-c CMD] [USER], default USER root as in util-linux su), the shared bash-os account-name rule (lowercase or '_' first, then [a-z0-9_-], at most 32 bytes; as documented for useradd NAME_REGEX), passwd(5) seven-field rows with decimal ids, and status 2 for usage errors versus 1 for lookup failures. Only private relative PHCLIB_* files are read.",
+   "comparison": "Exact status, empty stdout and diagnostic class per form (wording matched only by the documented message keys); a marker file proves -c commands never ran.",
+   "script": "[[ $(type -t su) == builtin ]] || { printf 'candidate su builtin missing\\n'; exit 99; }\nexport PHCLIB_PASSWD=passwd.fixture PHCLIB_SHADOW=shadow.fixture PHCLIB_GROUP=group.fixture BASHPASSWD_KERNEL_SECRETS=0\ntry() {\n  local label=$1; shift\n  su \"$@\" > out 2> err; local rc=$?\n  local e; e=$(< err) c=other\n  case $e in\n    *\"no such user: \"*) c=\"no-such-user(${e##*no such user: })\" ;;\n    *\"invalid user: \"*) c=\"invalid-user\" ;;\n    *\"extra arg \"*) c=\"extra-arg\" ;;\n    *\"-c needs CMD\"*) c=\"missing-cmd\" ;;\n    *\"unknown flag: \"*) c=\"unknown-flag\" ;;\n    *\"cannot read passwd database\"*) c=\"unreadable-db\" ;;\n    \"\") c=none ;;\n  esac\n  [[ -s out ]] && o=nonempty || o=empty\n  printf '%s rc=%d stdout=%s diag=%s\\n' \"$label\" \"$rc\" \"$o\" \"$c\"\n}\ntry default \ntry dash -\ntry l -l\ntry login --login\ntry no-login --no-login\ntry keep-env --keep-env\ntry unsafe-keep-env --unsafe-keep-env\ntry c-separate -c ': > ran'\ntry c-attached '-c: > ran'\ntry separator -- nosuch\ntry c-then-user -c ': > ran' nosuch\ntry login-then-user --login nosuch\ntry missing-c -c\ntry extra nosuch extra\ntry separator-extra -- nosuch extra\ntry unknown --zq\ntry bad-space 'Bad Name'\ntry empty ''\ntry digit-first 1abc\ntry dash-target -- -l\ntry name-32 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ntry name-33 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ntry malformed-id badid\n[[ -e ran ]] && printf 'command=ran\\n' || printf 'command=not-run\\n'\nPHCLIB_PASSWD=absent.fixture try unreadable alice\nsu --help > help.out 2> err; printf 'help rc=%d first=[%s] diag=%s\\n' \"$?\" \"$(/usr/bin/head -n 1 help.out)\" \"$([[ -s err ]] && echo yes || echo no)\"\n/usr/bin/rm -f out err help.out\n",
+   "expected_status": 0,
+   "stdout": "default rc=1 stdout=empty diag=no-such-user(root)\ndash rc=1 stdout=empty diag=no-such-user(root)\nl rc=1 stdout=empty diag=no-such-user(root)\nlogin rc=1 stdout=empty diag=no-such-user(root)\nno-login rc=1 stdout=empty diag=no-such-user(root)\nkeep-env rc=1 stdout=empty diag=no-such-user(root)\nunsafe-keep-env rc=1 stdout=empty diag=no-such-user(root)\nc-separate rc=1 stdout=empty diag=no-such-user(root)\nc-attached rc=1 stdout=empty diag=no-such-user(root)\nseparator rc=1 stdout=empty diag=no-such-user(nosuch)\nc-then-user rc=1 stdout=empty diag=no-such-user(nosuch)\nlogin-then-user rc=1 stdout=empty diag=no-such-user(nosuch)\nmissing-c rc=2 stdout=empty diag=missing-cmd\nextra rc=2 stdout=empty diag=extra-arg\nseparator-extra rc=2 stdout=empty diag=extra-arg\nunknown rc=2 stdout=empty diag=unknown-flag\nbad-space rc=2 stdout=empty diag=invalid-user\nempty rc=2 stdout=empty diag=invalid-user\ndigit-first rc=2 stdout=empty diag=invalid-user\ndash-target rc=2 stdout=empty diag=invalid-user\nname-32 rc=1 stdout=empty diag=no-such-user(aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa)\nname-33 rc=2 stdout=empty diag=invalid-user\nmalformed-id rc=1 stdout=empty diag=no-such-user(badid)\ncommand=not-run\nunreadable rc=1 stdout=empty diag=unreadable-db\nhelp rc=0 first=[Switch user with C-owned password verification.] diag=no\n",
+   "requires": [
+    "head"
+   ],
+   "covers": [
+    "su/argument-and-usage-behavior"
+   ]
+  }
+ ]
+}

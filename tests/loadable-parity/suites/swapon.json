@@ -38,37 +38,37 @@
       "id": "list-reporting",
       "kind": "deferred",
       "purpose": "Check that no-argument listing and -s, --show, and --summary report the active-swap table consistently, including a header-only empty table and multiple fixture rows.",
-      "reason": "Requires a disposable fixture environment that maps only the candidate's /proc/swaps read to a private synthetic table, through an approved libc fopen mock or an isolated VM with a controlled proc view. The harness cannot inject that absolute-path dependency, and this suite must not inspect the host table. Compare exact bytes, status, and alias consistency only after the mock or VM is independently reviewed."
+      "reason": "Missing fixtures only. The empty table and alias consistency are reachable now against the VM-local /proc/swaps. Multiple rows and the open-failure case use a USERNS plus RUNNER-BINDS bind mount over /proc/swaps, subject to a preflight. No capability is needed for listing."
     },
     {
       "id": "option-validation",
       "kind": "deferred",
       "purpose": "Check documented -p/--priority bounds, missing priority values, malformed priorities, --discard, --, and unknown-option handling, and ensure rejected requests never reach the syscall boundary.",
-      "reason": "The authorized fixture runner provides no syscall-interposition hook. A future isolated mock must intercept libc swapon without forwarding, independently record call counts, and verify rejection statuses/diagnostics and zero requests for invalid forms. Expected accepted priority bounds are the documented 0 through 32767 range."
+      "reason": "Missing fixtures only. As uid 2000 with no capabilities (and, in legacy, the seccomp EPERM entry for swapon/swapoff), the kernel's first check in swapon(2)/swapoff(2) is capable(CAP_SYS_ADMIN). Every request therefore fails with EPERM before any path lookup, and the candidate prints '<operand>: Operation not permitted'. The order, names, continuation and status of attempts are observable now without privilege. Success, specific errno values and kernel table changes are not. SECCOMP-FILTER proves that the rejected forms make zero calls."
     },
     {
       "id": "operand-and-flag-forwarding",
       "kind": "deferred",
       "purpose": "Check that named operands, including an operand beginning with a dash after --, and documented priority/discard options reach the syscall wrapper with the intended path and Linux ABI flags.",
-      "reason": "Requires a future no-forward libc swapon interposer in an isolated disposable VM or reviewed syscall-mock harness, with a seccomp denial of raw swapon(2) as a backstop. Validate captured paths and flags against the documented option contract and Linux SWAP_FLAG_PREFER, priority, and SWAP_FLAG_DISCARD constants; do not enable an actual swap area."
+      "reason": "Missing fixtures only. The reason asks for a no-forward interposer, which SECCOMP-NOTIFY provides unprivileged for a static binary in the modern plain driver. Path order is also visible now through EPERM diagnostics."
     },
     {
       "id": "multiple-request-failures",
       "kind": "deferred",
       "purpose": "Check ordered attempts across multiple operands, continuation after an injected request failure, and aggregate failure status while keeping every request mocked.",
-      "reason": "Needs the same reviewed no-forward swapon mock as the flag-forwarding case, with deterministic success/failure responses per fixture operand and an independently specified expected request sequence. The current runner cannot inject the libc boundary, and no real kernel requests are permitted."
+      "reason": "Missing fixtures only. Ordered failure continuation is observable now with EPERM. Mixed per-operand outcomes come from SECCOMP-NOTIFY scripted replies; no real activation is needed, as the reason specifies."
     },
     {
       "id": "real-swapfile-activation",
       "kind": "deferred",
       "purpose": "Qualify successful activation and kernel-reported priority for a swap file owned by the test environment.",
-      "reason": "Requires a disposable VM with a purpose-built, owned swap file, explicit authorization for a real swapon(2) call, and post-operation inspection of that VM's swap table. The namespace runner denies the syscall, and neither host swap configuration nor any device may be changed by this suite."
+      "reason": "Real activation needs CAP_SYS_ADMIN in the initial user namespace, and no driver grants it. Restoring swap state requires a controller hook."
     },
     {
       "id": "request-error-diagnostics",
       "kind": "deferred",
       "purpose": "Check path-specific diagnostics and final status for mocked missing-path, permission, and injected kernel-error responses without changing host state.",
-      "reason": "Requires a reviewed no-forward libc swapon mock that returns controlled errno values for relative fixture operands, plus independently specified errno-to-diagnostic expectations. Running the operation against a real path or kernel is prohibited; the current runner has no interposition interface."
+      "reason": "Missing fixtures only. EPERM is reachable directly; ENOENT, EINVAL and EBUSY are injected with SECCOMP-FILTER ERRNO or SECCOMP-NOTIFY, as the reason's no-forward mock requires."
     }
   ]
 }

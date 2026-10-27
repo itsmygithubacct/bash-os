@@ -98,13 +98,13 @@
       "id": "defer-ban-state-and-firewall",
       "kind": "deferred",
       "purpose": "Exercise actual banip/unbanip policy changes and backend effects through the integration layer.",
-      "reason": "Requires a future disposable VM containing the fail2ban-client wrapper, an isolated temporary ban database, and an injectable fake firewall actor. Verify ban/unban state transitions and that calls are confined to the mock; this loadable only parses the verbs and owns no firewall or database mutation path."
+      "reason": "The bash-os loadable is a control-plane parser/formatter only; the ban/unban state machine and firewall calls live in shell wrappers that are not shipped in this repository, so no candidate code performs the obligation."
     },
     {
       "id": "defer-daemon-reload-control",
       "kind": "deferred",
       "purpose": "Exercise reload and daemon-backed status behavior across the client control interface.",
-      "reason": "Requires a future disposable VM with a disposable fail2ban-compatible daemon and private Unix control socket, plus a mocked firewall backend. The loadable does not open a daemon socket or implement daemon reload/status operations, so metadata and parser checks cannot establish this integration behavior."
+      "reason": "The candidate implements no daemon client, control socket, or reload operation; the obligation belongs to absent shell wrappers."
     },
     {
       "id": "validator-missing-operand",

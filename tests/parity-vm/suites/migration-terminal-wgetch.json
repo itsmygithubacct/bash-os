@@ -1,0 +1,60 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "id": "migration-wgetch-esc-grace-split",
+   "loadable": "wgetch",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Lone ESC followed by a 300 ms pause is ESC and the next byte decodes alone; ESC then '[A' 20 ms later (inside the 50 ms grace) is Up; ESC then '[A' 300 ms later is ESC, '[' and 'A' as separate keys; EOF reads none.",
+   "script": "/usr/bin/python3 tw.py 1b s300 71 | { for i in 1 2 3; do wgetch read 0; done; } > lone\n/usr/bin/python3 tw.py 1b s20 5b41 | { for i in 1 2; do wgetch read 0; done; } > within\n/usr/bin/python3 tw.py 1b s300 5b41 | { for i in 1 2 3 4; do wgetch read 0; done; } > after\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "wgetch/escape-timing"
+   ],
+   "oracle": "wgetch help text: 50 ms ESC grace and total ESC-sequence cap max(400 ms, ESCDELAY*8); read HANDLE|FD prints 'NAME CODE' from its key table (key_up 257, esc 27, char N, none 0 at EOF); BASHESCDELAY sets the grace.",
+   "comparison": "contract: decoded key lines from a timed pipe writer (20 ms vs 300 ms margins around the 50 ms grace)",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "files": {
+    "tw.py": "import os, sys, time\n# Timed writer: each argument is hex bytes to write, or sNNN to sleep NNN ms.\nfor arg in sys.argv[1:]:\n    if arg.startswith('s'):\n        time.sleep(int(arg[1:]) / 1000)\n    else:\n        os.write(1, bytes.fromhex(arg))\n"
+   },
+   "expected_files": {
+    "lone": "esc 27\nchar 113\nnone 0\n",
+    "within": "key_up 257\nnone 0\n",
+    "after": "esc 27\nchar 91\nchar 65\nnone 0\n"
+   }
+  },
+  {
+   "id": "migration-wgetch-handle-read-timing",
+   "loadable": "wgetch",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "The same grace applies when reading through an opened screen handle (open 0 NAME): split Up within the grace decodes, a late continuation splits.",
+   "script": "/usr/bin/python3 tw.py 1b s20 5b41 s300 1b s300 5b41 | {\n  wgetch open 0 tty > h; read -r h < h\n  for i in 1 2 3 4 5; do wgetch read \"$h\"; done > keys; wgetch close \"$h\"; printf '%s\\n' \"$?\" > closed\n}\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "wgetch/escape-timing"
+   ],
+   "oracle": "wgetch help text: 50 ms ESC grace and total ESC-sequence cap max(400 ms, ESCDELAY*8); read HANDLE|FD prints 'NAME CODE' from its key table (key_up 257, esc 27, char N, none 0 at EOF); BASHESCDELAY sets the grace.",
+   "comparison": "contract: decoded key lines via a screen handle",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "files": {
+    "tw.py": "import os, sys, time\n# Timed writer: each argument is hex bytes to write, or sNNN to sleep NNN ms.\nfor arg in sys.argv[1:]:\n    if arg.startswith('s'):\n        time.sleep(int(arg[1:]) / 1000)\n    else:\n        os.write(1, bytes.fromhex(arg))\n"
+   },
+   "expected_files": {
+    "keys": "key_up 257\nesc 27\nchar 91\nchar 65\nnone 0\n",
+    "closed": "0\n"
+   }
+  }
+ ]
+}

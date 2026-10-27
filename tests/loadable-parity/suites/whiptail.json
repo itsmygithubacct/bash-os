@@ -102,19 +102,19 @@
       "id": "deferred-keyed-input-widgets",
       "kind": "deferred",
       "purpose": "Exercise terminal keyboard behavior and result/cancel handling for yesno, inputbox, and passwordbox.",
-      "reason": "Requires a disposable VM or reviewed PTY mock with a controlling terminal, fixed TERM and dimensions, and scripted key bytes to cover Tab/Enter/Esc, cursor editing, and password masking. The current fixture runner has no PTY input or terminal transcript facility."
+      "reason": "Never executed on a terminal. The PTY driver (keys, screen, output_lacks, expected_files for --output-fd results) and the newt whiptail reference in the VM are sufficient."
     },
     {
       "id": "deferred-keyed-list-widgets",
       "kind": "deferred",
       "purpose": "Exercise terminal navigation, toggling, defaults, and selection output for menu, checklist, radiolist, treeview, and inputmenu.",
-      "reason": "Requires a disposable VM or reviewed PTY mock with fixed TERM/terminfo and scripted arrow/space/Enter/Esc input, plus a pinned external whiptail release for the terminal transcript oracle. No PTY is provided by this fixture runner."
+      "reason": "Never executed on a terminal. menu, checklist and radiolist have a newt reference in the VM. treeview and inputmenu are dialog-only widgets with no whiptail oracle, so they need contract expectations from documentation."
     },
     {
       "id": "deferred-terminal-rendering",
       "kind": "deferred",
       "purpose": "Exercise box layout and redraw behavior for message/progress widgets and file-backed textbox/tailbox scrolling.",
-      "reason": "Requires a disposable VM or reviewed PTY mock with fixed terminal dimensions, a bounded keyboard stream, and a pinned external whiptail transcript oracle; file-backed textbox/tailbox fixtures must remain relative and private. The current runner cannot provide a controlling terminal."
+      "reason": "Never executed. The PTY driver's screen rows and resize steps can assert box geometry and content semantically against newt whiptail in the VM."
     }
   ]
 }

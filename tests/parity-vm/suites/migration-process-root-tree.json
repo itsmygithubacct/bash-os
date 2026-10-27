@@ -1,0 +1,165 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-timeout-tree-default",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout tree default",
+      "oracle": "GNU timeout in the locked VM with identical, independently supervised owned children.",
+      "comparison": "Exact child statuses and explicit process/signal predicates; every child is reaped by its fixture supervisor.",
+      "script": "/usr/bin/python3 tree-supervisor.py \"$BASH\" default",
+      "stdout": "status=124\nsame-child-group=1\nseparate-shell-group=1\nparent-term=1\ngrand-term=1\ngrand-alive=0\ngrand-status=5\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-foreground-process-group"
+      ],
+      "timeout": 24,
+      "files": {
+        "tree-child.py": "import json,os,pathlib,signal,sys,time\nmode=sys.argv[1]\ndef received(role,code):\n def handler(sig,frame):\n  pathlib.Path(role+'.term').write_text(str(sig)+'\\n')\n  if mode!='hard':os._exit(code)\n return handler\nsignal.signal(signal.SIGTERM,received('parent',3))\nsignal.alarm(10)\ngrand=os.fork()\nif grand==0:\n signal.signal(signal.SIGTERM,received('grand',5))\n signal.alarm(10)\n pathlib.Path('grand-ready').write_text('ready\\n')\n while True:signal.pause()\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('grand-ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('grandchild did not become ready')\n time.sleep(.01)\npathlib.Path('pids.json').write_text(json.dumps({'parent':os.getpid(),'grand':grand,'pgid':os.getpgrp(),'grand_pgid':os.getpgid(grand)}))\nwhile True:signal.pause()\n",
+        "tree-supervisor.py": "import ctypes,json,os,pathlib,signal,subprocess,sys,time\nlib=ctypes.CDLL(None,use_errno=True)\nassert lib.prctl(36,1,0,0,0)==0,ctypes.get_errno()\nmode=sys.argv[2]\nopts={'default':'','foreground':'--foreground','hard':'-k 0.3'}[mode]\nscript='timeout '+opts+' 1.5 /usr/bin/python3 tree-child.py '+mode+'; printf \"status=%s\\n\" \"$?\"'\nside=subprocess.Popen([sys.argv[1],'--noprofile','--norc','-c',script],stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)\ninfo={};grand_status=None\ntry:\n out,err=side.communicate(timeout=8)\n assert side.returncode==0,side.returncode\n sys.stdout.buffer.write(out);sys.stdout.flush()\n sys.stderr.buffer.write(err);sys.stderr.flush()\n info=json.loads(pathlib.Path('pids.json').read_text())\n print('same-child-group='+str(int(info['pgid']==info['grand_pgid'])))\n print('separate-shell-group='+str(int(info['pgid']!=side.pid)))\n deadline=time.monotonic()+1\n while time.monotonic()<deadline:\n  try:done,status=os.waitpid(info['grand'],os.WNOHANG)\n  except ChildProcessError:done=0\n  if done:grand_status=os.waitstatus_to_exitcode(status);break\n  time.sleep(.01)\n print('parent-term='+str(int(pathlib.Path('parent.term').exists())))\n print('grand-term='+str(int(pathlib.Path('grand.term').exists())))\n print('grand-alive='+str(int(grand_status is None)))\n print('grand-status='+('running' if grand_status is None else str(grand_status)))\nfinally:\n if side.poll() is None:\n  side.kill();side.wait()\n # The only targets are recorded descendants of this fixture's new session.\n if not info and pathlib.Path('pids.json').exists():info=json.loads(pathlib.Path('pids.json').read_text())\n for role in ('parent','grand'):\n  if role in info:\n   try:os.kill(info[role],signal.SIGKILL)\n   except ProcessLookupError:pass\n deadline=time.monotonic()+2\n while True:\n  try:done,status=os.waitpid(-1,os.WNOHANG)\n  except ChildProcessError:break\n  if not done:\n   if time.monotonic()>deadline:raise RuntimeError('child cleanup timed out')\n   time.sleep(.01)\n for name in ('pids.json','grand-ready'):pathlib.Path(name).unlink(missing_ok=True)\n"
+      }
+    },
+    {
+      "id": "migration-timeout-tree-foreground",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout tree foreground",
+      "oracle": "GNU timeout in the locked VM with identical, independently supervised owned children.",
+      "comparison": "Exact child statuses and explicit process/signal predicates; every child is reaped by its fixture supervisor.",
+      "script": "/usr/bin/python3 tree-supervisor.py \"$BASH\" foreground",
+      "stdout": "status=124\nsame-child-group=1\nseparate-shell-group=0\nparent-term=1\ngrand-term=0\ngrand-alive=1\ngrand-status=running\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-foreground-process-group"
+      ],
+      "timeout": 24,
+      "files": {
+        "tree-child.py": "import json,os,pathlib,signal,sys,time\nmode=sys.argv[1]\ndef received(role,code):\n def handler(sig,frame):\n  pathlib.Path(role+'.term').write_text(str(sig)+'\\n')\n  if mode!='hard':os._exit(code)\n return handler\nsignal.signal(signal.SIGTERM,received('parent',3))\nsignal.alarm(10)\ngrand=os.fork()\nif grand==0:\n null=os.open(os.devnull,os.O_RDWR)\n for fd in (0,1,2):os.dup2(null,fd)\n if null>2:os.close(null)\n signal.signal(signal.SIGTERM,received('grand',5))\n signal.alarm(10)\n pathlib.Path('grand-ready').write_text('ready\\n')\n while True:signal.pause()\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('grand-ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('grandchild did not become ready')\n time.sleep(.01)\npathlib.Path('pids.json').write_text(json.dumps({'parent':os.getpid(),'grand':grand,'pgid':os.getpgrp(),'grand_pgid':os.getpgid(grand)}))\nwhile True:signal.pause()\n",
+        "tree-supervisor.py": "import ctypes,json,os,pathlib,signal,subprocess,sys,time\nlib=ctypes.CDLL(None,use_errno=True)\nassert lib.prctl(36,1,0,0,0)==0,ctypes.get_errno()\nmode=sys.argv[2]\nopts={'default':'','foreground':'--foreground','hard':'-k 0.3'}[mode]\nscript='timeout '+opts+' 1.5 /usr/bin/python3 tree-child.py '+mode+'; printf \"status=%s\\n\" \"$?\"'\nside=subprocess.Popen([sys.argv[1],'--noprofile','--norc','-c',script],stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)\ninfo={};grand_status=None\ntry:\n out,err=side.communicate(timeout=8)\n assert side.returncode==0,side.returncode\n sys.stdout.buffer.write(out);sys.stdout.flush()\n sys.stderr.buffer.write(err);sys.stderr.flush()\n info=json.loads(pathlib.Path('pids.json').read_text())\n print('same-child-group='+str(int(info['pgid']==info['grand_pgid'])))\n print('separate-shell-group='+str(int(info['pgid']!=side.pid)))\n deadline=time.monotonic()+1\n while time.monotonic()<deadline:\n  try:done,status=os.waitpid(info['grand'],os.WNOHANG)\n  except ChildProcessError:done=0\n  if done:grand_status=os.waitstatus_to_exitcode(status);break\n  time.sleep(.01)\n print('parent-term='+str(int(pathlib.Path('parent.term').exists())))\n print('grand-term='+str(int(pathlib.Path('grand.term').exists())))\n print('grand-alive='+str(int(grand_status is None)))\n print('grand-status='+('running' if grand_status is None else str(grand_status)))\nfinally:\n if side.poll() is None:\n  side.kill();side.wait()\n # The only targets are recorded descendants of this fixture's new session.\n if not info and pathlib.Path('pids.json').exists():info=json.loads(pathlib.Path('pids.json').read_text())\n for role in ('parent','grand'):\n  if role in info:\n   try:os.kill(info[role],signal.SIGKILL)\n   except ProcessLookupError:pass\n deadline=time.monotonic()+2\n while True:\n  try:done,status=os.waitpid(-1,os.WNOHANG)\n  except ChildProcessError:break\n  if not done:\n   if time.monotonic()>deadline:raise RuntimeError('child cleanup timed out')\n   time.sleep(.01)\n for name in ('pids.json','grand-ready'):pathlib.Path(name).unlink(missing_ok=True)\n"
+      }
+    },
+    {
+      "id": "migration-timeout-tree-hard",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout tree hard",
+      "oracle": "GNU timeout in the locked VM with identical, independently supervised owned children.",
+      "comparison": "Exact child statuses and explicit process/signal predicates; every child is reaped by its fixture supervisor. The GNU monitor termination message is matched in full against its actual shell path and owned monitor PID before emitting a fixed marker.",
+      "script": "/usr/bin/python3 tree-supervisor.py \"$BASH\" hard",
+      "stdout": "status=137\nsame-child-group=1\nseparate-shell-group=1\nparent-term=1\ngrand-term=1\ngrand-alive=0\ngrand-status=-9\n",
+      "stderr": "monitor-killed\n",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-kill-after-escalation"
+      ],
+      "timeout": 24,
+      "files": {
+        "tree-child.py": "import json,os,pathlib,signal,sys,time\nmode=sys.argv[1]\ndef received(role,code):\n def handler(sig,frame):\n  pathlib.Path(role+'.term').write_text(str(sig)+'\\n')\n  if mode!='hard':os._exit(code)\n return handler\nsignal.signal(signal.SIGTERM,received('parent',3))\nsignal.alarm(10)\ngrand=os.fork()\nif grand==0:\n signal.signal(signal.SIGTERM,received('grand',5))\n signal.alarm(10)\n pathlib.Path('grand-ready').write_text('ready\\n')\n while True:signal.pause()\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('grand-ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('grandchild did not become ready')\n time.sleep(.01)\npathlib.Path('pids.json').write_text(json.dumps({'parent':os.getpid(),'grand':grand,'pgid':os.getpgrp(),'grand_pgid':os.getpgid(grand)}))\nwhile True:signal.pause()\n",
+        "tree-supervisor.py": "import ctypes,json,os,pathlib,re,signal,subprocess,sys,time\nlib=ctypes.CDLL(None,use_errno=True)\nassert lib.prctl(36,1,0,0,0)==0,ctypes.get_errno()\nmode=sys.argv[2]\nopts={'default':'','foreground':'--foreground','hard':'-k 0.3'}[mode]\nscript='timeout '+opts+' 1.5 /usr/bin/python3 tree-child.py '+mode+'; printf \"status=%s\\n\" \"$?\"'\nside=subprocess.Popen([sys.argv[1],'--noprofile','--norc','-c',script],stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)\ninfo={};grand_status=None\ntry:\n out,err=side.communicate(timeout=8)\n assert side.returncode==0,side.returncode\n sys.stdout.buffer.write(out);sys.stdout.flush()\n info=json.loads(pathlib.Path('pids.json').read_text())\n pattern=re.escape(sys.argv[1].encode())+rb': line [0-9]+: +'+str(info['pgid']).encode()+rb' Killed +timeout -k 0\\.3 1\\.5 /usr/bin/python3 tree-child\\.py hard\\n'\n if re.fullmatch(pattern,err):sys.stderr.write('monitor-killed\\n')\n else:sys.stderr.buffer.write(err)\n sys.stderr.flush()\n print('same-child-group='+str(int(info['pgid']==info['grand_pgid'])))\n print('separate-shell-group='+str(int(info['pgid']!=side.pid)))\n deadline=time.monotonic()+1\n while time.monotonic()<deadline:\n  try:done,status=os.waitpid(info['grand'],os.WNOHANG)\n  except ChildProcessError:done=0\n  if done:grand_status=os.waitstatus_to_exitcode(status);break\n  time.sleep(.01)\n print('parent-term='+str(int(pathlib.Path('parent.term').exists())))\n print('grand-term='+str(int(pathlib.Path('grand.term').exists())))\n print('grand-alive='+str(int(grand_status is None)))\n print('grand-status='+('running' if grand_status is None else str(grand_status)))\nfinally:\n if side.poll() is None:\n  side.kill();side.wait()\n # The only targets are recorded descendants of this fixture's new session.\n if not info and pathlib.Path('pids.json').exists():info=json.loads(pathlib.Path('pids.json').read_text())\n for role in ('parent','grand'):\n  if role in info:\n   try:os.kill(info[role],signal.SIGKILL)\n   except ProcessLookupError:pass\n deadline=time.monotonic()+2\n while True:\n  try:done,status=os.waitpid(-1,os.WNOHANG)\n  except ChildProcessError:break\n  if not done:\n   if time.monotonic()>deadline:raise RuntimeError('child cleanup timed out')\n   time.sleep(.01)\n for name in ('pids.json','grand-ready'):pathlib.Path(name).unlink(missing_ok=True)\n"
+      }
+    },
+    {
+      "id": "migration-timeout-foreground-ctrl-c",
+      "loadable": "timeout",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "timeout foreground ctrl c",
+      "oracle": "GNU timeout in the locked VM with identical, independently supervised owned children.",
+      "comparison": "Exact child statuses and explicit process/signal predicates; every child is reaped by its fixture supervisor.",
+      "script": "trap : INT\ntimeout --foreground 5 /usr/bin/python3 int-child.py; printf \"status=%s\\n\" \"$?\"",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-foreground-process-group"
+      ],
+      "timeout": 24,
+      "files": {
+        "int-child.py": "import os,signal\ndef caught(sig,frame):\n os.write(1,b'child-int\\n');os._exit(7)\nsignal.signal(signal.SIGINT,caught)\nsignal.alarm(8)\nprint('CHILD-READY',flush=True)\nwhile True:signal.pause()\n"
+      },
+      "steps": [
+        {
+          "expect": "CHILD-READY"
+        },
+        {
+          "send": "\u0003"
+        },
+        {
+          "expect": "child-int"
+        },
+        {
+          "expect": "status=7"
+        }
+      ]
+    },
+    {
+      "id": "migration-timeout-sigchld-reaping",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout sigchld reaping",
+      "oracle": "GNU timeout in the locked VM with identical, independently supervised owned children.",
+      "comparison": "Exact child statuses and explicit process/signal predicates; every child is reaped by its fixture supervisor.",
+      "script": "trap 'printf \"CHLD\\n\" >> chld' CHLD\n/usr/bin/python3 background.py & bg=$!\ntimeout 5 /usr/bin/python3 waiter.py \"$bg\"; rc=$?\nprintf \"timeout-return\\n\" >> events\nprintf \"timeout=%s\\n\" \"$rc\"\nwait \"$bg\"; printf \"background=%s\\n\" \"$?\"\n[[ -s chld ]] && echo chld=observed || echo chld=missing\ntrap - CHLD\nremaining=$(jobs -p); [[ -z $remaining ]] && echo jobs=empty || echo jobs=present\nrm -f chld bg-exit",
+      "stdout": "timeout=3\nbackground=7\nchld=observed\njobs=empty\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-sigchld-reaping"
+      ],
+      "timeout": 24,
+      "files": {
+        "background.py": "import pathlib,time\ntime.sleep(.15)\nwith open('events','a') as f:f.write('background-exit\\n')\npathlib.Path('bg-exit').write_text('ready\\n')\nraise SystemExit(7)\n",
+        "waiter.py": "import os,pathlib,sys,time\npid=int(sys.argv[1]);deadline=time.monotonic()+3\nwhile True:\n try:state=pathlib.Path('/proc/%d/stat'%pid).read_text().rsplit(')',1)[1].split()[0]\n except FileNotFoundError:state='gone'\n if pathlib.Path('bg-exit').exists() and state in ('Z','gone'):break\n if time.monotonic()>deadline:raise RuntimeError('background job did not finish first')\n time.sleep(.01)\nwith open('events','a') as f:f.write('timeout-child-exit\\n')\nraise SystemExit(3)\n"
+      },
+      "expected_files": {
+        "events": "background-exit\ntimeout-child-exit\ntimeout-return\n"
+      }
+    },
+    {
+      "id": "migration-timeout-kill-after-invalid",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout kill after invalid",
+      "oracle": "GNU timeout in the locked VM with identical, independently supervised owned children.",
+      "comparison": "Exact child statuses and explicit process/signal predicates; every child is reaped by its fixture supervisor.",
+      "script": "timeout -k -1 2 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"%s=%s diagnostic=%s\\n\" short:-1 \"$rc\" \"$d\"\ntimeout -k bogus 2 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"%s=%s diagnostic=%s\\n\" short:bogus \"$rc\" \"$d\"\ntimeout -k 1q 2 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"%s=%s diagnostic=%s\\n\" short:1q \"$rc\" \"$d\"\ntimeout -k 1,5 2 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"%s=%s diagnostic=%s\\n\" short:1,5 \"$rc\" \"$d\"\ntimeout -k 1.2.3 2 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"%s=%s diagnostic=%s\\n\" short:1.2.3 \"$rc\" \"$d\"\ntimeout --kill-after=-1 2 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"%s=%s diagnostic=%s\\n\" equals:-1 \"$rc\" \"$d\"\ntimeout --kill-after=bogus 2 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"%s=%s diagnostic=%s\\n\" equals:bogus \"$rc\" \"$d\"\ntimeout --kill-after=1q 2 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"%s=%s diagnostic=%s\\n\" equals:1q \"$rc\" \"$d\"\ntimeout --kill-after=1,5 2 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"%s=%s diagnostic=%s\\n\" equals:1,5 \"$rc\" \"$d\"\ntimeout --kill-after=1.2.3 2 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"%s=%s diagnostic=%s\\n\" equals:1.2.3 \"$rc\" \"$d\"\ntimeout --kill-after -1 2 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"%s=%s diagnostic=%s\\n\" separate:-1 \"$rc\" \"$d\"\ntimeout --kill-after bogus 2 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"%s=%s diagnostic=%s\\n\" separate:bogus \"$rc\" \"$d\"\ntimeout --kill-after 1q 2 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"%s=%s diagnostic=%s\\n\" separate:1q \"$rc\" \"$d\"\ntimeout --kill-after 1,5 2 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"%s=%s diagnostic=%s\\n\" separate:1,5 \"$rc\" \"$d\"\ntimeout --kill-after 1.2.3 2 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"%s=%s diagnostic=%s\\n\" separate:1.2.3 \"$rc\" \"$d\"\n[[ ! -e marker && ! -s out ]] && echo child-not-run; rm -f out err",
+      "stdout": "short:-1=125 diagnostic=yes\nshort:bogus=125 diagnostic=yes\nshort:1q=125 diagnostic=yes\nshort:1,5=125 diagnostic=yes\nshort:1.2.3=125 diagnostic=yes\nequals:-1=125 diagnostic=yes\nequals:bogus=125 diagnostic=yes\nequals:1q=125 diagnostic=yes\nequals:1,5=125 diagnostic=yes\nequals:1.2.3=125 diagnostic=yes\nseparate:-1=125 diagnostic=yes\nseparate:bogus=125 diagnostic=yes\nseparate:1q=125 diagnostic=yes\nseparate:1,5=125 diagnostic=yes\nseparate:1.2.3=125 diagnostic=yes\nchild-not-run\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "touch"
+      ],
+      "covers": [
+        "timeout/deferred-kill-after-escalation"
+      ],
+      "timeout": 24
+    }
+  ]
+}

@@ -73,13 +73,28 @@ def validate(suite):
             raise ValueError(f"invalid or duplicate case id: {name}")
         seen.add(name)
         kind = case.get("kind")
-        if kind not in ("parity", "contract", "deferred"):
+        if kind not in ("parity", "contract", "deferred", "migrated"):
             raise ValueError(f"{name}: invalid kind")
         if not case.get("purpose"):
             raise ValueError(f"{name}: explain the behavior being tested")
         if kind == "deferred":
             if not case.get("reason"):
                 raise ValueError(f"{name}: deferred case needs a reason")
+            continue
+        if kind == "migrated":
+            replacements = case.get("replacement_cases")
+            if not isinstance(replacements, list) or not replacements:
+                raise ValueError(f"{name}: migrated case needs replacement fixtures")
+            seen_replacements = set()
+            for replacement in replacements:
+                if (not isinstance(replacement, dict)
+                        or replacement.get("group") not in ("shell", "terminal", "network", "legacy", "reference")
+                        or not isinstance(replacement.get("id"), str) or not replacement["id"]):
+                    raise ValueError(f"{name}: invalid replacement fixture")
+                identity = (replacement["group"], replacement["id"])
+                if identity in seen_replacements:
+                    raise ValueError(f"{name}: duplicate replacement fixture")
+                seen_replacements.add(identity)
             continue
         if not isinstance(case.get("script"), str) or not case["script"].strip():
             raise ValueError(f"{name}: missing script")
@@ -217,6 +232,9 @@ def run_suite(suite, binary, output):
             try:
                 if case["kind"] == "deferred":
                     record.update(status="DEFERRED", reason=case["reason"])
+                elif case["kind"] == "migrated":
+                    record.update(status="MIGRATED", replacement_cases=case["replacement_cases"],
+                                  reason="Scenario moved to named fixtures; this marker is not an execution result.")
                 elif not present:
                     record.update(status="SKIP" if suite.get("optional", False) else "ERROR",
                                   reason="loadable is not present in the candidate binary")
@@ -258,7 +276,7 @@ def run_suite(suite, binary, output):
             print(f"{record['status']:8} {suite['loadable']}/{case['id']} "
                   + (record.get("reason") or "; ".join(record.get("differences", []))), flush=True)
     summary = {status: sum(r["status"] == status for r in records)
-               for status in ("PASS", "FAIL", "ERROR", "SKIP", "DEFERRED")}
+               for status in ("PASS", "FAIL", "ERROR", "SKIP", "DEFERRED", "MIGRATED")}
     report = {"loadable": suite["loadable"], "summary": summary, "cases": records}
     (output / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     return report

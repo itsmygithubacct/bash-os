@@ -1,0 +1,355 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 30,
+   "loadable": "passwd",
+   "covers": [
+    "passwd/account_file_mutations"
+   ],
+   "files": {
+    "pristine/passwd": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nalice:x:1000:1000:Alice:/home/alice:/bin/bash\nbob:x:1001:1001:Bob:/home/bob:/bin/bash\ncarol:x:1003:1003:Carol:/home/carol:/bin/bash\n",
+    "pristine/group": "root:x:0:\ndaemon:x:1:\nstaff:x:50:alice,carol\nusers:x:100:\nalice:x:1000:\nbob:x:1001:\ncarol:x:1003:\n",
+    "pristine/shadow": "root:*:19000:0:99999:7:::\ndaemon:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=1024,t=1,p=1$abababababababababababababababab$cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:19000:0:99999:7:::\nbob:!:19000:0:99999:7:::\ncarol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:\n",
+    "pw": "synthetic-pass-1\n",
+    "empty-pw": ""
+   },
+   "requires": [
+    "awk",
+    "cmp",
+    "cp",
+    "rm",
+    "mkdir",
+    "chmod",
+    "stat",
+    "grep",
+    "wc",
+    "head"
+   ],
+   "id": "migration-passwd-add-fd-records",
+   "purpose": "add-fd with explicit -u/-g/-d/-s appends one passwd row, a user private group and a shadow row with an Argon2id PHC and default aging, keeps every existing row, sets passwd/group 0644 and a shadow mode without other access, replaces each file through a new inode without residue; the default uid is unused and >= 1000 with a matching single group; -g with an existing gid uses that group without creating another; a duplicate name changes nothing.",
+   "oracle": "passwd(5) seven-field and group(5) four-field records, shadow(5) nine fields; shadow-utils semantics as the reference for account tools: useradd(8) (-u/-g/-d/-s, numeric ids in range and not (uid_t)-1, ':' and newline invalid in fields, -g must name an existing group and then no user group is created, the default UID is an unused id >= UID_MIN 1000, a new user's shadow entry uses Debian login.defs PASS_MIN_DAYS 0, PASS_MAX_DAYS 99999, PASS_WARN_AGE 7 with last change = today), userdel(8) (removes passwd, shadow and the user's private group and the user from supplementary member lists; a missing user is an error), passwd -l/-u (prefix or remove a single '!', aging untouched, unlocking to an empty password refused, missing user an error) and chage -d (last-change field only, numeric days). Only private relative PHCLIB_* files are used.",
+   "comparison": "Exact status and record projections (field values, counts, modes, inode replacement) from in-script awk/stat; diagnostics retained in HOME.",
+   "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_PASSWD=db/passwd PHCLIB_SHADOW=db/shadow PHCLIB_GROUP=db/group PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\nreset_db() { /usr/bin/rm -rf db; /usr/bin/mkdir db; /usr/bin/cp pristine/passwd pristine/group pristine/shadow db/; /usr/bin/chmod 600 db/shadow; }\nsnap() { /usr/bin/rm -rf snap; /usr/bin/cp -a db snap; }\nsame() { /usr/bin/cmp -s db/passwd snap/passwd && /usr/bin/cmp -s db/group snap/group && /usr/bin/cmp -s db/shadow snap/shadow && echo unchanged || echo changed; }\nresidue() { local n=0 f; for f in \"$1\"/* \"$1\"/.[!.]*; do [[ -e $f ]] || continue; case ${f##*/} in passwd|group|shadow) ;; *) n=$((n + 1)) ;; esac; done; echo \"$n\"; }\nrc_class() { (( $1 == 0 )) && echo 0 || echo nonzero; }\ntoday=$(( $(printf '%(%s)T' -1) / 86400 ))\nreset_db\nino() { /usr/bin/stat -c %i \"$1\"; }\ni_p=$(ino db/passwd) i_g=$(ino db/group) i_s=$(ino db/shadow)\nsize_p=$(/usr/bin/stat -c %s db/passwd) size_g=$(/usr/bin/stat -c %s db/group)\npasswd add-fd erin 3 -u 2001 -g 2001 -d /srv/erin -s /bin/sh 3< pw 2> \"$HOME/err.add-explicit\"; printf 'add-explicit rc=%d\\n' \"$?\"\n/usr/bin/awk -F: '$1 == \"erin\" { printf \"passwd rows=1 fields=%d uid=%s gid=%s home=%s shell=%s\\n\", NF, $3, $4, $6, $7 }' db/passwd\nprintf 'passwd-erin-rows=%d\\n' \"$(/usr/bin/grep -c '^erin:' db/passwd)\"\nprintf 'group=[%s]\\n' \"$(/usr/bin/grep '^erin:' db/group)\"\n/usr/bin/awk -F: -v t=\"$today\" '$1 == \"erin\" { h = ($2 ~ /^\\$argon2id\\$v=19\\$m=1024,t=1,p=1\\$[0-9a-f]+\\$[0-9a-f]+$/) ? \"argon2id-phc\" : \"other\"; printf \"shadow fields=%d hash=%s lastchg=%s min=%s max=%s warn=%s inactive=[%s] expire=[%s] reserved=[%s]\\n\", NF, h, ($3 == t ? \"today\" : $3), $4, $5, $6, $7, $8, $9 }' db/shadow\n/usr/bin/head -c \"$size_p\" db/passwd | /usr/bin/cmp -s - pristine/passwd && p=kept || p=changed\n/usr/bin/head -c \"$size_g\" db/group | /usr/bin/cmp -s - pristine/group && g=kept || g=changed\n/usr/bin/grep -v '^erin:' db/shadow | /usr/bin/cmp -s - pristine/shadow && s=kept || s=changed\nprintf 'existing-rows passwd=%s group=%s shadow=%s\\n' \"$p\" \"$g\" \"$s\"\nprintf 'modes passwd=%s group=%s shadow-other=%s\\n' \"$(/usr/bin/stat -c %a db/passwd)\" \"$(/usr/bin/stat -c %a db/group)\" \"$(( 8#$(/usr/bin/stat -c %a db/shadow) & 7 ))\"\nprintf 'replaced passwd=%s group=%s shadow=%s\\n' \"$([[ $(ino db/passwd) != \"$i_p\" ]] && echo new-inode || echo in-place)\" \"$([[ $(ino db/group) != \"$i_g\" ]] && echo new-inode || echo in-place)\" \"$([[ $(ino db/shadow) != \"$i_s\" ]] && echo new-inode || echo in-place)\"\nprintf 'residue=%s\\n' \"$(residue db)\"\npasswd add-fd finn 3 3< pw 2> \"$HOME/err.add-default\"; printf 'add-default rc=%d\\n' \"$?\"\nuid=$(/usr/bin/awk -F: '$1 == \"finn\" { print $3 }' db/passwd); gid=$(/usr/bin/awk -F: '$1 == \"finn\" { print $4 }' db/passwd)\nprintf 'default uid-unique=%s uid-range=%s gid-groups=%s home=%s\\n' \\\n  \"$( (( $(/usr/bin/awk -F: -v u=\"$uid\" '$3 == u' db/passwd | /usr/bin/wc -l) == 1 )) && echo yes || echo no)\" \\\n  \"$( [[ $uid =~ ^[0-9]+$ ]] && (( uid >= 1000 && uid < 60000 )) && echo ok || echo bad)\" \\\n  \"$(/usr/bin/awk -F: -v g=\"$gid\" '$3 == g' db/group | /usr/bin/wc -l)\" \\\n  \"$(/usr/bin/awk -F: '$1 == \"finn\" { print $6 }' db/passwd)\"\npasswd add-fd gina 3 -g 100 3< pw 2> \"$HOME/err.add-existing-group\"; printf 'add-existing-group rc=%d\\n' \"$?\"\nprintf 'existing-group primary=%s groups-with-gid-100=%d gina-group=%s users=[%s]\\n' \\\n  \"$(/usr/bin/awk -F: '$1 == \"gina\" { print $4 }' db/passwd)\" \"$(/usr/bin/awk -F: '$3 == 100' db/group | /usr/bin/wc -l)\" \\\n  \"$(/usr/bin/grep -q '^gina:' db/group && echo present || echo absent)\" \"$(/usr/bin/grep '^users:' db/group)\"\nsnap\npasswd add-fd alice 3 3< pw 2> \"$HOME/err.add-duplicate\"; printf 'add-duplicate rc=%s files=%s\\n' \"$(rc_class $?)\" \"$(same)\"\n/usr/bin/rm -rf db snap\n",
+   "expected_status": 0,
+   "stdout": "add-explicit rc=0\npasswd rows=1 fields=7 uid=2001 gid=2001 home=/srv/erin shell=/bin/sh\npasswd-erin-rows=1\ngroup=[erin:x:2001:]\nshadow fields=9 hash=argon2id-phc lastchg=today min=0 max=99999 warn=7 inactive=[] expire=[] reserved=[]\nexisting-rows passwd=kept group=kept shadow=kept\nmodes passwd=644 group=644 shadow-other=0\nreplaced passwd=new-inode group=new-inode shadow=new-inode\nresidue=0\nadd-default rc=0\ndefault uid-unique=yes uid-range=ok gid-groups=1 home=/home/finn\nadd-existing-group rc=0\nexisting-group primary=100 groups-with-gid-100=1 gina-group=absent users=[users:x:100:]\nadd-duplicate rc=nonzero files=unchanged\n",
+   "diagnostic_files": [
+    "err.add-explicit",
+    "err.add-default",
+    "err.add-existing-group",
+    "err.add-duplicate"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 30,
+   "loadable": "passwd",
+   "covers": [
+    "passwd/account_file_mutations"
+   ],
+   "files": {
+    "pristine/passwd": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nalice:x:1000:1000:Alice:/home/alice:/bin/bash\nbob:x:1001:1001:Bob:/home/bob:/bin/bash\ncarol:x:1003:1003:Carol:/home/carol:/bin/bash\n",
+    "pristine/group": "root:x:0:\ndaemon:x:1:\nstaff:x:50:alice,carol\nusers:x:100:\nalice:x:1000:\nbob:x:1001:\ncarol:x:1003:\n",
+    "pristine/shadow": "root:*:19000:0:99999:7:::\ndaemon:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=1024,t=1,p=1$abababababababababababababababab$cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:19000:0:99999:7:::\nbob:!:19000:0:99999:7:::\ncarol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:\n",
+    "pw": "synthetic-pass-1\n",
+    "empty-pw": ""
+   },
+   "requires": [
+    "awk",
+    "cmp",
+    "cp",
+    "rm",
+    "mkdir",
+    "chmod",
+    "stat",
+    "grep",
+    "wc"
+   ],
+   "id": "migration-passwd-add-fd-rejects-invalid-fields",
+   "purpose": "add-fd refuses non-numeric, overflowing, reserved and negative ids, ':' or newline inside home/shell, invalid or overlong names, missing option values, unknown options, an unreadable descriptor and an empty password, leaving all three databases byte-identical with no temporary files; usage errors are status 2.",
+   "oracle": "passwd(5) seven-field and group(5) four-field records, shadow(5) nine fields; shadow-utils semantics as the reference for account tools: useradd(8) (-u/-g/-d/-s, numeric ids in range and not (uid_t)-1, ':' and newline invalid in fields, -g must name an existing group and then no user group is created, the default UID is an unused id >= UID_MIN 1000, a new user's shadow entry uses Debian login.defs PASS_MIN_DAYS 0, PASS_MAX_DAYS 99999, PASS_WARN_AGE 7 with last change = today), userdel(8) (removes passwd, shadow and the user's private group and the user from supplementary member lists; a missing user is an error), passwd -l/-u (prefix or remove a single '!', aging untouched, unlocking to an empty password refused, missing user an error) and chage -d (last-change field only, numeric days). Only private relative PHCLIB_* files are used. A refused add must not create any record (in particular never a uid 0 or (uid_t)-1 account).",
+   "comparison": "Exact status class, byte comparison of passwd/group/shadow against a pre-call copy and residue count per form.",
+   "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_PASSWD=db/passwd PHCLIB_SHADOW=db/shadow PHCLIB_GROUP=db/group PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\nreset_db() { /usr/bin/rm -rf db; /usr/bin/mkdir db; /usr/bin/cp pristine/passwd pristine/group pristine/shadow db/; /usr/bin/chmod 600 db/shadow; }\nsnap() { /usr/bin/rm -rf snap; /usr/bin/cp -a db snap; }\nsame() { /usr/bin/cmp -s db/passwd snap/passwd && /usr/bin/cmp -s db/group snap/group && /usr/bin/cmp -s db/shadow snap/shadow && echo unchanged || echo changed; }\nresidue() { local n=0 f; for f in \"$1\"/* \"$1\"/.[!.]*; do [[ -e $f ]] || continue; case ${f##*/} in passwd|group|shadow) ;; *) n=$((n + 1)) ;; esac; done; echo \"$n\"; }\nrc_class() { (( $1 == 0 )) && echo 0 || echo nonzero; }\ntoday=$(( $(printf '%(%s)T' -1) / 86400 ))\nreset_db\nrej() { local label=$1 pwfile=$2; shift 2; snap\n  passwd add-fd \"$@\" 3< \"$pwfile\" > /dev/null 2> \"$HOME/err.$label\"; local rc=$?\n  printf 'reject %s rc=%s files=%s residue=%s\\n' \"$label\" \"$(rc_class $rc)\" \"$(same)\" \"$(residue db)\"; reset_db; }\nrej uid-alpha pw hank 3 -u abc\nrej uid-overflow pw hank 3 -u 4294967296\nrej uid-reserved pw hank 3 -u 4294967295\nrej uid-negative pw hank 3 -u -5\nrej gid-alpha pw hank 3 -g abc\nrej home-colon pw hank 3 -d /srv/a:b\nrej shell-newline pw hank 3 -s $'/bin/sh\\nextra'\nrej name-upper pw Hank 3\nrej name-33-bytes pw aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 3\nrej name-colon pw 'ha:nk' 3\nrej option-missing-value pw hank 3 -u\nrej unknown-option pw hank 3 -x 1\nrej closed-fd pw hank 9\nrej empty-password empty-pw hank 3\npasswd add-fd > /dev/null 2>&1; printf 'no-args rc=%d\\n' \"$?\"\npasswd add-fd hank > /dev/null 2>&1; printf 'no-fd rc=%d\\n' \"$?\"\n/usr/bin/rm -rf db snap\n",
+   "expected_status": 0,
+   "stdout": "reject uid-alpha rc=nonzero files=unchanged residue=0\nreject uid-overflow rc=nonzero files=unchanged residue=0\nreject uid-reserved rc=nonzero files=unchanged residue=0\nreject uid-negative rc=nonzero files=unchanged residue=0\nreject gid-alpha rc=nonzero files=unchanged residue=0\nreject home-colon rc=nonzero files=unchanged residue=0\nreject shell-newline rc=nonzero files=unchanged residue=0\nreject name-upper rc=nonzero files=unchanged residue=0\nreject name-33-bytes rc=nonzero files=unchanged residue=0\nreject name-colon rc=nonzero files=unchanged residue=0\nreject option-missing-value rc=nonzero files=unchanged residue=0\nreject unknown-option rc=nonzero files=unchanged residue=0\nreject closed-fd rc=nonzero files=unchanged residue=0\nreject empty-password rc=nonzero files=unchanged residue=0\nno-args rc=2\nno-fd rc=2\n",
+   "diagnostic_files": [
+    "err.uid-alpha",
+    "err.uid-overflow",
+    "err.uid-reserved",
+    "err.uid-negative",
+    "err.gid-alpha",
+    "err.home-colon",
+    "err.shell-newline",
+    "err.name-upper",
+    "err.name-33-bytes",
+    "err.name-colon",
+    "err.option-missing-value",
+    "err.unknown-option",
+    "err.closed-fd"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 30,
+   "loadable": "passwd",
+   "covers": [
+    "passwd/account_file_mutations"
+   ],
+   "files": {
+    "pristine/passwd": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nalice:x:1000:1000:Alice:/home/alice:/bin/bash\nbob:x:1001:1001:Bob:/home/bob:/bin/bash\ncarol:x:1003:1003:Carol:/home/carol:/bin/bash\n",
+    "pristine/group": "root:x:0:\ndaemon:x:1:\nstaff:x:50:alice,carol\nusers:x:100:\nalice:x:1000:\nbob:x:1001:\ncarol:x:1003:\n",
+    "pristine/shadow": "root:*:19000:0:99999:7:::\ndaemon:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=1024,t=1,p=1$abababababababababababababababab$cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:19000:0:99999:7:::\nbob:!:19000:0:99999:7:::\ncarol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:\n",
+    "pw": "synthetic-pass-1\n",
+    "empty-pw": ""
+   },
+   "requires": [
+    "awk",
+    "cmp",
+    "cp",
+    "rm",
+    "mkdir",
+    "chmod",
+    "stat",
+    "grep",
+    "wc"
+   ],
+   "id": "migration-passwd-add-fd-unterminated-last-row",
+   "purpose": "passwd and group files whose last row lacks a trailing newline still gain a separate, well-formed row and keep the last existing row intact.",
+   "oracle": "passwd(5)/group(5): one record per line; the existing last record is a complete record even without a terminating newline (POSIX text-file tools such as awk and useradd's line reader treat it as a line).",
+   "comparison": "Exact status, row count, malformed-row count and the preserved root rows.",
+   "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_PASSWD=db/passwd PHCLIB_SHADOW=db/shadow PHCLIB_GROUP=db/group PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\n/usr/bin/mkdir db\nprintf '%s' 'root:x:0:0:root:/root:/bin/bash' > db/passwd\nprintf '%s' 'root:x:0:' > db/group\nprintf 'root:*:19000:0:99999:7:::\\n' > db/shadow; /usr/bin/chmod 600 db/shadow\npasswd add-fd ivy 3 -u 2005 -g 2005 3< pw 2> \"$HOME/err.add\"; printf 'add rc=%d\\n' \"$?\"\nprintf 'passwd rows=%d bad=%d root=[%s]\\n' \"$(/usr/bin/wc -l < db/passwd)\" \"$(/usr/bin/awk -F: 'NF != 7' db/passwd | /usr/bin/wc -l)\" \"$(/usr/bin/grep '^root:' db/passwd)\"\nprintf 'group rows=%d bad=%d root=[%s]\\n' \"$(/usr/bin/wc -l < db/group)\" \"$(/usr/bin/awk -F: 'NF != 4' db/group | /usr/bin/wc -l)\" \"$(/usr/bin/grep '^root:' db/group)\"\n/usr/bin/rm -rf db\n",
+   "expected_status": 0,
+   "stdout": "add rc=0\npasswd rows=2 bad=0 root=[root:x:0:0:root:/root:/bin/bash]\ngroup rows=2 bad=0 root=[root:x:0:]\n",
+   "diagnostic_files": [
+    "err.add"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 30,
+   "loadable": "passwd",
+   "covers": [
+    "passwd/account_file_mutations"
+   ],
+   "files": {
+    "pristine/passwd": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nalice:x:1000:1000:Alice:/home/alice:/bin/bash\nbob:x:1001:1001:Bob:/home/bob:/bin/bash\ncarol:x:1003:1003:Carol:/home/carol:/bin/bash\n",
+    "pristine/group": "root:x:0:\ndaemon:x:1:\nstaff:x:50:alice,carol\nusers:x:100:\nalice:x:1000:\nbob:x:1001:\ncarol:x:1003:\n",
+    "pristine/shadow": "root:*:19000:0:99999:7:::\ndaemon:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=1024,t=1,p=1$abababababababababababababababab$cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:19000:0:99999:7:::\nbob:!:19000:0:99999:7:::\ncarol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:\n",
+    "pw": "synthetic-pass-1\n",
+    "empty-pw": ""
+   },
+   "requires": [
+    "awk",
+    "cmp",
+    "cp",
+    "rm",
+    "mkdir",
+    "chmod",
+    "stat",
+    "grep",
+    "wc"
+   ],
+   "id": "migration-passwd-delete-records",
+   "purpose": "delete removes the user's passwd and shadow rows and private group, removes the user from supplementary member lists, leaves every other row byte-identical, and reports a missing user as an error without changing anything.",
+   "oracle": "passwd(5) seven-field and group(5) four-field records, shadow(5) nine fields; shadow-utils semantics as the reference for account tools: useradd(8) (-u/-g/-d/-s, numeric ids in range and not (uid_t)-1, ':' and newline invalid in fields, -g must name an existing group and then no user group is created, the default UID is an unused id >= UID_MIN 1000, a new user's shadow entry uses Debian login.defs PASS_MIN_DAYS 0, PASS_MAX_DAYS 99999, PASS_WARN_AGE 7 with last change = today), userdel(8) (removes passwd, shadow and the user's private group and the user from supplementary member lists; a missing user is an error), passwd -l/-u (prefix or remove a single '!', aging untouched, unlocking to an empty password refused, missing user an error) and chage -d (last-change field only, numeric days). Only private relative PHCLIB_* files are used.",
+   "comparison": "Exact statuses and final passwd/group/shadow bytes (expected_files) written from the fixture by hand.",
+   "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_PASSWD=db/passwd PHCLIB_SHADOW=db/shadow PHCLIB_GROUP=db/group PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\nreset_db() { /usr/bin/rm -rf db; /usr/bin/mkdir db; /usr/bin/cp pristine/passwd pristine/group pristine/shadow db/; /usr/bin/chmod 600 db/shadow; }\nsnap() { /usr/bin/rm -rf snap; /usr/bin/cp -a db snap; }\nsame() { /usr/bin/cmp -s db/passwd snap/passwd && /usr/bin/cmp -s db/group snap/group && /usr/bin/cmp -s db/shadow snap/shadow && echo unchanged || echo changed; }\nresidue() { local n=0 f; for f in \"$1\"/* \"$1\"/.[!.]*; do [[ -e $f ]] || continue; case ${f##*/} in passwd|group|shadow) ;; *) n=$((n + 1)) ;; esac; done; echo \"$n\"; }\nrc_class() { (( $1 == 0 )) && echo 0 || echo nonzero; }\ntoday=$(( $(printf '%(%s)T' -1) / 86400 ))\nreset_db\npasswd delete carol 2> \"$HOME/err.delete\"; printf 'delete rc=%d\\n' \"$?\"\nsnap\npasswd delete nosuch 2> \"$HOME/err.delete-missing\"; printf 'delete-missing rc=%s files=%s\\n' \"$(rc_class $?)\" \"$(same)\"\npasswd delete > /dev/null 2>&1; printf 'no-args rc=%d\\n' \"$?\"\npasswd delete carol bob > /dev/null 2>&1; printf 'two-args rc=%d\\n' \"$?\"\nprintf 'residue=%s\\n' \"$(residue db)\"\n/usr/bin/cp db/passwd final.passwd; /usr/bin/cp db/group final.group; /usr/bin/cp db/shadow final.shadow\n/usr/bin/rm -rf db snap\n",
+   "expected_status": 0,
+   "stdout": "delete rc=0\ndelete-missing rc=nonzero files=unchanged\nno-args rc=2\ntwo-args rc=2\nresidue=0\n",
+   "expected_files": {
+    "final.passwd": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nalice:x:1000:1000:Alice:/home/alice:/bin/bash\nbob:x:1001:1001:Bob:/home/bob:/bin/bash\n",
+    "final.group": "root:x:0:\ndaemon:x:1:\nstaff:x:50:alice\nusers:x:100:\nalice:x:1000:\nbob:x:1001:\n",
+    "final.shadow": "root:*:19000:0:99999:7:::\ndaemon:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=1024,t=1,p=1$abababababababababababababababab$cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:19000:0:99999:7:::\nbob:!:19000:0:99999:7:::\n"
+   },
+   "diagnostic_files": [
+    "err.delete",
+    "err.delete-missing"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 30,
+   "loadable": "passwd",
+   "covers": [
+    "passwd/account_file_mutations"
+   ],
+   "files": {
+    "pristine/passwd": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nalice:x:1000:1000:Alice:/home/alice:/bin/bash\nbob:x:1001:1001:Bob:/home/bob:/bin/bash\ncarol:x:1003:1003:Carol:/home/carol:/bin/bash\n",
+    "pristine/group": "root:x:0:\ndaemon:x:1:\nstaff:x:50:alice,carol\nusers:x:100:\nalice:x:1000:\nbob:x:1001:\ncarol:x:1003:\n",
+    "pristine/shadow": "root:*:19000:0:99999:7:::\ndaemon:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=1024,t=1,p=1$abababababababababababababababab$cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:19000:0:99999:7:::\nbob:!:19000:0:99999:7:::\ncarol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:\n",
+    "pw": "synthetic-pass-1\n",
+    "empty-pw": ""
+   },
+   "requires": [
+    "awk",
+    "cmp",
+    "cp",
+    "rm",
+    "mkdir",
+    "chmod",
+    "stat",
+    "grep",
+    "wc"
+   ],
+   "id": "migration-passwd-lock-unlock-preserves-hash-and-aging",
+   "purpose": "lock prefixes a single '!' to the stored hash and leaves every aging field; locking again is idempotent; unlock restores the original hash byte-for-byte; unlocking '*' or a bare '!' (no hash) and locking or unlocking a missing user fail without changing the database.",
+   "oracle": "passwd(5) seven-field and group(5) four-field records, shadow(5) nine fields; shadow-utils semantics as the reference for account tools: useradd(8) (-u/-g/-d/-s, numeric ids in range and not (uid_t)-1, ':' and newline invalid in fields, -g must name an existing group and then no user group is created, the default UID is an unused id >= UID_MIN 1000, a new user's shadow entry uses Debian login.defs PASS_MIN_DAYS 0, PASS_MAX_DAYS 99999, PASS_WARN_AGE 7 with last change = today), userdel(8) (removes passwd, shadow and the user's private group and the user from supplementary member lists; a missing user is an error), passwd -l/-u (prefix or remove a single '!', aging untouched, unlocking to an empty password refused, missing user an error) and chage -d (last-change field only, numeric days). Only private relative PHCLIB_* files are used.",
+   "comparison": "Exact status and full shadow row after each step; byte comparison for refused forms.",
+   "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_PASSWD=db/passwd PHCLIB_SHADOW=db/shadow PHCLIB_GROUP=db/group PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\nreset_db() { /usr/bin/rm -rf db; /usr/bin/mkdir db; /usr/bin/cp pristine/passwd pristine/group pristine/shadow db/; /usr/bin/chmod 600 db/shadow; }\nsnap() { /usr/bin/rm -rf snap; /usr/bin/cp -a db snap; }\nsame() { /usr/bin/cmp -s db/passwd snap/passwd && /usr/bin/cmp -s db/group snap/group && /usr/bin/cmp -s db/shadow snap/shadow && echo unchanged || echo changed; }\nresidue() { local n=0 f; for f in \"$1\"/* \"$1\"/.[!.]*; do [[ -e $f ]] || continue; case ${f##*/} in passwd|group|shadow) ;; *) n=$((n + 1)) ;; esac; done; echo \"$n\"; }\nrc_class() { (( $1 == 0 )) && echo 0 || echo nonzero; }\ntoday=$(( $(printf '%(%s)T' -1) / 86400 ))\nreset_db\nrow() { /usr/bin/grep '^carol:' db/shadow; }\npasswd lock carol 2> \"$HOME/err.lock\"; printf 'lock rc=%d row=[%s]\\n' \"$?\" \"$(row)\"\npasswd lock carol 2> \"$HOME/err.lock-again\"; printf 'lock-again rc=%d row=[%s]\\n' \"$?\" \"$(row)\"\npasswd unlock carol 2> \"$HOME/err.unlock\"; printf 'unlock rc=%d row=[%s]\\n' \"$?\" \"$(row)\"\n/usr/bin/grep -v '^carol:' db/shadow | /usr/bin/cmp -s - <(/usr/bin/grep -v '^carol:' pristine/shadow) && o=unchanged || o=changed\nprintf 'other-rows=%s shadow-other=%s\\n' \"$o\" \"$(( 8#$(/usr/bin/stat -c %a db/shadow) & 7 ))\"\nfor t in root bob; do snap; passwd unlock \"$t\" 2> \"$HOME/err.unlock-$t\"; printf 'unlock-%s rc=%s files=%s\\n' \"$t\" \"$(rc_class $?)\" \"$(same)\"; done\nsnap; passwd lock nosuch 2> \"$HOME/err.lock-missing\"; printf 'lock-missing rc=%s files=%s\\n' \"$(rc_class $?)\" \"$(same)\"\nsnap; passwd unlock nosuch 2> \"$HOME/err.unlock-missing\"; printf 'unlock-missing rc=%s files=%s\\n' \"$(rc_class $?)\" \"$(same)\"\npasswd lock > /dev/null 2>&1; printf 'lock-no-args rc=%d\\n' \"$?\"\npasswd unlock carol bob > /dev/null 2>&1; printf 'unlock-two-args rc=%d\\n' \"$?\"\nprintf 'residue=%s\\n' \"$(residue db)\"\n/usr/bin/rm -rf db snap\n",
+   "expected_status": 0,
+   "stdout": "lock rc=0 row=[carol:!$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:]\nlock-again rc=0 row=[carol:!$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:]\nunlock rc=0 row=[carol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:]\nother-rows=unchanged shadow-other=0\nunlock-root rc=nonzero files=unchanged\nunlock-bob rc=nonzero files=unchanged\nlock-missing rc=nonzero files=unchanged\nunlock-missing rc=nonzero files=unchanged\nlock-no-args rc=2\nunlock-two-args rc=2\nresidue=0\n",
+   "diagnostic_files": [
+    "err.lock",
+    "err.lock-again",
+    "err.unlock",
+    "err.unlock-root",
+    "err.unlock-bob",
+    "err.lock-missing",
+    "err.unlock-missing"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 30,
+   "loadable": "passwd",
+   "covers": [
+    "passwd/account_file_mutations"
+   ],
+   "files": {
+    "pristine/passwd": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nalice:x:1000:1000:Alice:/home/alice:/bin/bash\nbob:x:1001:1001:Bob:/home/bob:/bin/bash\ncarol:x:1003:1003:Carol:/home/carol:/bin/bash\n",
+    "pristine/group": "root:x:0:\ndaemon:x:1:\nstaff:x:50:alice,carol\nusers:x:100:\nalice:x:1000:\nbob:x:1001:\ncarol:x:1003:\n",
+    "pristine/shadow": "root:*:19000:0:99999:7:::\ndaemon:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=1024,t=1,p=1$abababababababababababababababab$cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:19000:0:99999:7:::\nbob:!:19000:0:99999:7:::\ncarol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:\n",
+    "pw": "synthetic-pass-1\n",
+    "empty-pw": ""
+   },
+   "requires": [
+    "awk",
+    "cmp",
+    "cp",
+    "rm",
+    "mkdir",
+    "chmod",
+    "stat",
+    "grep",
+    "wc"
+   ],
+   "id": "migration-passwd-lock-once-unlock-roundtrip",
+   "purpose": "A single lock followed by a single unlock returns the stored hash byte-for-byte (independently of the repeated-lock sequence in migration-passwd-lock-unlock-preserves-hash-and-aging); the hash field and the aging fields are reported on separate lines so a defect in one does not hide the other.",
+   "oracle": "passwd(5) seven-field and group(5) four-field records, shadow(5) nine fields; shadow-utils semantics as the reference for account tools: useradd(8) (-u/-g/-d/-s, numeric ids in range and not (uid_t)-1, ':' and newline invalid in fields, -g must name an existing group and then no user group is created, the default UID is an unused id >= UID_MIN 1000, a new user's shadow entry uses Debian login.defs PASS_MIN_DAYS 0, PASS_MAX_DAYS 99999, PASS_WARN_AGE 7 with last change = today), userdel(8) (removes passwd, shadow and the user's private group and the user from supplementary member lists; a missing user is an error), passwd -l/-u (prefix or remove a single '!', aging untouched, unlocking to an empty password refused, missing user an error) and chage -d (last-change field only, numeric days). Only private relative PHCLIB_* files are used.",
+   "comparison": "Exact status and shadow hash field after each step, aging fields after the round trip, other rows byte-identical.",
+   "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_PASSWD=db/passwd PHCLIB_SHADOW=db/shadow PHCLIB_GROUP=db/group PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\nreset_db() { /usr/bin/rm -rf db; /usr/bin/mkdir db; /usr/bin/cp pristine/passwd pristine/group pristine/shadow db/; /usr/bin/chmod 600 db/shadow; }\nsnap() { /usr/bin/rm -rf snap; /usr/bin/cp -a db snap; }\nsame() { /usr/bin/cmp -s db/passwd snap/passwd && /usr/bin/cmp -s db/group snap/group && /usr/bin/cmp -s db/shadow snap/shadow && echo unchanged || echo changed; }\nresidue() { local n=0 f; for f in \"$1\"/* \"$1\"/.[!.]*; do [[ -e $f ]] || continue; case ${f##*/} in passwd|group|shadow) ;; *) n=$((n + 1)) ;; esac; done; echo \"$n\"; }\nrc_class() { (( $1 == 0 )) && echo 0 || echo nonzero; }\ntoday=$(( $(printf '%(%s)T' -1) / 86400 ))\nreset_db\nfield() { /usr/bin/awk -F: -v u=\"$1\" -v f=\"$2\" '$1 == u { print $f }' db/shadow; }\naging() { /usr/bin/awk -F: -v u=\"$1\" '$1 == u { print $3 \":\" $4 \":\" $5 \":\" $6 \":\" $7 \":\" $8 \":\" $9 }' db/shadow; }\npasswd lock carol 2> \"$HOME/err.lock\"; printf 'lock rc=%d hash=[%s]\\n' \"$?\" \"$(field carol 2)\"\npasswd unlock carol 2> \"$HOME/err.unlock\"; printf 'unlock rc=%d hash=[%s]\\n' \"$?\" \"$(field carol 2)\"\nprintf 'aging=[%s]\\n' \"$(aging carol)\"\n/usr/bin/grep -v '^carol:' db/shadow | /usr/bin/cmp -s - <(/usr/bin/grep -v '^carol:' pristine/shadow) && o=unchanged || o=changed\nprintf 'other-rows=%s residue=%s\\n' \"$o\" \"$(residue db)\"\n/usr/bin/rm -rf db snap\n",
+   "expected_status": 0,
+   "stdout": "lock rc=0 hash=[!$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434]\nunlock rc=0 hash=[$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434]\naging=[19100:1:90:14:30:20000:]\nother-rows=unchanged residue=0\n",
+   "diagnostic_files": [
+    "err.lock",
+    "err.unlock"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 30,
+   "loadable": "passwd",
+   "covers": [
+    "passwd/account_file_mutations"
+   ],
+   "files": {
+    "pristine/passwd": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nalice:x:1000:1000:Alice:/home/alice:/bin/bash\nbob:x:1001:1001:Bob:/home/bob:/bin/bash\ncarol:x:1003:1003:Carol:/home/carol:/bin/bash\n",
+    "pristine/group": "root:x:0:\ndaemon:x:1:\nstaff:x:50:alice,carol\nusers:x:100:\nalice:x:1000:\nbob:x:1001:\ncarol:x:1003:\n",
+    "pristine/shadow": "root:*:19000:0:99999:7:::\ndaemon:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=1024,t=1,p=1$abababababababababababababababab$cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:19000:0:99999:7:::\nbob:!:19000:0:99999:7:::\ncarol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:\n",
+    "pw": "synthetic-pass-1\n",
+    "empty-pw": ""
+   },
+   "requires": [
+    "awk",
+    "cmp",
+    "cp",
+    "rm",
+    "mkdir",
+    "chmod",
+    "stat",
+    "grep",
+    "wc"
+   ],
+   "id": "migration-passwd-expire-last-change-field",
+   "purpose": "expire USER sets the shadow last-change field to 0 (forced change) and expire USER DAYS to DAYS, keeping every other field and row; non-numeric, ':'- or newline-bearing DAYS and missing users are refused without rewriting the database.",
+   "oracle": "passwd(5) seven-field and group(5) four-field records, shadow(5) nine fields; shadow-utils semantics as the reference for account tools: useradd(8) (-u/-g/-d/-s, numeric ids in range and not (uid_t)-1, ':' and newline invalid in fields, -g must name an existing group and then no user group is created, the default UID is an unused id >= UID_MIN 1000, a new user's shadow entry uses Debian login.defs PASS_MIN_DAYS 0, PASS_MAX_DAYS 99999, PASS_WARN_AGE 7 with last change = today), userdel(8) (removes passwd, shadow and the user's private group and the user from supplementary member lists; a missing user is an error), passwd -l/-u (prefix or remove a single '!', aging untouched, unlocking to an empty password refused, missing user an error) and chage -d (last-change field only, numeric days). Only private relative PHCLIB_* files are used. passwd -e sets the last change to 0; chage -d LAST_DAY accepts a day count and rejects other text.",
+   "comparison": "Exact status and carol's shadow row; byte comparison and row count for refused forms.",
+   "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_PASSWD=db/passwd PHCLIB_SHADOW=db/shadow PHCLIB_GROUP=db/group PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\nreset_db() { /usr/bin/rm -rf db; /usr/bin/mkdir db; /usr/bin/cp pristine/passwd pristine/group pristine/shadow db/; /usr/bin/chmod 600 db/shadow; }\nsnap() { /usr/bin/rm -rf snap; /usr/bin/cp -a db snap; }\nsame() { /usr/bin/cmp -s db/passwd snap/passwd && /usr/bin/cmp -s db/group snap/group && /usr/bin/cmp -s db/shadow snap/shadow && echo unchanged || echo changed; }\nresidue() { local n=0 f; for f in \"$1\"/* \"$1\"/.[!.]*; do [[ -e $f ]] || continue; case ${f##*/} in passwd|group|shadow) ;; *) n=$((n + 1)) ;; esac; done; echo \"$n\"; }\nrc_class() { (( $1 == 0 )) && echo 0 || echo nonzero; }\ntoday=$(( $(printf '%(%s)T' -1) / 86400 ))\nreset_db\nrow() { /usr/bin/grep '^carol:' db/shadow; }\npasswd expire carol 2> \"$HOME/err.expire\"; printf 'expire rc=%d row=[%s]\\n' \"$?\" \"$(row)\"\npasswd expire carol 19500 2> \"$HOME/err.expire-days\"; printf 'expire-days rc=%d row=[%s]\\n' \"$?\" \"$(row)\"\n/usr/bin/grep -v '^carol:' db/shadow | /usr/bin/cmp -s - <(/usr/bin/grep -v '^carol:' pristine/shadow) && o=unchanged || o=changed\nprintf 'other-rows=%s\\n' \"$o\"\nbad() { local label=$1; shift; reset_db; snap; passwd expire \"$@\" 2> \"$HOME/err.$label\"; printf '%s rc=%s files=%s rows=%d\\n' \"$label\" \"$(rc_class $?)\" \"$(same)\" \"$(/usr/bin/wc -l < db/shadow)\"; }\nbad nonnumeric carol abc\nbad colon carol 1:2\nbad newline carol $'5\\nextra:x:0:0:99999:7:::'\nbad missing-user nosuch\nbad missing-user-days nosuch 5\npasswd expire > /dev/null 2>&1; printf 'no-args rc=%d\\n' \"$?\"\npasswd expire carol 1 2 > /dev/null 2>&1; printf 'too-many rc=%d\\n' \"$?\"\nprintf 'residue=%s\\n' \"$(residue db)\"\n/usr/bin/rm -rf db snap\n",
+   "expected_status": 0,
+   "stdout": "expire rc=0 row=[carol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:0:1:90:14:30:20000:]\nexpire-days rc=0 row=[carol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19500:1:90:14:30:20000:]\nother-rows=unchanged\nnonnumeric rc=nonzero files=unchanged rows=5\ncolon rc=nonzero files=unchanged rows=5\nnewline rc=nonzero files=unchanged rows=5\nmissing-user rc=nonzero files=unchanged rows=5\nmissing-user-days rc=nonzero files=unchanged rows=5\nno-args rc=2\ntoo-many rc=2\nresidue=0\n",
+   "diagnostic_files": [
+    "err.expire",
+    "err.expire-days",
+    "err.nonnumeric",
+    "err.colon",
+    "err.newline",
+    "err.missing-user",
+    "err.missing-user-days"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 30,
+   "loadable": "passwd",
+   "covers": [
+    "passwd/account_file_mutations"
+   ],
+   "files": {
+    "pristine/passwd": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nalice:x:1000:1000:Alice:/home/alice:/bin/bash\nbob:x:1001:1001:Bob:/home/bob:/bin/bash\ncarol:x:1003:1003:Carol:/home/carol:/bin/bash\n",
+    "pristine/group": "root:x:0:\ndaemon:x:1:\nstaff:x:50:alice,carol\nusers:x:100:\nalice:x:1000:\nbob:x:1001:\ncarol:x:1003:\n",
+    "pristine/shadow": "root:*:19000:0:99999:7:::\ndaemon:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=1024,t=1,p=1$abababababababababababababababab$cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:19000:0:99999:7:::\nbob:!:19000:0:99999:7:::\ncarol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:\n",
+    "pw": "synthetic-pass-1\n",
+    "empty-pw": "",
+    "control.py": "# SPDX-License-Identifier: MIT\n# Trusted controls for the rollback faults; exits 1 (failing setup) if a\n# mechanism does not behave as the case assumes.\nimport errno, os, resource, sys\nmode, args = sys.argv[1], sys.argv[2:]\n\n\ndef die(text):\n    print(mode + \": CONTROL FAILED: \" + text)\n    sys.exit(1)\n\n\nif mode == \"readonly-dir\":\n    st = os.stat(args[0])\n    if st.st_uid != os.geteuid() or (st.st_mode & 0o777) != 0o555:\n        die(\"directory owner/mode %d/%o\" % (st.st_uid, st.st_mode & 0o777))\n    try:\n        os.close(os.open(os.path.join(args[0], \".probe\"), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))\n    except OSError as exc:\n        if exc.errno != errno.EACCES:\n            die(\"create gave %s\" % errno.errorcode.get(exc.errno))\n        print(mode + \": caller-owned 0555 directory, file creation -> EACCES\")\n    else:\n        die(\"file creation succeeded\")\nelif mode == \"fsize\":\n    lim = resource.getrlimit(resource.RLIMIT_FSIZE)[0]\n    if lim != int(args[1]):\n        die(\"RLIMIT_FSIZE %r, expected %s\" % (lim, args[1]))\n    path = os.path.join(args[0], \".fsize-probe\")\n    fd = os.open(path, os.O_CREAT | os.O_TRUNC | os.O_WRONLY, 0o600)\n    n = os.write(fd, b\"a\" * (lim + 512))\n    if n != lim:\n        die(\"write returned %d, expected short %d\" % (n, lim))\n    try:\n        os.write(fd, b\"a\")\n    except OSError as exc:\n        if exc.errno != errno.EFBIG:\n            die(\"second write gave %s\" % errno.errorcode.get(exc.errno))\n    else:\n        die(\"second write succeeded\")\n    os.close(fd)\n    os.unlink(path)\n    print(mode + \": limit %d, over-limit write short then EFBIG\" % lim)\nelif mode == \"rename-onto-dir\":\n    src = os.path.join(os.path.dirname(args[0]), \".rename-probe\")\n    open(src, \"w\").close()\n    try:\n        os.rename(src, args[0])\n    except OSError as exc:\n        if exc.errno != errno.EISDIR:\n            die(\"rename gave %s\" % errno.errorcode.get(exc.errno))\n        print(mode + \": rename(file, non-empty directory) -> EISDIR\")\n    else:\n        die(\"rename succeeded\")\n    os.unlink(src)\nelse:\n    die(\"unknown mode\")\n",
+    "big-shadow": "root:*:19000:0:99999:7:::\ndaemon:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=1024,t=1,p=1$abababababababababababababababab$cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:19000:0:99999:7:::\nbob:!:19000:0:99999:7:::\ncarol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:\nu0000:!:19000:0:99999:7:::\nu0001:!:19000:0:99999:7:::\nu0002:!:19000:0:99999:7:::\nu0003:!:19000:0:99999:7:::\nu0004:!:19000:0:99999:7:::\nu0005:!:19000:0:99999:7:::\nu0006:!:19000:0:99999:7:::\nu0007:!:19000:0:99999:7:::\nu0008:!:19000:0:99999:7:::\nu0009:!:19000:0:99999:7:::\nu0010:!:19000:0:99999:7:::\nu0011:!:19000:0:99999:7:::\nu0012:!:19000:0:99999:7:::\nu0013:!:19000:0:99999:7:::\nu0014:!:19000:0:99999:7:::\nu0015:!:19000:0:99999:7:::\nu0016:!:19000:0:99999:7:::\nu0017:!:19000:0:99999:7:::\nu0018:!:19000:0:99999:7:::\nu0019:!:19000:0:99999:7:::\nu0020:!:19000:0:99999:7:::\nu0021:!:19000:0:99999:7:::\nu0022:!:19000:0:99999:7:::\nu0023:!:19000:0:99999:7:::\nu0024:!:19000:0:99999:7:::\nu0025:!:19000:0:99999:7:::\nu0026:!:19000:0:99999:7:::\nu0027:!:19000:0:99999:7:::\nu0028:!:19000:0:99999:7:::\nu0029:!:19000:0:99999:7:::\nu0030:!:19000:0:99999:7:::\nu0031:!:19000:0:99999:7:::\nu0032:!:19000:0:99999:7:::\nu0033:!:19000:0:99999:7:::\nu0034:!:19000:0:99999:7:::\nu0035:!:19000:0:99999:7:::\nu0036:!:19000:0:99999:7:::\nu0037:!:19000:0:99999:7:::\nu0038:!:19000:0:99999:7:::\nu0039:!:19000:0:99999:7:::\nu0040:!:19000:0:99999:7:::\nu0041:!:19000:0:99999:7:::\nu0042:!:19000:0:99999:7:::\nu0043:!:19000:0:99999:7:::\nu0044:!:19000:0:99999:7:::\nu0045:!:19000:0:99999:7:::\nu0046:!:19000:0:99999:7:::\nu0047:!:19000:0:99999:7:::\nu0048:!:19000:0:99999:7:::\nu0049:!:19000:0:99999:7:::\nu0050:!:19000:0:99999:7:::\nu0051:!:19000:0:99999:7:::\nu0052:!:19000:0:99999:7:::\nu0053:!:19000:0:99999:7:::\nu0054:!:19000:0:99999:7:::\nu0055:!:19000:0:99999:7:::\nu0056:!:19000:0:99999:7:::\nu0057:!:19000:0:99999:7:::\nu0058:!:19000:0:99999:7:::\nu0059:!:19000:0:99999:7:::\nu0060:!:19000:0:99999:7:::\nu0061:!:19000:0:99999:7:::\nu0062:!:19000:0:99999:7:::\nu0063:!:19000:0:99999:7:::\nu0064:!:19000:0:99999:7:::\nu0065:!:19000:0:99999:7:::\nu0066:!:19000:0:99999:7:::\nu0067:!:19000:0:99999:7:::\nu0068:!:19000:0:99999:7:::\nu0069:!:19000:0:99999:7:::\nu0070:!:19000:0:99999:7:::\nu0071:!:19000:0:99999:7:::\nu0072:!:19000:0:99999:7:::\nu0073:!:19000:0:99999:7:::\nu0074:!:19000:0:99999:7:::\nu0075:!:19000:0:99999:7:::\nu0076:!:19000:0:99999:7:::\nu0077:!:19000:0:99999:7:::\nu0078:!:19000:0:99999:7:::\nu0079:!:19000:0:99999:7:::\nu0080:!:19000:0:99999:7:::\nu0081:!:19000:0:99999:7:::\nu0082:!:19000:0:99999:7:::\nu0083:!:19000:0:99999:7:::\nu0084:!:19000:0:99999:7:::\nu0085:!:19000:0:99999:7:::\nu0086:!:19000:0:99999:7:::\nu0087:!:19000:0:99999:7:::\nu0088:!:19000:0:99999:7:::\nu0089:!:19000:0:99999:7:::\nu0090:!:19000:0:99999:7:::\nu0091:!:19000:0:99999:7:::\nu0092:!:19000:0:99999:7:::\nu0093:!:19000:0:99999:7:::\nu0094:!:19000:0:99999:7:::\nu0095:!:19000:0:99999:7:::\nu0096:!:19000:0:99999:7:::\nu0097:!:19000:0:99999:7:::\nu0098:!:19000:0:99999:7:::\nu0099:!:19000:0:99999:7:::\nu0100:!:19000:0:99999:7:::\nu0101:!:19000:0:99999:7:::\nu0102:!:19000:0:99999:7:::\nu0103:!:19000:0:99999:7:::\nu0104:!:19000:0:99999:7:::\nu0105:!:19000:0:99999:7:::\nu0106:!:19000:0:99999:7:::\nu0107:!:19000:0:99999:7:::\nu0108:!:19000:0:99999:7:::\nu0109:!:19000:0:99999:7:::\nu0110:!:19000:0:99999:7:::\nu0111:!:19000:0:99999:7:::\nu0112:!:19000:0:99999:7:::\nu0113:!:19000:0:99999:7:::\nu0114:!:19000:0:99999:7:::\nu0115:!:19000:0:99999:7:::\nu0116:!:19000:0:99999:7:::\nu0117:!:19000:0:99999:7:::\nu0118:!:19000:0:99999:7:::\nu0119:!:19000:0:99999:7:::\nu0120:!:19000:0:99999:7:::\nu0121:!:19000:0:99999:7:::\nu0122:!:19000:0:99999:7:::\nu0123:!:19000:0:99999:7:::\nu0124:!:19000:0:99999:7:::\nu0125:!:19000:0:99999:7:::\nu0126:!:19000:0:99999:7:::\nu0127:!:19000:0:99999:7:::\nu0128:!:19000:0:99999:7:::\nu0129:!:19000:0:99999:7:::\nu0130:!:19000:0:99999:7:::\nu0131:!:19000:0:99999:7:::\nu0132:!:19000:0:99999:7:::\nu0133:!:19000:0:99999:7:::\nu0134:!:19000:0:99999:7:::\nu0135:!:19000:0:99999:7:::\nu0136:!:19000:0:99999:7:::\nu0137:!:19000:0:99999:7:::\nu0138:!:19000:0:99999:7:::\nu0139:!:19000:0:99999:7:::\nu0140:!:19000:0:99999:7:::\nu0141:!:19000:0:99999:7:::\nu0142:!:19000:0:99999:7:::\nu0143:!:19000:0:99999:7:::\nu0144:!:19000:0:99999:7:::\nu0145:!:19000:0:99999:7:::\nu0146:!:19000:0:99999:7:::\nu0147:!:19000:0:99999:7:::\nu0148:!:19000:0:99999:7:::\nu0149:!:19000:0:99999:7:::\nu0150:!:19000:0:99999:7:::\nu0151:!:19000:0:99999:7:::\nu0152:!:19000:0:99999:7:::\nu0153:!:19000:0:99999:7:::\nu0154:!:19000:0:99999:7:::\nu0155:!:19000:0:99999:7:::\nu0156:!:19000:0:99999:7:::\nu0157:!:19000:0:99999:7:::\nu0158:!:19000:0:99999:7:::\nu0159:!:19000:0:99999:7:::\nu0160:!:19000:0:99999:7:::\nu0161:!:19000:0:99999:7:::\nu0162:!:19000:0:99999:7:::\nu0163:!:19000:0:99999:7:::\nu0164:!:19000:0:99999:7:::\nu0165:!:19000:0:99999:7:::\nu0166:!:19000:0:99999:7:::\nu0167:!:19000:0:99999:7:::\nu0168:!:19000:0:99999:7:::\nu0169:!:19000:0:99999:7:::\nu0170:!:19000:0:99999:7:::\nu0171:!:19000:0:99999:7:::\nu0172:!:19000:0:99999:7:::\nu0173:!:19000:0:99999:7:::\nu0174:!:19000:0:99999:7:::\nu0175:!:19000:0:99999:7:::\nu0176:!:19000:0:99999:7:::\nu0177:!:19000:0:99999:7:::\nu0178:!:19000:0:99999:7:::\nu0179:!:19000:0:99999:7:::\nu0180:!:19000:0:99999:7:::\nu0181:!:19000:0:99999:7:::\nu0182:!:19000:0:99999:7:::\nu0183:!:19000:0:99999:7:::\nu0184:!:19000:0:99999:7:::\nu0185:!:19000:0:99999:7:::\nu0186:!:19000:0:99999:7:::\nu0187:!:19000:0:99999:7:::\nu0188:!:19000:0:99999:7:::\nu0189:!:19000:0:99999:7:::\nu0190:!:19000:0:99999:7:::\nu0191:!:19000:0:99999:7:::\nu0192:!:19000:0:99999:7:::\nu0193:!:19000:0:99999:7:::\nu0194:!:19000:0:99999:7:::\nu0195:!:19000:0:99999:7:::\nu0196:!:19000:0:99999:7:::\nu0197:!:19000:0:99999:7:::\nu0198:!:19000:0:99999:7:::\nu0199:!:19000:0:99999:7:::\nu0200:!:19000:0:99999:7:::\nu0201:!:19000:0:99999:7:::\nu0202:!:19000:0:99999:7:::\nu0203:!:19000:0:99999:7:::\nu0204:!:19000:0:99999:7:::\nu0205:!:19000:0:99999:7:::\nu0206:!:19000:0:99999:7:::\nu0207:!:19000:0:99999:7:::\nu0208:!:19000:0:99999:7:::\nu0209:!:19000:0:99999:7:::\nu0210:!:19000:0:99999:7:::\nu0211:!:19000:0:99999:7:::\nu0212:!:19000:0:99999:7:::\nu0213:!:19000:0:99999:7:::\nu0214:!:19000:0:99999:7:::\nu0215:!:19000:0:99999:7:::\nu0216:!:19000:0:99999:7:::\nu0217:!:19000:0:99999:7:::\nu0218:!:19000:0:99999:7:::\nu0219:!:19000:0:99999:7:::\n"
+   },
+   "requires": [
+    "awk",
+    "cmp",
+    "cp",
+    "rm",
+    "mkdir",
+    "chmod",
+    "stat",
+    "grep",
+    "wc",
+    "cat",
+    "python3"
+   ],
+   "id": "migration-passwd-add-fd-rollback-after-failures",
+   "purpose": "When the shadow update fails after passwd and group were rewritten (shadow directory not writable, shadow write EFBIG under RLIMIT_FSIZE, shadow rename onto a directory), add-fd fails and rolls passwd and group back to their exact previous bytes with no temporary files.",
+   "oracle": "passwd(5) seven-field and group(5) four-field records, shadow(5) nine fields; shadow-utils semantics as the reference for account tools: useradd(8) (-u/-g/-d/-s, numeric ids in range and not (uid_t)-1, ':' and newline invalid in fields, -g must name an existing group and then no user group is created, the default UID is an unused id >= UID_MIN 1000, a new user's shadow entry uses Debian login.defs PASS_MIN_DAYS 0, PASS_MAX_DAYS 99999, PASS_WARN_AGE 7 with last change = today), userdel(8) (removes passwd, shadow and the user's private group and the user from supplementary member lists; a missing user is an error), passwd -l/-u (prefix or remove a single '!', aging untouched, unlocking to an empty password refused, missing user an error) and chage -d (last-change field only, numeric days). Only private relative PHCLIB_* files are used. Account creation is all-or-nothing (useradd removes partial records on failure). setup_script proves each mechanism with independent Python: a caller-owned 0555 directory refuses file creation with EACCES; under ulimit -f 4 with SIGXFSZ ignored an over-limit write is short then EFBIG; rename(file, non-empty directory) fails EISDIR.",
+   "comparison": "Exact status class, byte comparison of all databases against a pre-call copy, absence of the new user and residue counts.",
+   "setup_script": ": > \"$HOME/control.txt\"\n/usr/bin/mkdir ro; /usr/bin/cp pristine/shadow ro/shadow; /usr/bin/chmod 600 ro/shadow; /usr/bin/chmod 555 ro\n/usr/bin/python3 -I control.py readonly-dir ro >> \"$HOME/control.txt\"\n( trap '' XFSZ; ulimit -f 4; /usr/bin/python3 -I control.py fsize \"$PWD\" 4096 >> \"$HOME/control.txt\" )\n/usr/bin/mkdir -p db2/shadow; : > db2/shadow/occupant\n/usr/bin/python3 -I control.py rename-onto-dir \"$PWD/db2/shadow\" >> \"$HOME/control.txt\"\n",
+   "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_PASSWD=db/passwd PHCLIB_SHADOW=db/shadow PHCLIB_GROUP=db/group PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\nreset_db() { /usr/bin/rm -rf db; /usr/bin/mkdir db; /usr/bin/cp pristine/passwd pristine/group pristine/shadow db/; /usr/bin/chmod 600 db/shadow; }\nsnap() { /usr/bin/rm -rf snap; /usr/bin/cp -a db snap; }\nsame() { /usr/bin/cmp -s db/passwd snap/passwd && /usr/bin/cmp -s db/group snap/group && /usr/bin/cmp -s db/shadow snap/shadow && echo unchanged || echo changed; }\nresidue() { local n=0 f; for f in \"$1\"/* \"$1\"/.[!.]*; do [[ -e $f ]] || continue; case ${f##*/} in passwd|group|shadow) ;; *) n=$((n + 1)) ;; esac; done; echo \"$n\"; }\nrc_class() { (( $1 == 0 )) && echo 0 || echo nonzero; }\ntoday=$(( $(printf '%(%s)T' -1) / 86400 ))\nreset_db\ncheck() { local label=$1 rc=$2 dir=$3\n  printf '%s rc=%s files=%s ivy=%d residue-db=%s residue-%s=%s\\n' \"$label\" \"$(rc_class \"$rc\")\" \"$(same)\" \\\n    \"$(/usr/bin/cat db/passwd db/group | /usr/bin/grep -c '^ivy:')\" \"$(residue db)\" \"${dir%%/*}\" \"$(residue \"$dir\")\"; }\nsnap\nPHCLIB_SHADOW=ro/shadow passwd add-fd ivy 3 -u 2005 -g 2005 3< pw 2> \"$HOME/err.readonly\"\ncheck readonly-shadow-dir \"$?\" ro\n/usr/bin/cmp -s ro/shadow pristine/shadow && printf 'ro-shadow=unchanged\\n' || printf 'ro-shadow=changed\\n'\nreset_db; /usr/bin/cp big-shadow db/shadow; /usr/bin/chmod 600 db/shadow; snap\n( trap '' XFSZ; ulimit -f 4; passwd add-fd ivy 3 -u 2005 -g 2005 3< pw ) 2> \"$HOME/err.efbig\"\ncheck efbig-shadow \"$?\" db\n/usr/bin/cp db/passwd \"$HOME/efbig.passwd\"; /usr/bin/cp db/group \"$HOME/efbig.group\"; /usr/bin/cp db/shadow \"$HOME/efbig.shadow\"\nreset_db; snap\nPHCLIB_SHADOW=db2/shadow passwd add-fd ivy 3 -u 2005 -g 2005 3< pw 2> \"$HOME/err.rename\"\ncheck rename-shadow-onto-dir \"$?\" db2\nprintf 'db2-shadow=%s\\n' \"$([[ -d db2/shadow && -e db2/shadow/occupant ]] && echo directory-intact || echo changed)\"\n/usr/bin/chmod 755 ro; /usr/bin/rm -rf db snap\n",
+   "expected_status": 0,
+   "stdout": "readonly-shadow-dir rc=nonzero files=unchanged ivy=0 residue-db=0 residue-ro=0\nro-shadow=unchanged\nefbig-shadow rc=nonzero files=unchanged ivy=0 residue-db=0 residue-db=0\nrename-shadow-onto-dir rc=nonzero files=unchanged ivy=0 residue-db=0 residue-db2=0\ndb2-shadow=directory-intact\n",
+   "diagnostic_files": [
+    "control.txt",
+    "err.readonly",
+    "err.efbig",
+    "err.rename",
+    "efbig.passwd",
+    "efbig.group",
+    "efbig.shadow"
+   ]
+  }
+ ]
+}

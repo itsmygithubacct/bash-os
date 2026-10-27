@@ -102,9 +102,14 @@
     },
     {
       "id": "enospc-write-failure",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise ENOSPC or a short write reported only at flush time and confirm queue/cursor retention for that failure mode.",
-      "reason": "Requires a reviewed per-process failing-writer shim or disposable VM fixture that can return ENOSPC/short writes on the fifo output stream. This suite cannot use an absolute device path, and a closed descriptor tests EBADF rather than disk-full or partial-write behavior."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-fifo-output-fault-retention"
+        }
+      ]
     },
     {
       "id": "command-substitution-copy",

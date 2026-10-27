@@ -42,25 +42,25 @@
       "id": "key-queries",
       "kind": "deferred",
       "purpose": "Compare dotted-key reads, -n/-N output, -e unknown-key handling, and -r filtering with deterministic values.",
-      "reason": "Requires a disposable VM or reviewed syscall mock providing a private /proc/sys tree and a GNU procps-ng sysctl oracle. No sysctl operation is executed under the current safety scope."
+      "reason": "Not a capability block: procps-ng 4.0.4 /usr/sbin/sysctl is in the guest image and on the legacy reference PATH, so a byte oracle exists. Read-only /proc/sys access is unprivileged; the legacy bwrap procfs exposes it. Many keys are per-namespace and deterministic in a fresh namespace, identical for both sides: kernel.hostname (bwrap sets 'parity'), kernel.domainname, net.ipv4.ip_default_ttl / net.ipv4.ip_forward in the fresh netns, fs.mqueue.msg_max and kernel.shmmni in the fresh IPC ns, kernel.ostype, kernel.osrelease. A USERNS in the plain driver owns its UTS/net/IPC namespaces, so writes to those namespaced keys are permitted and confined to it. A per-side bind mount of a fixture tree over /proc/sys, or of fixture dirs over /etc/sysctl.d and siblings, in the child's mount namespace (preflight) gives a fixed tree for both candidate and procps, which both hardcode /proc/sys. No fixture exists."
     },
     {
       "id": "recursive-dump",
       "kind": "deferred",
       "purpose": "Compare -a/-A recursive key enumeration, readable values, and treatment of unreadable entries against a small fixed tree.",
-      "reason": "Requires a disposable VM or reviewed syscall mock with a private, deterministic /proc/sys tree; enumerating the host kernel tree is outside scope."
+      "reason": "No privilege is needed, but a fixed tree requires each side to bind-mount a fixture directory over /proc/sys in its own mount namespace. Mounting needs CAP_SYS_ADMIN over that namespace: a USERNS has it, while the legacy runner disables user namespaces and plain uid 2000 gets EPERM. No fixture exists. Alternatively, restrict live dumps to a namespaced deterministic subtree with -r."
     },
     {
       "id": "argument-writes",
       "kind": "deferred",
       "purpose": "Compare -w and implicit KEY=VALUE writes, echo and -q behavior, unknown keys, and documented read-only key errors while inspecting resulting fixture values.",
-      "reason": "Requires a disposable VM or reviewed syscall mock that confines and records every /proc/sys write, plus an independent GNU procps-ng comparison. No kernel parameter writes are run here."
+      "reason": "Not a capability block. Writes to namespaced keys (kernel.hostname/domainname in an owned UTS ns, net.ipv4.* in an owned netns, fs.mqueue.* in an owned IPC ns) are allowed for root in a USERNS and die with it. Permission errors are reachable as plain uid 2000. No fixture exists."
     },
     {
       "id": "configuration-loaders",
       "kind": "deferred",
       "purpose": "Compare -p parsing of relative fixture files and --system file ordering/precedence using deterministic configuration inputs.",
-      "reason": "Both loaders ultimately write /proc/sys and --system reads standard absolute configuration locations. A disposable VM or reviewed mock must redirect both kernel files and configuration locations before this case can run safely."
+      "reason": "No privilege is needed. In a USERNS, -p with namespaced keys and fixture dirs bind-mounted over the absolute config locations are confined to the child. No fixture exists."
     }
   ]
 }

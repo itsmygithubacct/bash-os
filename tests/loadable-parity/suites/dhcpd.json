@@ -75,19 +75,19 @@
       "id": "serve-and-run-exchange",
       "kind": "deferred",
       "purpose": "Cover the serve/run path through bounded DHCPDISCOVER/OFFER and DHCPREQUEST/ACK exchanges, pool allocation, lease persistence and wrapper state-directory handling.",
-      "reason": "Requires a future disposable VM or reviewed private DHCP socket mock with an isolated client, deterministic packet capture and temporary config/lease paths. Current instructions prohibit network activity and server invocation; UDP/67 behavior is not exercised."
+      "reason": "No live server run; the serve loop is reachable on loopback with BASHDHCPD_SERVER_PORT and relay-style replies, and broadcast replies need a script-created veth pair."
     },
     {
       "id": "relay-proxy-pxe",
       "kind": "deferred",
       "purpose": "Cover giaddr-based subnet selection and reply routing, option-82 echo, ProxyDHCP on UDP/4011, and configured PXE options.",
-      "reason": "Requires a future disposable DHCP relay/client fixture or reviewed socket mock that can independently inspect giaddr, option 82, proxy replies and PXE option 43/66/67. Network activity is prohibited in this run, so these server paths are not invoked."
+      "reason": "Reply construction for giaddr, option 82 and PXE options is reachable offline through respond; reply routing and the 4011 proxy need the serve loop on loopback. No fixture exists."
     },
     {
       "id": "decline-release-and-hook",
       "kind": "deferred",
       "purpose": "Cover DECLINE quarantine, RELEASE lease removal and lease-exec commit/release environment variables without allowing an uncontrolled child command.",
-      "reason": "Requires a future disposable VM or reviewed packet/clock and child-process mock. The fixture must inject DECLINE and RELEASE packets, observe the quarantine interval deterministically, and replace lease-exec with a bounded recording stub; no packets or hook commands are run here."
+      "reason": "No serve run exists. Commit hooks are reachable offline through 'dhcpd respond' with a REQUEST; DECLINE/RELEASE need the serve loop, which runs on loopback with BASHDHCPD_* ports."
     },
     {
       "id": "parse-discover-array",

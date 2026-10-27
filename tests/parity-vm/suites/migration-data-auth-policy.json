@@ -1,0 +1,127 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 20,
+   "loadable": "auth",
+   "covers": [
+    "auth/authority-policy-audit-and-child-flow"
+   ],
+   "id": "migration-auth-policy-parse-grammar",
+   "purpose": "policy-parse accepts the sudoers subset (Defaults, aliases, runas user:group, NOPASSWD, command lists), normalizes insignificant whitespace and comments to identical records and digest, changes the digest for a semantic change, rejects malformed lines with their line number and no partial output, fails closed on @include/#include directives, does not refuse a command path merely containing 'include', and never silently drops a #uid rule.",
+   "oracle": "sudoers(5) grammar: whitespace around '=', ',', ':' and inside '( )' is insignificant; '#' starts a comment except '#include'/'#includedir' (include directives) and '#uid' user IDs; '@include'/'@includedir' are include directives; commands must be fully qualified paths; Runas is '(user:group)'; timestamp_timeout is numeric. auth's documented contract ('validate and normalize sudoers subset', includes unsupported). Self-consistency: the summary digest is the SHA-256 of the printed normalized records, checked with /usr/bin/sha256sum.",
+   "comparison": "Exact status and stdout classification lines; diagnostics matched only for the subcommand line-number key.",
+   "files": {
+    "valid.policy": "# synthetic policy for parity fixtures\nDefaults env_reset\nDefaults timestamp_timeout=5\nUser_Alias OPS = parity,carol\nRunas_Alias SVC = root,daemon\nCmnd_Alias VIEW = /usr/bin/id,/usr/bin/uptime\nparity ALL = (root) /usr/bin/true\nOPS ALL = (SVC) NOPASSWD: VIEW\ncarol ALL = (ALL:ALL) /usr/bin/date, /usr/bin/who\n",
+    "reformatted.policy": "\n   # leading comment, then a blank line\n\nDefaults\tenv_reset   # trailing comment\nDefaults timestamp_timeout = 5\nUser_Alias  OPS=parity,carol\nRunas_Alias SVC\t=\troot,daemon\n\nCmnd_Alias VIEW =/usr/bin/id,  /usr/bin/uptime\n\tparity   ALL=(root)    /usr/bin/true\nOPS ALL = ( SVC ) NOPASSWD:   VIEW\ncarol\tALL = ( ALL : ALL ) /usr/bin/date,/usr/bin/who\n",
+    "spaced.policy": "# synthetic policy for parity fixtures\nDefaults env_reset\nDefaults timestamp_timeout=5\nUser_Alias OPS = parity, carol\nRunas_Alias SVC = root, daemon\nCmnd_Alias VIEW = /usr/bin/id,/usr/bin/uptime\nparity ALL = (root) /usr/bin/true\nOPS ALL = (SVC) NOPASSWD: VIEW\ncarol ALL = (ALL:ALL) /usr/bin/date, /usr/bin/who\n",
+    "nopasswd.policy": "# synthetic policy for parity fixtures\nDefaults env_reset\nDefaults timestamp_timeout=5\nUser_Alias OPS = parity,carol\nRunas_Alias SVC = root,daemon\nCmnd_Alias VIEW = /usr/bin/id,/usr/bin/uptime\nparity ALL = (root) NOPASSWD: /usr/bin/true\nOPS ALL = (SVC) NOPASSWD: VIEW\ncarol ALL = (ALL:ALL) /usr/bin/date, /usr/bin/who\n",
+    "extra.policy": "parity ALL = (ALL) NOPASSWD: ALL\n",
+    "policy.d/extra": "parity ALL = (ALL) NOPASSWD: ALL\n",
+    "substring.policy": "# a command whose path contains the word include\nparity ALL = (root) /usr/local/bin/include-report\n",
+    "uidform.policy": "# sudoers(5) #uid user form\n#1001 ALL = (root) /usr/bin/true\n",
+    "bad-missing-eq.policy": "# rejected on line 3\n\nparity ALL (root) /usr/bin/true\n",
+    "bad-unterminated-runas.policy": "# rejected on line 3\n\nparity ALL = (root /usr/bin/true\n",
+    "bad-three-word-left.policy": "# rejected on line 3\n\nparity carol ALL = (root) /usr/bin/true\n",
+    "bad-empty-commands.policy": "# rejected on line 3\n\nparity ALL = (root)\n",
+    "bad-relative-command.policy": "# rejected on line 3\n\nparity ALL = (root) usr/bin/true\n",
+    "bad-bad-timeout.policy": "# rejected on line 3\n\nDefaults timestamp_timeout=abc\n",
+    "bad-bare-defaults.policy": "# rejected on line 3\n\nDefaults\n",
+    "bad-at-include.policy": "# rejected on line 3\n\n@include extra.policy\n",
+    "bad-at-includedir.policy": "# rejected on line 3\n\n@includedir policy.d\n",
+    "bad-hash-include.policy": "# rejected on line 3\n\n#include extra.policy\n",
+    "bad-hash-includedir.policy": "# rejected on line 3\n\n#includedir policy.d\n"
+   },
+   "script": "[[ $(type -t auth) == builtin ]] || { printf 'candidate auth builtin missing\\n'; exit 99; }\nLC_ALL=C\npp() { auth policy-parse \"$1\" > out 2> err; rc=$?; }\npp valid.policy; printf 'valid rc=%d\\n' \"$rc\"; /usr/bin/cp out valid.out\nlast=$(/usr/bin/tail -n 1 valid.out); body=$(/usr/bin/head -n -1 valid.out | /usr/bin/sha256sum)\n[[ $last =~ ^summary\\ records=([0-9]+)\\ digest_sha256=([0-9a-f]{64})$ ]] && printf 'summary=well-formed\\n' || printf 'summary=malformed\\n'\n[[ ${BASH_REMATCH[2]-} == \"${body%% *}\" ]] && printf 'digest=consistent\\n' || printf 'digest=inconsistent\\n'\n[[ ${BASH_REMATCH[1]-} == $(( $(/usr/bin/wc -l < valid.out) - 1 )) ]] && printf 'records=consistent\\n' || printf 'records=inconsistent\\n'\n[[ -s err ]] && printf 'valid-diag=yes\\n' || printf 'valid-diag=no\\n'\nfor v in reformatted spaced; do\n  pp \"$v.policy\"; /usr/bin/cmp -s out valid.out && s=same || s=differ\n  printf '%s rc=%d normalized=%s\\n' \"$v\" \"$rc\" \"$s\"\ndone\npp nopasswd.policy; [[ $(/usr/bin/tail -n 1 out) != \"$last\" ]] && s=differ || s=same\nprintf 'nopasswd rc=%d digest=%s\\n' \"$rc\" \"$s\"\nfor f in bad-*.policy; do\n  pp \"$f\"; e=$(< err) l=-\n  [[ $e =~ policy-parse:([0-9]+): ]] && l=${BASH_REMATCH[1]}\n  [[ -s out ]] && o=nonempty || o=empty\n  n=${f#bad-}; printf 'reject %s rc=%d line=%s stdout=%s\\n' \"${n%.policy}\" \"$rc\" \"$l\" \"$o\"\ndone\npp substring.policy; printf 'substring rc=%d rules=%d\\n' \"$rc\" \"$(/usr/bin/grep -c '^rule ' out)\"\npp uidform.policy\nif (( rc == 0 )) && ! /usr/bin/grep -q '^rule ' out; then printf 'uid-form=silently-dropped\\n'; else printf 'uid-form=not-dropped\\n'; fi\nauth policy-parse > /dev/null 2>&1; printf 'no-arg rc=%d\\n' \"$?\"\nauth policy-parse valid.policy valid.policy > /dev/null 2>&1; printf 'two-args rc=%d\\n' \"$?\"\nauth policy-parse absent.policy > out 2> err; printf 'absent rc=%d stdout=%s diag=%s\\n' \"$?\" \"$([[ -s out ]] && echo nonempty || echo empty)\" \"$([[ -s err ]] && echo yes || echo no)\"\n/usr/bin/rm -f out err valid.out\n",
+   "expected_status": 0,
+   "stdout": "valid rc=0\nsummary=well-formed\ndigest=consistent\nrecords=consistent\nvalid-diag=no\nreformatted rc=0 normalized=same\nspaced rc=0 normalized=same\nnopasswd rc=0 digest=differ\nreject at-include rc=1 line=3 stdout=empty\nreject at-includedir rc=1 line=3 stdout=empty\nreject bad-timeout rc=1 line=3 stdout=empty\nreject bare-defaults rc=1 line=3 stdout=empty\nreject empty-commands rc=1 line=3 stdout=empty\nreject hash-include rc=1 line=3 stdout=empty\nreject hash-includedir rc=1 line=3 stdout=empty\nreject missing-eq rc=1 line=3 stdout=empty\nreject relative-command rc=1 line=3 stdout=empty\nreject three-word-left rc=1 line=3 stdout=empty\nreject unterminated-runas rc=1 line=3 stdout=empty\nsubstring rc=0 rules=1\nuid-form=not-dropped\nno-arg rc=2\ntwo-args rc=2\nabsent rc=1 stdout=empty diag=yes\n",
+   "requires": [
+    "cp",
+    "tail",
+    "head",
+    "sha256sum",
+    "wc",
+    "cmp",
+    "grep",
+    "rm"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 20,
+   "loadable": "auth",
+   "covers": [
+    "auth/authority-policy-audit-and-child-flow"
+   ],
+   "id": "migration-auth-policy-list-caller-projection",
+   "purpose": "policy-list renders only rules that apply to the caller (direct name, User_Alias membership, ALL) in file order, expands Cmnd_Alias per entry in --long mode, carries NOPASSWD per entry, binds the projection to the same digest policy-parse reports, reads FILE or an inherited FD identically, refuses another user's projection to a non-root caller, renders empty and no-match policies as an empty projection, and prints nothing for an invalid policy.",
+   "oracle": "sudoers(5) user matching (user name, User_Alias, ALL, %group via the group database; a nonexistent group matches nobody), sudo(8) -l semantics (lists the invoking user's entries; -U other user needs privilege; listing order follows the policy), and auth's documented 'list caller-filtered sudoers projection' with policy-parse's digest. The VM's uid 2000 account is parity.",
+   "comparison": "Exact status and projection lines extracted by an in-script awk; the record key names are auth's documented output keys.",
+   "files": {
+    "list.policy": "User_Alias OPS = parity,carol\nCmnd_Alias VIEW = /usr/bin/id,/usr/bin/uptime\nparity ALL = (root) /usr/bin/true\nOPS ALL = (root) NOPASSWD: VIEW\nALL ALL = (root) /usr/bin/date\nbob ALL = (root) /usr/bin/false\n%bashosnosuchgrp ALL = (root) /usr/bin/env\n",
+    "empty.policy": "",
+    "nomatch.policy": "bob ALL = (root) /usr/bin/false\n",
+    "invalid.policy": "parity ALL = (root) /usr/bin/true\nparity ALL (root) /usr/bin/id\n"
+   },
+   "script": "[[ $(type -t auth) == builtin ]] || { printf 'candidate auth builtin missing\\n'; exit 99; }\nprintf 'caller=%s\\n' \"$(/usr/bin/id -un)\"\nauth policy-list list.policy > short 2> err; printf 'short rc=%d list-lines=%d diag=%s\\n' \"$?\" \"$(/usr/bin/grep -c '^list ' short)\" \"$([[ -s err ]] && echo yes || echo no)\"\n[[ $(/usr/bin/tail -n 1 short) =~ ^summary\\ entries=([0-9]+)\\ digest_sha256=([0-9a-f]{64})$ ]] && printf 'short-entries=%s\\n' \"${BASH_REMATCH[1]}\" || printf 'short-summary=malformed\\n'\nld=${BASH_REMATCH[2]-}\nauth policy-parse list.policy > parsed 2> /dev/null\n[[ $(/usr/bin/tail -n 1 parsed) == *\"digest_sha256=$ld\" && -n $ld ]] && printf 'digest=bound\\n' || printf 'digest=unbound\\n'\nauth policy-list list.policy --long > long 2> /dev/null; printf 'long rc=%d\\n' \"$?\"\n/usr/bin/awk '$1 == \"entry\" { c = \"\"; n = \"\"; for (i = 2; i <= NF; i++) { if ($i ~ /^cmd=/) c = substr($i, 5); if ($i ~ /^nopasswd=/) n = substr($i, 10) } print \"entry \" c \" nopasswd=\" n }' long\n[[ $(/usr/bin/tail -n 1 long) =~ ^summary\\ entries=([0-9]+) ]] && printf 'long-entries=%s\\n' \"${BASH_REMATCH[1]}\" || printf 'long-summary=malformed\\n'\n/usr/bin/grep -Eq '/usr/bin/(false|env)' short long && printf 'foreign=listed\\n' || printf 'foreign=absent\\n'\nauth policy-list list.policy --user \"$(/usr/bin/id -un)\" > self; /usr/bin/cmp -s self short && printf 'self-user=same\\n' || printf 'self-user=differ\\n'\nauth policy-list 3 3< list.policy > viafd; /usr/bin/cmp -s viafd short && printf 'fd=same\\n' || printf 'fd=differ\\n'\nauth policy-list list.policy --user carol > other 2> err; printf 'other-user rc=%d stdout=%s diag=%s\\n' \"$?\" \"$([[ -s other ]] && echo nonempty || echo empty)\" \"$([[ -s err ]] && echo yes || echo no)\"\nfor p in empty nomatch; do\n  auth policy-list \"$p.policy\" > out 2> /dev/null; rc=$?\n  printf '%s rc=%d lines=%d last=%s\\n' \"$p\" \"$rc\" \"$(/usr/bin/wc -l < out)\" \"$(/usr/bin/tail -n 1 out | /usr/bin/cut -d' ' -f1,2)\"\ndone\nauth policy-list invalid.policy > out 2> /dev/null; printf 'invalid rc=%d stdout=%s\\n' \"$?\" \"$([[ -s out ]] && echo nonempty || echo empty)\"\nauth policy-list list.policy --user > /dev/null 2>&1; printf 'user-missing rc=%d\\n' \"$?\"\nauth policy-list > /dev/null 2>&1; printf 'no-path rc=%d\\n' \"$?\"\nauth policy-list list.policy list.policy > /dev/null 2>&1; printf 'two-paths rc=%d\\n' \"$?\"\n/usr/bin/rm -f short long parsed self viafd other out err\n",
+   "expected_status": 0,
+   "stdout": "caller=parity\nshort rc=0 list-lines=3 diag=no\nshort-entries=3\ndigest=bound\nlong rc=0\nentry /usr/bin/true nopasswd=0\nentry /usr/bin/id nopasswd=1\nentry /usr/bin/uptime nopasswd=1\nentry /usr/bin/date nopasswd=0\nlong-entries=4\nforeign=absent\nself-user=same\nfd=same\nother-user rc=1 stdout=empty diag=yes\nempty rc=0 lines=1 last=summary entries=0\nnomatch rc=0 lines=1 last=summary entries=0\ninvalid rc=1 stdout=empty\nuser-missing rc=2\nno-path rc=2\ntwo-paths rc=2\n",
+   "requires": [
+    "id",
+    "grep",
+    "tail",
+    "awk",
+    "cmp",
+    "wc",
+    "cut",
+    "rm"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 20,
+   "loadable": "auth",
+   "covers": [
+    "auth/authority-policy-audit-and-child-flow"
+   ],
+   "id": "migration-auth-policy-fnmatch-pathname",
+   "purpose": "Command-path glob matching follows pathname rules: '*', '?' and bracket expressions never match '/', '!' negates a bracket, a leading ']' and a trailing '-' are literal in a bracket, backslash quotes, and the whole path must match.",
+   "oracle": "sudoers(5): wildcards in a command path do not match '/' (sudo matches with fnmatch(3) FNM_PATHNAME); POSIX fnmatch bracket rules. Each vector is also computed in the guest by glibc fnmatch(pattern, path, FNM_PATHNAME) through /usr/bin/python3 ctypes, printed as ref.",
+   "comparison": "Exact candidate stdout, status (0 match, 1 no match, 2 usage) and the glibc reference value per vector.",
+   "script": "[[ $(type -t auth) == builtin ]] || { printf 'candidate auth builtin missing\\n'; exit 99; }\nref() { /usr/bin/python3 -I -c 'import ctypes, sys\nlibc = ctypes.CDLL(\"libc.so.6\")\nprint(1 if libc.fnmatch(sys.argv[1].encode(), sys.argv[2].encode(), 1) == 0 else 0)' \"$1\" \"$2\"; }\nv() { local c; c=$(auth policy-fnmatch \"$1\" \"$2\" 2> /dev/null); local rc=$?\n  printf '%s %s cand=[%s] rc=%d ref=%s\\n' \"$1\" \"$2\" \"$c\" \"$rc\" \"$(ref \"$1\" \"$2\")\"; }\nv '/usr/bin/*' '/usr/bin/id'\nv '/usr/bin/*' '/usr/bin/sub/id'\nv '/usr/*/id' '/usr/bin/id'\nv '/usr/bin/*d' '/usr/bin/id'\nv '*' '/usr/bin/id'\nv '/usr/bin/?d' '/usr/bin/id'\nv '/usr?bin' '/usr/bin'\nv '/usr[/]bin' '/usr/bin'\nv '/usr/bin/[a-c]at' '/usr/bin/cat'\nv '/usr/bin/[a-c]at' '/usr/bin/dat'\nv '/usr/bin/[!a-c]at' '/usr/bin/dat'\nv '/usr/bin/[!a-c]at' '/usr/bin/cat'\nv '/usr/bin/[]]x' '/usr/bin/]x'\nv '/usr/bin/[a-]x' '/usr/bin/-x'\nv '/usr/bin/\\*' '/usr/bin/*'\nv '/usr/bin/\\*' '/usr/bin/x'\nv '/usr/bin/id' '/usr/bin/idx'\nv '/usr/bin/id' '/usr/bin/id'\nauth policy-fnmatch '/usr/bin/*' > /dev/null 2>&1; printf 'one-arg rc=%d\\n' \"$?\"\nauth policy-fnmatch a b c > /dev/null 2>&1; printf 'three-args rc=%d\\n' \"$?\"\n",
+   "expected_status": 0,
+   "stdout": "/usr/bin/* /usr/bin/id cand=[match=1] rc=0 ref=1\n/usr/bin/* /usr/bin/sub/id cand=[match=0] rc=1 ref=0\n/usr/*/id /usr/bin/id cand=[match=1] rc=0 ref=1\n/usr/bin/*d /usr/bin/id cand=[match=1] rc=0 ref=1\n* /usr/bin/id cand=[match=0] rc=1 ref=0\n/usr/bin/?d /usr/bin/id cand=[match=1] rc=0 ref=1\n/usr?bin /usr/bin cand=[match=0] rc=1 ref=0\n/usr[/]bin /usr/bin cand=[match=0] rc=1 ref=0\n/usr/bin/[a-c]at /usr/bin/cat cand=[match=1] rc=0 ref=1\n/usr/bin/[a-c]at /usr/bin/dat cand=[match=0] rc=1 ref=0\n/usr/bin/[!a-c]at /usr/bin/dat cand=[match=1] rc=0 ref=1\n/usr/bin/[!a-c]at /usr/bin/cat cand=[match=0] rc=1 ref=0\n/usr/bin/[]]x /usr/bin/]x cand=[match=1] rc=0 ref=1\n/usr/bin/[a-]x /usr/bin/-x cand=[match=1] rc=0 ref=1\n/usr/bin/\\* /usr/bin/* cand=[match=1] rc=0 ref=1\n/usr/bin/\\* /usr/bin/x cand=[match=0] rc=1 ref=0\n/usr/bin/id /usr/bin/idx cand=[match=0] rc=1 ref=0\n/usr/bin/id /usr/bin/id cand=[match=1] rc=0 ref=1\none-arg rc=2\nthree-args rc=2\n",
+   "requires": [
+    "python3"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 20,
+   "loadable": "auth",
+   "covers": [
+    "auth/device-abi-and-fd-lifecycle"
+   ],
+   "id": "migration-auth-device-absent-fails-closed",
+   "purpose": "With no /dev/bashos-auth in the guest kernel, probe, privcmd-probe and open fail with a diagnostic naming the device, print nothing, bind no FDVAR and leak no descriptor; usage errors stay status 2. This is the absent-device obligation only; the VERSION ioctl, fd counters and slot cleanup remain a genuine capability gap.",
+   "oracle": "auth's documented contract (probe prints abi=MAJOR.MINOR features=0xHEX from the device; open binds the device fd into FDVAR) and fail-closed behaviour: open(2) of a missing path fails with ENOENT, so nothing may be printed or bound. Status 2 for usage errors, 1 for operational failure.",
+   "comparison": "Exact status, stdout presence, FDVAR binding and descriptor count of the shell process before and after.",
+   "script": "[[ $(type -t auth) == builtin ]] || { printf 'candidate auth builtin missing\\n'; exit 99; }\n[[ -e /dev/bashos-auth ]] && printf 'device=present\\n' || printf 'device=absent\\n'\nnfd() { nopen=0; local i; for ((i = 3; i < 64; i++)); do { : >&\"$i\"; } 2> /dev/null && ((nopen++)); done; }\nnfd; before=$nopen\nauth probe > out 2> err; printf 'probe rc=%d stdout=%s diag-names-device=%s\\n' \"$?\" \"$([[ -s out ]] && echo nonempty || echo empty)\" \"$([[ $(< err) == *\"/dev/bashos-auth\"* ]] && echo yes || echo no)\"\nauth privcmd-probe > out 2> err; printf 'privcmd-probe rc=%d stdout=%s diag=%s\\n' \"$?\" \"$([[ -s out ]] && echo nonempty || echo empty)\" \"$([[ -s err ]] && echo yes || echo no)\"\nauth privcmd-probe extra > /dev/null 2>&1; printf 'privcmd-probe-extra rc=%d\\n' \"$?\"\nunset authfd; auth open authfd 2> err; printf 'open rc=%d bound=%s diag=%s\\n' \"$?\" \"${authfd+yes}\" \"$([[ -s err ]] && echo yes || echo no)\"\nauth open > /dev/null 2>&1; printf 'open-no-var rc=%d\\n' \"$?\"\nnfd; [[ $before == \"$nopen\" ]] && printf 'fds=unchanged\\n' || printf 'fds=changed\\n'\nauth > /dev/null 2>&1; printf 'no-subcommand rc=%d\\n' \"$?\"\nauth bogus > /dev/null 2> err; printf 'unknown rc=%d diag=%s\\n' \"$?\" \"$([[ -s err ]] && echo yes || echo no)\"\nauth --help > out 2> /dev/null; printf 'help rc=%d first=[%s]\\n' \"$?\" \"$(/usr/bin/head -n 1 out)\"\n/usr/bin/rm -f out err\n",
+   "expected_status": 0,
+   "stdout": "device=absent\nprobe rc=1 stdout=empty diag-names-device=yes\nprivcmd-probe rc=1 stdout=empty diag=yes\nprivcmd-probe-extra rc=2\nopen rc=1 bound= diag=yes\nopen-no-var rc=2\nfds=unchanged\nno-subcommand rc=2\nunknown rc=2 diag=yes\nhelp rc=0 first=[Talk to /dev/bashos-auth - kernel-mediated authority tokens.]\n",
+   "requires": [
+    "head",
+    "rm"
+   ]
+  }
+ ]
+}

@@ -115,13 +115,13 @@
       "id": "interactive-browser-pty",
       "kind": "deferred",
       "purpose": "Exercise keyboard navigation, sorting, descent/ascent, and screen restoration in the interactive browser.",
-      "reason": "Requires an isolated PTY driver with fixed terminal dimensions and a bounded key stream. The supplied runner starts fixtures with stdin disconnected and has no PTY fixture; run only in a future disposable VM or an independently reviewed PTY mock."
+      "reason": "Never executed. The PTY driver already provides keys, screen and termios checks, and ncdu is not installed in the reference image, so this is contract work."
     },
     {
       "id": "one-filesystem-boundary",
       "kind": "deferred",
       "purpose": "Verify that -x stops recursion when a nested directory is on a different device.",
-      "reason": "A meaningful fixture needs two distinct st_dev values. Creating that boundary requires a private mount or a reviewed stat mock, neither of which the runner provides; defer to a future disposable VM with a dedicated fixture filesystem."
+      "reason": "Never executed. A second st_dev is reachable unprivileged: an unprivileged user+mount namespace (unshare -Urm) may mount a tmpfs on a fixture subdirectory. GNU du -x in the same namespace is the parity oracle."
     },
     {
       "id": "missing-not-directory",

@@ -139,7 +139,7 @@
       "id": "process-and-native-effects",
       "kind": "deferred",
       "purpose": "Exercise Perl system/exec calls, signal handling, arbitrary descriptor changes, or native XS code that can affect the embedding Bash process.",
-      "reason": "A future disposable VM should provide a dedicated child-process fixture and syscall or XS mocks that record the requested process effects without launching host commands, signaling unrelated processes, changing host state, or loading an unreviewed extension."
+      "reason": "bashperl is an optional module and was not built into either qualified binary (both builds report 'loadable is not present'), so none of its legacy cases, including the ten runnable ones, executed. No fixture exists for the process, signal, descriptor or XS obligations."
     }
   ]
 }

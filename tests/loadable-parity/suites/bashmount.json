@@ -104,19 +104,19 @@
       "id": "defer_mount_syscall",
       "kind": "deferred",
       "purpose": "Exercise plain typed mounts, option flag mapping, and filesystem-specific data forwarding.",
-      "reason": "Requires a disposable VM with a dedicated mount namespace and disposable tmpfs target, or a reviewed mount(2) mock that records source, target, type, flags, and data. The fixture must verify successful tmpfs mount effects and option combinations such as ro,nosuid,size=64k without touching host mounts."
+      "reason": "Missing fixture. No executed case attempts a mount. In the existing drivers uid 2000 gets EPERM from mount(2), but a fresh user plus mount namespace (USERNS) gives namespace-scoped CAP_SYS_ADMIN, enough for tmpfs mounts, binds, remounts and lazy unmounts of mounts created there. Locked-flag rules apply only to mounts inherited from the parent namespace, so use fresh tmpfs mounts."
     },
     {
       "id": "defer_bind_remount",
       "kind": "deferred",
       "purpose": "Exercise bind, recursive bind, and remount behavior including read-only follow-up remount handling.",
-      "reason": "Requires a disposable VM with nested fixture mountpoints in a private mount namespace, or a reviewed syscall mock that records both mount(2) calls and their flags. Verify -B, -R, --remount, and bind plus ro semantics without changing host mounts."
+      "reason": "Missing fixture. No executed case attempts a mount. In the existing drivers uid 2000 gets EPERM from mount(2), but a fresh user plus mount namespace (USERNS) gives namespace-scoped CAP_SYS_ADMIN, enough for tmpfs mounts, binds, remounts and lazy unmounts of mounts created there. Locked-flag rules apply only to mounts inherited from the parent namespace, so use fresh tmpfs mounts."
     },
     {
       "id": "defer_umount_flags",
       "kind": "deferred",
       "purpose": "Exercise ordinary, lazy, and force unmount flag mapping and observable cleanup.",
-      "reason": "Requires a disposable VM with disposable private-namespace mounts, or a reviewed umount2(2) mock that records flags. Verify normal, -l/MNT_DETACH, and -f/MNT_FORCE calls and cleanup/error behavior; no unmount operation is run in this suite."
+      "reason": "Missing fixture. No executed case attempts a mount. In the existing drivers uid 2000 gets EPERM from mount(2), but a fresh user plus mount namespace (USERNS) gives namespace-scoped CAP_SYS_ADMIN, enough for tmpfs mounts, binds, remounts and lazy unmounts of mounts created there. Locked-flag rules apply only to mounts inherited from the parent namespace, so use fresh tmpfs mounts. A real MNT_FORCE needs initial-namespace CAP_SYS_ADMIN, so its flag mapping is captured with SECCOMP-NOTIFY instead."
     },
     {
       "id": "mountpoint-private-directory",

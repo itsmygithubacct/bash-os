@@ -40,31 +40,31 @@
       "id": "ping-ipv4-echo-matching",
       "kind": "deferred",
       "purpose": "Exercise IPv4 echo request construction, exact reply identity and payload matching, output accounting, and success status with one deterministic matching reply.",
-      "reason": "Requires a reviewed syscall-mock fixture that intercepts socket, send/receive, and monotonic-clock calls and injects an RFC 792 reply, or a disposable VM with an isolated mock peer. The future fixture must assert the generated request and reply bytes and must not contact a real target."
+      "reason": "No executed case pings. Inside the VM as root, 127.0.0.1 answers echo requests from the kernel, and tcpdump can capture the exchange."
     },
     {
       "id": "ping-ipv6-echo-codec",
       "kind": "deferred",
       "purpose": "Exercise IPv6 echo request/reply type, sequence and payload matching, source validation, and successful accounting.",
-      "reason": "Requires a reviewed ICMPv6 syscall mock that supplies a deterministic matching reply and clock values, or a disposable VM with a mock peer. The future fixture must keep all packet handling in the mock and validate the expected ICMPv6 bytes without network activity."
+      "reason": "No executed case pings ::1. The VM has IPv6 loopback; a private netns gives a deterministic topology."
     },
     {
       "id": "ping-deadline-timeout-quiet",
       "kind": "deferred",
       "purpose": "Exercise no-reply timeout accounting, quiet summary-only output, and an overall deadline that ends a multi-probe request with the documented failure status.",
-      "reason": "Requires a deterministic socket/poll mock and monotonic-clock mock to model replies, timeouts, inter-probe waits, and deadline expiry. Run only under a disposable VM or the reviewed mocks; no live network operation is permitted."
+      "reason": "No executed fixture creates a non-answering destination. Stale 'no network' reason is obsolete: the VM script can create a private netns with a blackhole route as root."
     },
     {
       "id": "ping-option-boundaries",
       "kind": "deferred",
       "purpose": "Exercise documented minimum/maximum numeric values and representative malformed or out-of-range -c, -W, -w, and -i arguments, checking usage status and that invalid values do not proceed to resolution or socket creation.",
-      "reason": "Requires a future syscall-mocked candidate fixture that records getaddrinfo/socket calls and confirms none occur for invalid arguments. Execute it only in the disposable mock environment; this suite does not invoke the operation entry point."
+      "reason": "No executed case. Rejection paths need no network, so plain cases suffice; proving 'no resolution/socket' needs an observer the script can install itself."
     },
     {
       "id": "ping-traceroute-ttl",
       "kind": "deferred",
       "purpose": "Exercise -T UDP probe TTL progression, per-hop timeout output, hop-exceeded handling, destination-unreachable termination, and reached/unreached exit status.",
-      "reason": "Requires a reviewed UDP/ICMP syscall mock that returns deterministic hop-exceeded and terminal responses and records the requested TTL values, or a disposable VM with an isolated mock router. No routing change, real peer, or network packet is allowed in this suite."
+      "reason": "No executed case. A multi-hop topology can be built by the script as VM root with network namespaces and veth pairs with forwarding enabled."
     }
   ]
 }

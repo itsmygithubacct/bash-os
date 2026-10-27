@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-script-record-resize",
+      "loadable": "script",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "script/interactive-resize-deferred"
+      ],
+      "purpose": "script record relays typed input to the recorded child, puts the outer terminal in raw/no-echo mode while recording and restores it, gives the inner pty the initial 24x80 size, and propagates a 30x100 resize to the inner pty while recording it as an advanced-timing SIGWINCH event and an asciinema 'r' event",
+      "oracle": "contract: loadables/script.c record (help: 'Spawn CMD on a pty; record streams'; -m advanced timing 'S <delay> SIGWINCH ROWS= COLS=' and 'H' headers; asciinema v2 header and [t, \"r\", \"COLSxROWS\"] events) and util-linux script(1) advanced-timing format",
+      "comparison": "semantic: inner 'stty size' output seen on the outer terminal before and after the resize; exact input log; timing/cast lines matched by format-anchored patterns in-script (times vary); termios checked during recording and fully restored after",
+      "requires": [
+        "grep",
+        "stty"
+      ],
+      "timeout": 20,
+      "script": "script record -m advanced -c '/usr/bin/stty size; read -r l; printf \"<%s>\\n\" \"$l\"; /usr/bin/stty size' -O out -I in -T tim -A cast\nprintf '%s\\n' \"$?\" > status\ng=/usr/bin/grep\n{\n$g -qx 'H 0.000000 COLUMNS 80' tim && echo tim-cols-80\n$g -qx 'H 0.000000 LINES 24' tim && echo tim-lines-24\n$g -Eq '^S [0-9]+\\.[0-9]{6} SIGWINCH ROWS=30 COLS=100$' tim && echo tim-sigwinch-30x100\n$g -Eq '^I [0-9]+\\.[0-9]{6} [1-9][0-9]*$' tim && echo tim-input-event\nIFS= read -r head < cast\n[[ $head =~ ^\\{\\\"version\\\":2,\\\"width\\\":80,\\\"height\\\":24,\\\"timestamp\\\":[0-9]+\\}$ ]] && echo cast-header-80x24\n$g -Eq '^\\[[0-9]+\\.[0-9]{6}, \"r\", \"100x30\"\\]$' cast && echo cast-resize-100x30\no=$(<out)\n[[ $o == *'24 80'*'<hi>'*'30 100'* ]] && echo out-sizes-and-line\n} > checks\nrm -f tim cast out",
+      "steps": [
+        {
+          "expect": "24 80\\r\\n"
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "resize": [
+            30,
+            100
+          ]
+        },
+        {
+          "settle_ms": 300
+        },
+        {
+          "send": "hi\r"
+        },
+        {
+          "expect": "<hi>\\r\\n"
+        },
+        {
+          "expect": "30 100\\r\\n"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "status": "0\n",
+        "in": "hi\r",
+        "checks": "tim-cols-80\ntim-lines-24\ntim-sigwinch-30x100\ntim-input-event\ncast-header-80x24\ncast-resize-100x30\nout-sizes-and-line\n"
+      }
+    }
+  ]
+}

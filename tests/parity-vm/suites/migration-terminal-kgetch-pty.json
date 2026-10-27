@@ -1,0 +1,74 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "id": "migration-kgetch-total-cap-pty-default",
+   "loadable": "kgetch",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Private PTY feed: with the shell's stdin on the raw slave of a helper-owned pty, a valid 63-byte prefix dripped into the master every 20 ms (inside the 50 ms slice) cannot extend the first read beyond the default 400 ms cap: it returns 'esc 27' 380-750 ms after the ESC write; the remaining dripped bytes and the final 'Z' are decoded by later reads from the same terminal, and the master close afterwards gives 'none 0'.",
+   "script": "unset BASHESCDELAY BASHKGETCH_ESCDELAY\nexport BASHKGETCH_TERMINFO=$PWD/long.ti\n/usr/bin/python3 ptyfeed.py \"$BASH\" run 40 380 750 > run/helper\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "kgetch/read-sequence-total-cap"
+   ],
+   "oracle": "kgetch help text (kgetch.c kgetch_doc): ESC-prefixed matching has total cap max(400 ms, ESCDELAY*8); ESC grace 50 ms; BASHESCDELAY or BASHKGETCH_ESCDELAY sets ESCDELAY; BASHKGETCH_TERMINFO names a key_*=sequence fixture layered over the ANSI table; read prints 'NAME CODE' (esc 27, char N, none 0 at EOF).",
+   "comparison": "contract, semantic timing predicate on a private PTY: exact first-read token; helper-measured window 380-750 ms from the ESC write to the read's return marker; later reads give at least 5 'char 49' then exactly 'char 90' and 'none 0'. The split point is timing-dependent and not compared.",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "timeout": 30,
+   "files": {
+    "ptyfeed.py": "import os, select, signal, subprocess, sys, time, tty\n# Private PTY feeder for kgetch: the candidate shell reads its stdin from the raw slave of a\n# pty this helper owns; the helper drips a long valid prefix into the master only after the\n# shell is observed blocked in its first read, and times that read from the ESC write to the\n# shell's FIRST-DONE marker. The child stays in this session (the pty cannot become its\n# controlling terminal) and ignores SIGHUP; the master is closed only after 'char 90' was read.\nCHILD = r\"\"\"\ncd \"$1\" || exit 1\nprintf 'FEED-READY\\n'\nkgetch read > first; printf 'FIRST-DONE\\n'\n: > rest; i=0\nwhile (( i < 100 )); do\n  kgetch read > one; IFS= read -r line < one\n  printf '%s\\n' \"$line\" >> rest\n  [[ $line == 'char 90' ]] && printf 'GOT-Z\\n'\n  [[ $line == 'none 0' ]] && break\n  i=$((i+1))\ndone\nones=0 other=''\nwhile IFS= read -r line; do\n  if [[ $line == 'char 49' && -z $other ]]; then ones=$((ones+1)); else other+=\"$line;\"; fi\ndone < rest\nif (( ones >= 5 && ones + 2 <= $2 )); then echo ones-after-cap-ok; else echo \"ones-bad $ones\"; fi > remainder\nprintf '%s\\n' \"$other\" > tail\n\"\"\"\nshell, where, n, lo, hi = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), int(sys.argv[5])\nout, seen, marks = [], b'', {}\n\ndef hup_ignored():\n    signal.signal(signal.SIGHUP, signal.SIG_IGN)\n\ndef pump(until, want=None):\n    global seen\n    while True:\n        left = until - time.monotonic()\n        if left <= 0 or (want and want in seen):\n            return want is None or want in seen\n        if select.select([master], [], [], min(left, 0.005))[0]:\n            try:\n                seen += os.read(master, 4096)\n            except OSError:\n                return False\n            for m in (b'FIRST-DONE', b'GOT-Z'):\n                if m in seen and m not in marks:\n                    marks[m] = time.monotonic()\n\nmaster, slave = os.openpty()\ntty.setraw(slave)\nchild = subprocess.Popen([shell, '--noprofile', '--norc', '-c', CHILD, 'kgetch-feed', where, str(n)],\n                         stdin=slave, stdout=slave, stderr=slave, close_fds=True, preexec_fn=hup_ignored)\nos.close(slave)\ndeadline = time.monotonic() + 15\nready = False\nif pump(deadline, b'FEED-READY'):\n    run, last = 0, None\n    while run < 5 and time.monotonic() < deadline:\n        try:\n            state = open('/proc/%d/stat' % child.pid).read().rsplit(')', 1)[1].split()[0]\n        except OSError:\n            break\n        try:\n            sc = open('/proc/%d/syscall' % child.pid).read().split()[0]\n        except OSError:\n            sc = None\n        ok = state == 'S' and sc != 'running' and (last is None or sc == last)\n        run, last = (run + 1, sc) if ok else (0, None)\n        time.sleep(0.02)\n    ready = run >= 5\nout.append('ready blocked' if ready else 'not-ready')\nif ready:\n    t_esc = time.monotonic()\n    os.write(master, b'\\x1b[')\n    for i in range(n):\n        pump(t_esc + 0.02 * (i + 1))\n        os.write(master, b'1')\n    pump(time.monotonic() + 0.3)\n    os.write(master, b'Z')\n    pump(time.monotonic() + 10, b'GOT-Z')\n    if b'FIRST-DONE' in marks:\n        ms = int((marks[b'FIRST-DONE'] - t_esc) * 1000)\n        out.append('first-read window-ok' if lo <= ms <= hi else 'first-read window-bad %d' % ms)\n    else:\n        out.append('first-read not-observed')\n    out.append('got-z' if b'GOT-Z' in marks else 'no-z')\nos.close(master)\nout.append('master-closed')\ntry:\n    status = child.wait(timeout=10)\nexcept subprocess.TimeoutExpired:\n    child.kill(); status = child.wait(); out.append('killed-after-timeout')\nout.append('child-exit %d' % status)\nprint('\\n'.join(out))\n",
+    "long.ti": "# private fixture: a 63-byte sequence so a slow prefix cannot complete before the cap\nkey_f5=\\E[111111111111111111111111111111111111111111111111111111111111~\n",
+    "run/.keep": ""
+   },
+   "expected_files": {
+    "run/first": "esc 27\n",
+    "run/helper": "ready blocked\nfirst-read window-ok\ngot-z\nmaster-closed\nchild-exit 0\n",
+    "run/remainder": "ones-after-cap-ok\n",
+    "run/tail": "char 90;none 0;\n"
+   }
+  },
+  {
+   "id": "migration-kgetch-total-cap-pty-escdelay",
+   "loadable": "kgetch",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Private PTY feed as the default case with BASHESCDELAY=100 (then BASHKGETCH_ESCDELAY=100 with BASHESCDELAY unset): the cap becomes 800 ms, so the first read returns 'esc 27' 780-1150 ms after the ESC write and later reads decode the rest.",
+   "script": "export BASHKGETCH_TERMINFO=$PWD/long.ti\nexport BASHESCDELAY=100\n/usr/bin/python3 ptyfeed.py \"$BASH\" a 60 780 1150 > a/helper\nunset BASHESCDELAY; export BASHKGETCH_ESCDELAY=100\n/usr/bin/python3 ptyfeed.py \"$BASH\" b 60 780 1150 > b/helper\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "kgetch/read-sequence-total-cap"
+   ],
+   "oracle": "kgetch help text (kgetch.c kgetch_doc): ESC-prefixed matching has total cap max(400 ms, ESCDELAY*8); ESC grace 50 ms; BASHESCDELAY or BASHKGETCH_ESCDELAY sets ESCDELAY; BASHKGETCH_TERMINFO names a key_*=sequence fixture layered over the ANSI table; read prints 'NAME CODE' (esc 27, char N, none 0 at EOF).",
+   "comparison": "contract, semantic timing predicate on a private PTY: as the default case with an 800 ms cap for each variable",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "timeout": 40,
+   "files": {
+    "ptyfeed.py": "import os, select, signal, subprocess, sys, time, tty\n# Private PTY feeder for kgetch: the candidate shell reads its stdin from the raw slave of a\n# pty this helper owns; the helper drips a long valid prefix into the master only after the\n# shell is observed blocked in its first read, and times that read from the ESC write to the\n# shell's FIRST-DONE marker. The child stays in this session (the pty cannot become its\n# controlling terminal) and ignores SIGHUP; the master is closed only after 'char 90' was read.\nCHILD = r\"\"\"\ncd \"$1\" || exit 1\nprintf 'FEED-READY\\n'\nkgetch read > first; printf 'FIRST-DONE\\n'\n: > rest; i=0\nwhile (( i < 100 )); do\n  kgetch read > one; IFS= read -r line < one\n  printf '%s\\n' \"$line\" >> rest\n  [[ $line == 'char 90' ]] && printf 'GOT-Z\\n'\n  [[ $line == 'none 0' ]] && break\n  i=$((i+1))\ndone\nones=0 other=''\nwhile IFS= read -r line; do\n  if [[ $line == 'char 49' && -z $other ]]; then ones=$((ones+1)); else other+=\"$line;\"; fi\ndone < rest\nif (( ones >= 5 && ones + 2 <= $2 )); then echo ones-after-cap-ok; else echo \"ones-bad $ones\"; fi > remainder\nprintf '%s\\n' \"$other\" > tail\n\"\"\"\nshell, where, n, lo, hi = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), int(sys.argv[5])\nout, seen, marks = [], b'', {}\n\ndef hup_ignored():\n    signal.signal(signal.SIGHUP, signal.SIG_IGN)\n\ndef pump(until, want=None):\n    global seen\n    while True:\n        left = until - time.monotonic()\n        if left <= 0 or (want and want in seen):\n            return want is None or want in seen\n        if select.select([master], [], [], min(left, 0.005))[0]:\n            try:\n                seen += os.read(master, 4096)\n            except OSError:\n                return False\n            for m in (b'FIRST-DONE', b'GOT-Z'):\n                if m in seen and m not in marks:\n                    marks[m] = time.monotonic()\n\nmaster, slave = os.openpty()\ntty.setraw(slave)\nchild = subprocess.Popen([shell, '--noprofile', '--norc', '-c', CHILD, 'kgetch-feed', where, str(n)],\n                         stdin=slave, stdout=slave, stderr=slave, close_fds=True, preexec_fn=hup_ignored)\nos.close(slave)\ndeadline = time.monotonic() + 15\nready = False\nif pump(deadline, b'FEED-READY'):\n    run, last = 0, None\n    while run < 5 and time.monotonic() < deadline:\n        try:\n            state = open('/proc/%d/stat' % child.pid).read().rsplit(')', 1)[1].split()[0]\n        except OSError:\n            break\n        try:\n            sc = open('/proc/%d/syscall' % child.pid).read().split()[0]\n        except OSError:\n            sc = None\n        ok = state == 'S' and sc != 'running' and (last is None or sc == last)\n        run, last = (run + 1, sc) if ok else (0, None)\n        time.sleep(0.02)\n    ready = run >= 5\nout.append('ready blocked' if ready else 'not-ready')\nif ready:\n    t_esc = time.monotonic()\n    os.write(master, b'\\x1b[')\n    for i in range(n):\n        pump(t_esc + 0.02 * (i + 1))\n        os.write(master, b'1')\n    pump(time.monotonic() + 0.3)\n    os.write(master, b'Z')\n    pump(time.monotonic() + 10, b'GOT-Z')\n    if b'FIRST-DONE' in marks:\n        ms = int((marks[b'FIRST-DONE'] - t_esc) * 1000)\n        out.append('first-read window-ok' if lo <= ms <= hi else 'first-read window-bad %d' % ms)\n    else:\n        out.append('first-read not-observed')\n    out.append('got-z' if b'GOT-Z' in marks else 'no-z')\nos.close(master)\nout.append('master-closed')\ntry:\n    status = child.wait(timeout=10)\nexcept subprocess.TimeoutExpired:\n    child.kill(); status = child.wait(); out.append('killed-after-timeout')\nout.append('child-exit %d' % status)\nprint('\\n'.join(out))\n",
+    "long.ti": "# private fixture: a 63-byte sequence so a slow prefix cannot complete before the cap\nkey_f5=\\E[111111111111111111111111111111111111111111111111111111111111~\n",
+    "a/.keep": "",
+    "b/.keep": ""
+   },
+   "expected_files": {
+    "a/first": "esc 27\n",
+    "a/helper": "ready blocked\nfirst-read window-ok\ngot-z\nmaster-closed\nchild-exit 0\n",
+    "a/remainder": "ones-after-cap-ok\n",
+    "a/tail": "char 90;none 0;\n",
+    "b/first": "esc 27\n",
+    "b/helper": "ready blocked\nfirst-read window-ok\ngot-z\nmaster-closed\nchild-exit 0\n",
+    "b/remainder": "ones-after-cap-ok\n",
+    "b/tail": "char 90;none 0;\n"
+   }
+  }
+ ]
+}

@@ -133,8 +133,21 @@
     {
       "id": "terminal_name_pty",
       "purpose": "Exercise successful terminal-name reporting and -s success with stdin attached to a real pseudo-terminal.",
-      "kind": "deferred",
-      "reason": "The harness always launches fixtures with stdin=/dev/null and has no PTY attachment option. A future disposable VM or PTY-capable mock must create an isolated PTY, attach the same slave to fd 0 for both GNU and candidate arms, and assert the emitted terminal path plus silent-mode success."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "migration-tty-pty-exact-name-silence"
+        },
+        {
+          "group": "terminal",
+          "id": "tty-pty-name"
+        },
+        {
+          "group": "terminal",
+          "id": "tty-silent-status"
+        }
+      ]
     }
   ]
 }

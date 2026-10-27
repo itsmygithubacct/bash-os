@@ -78,21 +78,84 @@
     },
     {
       "id": "pty-navigation-and-quit",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise initial screen rendering, next/previous page and line movement, top/bottom navigation, and clean quit on a controlling terminal.",
-      "reason": "Requires a future disposable VM or PTY-capable fixture driver with a controlling 24x80 terminal, deterministic multi-page input, scripted space/b/j/k/g/G/q keystrokes, captured screen/prompt bytes, and checks that termios and SIGWINCH state are restored."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "less-navigation"
+        },
+        {
+          "group": "terminal",
+          "id": "less-page-and-line-keys"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-less-prompt-row"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-less-sigwinch-restored"
+        }
+      ]
     },
     {
       "id": "pty-search-and-repeat",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise forward and reverse literal searches, repeat with n/N, and search input editing on a controlling terminal.",
-      "reason": "Requires a future disposable VM or PTY driver to feed deterministic / and ? prompts, backspace edits, n/N repeats, and q; capture the visible matched lines and verify prompt cleanup."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "less-backward-search"
+        },
+        {
+          "group": "terminal",
+          "id": "less-search-repeat"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-less-reverse-search-repeat"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-less-search-prompt-cleanup"
+        }
+      ]
     },
     {
       "id": "pty-options-and-resize",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise -F, -N, -S, and -n against known terminal dimensions and verify behavior when the terminal changes size.",
-      "reason": "Requires a future disposable VM or controllable PTY with fixed and resized winsize values, short and long fixture lines, input just below/above the page size, and captured output checks for auto-quit, numbering, chopping, page count, and redraw."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "less-chop-long-lines"
+        },
+        {
+          "group": "terminal",
+          "id": "less-line-numbers"
+        },
+        {
+          "group": "terminal",
+          "id": "less-quit-if-one-screen"
+        },
+        {
+          "group": "terminal",
+          "id": "less-resize-redraw"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-less-page-size"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-less-page-size-rendering"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-less-quit-if-one-screen-overflow"
+        }
+      ]
     },
     {
       "id": "multiple-files-empty-and-binary",

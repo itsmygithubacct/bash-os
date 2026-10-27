@@ -44,7 +44,7 @@
       "id": "decoder-timing-integration",
       "kind": "deferred",
       "purpose": "Specify future integration coverage that demonstrates the configured grace interval changes bare-ESC versus CSI decoding.",
-      "reason": "This requires a disposable VM with a private PTY or mocked input stream, an isolated decoder consumer, and a controllable mock clock. Feed deterministic bare ESC and CSI sequences at times on either side of configured delays (including 0 and the upper bound), then assert the decoded key events. No terminal driver or clock mock is provided here, and this operation is not claimed as passed."
+      "reason": "Remaining obligations: r1: Configured state and the resulting decoder mismatch are observed on both builds. The original controlled-clock requirement is under review; current tests use timed pipes and tolerant real-time windows."
     },
     {
       "id": "global-state-validation",

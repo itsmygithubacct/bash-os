@@ -103,13 +103,13 @@
       "id": "deferred-live-capture",
       "kind": "deferred",
       "purpose": "Qualify the -i interface path with a bounded one-packet capture.",
-      "reason": "Requires a disposable VM with a dedicated isolated veth pair, an independently verified packet injector on the peer, and a known interface name. This harness intentionally has no real network target or live-capture fixture."
+      "reason": "No live-capture fixture; the VM as root can capture on a script-created veth or on lo with self-injected traffic."
     },
     {
       "id": "deferred-active-firewall-blocking",
       "kind": "deferred",
       "purpose": "Verify non-dry-run drop/reject behavior and the exact fw deny request.",
-      "reason": "Requires a disposable VM/network namespace and a reviewed mock fw executable that records argv and cannot reach host firewall state. The active path is deliberately not invoked; the current candidate fixture PATH is empty and no firewall shim is supplied."
+      "reason": "No mock fw is supplied. netids execs an external `fw` by PATH lookup, not the fw builtin, so a fixture-local mock executable makes this fully observable offline (-r PCAP) with no firewall access."
     }
   ]
 }

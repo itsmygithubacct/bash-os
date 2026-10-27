@@ -1,0 +1,953 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-ionice-set-none-name",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set none name",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -c none -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/class-and-level-set"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=0\nioprio=0,0\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-ionice-set-none-number",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set none number",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -c 0 -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/class-and-level-set"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=0\nioprio=0,0\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-ionice-set-be-name",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set be name",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -c best-effort -n 3 -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/class-and-level-set"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=0\nioprio=2,3\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-ionice-set-be-alias",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set be alias",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/class-and-level-set"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=0\nioprio=2,3\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      },
+      "candidate_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -c be -n 3 -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"",
+      "reference_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -c best-effort -n 3 -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\""
+    },
+    {
+      "id": "migration-ionice-set-be-number",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set be number",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -c 2 -n 3 -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/class-and-level-set"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=0\nioprio=2,3\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-ionice-set-idle-name",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set idle name",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -c idle -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/class-and-level-set"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=0\nioprio=3,7\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-ionice-set-idle-number",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set idle number",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -c 3 -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/class-and-level-set"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=0\nioprio=3,7\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-ionice-set-level-only",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set level only",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -n 6 -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/class-and-level-set"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=0\nioprio=2,6\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-ionice-set-class-only",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set class only",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -c best-effort -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/class-and-level-set"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=0\nioprio=2,4\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-ionice-set-level-zero",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set level zero",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -c 2 -n 0 -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/class-and-level-set"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=0\nioprio=2,0\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-ionice-set-level-seven",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set level seven",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -c 2 -n 7 -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/class-and-level-set"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=0\nioprio=2,7\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-ionice-set-none-data-ignored",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set none data ignored",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -c none -n 5 -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/class-and-level-set"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=0\nioprio=0,0\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-ionice-set-idle-data-ignored",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set idle data ignored",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -c idle -n 5 -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/class-and-level-set"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=0\nioprio=3,7\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-ionice-query-self",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "query self",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\nionice; printf \"status=%s\\n\" \"$?\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/query-format"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import ioprio;assert ioprio.get()==(0,0)'",
+      "stdout": "none: prio 0\nstatus=0\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n"
+      },
+      "stderr": ""
+    },
+    {
+      "id": "migration-ionice-query-class-0",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "query class 0",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/query-format"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "none: prio 0\nstatus=0\nioprio=0,0\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      },
+      "stderr": ""
+    },
+    {
+      "id": "migration-ionice-query-class-2",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "query class 2",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 2 3 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/query-format"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "best-effort: prio 3\nstatus=0\nioprio=2,3\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      },
+      "stderr": ""
+    },
+    {
+      "id": "migration-ionice-query-class-3",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "query class 3",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 3 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nionice -p \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/query-format"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "idle\nstatus=0\nioprio=3,0\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      },
+      "stderr": ""
+    },
+    {
+      "id": "migration-ionice-query-reaped",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "query reaped",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/true & child=$!; wait \"$child\"\nionice -p \"$child\" > out 2> err; rc=$?; diagnostic=$(<err); [[ $diagnostic == *\"No such process\"* ]] && d=ESRCH || d=other; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "true"
+      ],
+      "covers": [
+        "ionice/query-format"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=1 diagnostic=ESRCH\nstdout=empty\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-ionice-command-ordinary",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "command ordinary",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\nionice -c best-effort -n 3  /usr/bin/python3 child.py \"a b\" \"\" \"--literal\"; printf \"status=%s\\n\" \"$?\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/command-wrapper"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "ioprio=2,3\n[\"a b\", \"\", \"--literal\"]\nstatus=7\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "child.py": "import ioprio,json,sys\nprint(\"ioprio=%s,%s\"%ioprio.get())\nprint(json.dumps(sys.argv[1:]))\nprint(\"child-stderr\",file=sys.stderr)\nsys.exit(7)\n"
+      },
+      "stderr": "child-stderr\n"
+    },
+    {
+      "id": "migration-ionice-command-separator",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "command separator",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\nionice -c best-effort -n 3 -- /usr/bin/python3 child.py \"a b\" \"\" \"--literal\"; printf \"status=%s\\n\" \"$?\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/command-wrapper"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "ioprio=2,3\n[\"a b\", \"\", \"--literal\"]\nstatus=7\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "child.py": "import ioprio,json,sys\nprint(\"ioprio=%s,%s\"%ioprio.get())\nprint(json.dumps(sys.argv[1:]))\nprint(\"child-stderr\",file=sys.stderr)\nsys.exit(7)\n"
+      },
+      "stderr": "child-stderr\n"
+    },
+    {
+      "id": "migration-ionice-command-signal",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "command signal",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\nionice -c 2 -n 4 /usr/bin/python3 -c 'import os,signal;os.kill(os.getpid(),signal.SIGTERM)'; printf \"status=%s\\n\" \"$?\"",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/command-wrapper"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=143\n"
+    },
+    {
+      "id": "migration-ionice-command-missing",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "command missing",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\nionice -c 2 -n 4 /nonexistent-parity-command > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/command-wrapper"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=127 diagnostic=yes\nstdout=empty\n",
+      "files": {
+        "not-executable": "fixture data\n"
+      },
+      "stderr": ""
+    },
+    {
+      "id": "migration-ionice-command-nonexecutable",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "command nonexecutable",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\nionice -c 2 -n 4 ./not-executable > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/command-wrapper"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=126 diagnostic=yes\nstdout=empty\n",
+      "files": {
+        "not-executable": "fixture data\n"
+      },
+      "stderr": ""
+    },
+    {
+      "id": "migration-ionice-command-rt-denied",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "command rt denied",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\nionice  -c realtime -n 3 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; [[ -e marker ]] && ran=yes || ran=no; printf \"status=%s diagnostic=%s child=%s\\n\" \"$rc\" \"$d\" \"$ran\"; rm -f out err",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3",
+        "touch"
+      ],
+      "covers": [
+        "ionice/command-wrapper"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 - <<'CONTROL'\nimport errno,ioprio\ntry:ioprio.set(0,1,3)\nexcept OSError as e:assert e.errno==errno.EPERM\nelse:raise AssertionError('realtime priority unexpectedly allowed')\nCONTROL",
+      "stdout": "status=1 diagnostic=yes child=no\n",
+      "stderr": "",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n"
+      }
+    },
+    {
+      "id": "migration-ionice-command-rt-ignore",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "command rt ignore",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\nionice -t -c realtime -n 3 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; [[ -e marker ]] && ran=yes || ran=no; printf \"status=%s diagnostic=%s child=%s\\n\" \"$rc\" \"$d\" \"$ran\"; rm -f out err",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3",
+        "touch"
+      ],
+      "covers": [
+        "ionice/command-wrapper"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 - <<'CONTROL'\nimport errno,ioprio\ntry:ioprio.set(0,1,3)\nexcept OSError as e:assert e.errno==errno.EPERM\nelse:raise AssertionError('realtime priority unexpectedly allowed')\nCONTROL",
+      "stdout": "status=0 diagnostic=no child=yes\n",
+      "stderr": "",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n"
+      }
+    },
+    {
+      "id": "migration-ionice-rt-mapping-realtime",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "rt mapping realtime",
+      "oracle": "Reviewed unprivileged seccomp mock: ioprio_set returns success without changing kernel state; its complete argument tuple must encode class 1, level 5, and the exact owned PID. GNU receives canonical class spelling.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_set --reply ioprio_set=0 --log-args ioprio_set=0,1,2 --log trace -- \"$BASH\" --noprofile --norc -c 'ionice -c realtime -n 5 -p \"$1\"' fixture \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 check.py set \"$child\"; /usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"\nrm -f trace",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/class-and-level-set"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=0\nsyscall=exact\nioprio=0,0\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n",
+        "check.py": "import json,sys\nrows=[json.loads(s) for s in open('trace')]\nmode=sys.argv[1]\nif mode=='get':assert rows==[{'syscall':'ioprio_get','arg0':1,'arg1':0,'reply':'value:8197'}],rows\nelse:assert rows==[{'syscall':'ioprio_set','arg0':1,'arg1':int(sys.argv[2]),'arg2':8197,'reply':'value:0'}],rows\nprint('syscall=exact')\n"
+      },
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "features": [
+        "seccomp-notify"
+      ],
+      "stderr": ""
+    },
+    {
+      "id": "migration-ionice-rt-mapping-rt",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "rt mapping rt",
+      "oracle": "Reviewed unprivileged seccomp mock: ioprio_set returns success without changing kernel state; its complete argument tuple must encode class 1, level 5, and the exact owned PID. GNU receives canonical class spelling.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/class-and-level-set"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=0\nsyscall=exact\nioprio=0,0\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n",
+        "check.py": "import json,sys\nrows=[json.loads(s) for s in open('trace')]\nmode=sys.argv[1]\nif mode=='get':assert rows==[{'syscall':'ioprio_get','arg0':1,'arg1':0,'reply':'value:8197'}],rows\nelse:assert rows==[{'syscall':'ioprio_set','arg0':1,'arg1':int(sys.argv[2]),'arg2':8197,'reply':'value:0'}],rows\nprint('syscall=exact')\n"
+      },
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "features": [
+        "seccomp-notify"
+      ],
+      "stderr": "",
+      "candidate_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_set --reply ioprio_set=0 --log-args ioprio_set=0,1,2 --log trace -- \"$BASH\" --noprofile --norc -c 'ionice -c rt -n 5 -p \"$1\"' fixture \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 check.py set \"$child\"; /usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"\nrm -f trace",
+      "reference_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_set --reply ioprio_set=0 --log-args ioprio_set=0,1,2 --log trace -- \"$BASH\" --noprofile --norc -c 'ionice -c realtime -n 5 -p \"$1\"' fixture \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 check.py set \"$child\"; /usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"\nrm -f trace"
+    },
+    {
+      "id": "migration-ionice-rt-mapping-1",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "rt mapping 1",
+      "oracle": "Reviewed unprivileged seccomp mock: ioprio_set returns success without changing kernel state; its complete argument tuple must encode class 1, level 5, and the exact owned PID. GNU receives canonical class spelling.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_set --reply ioprio_set=0 --log-args ioprio_set=0,1,2 --log trace -- \"$BASH\" --noprofile --norc -c 'ionice -c 1 -n 5 -p \"$1\"' fixture \"$child\"; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 check.py set \"$child\"; /usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"\nrm -f trace",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/class-and-level-set"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "status=0\nsyscall=exact\nioprio=0,0\n",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n",
+        "check.py": "import json,sys\nrows=[json.loads(s) for s in open('trace')]\nmode=sys.argv[1]\nif mode=='get':assert rows==[{'syscall':'ioprio_get','arg0':1,'arg1':0,'reply':'value:8197'}],rows\nelse:assert rows==[{'syscall':'ioprio_set','arg0':1,'arg1':int(sys.argv[2]),'arg2':8197,'reply':'value:0'}],rows\nprint('syscall=exact')\n"
+      },
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "features": [
+        "seccomp-notify"
+      ],
+      "stderr": ""
+    },
+    {
+      "id": "migration-ionice-query-realtime-mock",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "query realtime mock",
+      "oracle": "Reviewed seccomp mock returns class 1, data 5 from the sole ioprio_get(WHO_PROCESS,0); GNU ionice supplies the independent formatting reference.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --reply ioprio_get=8197 --log-args ioprio_get=0,1 --log trace -- \"$BASH\" --noprofile --norc -c ionice; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 check.py get; rm -f trace",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/query-format"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "realtime: prio 5\nstatus=0\nsyscall=exact\n",
+      "files": {
+        "check.py": "import json,sys\nrows=[json.loads(s) for s in open('trace')]\nmode=sys.argv[1]\nif mode=='get':assert rows==[{'syscall':'ioprio_get','arg0':1,'arg1':0,'reply':'value:8197'}],rows\nelse:assert rows==[{'syscall':'ioprio_set','arg0':1,'arg1':int(sys.argv[2]),'arg2':8197,'reply':'value:0'}],rows\nprint('syscall=exact')\n"
+      },
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "features": [
+        "seccomp-notify"
+      ],
+      "stderr": ""
+    },
+    {
+      "id": "migration-ionice-multiple-set-ordinary",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "multiple set ordinary",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated. Candidate repeated -p operands are adapted to GNU single -p followed by the PID list; the recorded call list must be nonempty.",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3",
+        "true"
+      ],
+      "covers": [
+        "ionice/multiple-pids-and-ignore"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n",
+        "calls.py": "import ioprio,json,pathlib,sys\nfirst,dead,last=map(int,sys.argv[1:]);names={first:'first',dead:'reaped',last:'last'}\nrows=[json.loads(s) for s in open('trace')]\nassert rows, 'no I/O-priority syscall reached the reference operation'\nfor row in rows:\n assert row['arg0']==1 and row['arg1'] in names,row\n row['arg1']=names[row['arg1']]\npathlib.Path('calls.json').write_text(json.dumps(rows,sort_keys=True)+'\\n')\nprint('first=%s,%s'%ioprio.get(first));print('last=%s,%s'%ioprio.get(last))\n"
+      },
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "features": [
+        "seccomp-notify"
+      ],
+      "stderr": "",
+      "candidate_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & first=$!\n/usr/bin/python3 worker.py two 0 0 & last=$!\ntrap 'kill -TERM \"$first\" \"$last\" 2>/dev/null; wait \"$first\" \"$last\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one two || exit 90\n/usr/bin/true & dead=$!; wait \"$dead\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_set --log-args ioprio_set=0,1,2 --log trace -- \"$BASH\" --noprofile --norc -c 'ionice  -c 2 -n 6 -p \"$1\" -p \"$2\" -p \"$3\"' fixture \"$first\" \"$dead\" \"$last\" > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 calls.py \"$first\" \"$dead\" \"$last\" || exit 91; rm -f out err trace",
+      "reference_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & first=$!\n/usr/bin/python3 worker.py two 0 0 & last=$!\ntrap 'kill -TERM \"$first\" \"$last\" 2>/dev/null; wait \"$first\" \"$last\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one two || exit 90\n/usr/bin/true & dead=$!; wait \"$dead\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_set --log-args ioprio_set=0,1,2 --log trace -- \"$BASH\" --noprofile --norc -c 'ionice  -c 2 -n 6 -p \"$1\" \"$2\" \"$3\"' fixture \"$first\" \"$dead\" \"$last\" > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 calls.py \"$first\" \"$dead\" \"$last\" || exit 91; rm -f out err trace"
+    },
+    {
+      "id": "migration-ionice-multiple-set-ignore",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "multiple set ignore",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated. Candidate repeated -p operands are adapted to GNU single -p followed by the PID list; the recorded call list must be nonempty.",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3",
+        "true"
+      ],
+      "covers": [
+        "ionice/multiple-pids-and-ignore"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n",
+        "calls.py": "import ioprio,json,pathlib,sys\nfirst,dead,last=map(int,sys.argv[1:]);names={first:'first',dead:'reaped',last:'last'}\nrows=[json.loads(s) for s in open('trace')]\nassert rows, 'no I/O-priority syscall reached the reference operation'\nfor row in rows:\n assert row['arg0']==1 and row['arg1'] in names,row\n row['arg1']=names[row['arg1']]\npathlib.Path('calls.json').write_text(json.dumps(rows,sort_keys=True)+'\\n')\nprint('first=%s,%s'%ioprio.get(first));print('last=%s,%s'%ioprio.get(last))\n"
+      },
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "features": [
+        "seccomp-notify"
+      ],
+      "stderr": "",
+      "candidate_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & first=$!\n/usr/bin/python3 worker.py two 0 0 & last=$!\ntrap 'kill -TERM \"$first\" \"$last\" 2>/dev/null; wait \"$first\" \"$last\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one two || exit 90\n/usr/bin/true & dead=$!; wait \"$dead\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_set --log-args ioprio_set=0,1,2 --log trace -- \"$BASH\" --noprofile --norc -c 'ionice -t -c 2 -n 6 -p \"$1\" -p \"$2\" -p \"$3\"' fixture \"$first\" \"$dead\" \"$last\" > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 calls.py \"$first\" \"$dead\" \"$last\" || exit 91; rm -f out err trace",
+      "reference_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & first=$!\n/usr/bin/python3 worker.py two 0 0 & last=$!\ntrap 'kill -TERM \"$first\" \"$last\" 2>/dev/null; wait \"$first\" \"$last\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one two || exit 90\n/usr/bin/true & dead=$!; wait \"$dead\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_set --log-args ioprio_set=0,1,2 --log trace -- \"$BASH\" --noprofile --norc -c 'ionice -t -c 2 -n 6 -p \"$1\" \"$2\" \"$3\"' fixture \"$first\" \"$dead\" \"$last\" > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 calls.py \"$first\" \"$dead\" \"$last\" || exit 91; rm -f out err trace"
+    },
+    {
+      "id": "migration-ionice-multiple-set-long-ignore",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "multiple set long ignore",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated. Candidate repeated -p operands are adapted to GNU single -p followed by the PID list; the recorded call list must be nonempty.",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3",
+        "true"
+      ],
+      "covers": [
+        "ionice/multiple-pids-and-ignore"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n",
+        "calls.py": "import ioprio,json,pathlib,sys\nfirst,dead,last=map(int,sys.argv[1:]);names={first:'first',dead:'reaped',last:'last'}\nrows=[json.loads(s) for s in open('trace')]\nassert rows, 'no I/O-priority syscall reached the reference operation'\nfor row in rows:\n assert row['arg0']==1 and row['arg1'] in names,row\n row['arg1']=names[row['arg1']]\npathlib.Path('calls.json').write_text(json.dumps(rows,sort_keys=True)+'\\n')\nprint('first=%s,%s'%ioprio.get(first));print('last=%s,%s'%ioprio.get(last))\n"
+      },
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "features": [
+        "seccomp-notify"
+      ],
+      "stderr": "",
+      "candidate_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & first=$!\n/usr/bin/python3 worker.py two 0 0 & last=$!\ntrap 'kill -TERM \"$first\" \"$last\" 2>/dev/null; wait \"$first\" \"$last\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one two || exit 90\n/usr/bin/true & dead=$!; wait \"$dead\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_set --log-args ioprio_set=0,1,2 --log trace -- \"$BASH\" --noprofile --norc -c 'ionice --ignore -c 2 -n 6 -p \"$1\" -p \"$2\" -p \"$3\"' fixture \"$first\" \"$dead\" \"$last\" > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 calls.py \"$first\" \"$dead\" \"$last\" || exit 91; rm -f out err trace",
+      "reference_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & first=$!\n/usr/bin/python3 worker.py two 0 0 & last=$!\ntrap 'kill -TERM \"$first\" \"$last\" 2>/dev/null; wait \"$first\" \"$last\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one two || exit 90\n/usr/bin/true & dead=$!; wait \"$dead\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_set --log-args ioprio_set=0,1,2 --log trace -- \"$BASH\" --noprofile --norc -c 'ionice --ignore -c 2 -n 6 -p \"$1\" \"$2\" \"$3\"' fixture \"$first\" \"$dead\" \"$last\" > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 calls.py \"$first\" \"$dead\" \"$last\" || exit 91; rm -f out err trace"
+    },
+    {
+      "id": "migration-ionice-query-multiple-reaped",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "query multiple reaped",
+      "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated. Candidate repeated -p operands are adapted to GNU single -p followed by the PID list; the recorded call list must be nonempty.",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3",
+        "true",
+        "cat"
+      ],
+      "covers": [
+        "ionice/query-format"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n",
+        "calls.py": "import ioprio,json,pathlib,sys\nfirst,dead,last=map(int,sys.argv[1:]);names={first:'first',dead:'reaped',last:'last'}\nrows=[json.loads(s) for s in open('trace')]\nassert rows, 'no I/O-priority syscall reached the reference operation'\nfor row in rows:\n assert row['arg0']==1 and row['arg1'] in names,row\n row['arg1']=names[row['arg1']]\npathlib.Path('calls.json').write_text(json.dumps(rows,sort_keys=True)+'\\n')\nprint('first=%s,%s'%ioprio.get(first));print('last=%s,%s'%ioprio.get(last))\n"
+      },
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "features": [
+        "seccomp-notify"
+      ],
+      "stderr": "",
+      "candidate_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & first=$!\n/usr/bin/python3 worker.py two 0 0 & last=$!\ntrap 'kill -TERM \"$first\" \"$last\" 2>/dev/null; wait \"$first\" \"$last\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one two || exit 90\n/usr/bin/true & dead=$!; wait \"$dead\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --log-args ioprio_get=0,1 --log trace -- \"$BASH\" --noprofile --norc -c 'ionice -p \"$1\" -p \"$2\" -p \"$3\"' fixture \"$first\" \"$dead\" \"$last\" > out 2> err; rc=$?; /usr/bin/cat out; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 calls.py \"$first\" \"$dead\" \"$last\" || exit 91; rm -f out err trace",
+      "reference_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & first=$!\n/usr/bin/python3 worker.py two 0 0 & last=$!\ntrap 'kill -TERM \"$first\" \"$last\" 2>/dev/null; wait \"$first\" \"$last\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one two || exit 90\n/usr/bin/true & dead=$!; wait \"$dead\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --log-args ioprio_get=0,1 --log trace -- \"$BASH\" --noprofile --norc -c 'ionice -p \"$1\" \"$2\" \"$3\"' fixture \"$first\" \"$dead\" \"$last\" > out 2> err; rc=$?; /usr/bin/cat out; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 calls.py \"$first\" \"$dead\" \"$last\" || exit 91; rm -f out err trace"
+    },
+    {
+      "id": "migration-ionice-argument-validation-guard",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "argument validation guard",
+      "oracle": "Documented ionice parser contract: usage status 2, nonempty diagnostic and empty stdout, including the 256-PID bound. A positively controlled seccomp kill filter rejects either I/O-priority syscall. Independent read-back proves the owned helper remains unchanged.",
+      "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get --kill ioprio_set -- \"$BASH\" --noprofile --norc -c 'ionice -c' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; [[ ! -s out ]] && o=empty || o=nonempty; printf \"case%d=%s diagnostic=%s stdout=%s\\n\" 0 \"$rc\" \"$d\" \"$o\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get --kill ioprio_set -- \"$BASH\" --noprofile --norc -c 'ionice -n' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; [[ ! -s out ]] && o=empty || o=nonempty; printf \"case%d=%s diagnostic=%s stdout=%s\\n\" 1 \"$rc\" \"$d\" \"$o\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get --kill ioprio_set -- \"$BASH\" --noprofile --norc -c 'ionice -p' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; [[ ! -s out ]] && o=empty || o=nonempty; printf \"case%d=%s diagnostic=%s stdout=%s\\n\" 2 \"$rc\" \"$d\" \"$o\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get --kill ioprio_set -- \"$BASH\" --noprofile --norc -c 'ionice --class' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; [[ ! -s out ]] && o=empty || o=nonempty; printf \"case%d=%s diagnostic=%s stdout=%s\\n\" 3 \"$rc\" \"$d\" \"$o\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get --kill ioprio_set -- \"$BASH\" --noprofile --norc -c 'ionice --classdata' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; [[ ! -s out ]] && o=empty || o=nonempty; printf \"case%d=%s diagnostic=%s stdout=%s\\n\" 4 \"$rc\" \"$d\" \"$o\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get --kill ioprio_set -- \"$BASH\" --noprofile --norc -c 'ionice --pid' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; [[ ! -s out ]] && o=empty || o=nonempty; printf \"case%d=%s diagnostic=%s stdout=%s\\n\" 5 \"$rc\" \"$d\" \"$o\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get --kill ioprio_set -- \"$BASH\" --noprofile --norc -c 'ionice -c bogus' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; [[ ! -s out ]] && o=empty || o=nonempty; printf \"case%d=%s diagnostic=%s stdout=%s\\n\" 6 \"$rc\" \"$d\" \"$o\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get --kill ioprio_set -- \"$BASH\" --noprofile --norc -c 'ionice -c 4' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; [[ ! -s out ]] && o=empty || o=nonempty; printf \"case%d=%s diagnostic=%s stdout=%s\\n\" 7 \"$rc\" \"$d\" \"$o\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get --kill ioprio_set -- \"$BASH\" --noprofile --norc -c 'ionice -n -1' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; [[ ! -s out ]] && o=empty || o=nonempty; printf \"case%d=%s diagnostic=%s stdout=%s\\n\" 8 \"$rc\" \"$d\" \"$o\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get --kill ioprio_set -- \"$BASH\" --noprofile --norc -c 'ionice -n 8' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; [[ ! -s out ]] && o=empty || o=nonempty; printf \"case%d=%s diagnostic=%s stdout=%s\\n\" 9 \"$rc\" \"$d\" \"$o\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get --kill ioprio_set -- \"$BASH\" --noprofile --norc -c 'ionice -n 1x' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; [[ ! -s out ]] && o=empty || o=nonempty; printf \"case%d=%s diagnostic=%s stdout=%s\\n\" 10 \"$rc\" \"$d\" \"$o\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get --kill ioprio_set -- \"$BASH\" --noprofile --norc -c 'ionice -p abc' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; [[ ! -s out ]] && o=empty || o=nonempty; printf \"case%d=%s diagnostic=%s stdout=%s\\n\" 11 \"$rc\" \"$d\" \"$o\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get --kill ioprio_set -- \"$BASH\" --noprofile --norc -c 'ionice -p -5' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; [[ ! -s out ]] && o=empty || o=nonempty; printf \"case%d=%s diagnostic=%s stdout=%s\\n\" 12 \"$rc\" \"$d\" \"$o\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get --kill ioprio_set -- \"$BASH\" --noprofile --norc -c 'ionice -p 99999999999' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; [[ ! -s out ]] && o=empty || o=nonempty; printf \"case%d=%s diagnostic=%s stdout=%s\\n\" 13 \"$rc\" \"$d\" \"$o\"\nargs=(); for ((i=0;i<257;i++)); do args+=(-p \"$child\"); done\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get --kill ioprio_set -- \"$BASH\" --noprofile --norc -c 'ionice \"$@\"' fixture \"${args[@]}\" > out 2> err; rc=$?; diagnostic=$(<err); [[ $diagnostic == *\"too many process IDs (maximum 256)\"* ]] && d=exact || d=other; printf \"many=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"\nrm -f out err",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/argument-validation"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\nif /usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get -- /usr/bin/python3 -c 'import ctypes;ctypes.CDLL(None).syscall(252,1,0)' > control.out 2> control.err; then rc=0; else rc=$?; fi; [[ $rc == 159 ]] || exit 90; rm -f control.out control.err",
+      "stdout": "case0=2 diagnostic=yes stdout=empty\ncase1=2 diagnostic=yes stdout=empty\ncase2=2 diagnostic=yes stdout=empty\ncase3=2 diagnostic=yes stdout=empty\ncase4=2 diagnostic=yes stdout=empty\ncase5=2 diagnostic=yes stdout=empty\ncase6=2 diagnostic=yes stdout=empty\ncase7=2 diagnostic=yes stdout=empty\ncase8=2 diagnostic=yes stdout=empty\ncase9=2 diagnostic=yes stdout=empty\ncase10=2 diagnostic=yes stdout=empty\ncase11=2 diagnostic=yes stdout=empty\ncase12=2 diagnostic=yes stdout=empty\ncase13=2 diagnostic=yes stdout=empty\nmany=2 diagnostic=exact\nioprio=0,0\n",
+      "kind": "contract",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      },
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "migration-ionice-invalid-reference-guard",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Compare the original invalid-argument corpus and PID-list bound with GNU while recording and rejecting every attempted priority syscall.",
+      "oracle": "Locked util-linux ionice plus positively controlled seccomp EINVAL replies. Candidate repeated -p syntax is adapted to GNU single -p followed by the PID list for the 257-PID comparison.",
+      "comparison": "Exact statuses, stdout, diagnostics and recorded syscall arguments. Only the known owned PID and invoking-shell pathname are replaced by fixed identity labels. The guard never forwards either priority syscall; independent read-back proves the owned helper unchanged.",
+      "candidate_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-0 -- \"$BASH\" --noprofile --norc -c 'ionice -c' > out-0 2> err-0; rc=$?; printf \"case%s=%s\\n\" 0 \"$rc\"; /usr/bin/python3 report.py 0 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-1 -- \"$BASH\" --noprofile --norc -c 'ionice -n' > out-1 2> err-1; rc=$?; printf \"case%s=%s\\n\" 1 \"$rc\"; /usr/bin/python3 report.py 1 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-2 -- \"$BASH\" --noprofile --norc -c 'ionice -p' > out-2 2> err-2; rc=$?; printf \"case%s=%s\\n\" 2 \"$rc\"; /usr/bin/python3 report.py 2 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-3 -- \"$BASH\" --noprofile --norc -c 'ionice --class' > out-3 2> err-3; rc=$?; printf \"case%s=%s\\n\" 3 \"$rc\"; /usr/bin/python3 report.py 3 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-4 -- \"$BASH\" --noprofile --norc -c 'ionice --classdata' > out-4 2> err-4; rc=$?; printf \"case%s=%s\\n\" 4 \"$rc\"; /usr/bin/python3 report.py 4 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-5 -- \"$BASH\" --noprofile --norc -c 'ionice --pid' > out-5 2> err-5; rc=$?; printf \"case%s=%s\\n\" 5 \"$rc\"; /usr/bin/python3 report.py 5 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-6 -- \"$BASH\" --noprofile --norc -c 'ionice -c bogus' > out-6 2> err-6; rc=$?; printf \"case%s=%s\\n\" 6 \"$rc\"; /usr/bin/python3 report.py 6 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-7 -- \"$BASH\" --noprofile --norc -c 'ionice -c 4' > out-7 2> err-7; rc=$?; printf \"case%s=%s\\n\" 7 \"$rc\"; /usr/bin/python3 report.py 7 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-8 -- \"$BASH\" --noprofile --norc -c 'ionice -n -1' > out-8 2> err-8; rc=$?; printf \"case%s=%s\\n\" 8 \"$rc\"; /usr/bin/python3 report.py 8 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-9 -- \"$BASH\" --noprofile --norc -c 'ionice -n 8' > out-9 2> err-9; rc=$?; printf \"case%s=%s\\n\" 9 \"$rc\"; /usr/bin/python3 report.py 9 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-10 -- \"$BASH\" --noprofile --norc -c 'ionice -n 1x' > out-10 2> err-10; rc=$?; printf \"case%s=%s\\n\" 10 \"$rc\"; /usr/bin/python3 report.py 10 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-11 -- \"$BASH\" --noprofile --norc -c 'ionice -p abc' > out-11 2> err-11; rc=$?; printf \"case%s=%s\\n\" 11 \"$rc\"; /usr/bin/python3 report.py 11 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-12 -- \"$BASH\" --noprofile --norc -c 'ionice -p -5' > out-12 2> err-12; rc=$?; printf \"case%s=%s\\n\" 12 \"$rc\"; /usr/bin/python3 report.py 12 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-13 -- \"$BASH\" --noprofile --norc -c 'ionice -p 99999999999' > out-13 2> err-13; rc=$?; printf \"case%s=%s\\n\" 13 \"$rc\"; /usr/bin/python3 report.py 13 \"$child\" \"$BASH\" || exit 91\nargs=(); for ((i=0;i<257;i++)); do args+=(-p \"$child\"); done\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-many -- \"$BASH\" --noprofile --norc -c 'ionice \"$@\"' fixture \"${args[@]}\" > out-many 2> err-many; rc=$?; printf \"many=%s\\n\" \"$rc\"; /usr/bin/python3 report.py many \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 -c 'import ioprio,sys;assert ioprio.get(int(sys.argv[1]))==(0,0);print(\"owned-priority=unchanged\")' \"$child\"",
+      "reference_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-0 -- \"$BASH\" --noprofile --norc -c 'ionice -c' > out-0 2> err-0; rc=$?; printf \"case%s=%s\\n\" 0 \"$rc\"; /usr/bin/python3 report.py 0 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-1 -- \"$BASH\" --noprofile --norc -c 'ionice -n' > out-1 2> err-1; rc=$?; printf \"case%s=%s\\n\" 1 \"$rc\"; /usr/bin/python3 report.py 1 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-2 -- \"$BASH\" --noprofile --norc -c 'ionice -p' > out-2 2> err-2; rc=$?; printf \"case%s=%s\\n\" 2 \"$rc\"; /usr/bin/python3 report.py 2 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-3 -- \"$BASH\" --noprofile --norc -c 'ionice --class' > out-3 2> err-3; rc=$?; printf \"case%s=%s\\n\" 3 \"$rc\"; /usr/bin/python3 report.py 3 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-4 -- \"$BASH\" --noprofile --norc -c 'ionice --classdata' > out-4 2> err-4; rc=$?; printf \"case%s=%s\\n\" 4 \"$rc\"; /usr/bin/python3 report.py 4 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-5 -- \"$BASH\" --noprofile --norc -c 'ionice --pid' > out-5 2> err-5; rc=$?; printf \"case%s=%s\\n\" 5 \"$rc\"; /usr/bin/python3 report.py 5 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-6 -- \"$BASH\" --noprofile --norc -c 'ionice -c bogus' > out-6 2> err-6; rc=$?; printf \"case%s=%s\\n\" 6 \"$rc\"; /usr/bin/python3 report.py 6 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-7 -- \"$BASH\" --noprofile --norc -c 'ionice -c 4' > out-7 2> err-7; rc=$?; printf \"case%s=%s\\n\" 7 \"$rc\"; /usr/bin/python3 report.py 7 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-8 -- \"$BASH\" --noprofile --norc -c 'ionice -n -1' > out-8 2> err-8; rc=$?; printf \"case%s=%s\\n\" 8 \"$rc\"; /usr/bin/python3 report.py 8 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-9 -- \"$BASH\" --noprofile --norc -c 'ionice -n 8' > out-9 2> err-9; rc=$?; printf \"case%s=%s\\n\" 9 \"$rc\"; /usr/bin/python3 report.py 9 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-10 -- \"$BASH\" --noprofile --norc -c 'ionice -n 1x' > out-10 2> err-10; rc=$?; printf \"case%s=%s\\n\" 10 \"$rc\"; /usr/bin/python3 report.py 10 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-11 -- \"$BASH\" --noprofile --norc -c 'ionice -p abc' > out-11 2> err-11; rc=$?; printf \"case%s=%s\\n\" 11 \"$rc\"; /usr/bin/python3 report.py 11 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-12 -- \"$BASH\" --noprofile --norc -c 'ionice -p -5' > out-12 2> err-12; rc=$?; printf \"case%s=%s\\n\" 12 \"$rc\"; /usr/bin/python3 report.py 12 \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-13 -- \"$BASH\" --noprofile --norc -c 'ionice -p 99999999999' > out-13 2> err-13; rc=$?; printf \"case%s=%s\\n\" 13 \"$rc\"; /usr/bin/python3 report.py 13 \"$child\" \"$BASH\" || exit 91\nargs=(-p \"$child\"); for ((i=1;i<257;i++)); do args+=(\"$child\"); done\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log trace-many -- \"$BASH\" --noprofile --norc -c 'ionice \"$@\"' fixture \"${args[@]}\" > out-many 2> err-many; rc=$?; printf \"many=%s\\n\" \"$rc\"; /usr/bin/python3 report.py many \"$child\" \"$BASH\" || exit 91\n/usr/bin/python3 -c 'import ioprio,sys;assert ioprio.get(int(sys.argv[1]))==(0,0);print(\"owned-priority=unchanged\")' \"$child\"",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify ioprio_get --notify ioprio_set --reply ioprio_get=EINVAL --reply ioprio_set=EINVAL --log-args ioprio_get=0,1 --log-args ioprio_set=0,1,2 --log probe -- /usr/bin/python3 -c 'import ctypes,errno;lib=ctypes.CDLL(None,use_errno=True);assert lib.syscall(252,1,0)==-1;assert ctypes.get_errno()==errno.EINVAL'\n/usr/bin/python3 -c 'import json;rows=[json.loads(s) for s in open(\"probe\")];assert rows==[{\"arg0\":1,\"arg1\":0,\"reply\":\"errno:22\",\"syscall\":\"ioprio_get\"}],rows'\nrm -f probe",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n",
+        "report.py": "import json,pathlib,re,sys\nlabel,pid,shell=sys.argv[1:];pid=int(pid)\npath=pathlib.Path('trace-'+label)\nrows=[json.loads(s) for s in path.read_text().splitlines()]\nfor row in rows:\n assert row['reply']=='errno:22',row\n if row.get('arg1')==pid:row['arg1']='owned'\npath.write_text(json.dumps(rows,sort_keys=True)+'\\n')\nerr=pathlib.Path('err-'+label)\ntext=err.read_text().replace(shell,'$SHELL')\ntext=re.sub(r'(?<=\\(pid )'+str(pid)+r'(?=\\))','OWNED_PID',text)\nerr.write_text(text)\nprint('calls='+str(len(rows)))\n"
+      },
+      "expected_status": 0,
+      "timeout": 60,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "covers": [
+        "ionice/argument-validation"
+      ]
+    }
+  ]
+}

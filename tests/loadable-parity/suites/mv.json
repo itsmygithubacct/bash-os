@@ -129,9 +129,14 @@
     },
     {
       "id": "exdev-copy-remove",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise the cross-device fallback for regular files, symlinks, and directory trees while comparing GNU mv and preserving source metadata.",
-      "reason": "Requires two distinct writable filesystems mounted inside a disposable VM fixture root, or a reviewed syscall mock that makes rename return EXDEV. The provided isolated runner exposes only one writable fixture tree; no mount or host path is used here."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-mv-exdev-copy-remove-r2"
+        }
+      ]
     },
     {
       "id": "interactive-answers",

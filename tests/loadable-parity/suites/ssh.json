@@ -107,21 +107,62 @@
     },
     {
       "id": "ssh-remote-exec-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise native and encrypted connection setup, host-key policy, authentication, stdin/stdout/stderr, and remote exit-status forwarding.",
-      "reason": "Requires a future disposable VM or independently reviewed loopback SSH mock with generated fixture-only host/client keys, an isolated sshd endpoint, explicit known_hosts, and no external network route. This suite must not initiate network activity."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/ssh/known-hosts-verify-contract"
+        },
+        {
+          "group": "network",
+          "id": "ssh-native-exec"
+        },
+        {
+          "group": "network",
+          "id": "ssh-native-exec-status"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ssh-accept-new-records"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ssh-connect-error-status"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ssh-exec-handle-files"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ssh-hostkey-changed-refused"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ssh-run-streams"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ssh-unknown-host-strict-refused"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ssh-wrong-identity-refused"
+        }
+      ]
     },
     {
       "id": "ssh-keyscan-forward-sftp-deferred",
       "kind": "deferred",
       "purpose": "Exercise host-key scanning and hashing, local/remote forwarding lifecycle, and encrypted SFTP transfers against a controlled peer.",
-      "reason": "Requires a future disposable VM or independently reviewed network mock that provides a bounded SSH/SFTP peer, deterministic fixture ports and files, and an isolated route. No peer or network activity is available or permitted in this run."
+      "reason": "Remaining obligations: r3: One forwarded exchange succeeds, but the local forward exits after that connection and its list is empty before cancel; a separate live-list/cancel-before-data probe is pending in batch43."
     },
     {
       "id": "ssh-pty-multiplex-deferred",
       "kind": "deferred",
       "purpose": "Exercise interactive shell/PTY resizing, ControlMaster persistence and cleanup, and multiplexed session behavior.",
-      "reason": "Requires a future disposable VM with a private PTY driver, an isolated encrypted SSH server, bounded persistence timing, and fixture-only identities. The available fixture runner intentionally does not provide that live peer or interactive transport setup."
+      "reason": "Needs an SSH-2 server and the PTY driver together; the PTY driver already supports resize steps (terminal.py:15,539) and the script can start sshd."
     },
     {
       "id": "known-hosts-alias-case-and-whitespace",

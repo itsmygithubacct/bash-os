@@ -118,7 +118,7 @@
       "id": "system_clock_setting",
       "kind": "deferred",
       "purpose": "GNU date can request a system wall-clock change, but exercising that operation here would mutate clock state and the loadable documentation does not advertise it.",
-      "reason": "Do not execute date -s or another clock-setting path in this environment. A future test requires a disposable VM with an isolated controllable wall clock, or a reviewed clock syscall mock that records the requested timestamp without changing the host clock."
+      "reason": "The candidate date builtin does not implement system clock setting; only the rejection contract is testable, and no case exercises it yet."
     }
   ]
 }

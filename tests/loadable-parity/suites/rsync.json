@@ -128,19 +128,19 @@
       "id": "rsh-push-requires-peer",
       "kind": "deferred",
       "purpose": "Exercise remote push and pull through an rsh command using a disposable transport peer.",
-      "reason": "Requires a reviewed disposable RSH/SSH peer or protocol mock so transfer and quoting behavior can be checked without a real network target or installed credentials. The mandated runner provides no peer fixture, and network activity is out of scope."
+      "reason": "No executed case exercises a remote transport. A local ssh-shaped shim or a backgrounded OpenSSH sshd peer suffices; no external target is needed."
     },
     {
       "id": "native-protocol-requires-server",
       "kind": "deferred",
       "purpose": "Exercise rsync --native interoperability against a disposable stock rsync server process.",
-      "reason": "Requires a future disposable protocol peer/server fixture to verify proto-27 negotiation and file transfer; this suite does not start server processes or contact a network endpoint."
+      "reason": "No executed fixture provides a stock rsync server endpoint. One can be reached through a local ssh-shaped transport shim that execs /usr/bin/rsync --server, with no network."
     },
     {
       "id": "daemon-protocol-requires-server",
       "kind": "deferred",
       "purpose": "Exercise rsync daemon URL/module transfers against a disposable rsync daemon mock.",
-      "reason": "Requires a future isolated rsync-daemon mock with a controlled module and protocol responses. No real or loopback network activity is allowed for this run."
+      "reason": "No executed fixture runs an rsync daemon. A per-side script can background the trusted /usr/bin/rsync --daemon on 127.0.0.1 with a private config."
     },
     {
       "id": "empty-source-directory",

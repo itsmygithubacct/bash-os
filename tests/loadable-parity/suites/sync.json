@@ -51,21 +51,60 @@
     },
     {
       "id": "global-sync-call",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify the no-operand form's global synchronization call and status behavior without flushing the host filesystem.",
-      "reason": "Requires a future disposable VM with a closed sync(2) syscall interposer. Verify the no-operand command calls the void global sync interface exactly once and returns success, while the mock prevents a real global filesystem flush. sync(2) provides no failure return to propagate."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-sync-global-call"
+        }
+      ]
     },
     {
       "id": "named-file-sync",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Fault-injected open fallback and descriptor lifetime beyond successful named-file comparisons.",
-      "reason": "Requires a disposable VM/private test filesystem and closed open/fsync/close interposition. Verify each relative fixture path is opened O_WRONLY, retries O_RDONLY when required, calls fsync on the opened descriptor, and closes it. Keep the test tree private and make no claim about host storage durability."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/sync/dash-private-file"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/sync/named-private-files"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/sync/readonly-private-file"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sync-open-fsync-close"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sync-operand-outcomes"
+        }
+      ]
     },
     {
       "id": "per-file-failures",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify file-specific diagnostics, continuation across multiple operands, and aggregate failure status under injected I/O errors.",
-      "reason": "Requires a disposable VM with closed open/fsync/close fault injection. Include an early valid relative fixture, an injected open or fsync failure, and a later valid fixture; verify diagnostics identify the failed file, processing continues, descriptors close, and final status is nonzero. All injected failures must stay inside the mock boundary."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/sync/missing-path-continuation"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sync-open-fsync-close"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sync-operand-outcomes"
+        }
+      ]
     },
     {
       "id": "option-and-dash-path",

@@ -48,45 +48,132 @@
     },
     {
       "id": "deferred-tcp-connect-stream",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise TCP connect mode's binary stdin-to-peer stream, EOF half-close, peer-to-stdout stream and clean success status.",
-      "reason": "Requires a future disposable VM with a private loopback-only network namespace or a reviewed socket mock. An independent controlled TCP peer must record the exact small input bytes through EOF, send a fixed reply, then close; assert nc returns 0 and stdout equals the reply byte-for-byte. Do not use a host or external network target."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "migration-nc-tcp-half-close"
+        },
+        {
+          "group": "network",
+          "id": "nc-tcp-binary-roundtrip"
+        },
+        {
+          "group": "network",
+          "id": "nc-tcp-roundtrip"
+        }
+      ]
     },
     {
       "id": "deferred-tcp-idle-timeout",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise the documented finite -w timeout while a connected TCP peer accepts but stays idle, including failure status and shell continuation.",
-      "reason": "Requires a future disposable VM or reviewed loopback socket mock with a controlled TCP peer that accepts and withholds data beyond a small -w interval. Assert the documented timeout failure and that a following shell command runs. No network operation is run in this suite."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "nc-tcp-idle-timeout"
+        }
+      ]
     },
     {
       "id": "deferred-tcp-listen-one-peer",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise TCP listen mode's mandatory explicit -s address, one accepted peer, bidirectional streaming and v1 exit after that peer.",
-      "reason": "Requires a future disposable VM or reviewed loopback socket mock with an ephemeral private port and a controlled client. Verify the listener binds only the requested loopback address, transfers deterministic bytes in both directions, and ends after the first peer rather than waiting for a second connection. Do not bind a host or externally reachable address."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "nc-tcp-listen-one-peer"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nc-listen-bound-address"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nc-listen-requires-address"
+        }
+      ]
     },
     {
       "id": "deferred-udp-connect-reply",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise UDP connect mode's request payload and post-stdin-EOF reply drain window.",
-      "reason": "Requires a future disposable VM or reviewed loopback UDP mock. A deterministic responder must capture the exact small datagram and reply with fixed bytes; assert nc emits those bytes before the documented drain window closes. Keep the peer private to the disposable fixture."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "migration-nc-udp-late-reply"
+        },
+        {
+          "group": "network",
+          "id": "migration-nc-udp-reply-after-window"
+        },
+        {
+          "group": "network",
+          "id": "nc-udp-roundtrip"
+        }
+      ]
     },
     {
       "id": "deferred-udp-listen-peer-cache",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise UDP listen mode's first-datagram source caching and response of stdin bytes to that peer.",
-      "reason": "Requires a future disposable VM or reviewed UDP socket mock with two controlled loopback senders. Verify received datagram bytes reach stdout and the response goes only to the first sender whose source was cached; verify bounded exit after stdin EOF. No external peer is permitted."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "migration-nc-udp-listen-reply-first-peer"
+        },
+        {
+          "group": "network",
+          "id": "nc-udp-listen-receive"
+        }
+      ]
     },
     {
       "id": "deferred-tcp-scan-range",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise TCP scan over a small range containing one controlled open and one closed loopback port, plus the documented closed-only result.",
-      "reason": "Requires a future disposable VM or reviewed private socket mock that provides one known open listener and a known closed port. Independently assert one `PORT open` line per open port, no other stdout, status 0 when any port is open, and status 1 with empty stdout for a closed-only scan. Never scan a host or outside target."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "nc-scan-none-open"
+        },
+        {
+          "group": "network",
+          "id": "nc-scan-range"
+        }
+      ]
     },
     {
       "id": "deferred-usage-validation",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise documented usage failures for missing operands, malformed or out-of-range decimal ports, reversed scan ranges and invalid -w values before any socket action.",
-      "reason": "Requires a future disposable VM or reviewed syscall/socket mock that can assert invalid arguments are rejected without DNS or socket activity. Check the documented usage status (2) for representative small invalid inputs and keep stdout empty; this loadable is not invoked here."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/nc/parser-invalid-wait"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/nc/parser-missing-arguments"
+        },
+        {
+          "group": "network",
+          "id": "migration-nc-usage-connect-ports"
+        },
+        {
+          "group": "network",
+          "id": "migration-nc-usage-scan-ranges"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nc-usage-listen-ports"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nc-usage-no-socket"
+        }
+      ]
     },
     {
       "id": "parser-missing-arguments",

@@ -94,13 +94,13 @@
       "id": "deferred_live_filter_state",
       "kind": "deferred",
       "purpose": "Live allow/deny, unban, flush, and reset behavior depends on a real kernel firewall ruleset and can change packet filtering.",
-      "reason": "Run only in a future disposable VM with CAP_NET_ADMIN, isolated network interfaces, nft or iptables installed, and a before/after ruleset oracle. Verify apply, list, deletion, flush, and reset against packet/ruleset state; this namespace fixture intentionally does not execute a live backend."
+      "reason": "No live-backend fixture exists. The VM image has iptables but not the nft CLI, so only the iptables backend can be qualified live; the nft live path stays unexercised until nftables is added."
     },
     {
       "id": "deferred_sets_persistence_roundtrip",
       "kind": "deferred",
       "purpose": "Set-backed rules and persistence require live nft/ipset backend state and a safe, independently verifiable restore target.",
-      "reason": "Run only in a future disposable VM or independently reviewed privileged backend mock with nft or iptables plus ipset available. Create and populate a temporary set, save it, reset/recreate isolated state, restore it, and compare set membership and rules before and after; no backend is invoked here."
+      "reason": "fw's set backends are ipset (iptables mode, fw.c:1527-1560) and the nft CLI (fw.c:1514-1550); the VM image contains neither, so a bounded side script cannot create or observe a live set. Dry-run set argv can be added now."
     },
     {
       "id": "pure-private-store-flush",

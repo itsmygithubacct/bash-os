@@ -1,0 +1,142 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-caps-has-empty",
+      "loadable": "caps",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Verify has against independent empty capability masks",
+      "oracle": "Linux capget v3 and /proc/PID/status, with independent per-bit PR_CAPBSET_READ and PR_CAP_AMBIENT_IS_SET. Populated state is constructed in a disposable user namespace before the candidate shell starts.",
+      "comparison": "Exact rendered names, five variable bindings, silent membership statuses, low and high capability words; state independently verified before and after builtin calls.",
+      "files": {
+        "oracle.py": "# SPDX-License-Identifier: MIT\n# Independent Linux UAPI capget/procfs/prctl observations.\n# https://man7.org/linux/man-pages/man2/capget.2.html\n# https://man7.org/linux/man-pages/man7/capabilities.7.html\nimport ctypes, json, os, pathlib, platform, sys\nassert platform.machine() == 'x86_64'\nlib = ctypes.CDLL(None, use_errno=True)\nclass Header(ctypes.Structure):\n    _fields_ = [('version', ctypes.c_uint32), ('pid', ctypes.c_int)]\nclass Word(ctypes.Structure):\n    _fields_ = [('effective', ctypes.c_uint32), ('permitted', ctypes.c_uint32), ('inheritable', ctypes.c_uint32)]\nnames = ('CHOWN DAC_OVERRIDE DAC_READ_SEARCH FOWNER FSETID KILL SETGID SETUID SETPCAP '\n         'LINUX_IMMUTABLE NET_BIND_SERVICE NET_BROADCAST NET_ADMIN NET_RAW IPC_LOCK '\n         'IPC_OWNER SYS_MODULE SYS_RAWIO SYS_CHROOT SYS_PTRACE SYS_PACCT SYS_ADMIN '\n         'SYS_BOOT SYS_NICE SYS_RESOURCE SYS_TIME SYS_TTY_CONFIG MKNOD LEASE AUDIT_WRITE '\n         'AUDIT_CONTROL SETFCAP MAC_OVERRIDE MAC_ADMIN SYSLOG WAKE_ALARM BLOCK_SUSPEND '\n         'AUDIT_READ PERFMON BPF CHECKPOINT_RESTORE').split()\nkeys = ['permitted', 'effective', 'inheritable', 'ambient', 'bounding']\nselected = (1 << 13) | (1 << 39) | (1 << 40)\nfull = (1 << 41) - 1\ndef read(pid):\n    header = Header(0x20080522, pid)\n    words = (Word * 2)()\n    assert lib.syscall(125, ctypes.byref(header), ctypes.byref(words)) == 0, ctypes.get_errno()\n    masks = {key: getattr(words[0], key) | (getattr(words[1], key) << 32) for key in keys[:3]}\n    proc = dict(line.split(':', 1) for line in pathlib.Path('/proc/%d/status' % pid).read_text().splitlines() if ':' in line)\n    for key, label in zip(keys, ['CapPrm', 'CapEff', 'CapInh', 'CapAmb', 'CapBnd']):\n        value = int(proc[label], 16)\n        if key in masks:\n            assert masks[key] == value, (key, masks[key], value)\n        else:\n            masks[key] = value\n    return masks\ndef own_prctl(masks):\n    for index in range(41):\n        assert lib.prctl(23, index, 0, 0, 0) == ((masks['bounding'] >> index) & 1)\n        assert lib.prctl(47, 1, index, 0, 0) == ((masks['ambient'] >> index) & 1)\ndef check_state(pid, mode):\n    assert int(pathlib.Path('/proc/sys/kernel/cap_last_cap').read_text()) == 40\n    masks = read(pid)\n    if mode == 'empty':\n        assert os.geteuid() == 2000\n        assert all(masks[key] == 0 for key in keys[:4]), masks\n    else:\n        assert os.geteuid() == 0\n        assert masks == dict(permitted=full, effective=full, inheritable=selected, ambient=selected, bounding=full), masks\n    own_prctl(masks)\n    return masks\ndef render(mask):\n    return ','.join('CAP_' + name for i, name in enumerate(names) if mask & (1 << i))\ndef main():\n    operation, pid, mode = sys.argv[1], int(sys.argv[2]), sys.argv[3]\n    masks = check_state(pid, mode)\n    if operation == 'control':\n        return\n    if operation == 'probe':\n        assert sys.argv[4:] == ['0', '0'], sys.argv[4:]\n        expected = ''.join(key + ': ' + render(masks[key]) + '\\n' for key in keys)\n        assert pathlib.Path('probe.out').read_text() == expected\n        assert pathlib.Path('values.out').read_text() == expected\n        assert all(pathlib.Path(name).read_bytes() == b'' for name in ['probe.err', 'bind.out', 'bind.err'])\n    elif operation == 'has':\n        spellings = [('CAP_NET_RAW', 13), ('cap_net_raw', 13), ('NET_RAW', 13), ('Net_Raw', 13), ('CAP_BPF', 39), ('bpf', 39), ('CaP_Checkpoint_Restore', 40)]\n        expected = ''.join(name + ':' + str(0 if masks['effective'] & (1 << bit) else 1) + '\\n' for name, bit in spellings)\n        assert pathlib.Path('statuses.out').read_text() == expected\n        assert pathlib.Path('has.out').read_bytes() == b'' and pathlib.Path('has.err').read_bytes() == b''\n    else:\n        raise AssertionError(operation)\n    pathlib.Path('kernel-masks.json').write_text(json.dumps(masks, sort_keys=True) + '\\n')\n    print('capability ' + operation + ' verified')\nif __name__ == '__main__':\n    main()\n",
+        "prepare.py": "# SPDX-License-Identifier: MIT\nimport ctypes, os, sys\nimport oracle\nassert os.geteuid() == 0\ncurrent = oracle.read(os.getpid())\nassert current['permitted'] == current['effective'] == current['bounding'] == oracle.full\nheader = oracle.Header(0x20080522, 0)\nwords = (oracle.Word * 2)()\nfor i in range(2):\n    words[i].effective = (oracle.full >> (32 * i)) & 0xffffffff\n    words[i].permitted = words[i].effective\n    words[i].inheritable = (oracle.selected >> (32 * i)) & 0xffffffff\nassert oracle.lib.syscall(126, ctypes.byref(header), ctypes.byref(words)) == 0, ctypes.get_errno()\nfor bit in [13, 39, 40]:\n    assert oracle.lib.prctl(47, 2, bit, 0, 0) == 0, ctypes.get_errno()\noracle.check_state(os.getpid(), 'populated')\nif len(sys.argv) > 1:\n    os.execv(sys.argv[1], [sys.argv[1], '--noprofile', '--norc', 'case.sh'])\n",
+        "case.sh": "/usr/bin/python3 oracle.py control \"$BASHPID\" empty || exit 90\n: > statuses.out; : > has.out; : > has.err\nfor cap in CAP_NET_RAW cap_net_raw NET_RAW Net_Raw CAP_BPF bpf CaP_Checkpoint_Restore; do\n  caps has \"$cap\" >>has.out 2>>has.err\n  printf '%s:%s\\n' \"$cap\" \"$?\" >>statuses.out\ndone\n/usr/bin/python3 oracle.py has \"$BASHPID\" empty\n"
+      },
+      "requires": [
+        "python3",
+        "unshare"
+      ],
+      "expected_status": 0,
+      "stdout": "capability has verified\n",
+      "stderr": "",
+      "covers": [
+        "caps/caps-has-membership"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 oracle.py control \"$BASHPID\" empty",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\nsource case.sh"
+    },
+    {
+      "id": "migration-caps-has-populated",
+      "loadable": "caps",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Verify has against independent populated capability masks",
+      "oracle": "Linux capget v3 and /proc/PID/status, with independent per-bit PR_CAPBSET_READ and PR_CAP_AMBIENT_IS_SET. Populated state is constructed in a disposable user namespace before the candidate shell starts.",
+      "comparison": "Exact rendered names, five variable bindings, silent membership statuses, low and high capability words; state independently verified before and after builtin calls.",
+      "files": {
+        "oracle.py": "# SPDX-License-Identifier: MIT\n# Independent Linux UAPI capget/procfs/prctl observations.\n# https://man7.org/linux/man-pages/man2/capget.2.html\n# https://man7.org/linux/man-pages/man7/capabilities.7.html\nimport ctypes, json, os, pathlib, platform, sys\nassert platform.machine() == 'x86_64'\nlib = ctypes.CDLL(None, use_errno=True)\nclass Header(ctypes.Structure):\n    _fields_ = [('version', ctypes.c_uint32), ('pid', ctypes.c_int)]\nclass Word(ctypes.Structure):\n    _fields_ = [('effective', ctypes.c_uint32), ('permitted', ctypes.c_uint32), ('inheritable', ctypes.c_uint32)]\nnames = ('CHOWN DAC_OVERRIDE DAC_READ_SEARCH FOWNER FSETID KILL SETGID SETUID SETPCAP '\n         'LINUX_IMMUTABLE NET_BIND_SERVICE NET_BROADCAST NET_ADMIN NET_RAW IPC_LOCK '\n         'IPC_OWNER SYS_MODULE SYS_RAWIO SYS_CHROOT SYS_PTRACE SYS_PACCT SYS_ADMIN '\n         'SYS_BOOT SYS_NICE SYS_RESOURCE SYS_TIME SYS_TTY_CONFIG MKNOD LEASE AUDIT_WRITE '\n         'AUDIT_CONTROL SETFCAP MAC_OVERRIDE MAC_ADMIN SYSLOG WAKE_ALARM BLOCK_SUSPEND '\n         'AUDIT_READ PERFMON BPF CHECKPOINT_RESTORE').split()\nkeys = ['permitted', 'effective', 'inheritable', 'ambient', 'bounding']\nselected = (1 << 13) | (1 << 39) | (1 << 40)\nfull = (1 << 41) - 1\ndef read(pid):\n    header = Header(0x20080522, pid)\n    words = (Word * 2)()\n    assert lib.syscall(125, ctypes.byref(header), ctypes.byref(words)) == 0, ctypes.get_errno()\n    masks = {key: getattr(words[0], key) | (getattr(words[1], key) << 32) for key in keys[:3]}\n    proc = dict(line.split(':', 1) for line in pathlib.Path('/proc/%d/status' % pid).read_text().splitlines() if ':' in line)\n    for key, label in zip(keys, ['CapPrm', 'CapEff', 'CapInh', 'CapAmb', 'CapBnd']):\n        value = int(proc[label], 16)\n        if key in masks:\n            assert masks[key] == value, (key, masks[key], value)\n        else:\n            masks[key] = value\n    return masks\ndef own_prctl(masks):\n    for index in range(41):\n        assert lib.prctl(23, index, 0, 0, 0) == ((masks['bounding'] >> index) & 1)\n        assert lib.prctl(47, 1, index, 0, 0) == ((masks['ambient'] >> index) & 1)\ndef check_state(pid, mode):\n    assert int(pathlib.Path('/proc/sys/kernel/cap_last_cap').read_text()) == 40\n    masks = read(pid)\n    if mode == 'empty':\n        assert os.geteuid() == 2000\n        assert all(masks[key] == 0 for key in keys[:4]), masks\n    else:\n        assert os.geteuid() == 0\n        assert masks == dict(permitted=full, effective=full, inheritable=selected, ambient=selected, bounding=full), masks\n    own_prctl(masks)\n    return masks\ndef render(mask):\n    return ','.join('CAP_' + name for i, name in enumerate(names) if mask & (1 << i))\ndef main():\n    operation, pid, mode = sys.argv[1], int(sys.argv[2]), sys.argv[3]\n    masks = check_state(pid, mode)\n    if operation == 'control':\n        return\n    if operation == 'probe':\n        assert sys.argv[4:] == ['0', '0'], sys.argv[4:]\n        expected = ''.join(key + ': ' + render(masks[key]) + '\\n' for key in keys)\n        assert pathlib.Path('probe.out').read_text() == expected\n        assert pathlib.Path('values.out').read_text() == expected\n        assert all(pathlib.Path(name).read_bytes() == b'' for name in ['probe.err', 'bind.out', 'bind.err'])\n    elif operation == 'has':\n        spellings = [('CAP_NET_RAW', 13), ('cap_net_raw', 13), ('NET_RAW', 13), ('Net_Raw', 13), ('CAP_BPF', 39), ('bpf', 39), ('CaP_Checkpoint_Restore', 40)]\n        expected = ''.join(name + ':' + str(0 if masks['effective'] & (1 << bit) else 1) + '\\n' for name, bit in spellings)\n        assert pathlib.Path('statuses.out').read_text() == expected\n        assert pathlib.Path('has.out').read_bytes() == b'' and pathlib.Path('has.err').read_bytes() == b''\n    else:\n        raise AssertionError(operation)\n    pathlib.Path('kernel-masks.json').write_text(json.dumps(masks, sort_keys=True) + '\\n')\n    print('capability ' + operation + ' verified')\nif __name__ == '__main__':\n    main()\n",
+        "prepare.py": "# SPDX-License-Identifier: MIT\nimport ctypes, os, sys\nimport oracle\nassert os.geteuid() == 0\ncurrent = oracle.read(os.getpid())\nassert current['permitted'] == current['effective'] == current['bounding'] == oracle.full\nheader = oracle.Header(0x20080522, 0)\nwords = (oracle.Word * 2)()\nfor i in range(2):\n    words[i].effective = (oracle.full >> (32 * i)) & 0xffffffff\n    words[i].permitted = words[i].effective\n    words[i].inheritable = (oracle.selected >> (32 * i)) & 0xffffffff\nassert oracle.lib.syscall(126, ctypes.byref(header), ctypes.byref(words)) == 0, ctypes.get_errno()\nfor bit in [13, 39, 40]:\n    assert oracle.lib.prctl(47, 2, bit, 0, 0) == 0, ctypes.get_errno()\noracle.check_state(os.getpid(), 'populated')\nif len(sys.argv) > 1:\n    os.execv(sys.argv[1], [sys.argv[1], '--noprofile', '--norc', 'case.sh'])\n",
+        "case.sh": "/usr/bin/python3 oracle.py control \"$BASHPID\" populated || exit 90\n: > statuses.out; : > has.out; : > has.err\nfor cap in CAP_NET_RAW cap_net_raw NET_RAW Net_Raw CAP_BPF bpf CaP_Checkpoint_Restore; do\n  caps has \"$cap\" >>has.out 2>>has.err\n  printf '%s:%s\\n' \"$cap\" \"$?\" >>statuses.out\ndone\n/usr/bin/python3 oracle.py has \"$BASHPID\" populated\n"
+      },
+      "requires": [
+        "python3",
+        "unshare"
+      ],
+      "expected_status": 0,
+      "stdout": "capability has verified\n",
+      "stderr": "",
+      "covers": [
+        "caps/caps-has-membership"
+      ],
+      "features": [
+        "userns"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/unshare --user --map-root-user --fork /usr/bin/python3 prepare.py",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/unshare --user --map-root-user --fork /usr/bin/python3 prepare.py \"$BASH\""
+    },
+    {
+      "id": "migration-caps-probe-empty",
+      "loadable": "caps",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Verify probe against independent empty capability masks",
+      "oracle": "Linux capget v3 and /proc/PID/status, with independent per-bit PR_CAPBSET_READ and PR_CAP_AMBIENT_IS_SET. Populated state is constructed in a disposable user namespace before the candidate shell starts.",
+      "comparison": "Exact rendered names, five variable bindings, silent membership statuses, low and high capability words; state independently verified before and after builtin calls.",
+      "files": {
+        "oracle.py": "# SPDX-License-Identifier: MIT\n# Independent Linux UAPI capget/procfs/prctl observations.\n# https://man7.org/linux/man-pages/man2/capget.2.html\n# https://man7.org/linux/man-pages/man7/capabilities.7.html\nimport ctypes, json, os, pathlib, platform, sys\nassert platform.machine() == 'x86_64'\nlib = ctypes.CDLL(None, use_errno=True)\nclass Header(ctypes.Structure):\n    _fields_ = [('version', ctypes.c_uint32), ('pid', ctypes.c_int)]\nclass Word(ctypes.Structure):\n    _fields_ = [('effective', ctypes.c_uint32), ('permitted', ctypes.c_uint32), ('inheritable', ctypes.c_uint32)]\nnames = ('CHOWN DAC_OVERRIDE DAC_READ_SEARCH FOWNER FSETID KILL SETGID SETUID SETPCAP '\n         'LINUX_IMMUTABLE NET_BIND_SERVICE NET_BROADCAST NET_ADMIN NET_RAW IPC_LOCK '\n         'IPC_OWNER SYS_MODULE SYS_RAWIO SYS_CHROOT SYS_PTRACE SYS_PACCT SYS_ADMIN '\n         'SYS_BOOT SYS_NICE SYS_RESOURCE SYS_TIME SYS_TTY_CONFIG MKNOD LEASE AUDIT_WRITE '\n         'AUDIT_CONTROL SETFCAP MAC_OVERRIDE MAC_ADMIN SYSLOG WAKE_ALARM BLOCK_SUSPEND '\n         'AUDIT_READ PERFMON BPF CHECKPOINT_RESTORE').split()\nkeys = ['permitted', 'effective', 'inheritable', 'ambient', 'bounding']\nselected = (1 << 13) | (1 << 39) | (1 << 40)\nfull = (1 << 41) - 1\ndef read(pid):\n    header = Header(0x20080522, pid)\n    words = (Word * 2)()\n    assert lib.syscall(125, ctypes.byref(header), ctypes.byref(words)) == 0, ctypes.get_errno()\n    masks = {key: getattr(words[0], key) | (getattr(words[1], key) << 32) for key in keys[:3]}\n    proc = dict(line.split(':', 1) for line in pathlib.Path('/proc/%d/status' % pid).read_text().splitlines() if ':' in line)\n    for key, label in zip(keys, ['CapPrm', 'CapEff', 'CapInh', 'CapAmb', 'CapBnd']):\n        value = int(proc[label], 16)\n        if key in masks:\n            assert masks[key] == value, (key, masks[key], value)\n        else:\n            masks[key] = value\n    return masks\ndef own_prctl(masks):\n    for index in range(41):\n        assert lib.prctl(23, index, 0, 0, 0) == ((masks['bounding'] >> index) & 1)\n        assert lib.prctl(47, 1, index, 0, 0) == ((masks['ambient'] >> index) & 1)\ndef check_state(pid, mode):\n    assert int(pathlib.Path('/proc/sys/kernel/cap_last_cap').read_text()) == 40\n    masks = read(pid)\n    if mode == 'empty':\n        assert os.geteuid() == 2000\n        assert all(masks[key] == 0 for key in keys[:4]), masks\n    else:\n        assert os.geteuid() == 0\n        assert masks == dict(permitted=full, effective=full, inheritable=selected, ambient=selected, bounding=full), masks\n    own_prctl(masks)\n    return masks\ndef render(mask):\n    return ','.join('CAP_' + name for i, name in enumerate(names) if mask & (1 << i))\ndef main():\n    operation, pid, mode = sys.argv[1], int(sys.argv[2]), sys.argv[3]\n    masks = check_state(pid, mode)\n    if operation == 'control':\n        return\n    if operation == 'probe':\n        assert sys.argv[4:] == ['0', '0'], sys.argv[4:]\n        expected = ''.join(key + ': ' + render(masks[key]) + '\\n' for key in keys)\n        assert pathlib.Path('probe.out').read_text() == expected\n        assert pathlib.Path('values.out').read_text() == expected\n        assert all(pathlib.Path(name).read_bytes() == b'' for name in ['probe.err', 'bind.out', 'bind.err'])\n    elif operation == 'has':\n        spellings = [('CAP_NET_RAW', 13), ('cap_net_raw', 13), ('NET_RAW', 13), ('Net_Raw', 13), ('CAP_BPF', 39), ('bpf', 39), ('CaP_Checkpoint_Restore', 40)]\n        expected = ''.join(name + ':' + str(0 if masks['effective'] & (1 << bit) else 1) + '\\n' for name, bit in spellings)\n        assert pathlib.Path('statuses.out').read_text() == expected\n        assert pathlib.Path('has.out').read_bytes() == b'' and pathlib.Path('has.err').read_bytes() == b''\n    else:\n        raise AssertionError(operation)\n    pathlib.Path('kernel-masks.json').write_text(json.dumps(masks, sort_keys=True) + '\\n')\n    print('capability ' + operation + ' verified')\nif __name__ == '__main__':\n    main()\n",
+        "prepare.py": "# SPDX-License-Identifier: MIT\nimport ctypes, os, sys\nimport oracle\nassert os.geteuid() == 0\ncurrent = oracle.read(os.getpid())\nassert current['permitted'] == current['effective'] == current['bounding'] == oracle.full\nheader = oracle.Header(0x20080522, 0)\nwords = (oracle.Word * 2)()\nfor i in range(2):\n    words[i].effective = (oracle.full >> (32 * i)) & 0xffffffff\n    words[i].permitted = words[i].effective\n    words[i].inheritable = (oracle.selected >> (32 * i)) & 0xffffffff\nassert oracle.lib.syscall(126, ctypes.byref(header), ctypes.byref(words)) == 0, ctypes.get_errno()\nfor bit in [13, 39, 40]:\n    assert oracle.lib.prctl(47, 2, bit, 0, 0) == 0, ctypes.get_errno()\noracle.check_state(os.getpid(), 'populated')\nif len(sys.argv) > 1:\n    os.execv(sys.argv[1], [sys.argv[1], '--noprofile', '--norc', 'case.sh'])\n",
+        "case.sh": "/usr/bin/python3 oracle.py control \"$BASHPID\" empty || exit 90\ncaps probe >probe.out 2>probe.err; first=$?\ncaps probe -V VIEW >bind.out 2>bind.err; second=$?\nprintf 'permitted: %s\\neffective: %s\\ninheritable: %s\\nambient: %s\\nbounding: %s\\n' \"$VIEW_permitted\" \"$VIEW_effective\" \"$VIEW_inheritable\" \"$VIEW_ambient\" \"$VIEW_bounding\" >values.out\n/usr/bin/python3 oracle.py probe \"$BASHPID\" empty \"$first\" \"$second\"\n"
+      },
+      "requires": [
+        "python3",
+        "unshare"
+      ],
+      "expected_status": 0,
+      "stdout": "capability probe verified\n",
+      "stderr": "",
+      "covers": [
+        "caps/caps-probe-masks"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 oracle.py control \"$BASHPID\" empty",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\nsource case.sh"
+    },
+    {
+      "id": "migration-caps-probe-populated",
+      "loadable": "caps",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Verify probe against independent populated capability masks",
+      "oracle": "Linux capget v3 and /proc/PID/status, with independent per-bit PR_CAPBSET_READ and PR_CAP_AMBIENT_IS_SET. Populated state is constructed in a disposable user namespace before the candidate shell starts.",
+      "comparison": "Exact rendered names, five variable bindings, silent membership statuses, low and high capability words; state independently verified before and after builtin calls.",
+      "files": {
+        "oracle.py": "# SPDX-License-Identifier: MIT\n# Independent Linux UAPI capget/procfs/prctl observations.\n# https://man7.org/linux/man-pages/man2/capget.2.html\n# https://man7.org/linux/man-pages/man7/capabilities.7.html\nimport ctypes, json, os, pathlib, platform, sys\nassert platform.machine() == 'x86_64'\nlib = ctypes.CDLL(None, use_errno=True)\nclass Header(ctypes.Structure):\n    _fields_ = [('version', ctypes.c_uint32), ('pid', ctypes.c_int)]\nclass Word(ctypes.Structure):\n    _fields_ = [('effective', ctypes.c_uint32), ('permitted', ctypes.c_uint32), ('inheritable', ctypes.c_uint32)]\nnames = ('CHOWN DAC_OVERRIDE DAC_READ_SEARCH FOWNER FSETID KILL SETGID SETUID SETPCAP '\n         'LINUX_IMMUTABLE NET_BIND_SERVICE NET_BROADCAST NET_ADMIN NET_RAW IPC_LOCK '\n         'IPC_OWNER SYS_MODULE SYS_RAWIO SYS_CHROOT SYS_PTRACE SYS_PACCT SYS_ADMIN '\n         'SYS_BOOT SYS_NICE SYS_RESOURCE SYS_TIME SYS_TTY_CONFIG MKNOD LEASE AUDIT_WRITE '\n         'AUDIT_CONTROL SETFCAP MAC_OVERRIDE MAC_ADMIN SYSLOG WAKE_ALARM BLOCK_SUSPEND '\n         'AUDIT_READ PERFMON BPF CHECKPOINT_RESTORE').split()\nkeys = ['permitted', 'effective', 'inheritable', 'ambient', 'bounding']\nselected = (1 << 13) | (1 << 39) | (1 << 40)\nfull = (1 << 41) - 1\ndef read(pid):\n    header = Header(0x20080522, pid)\n    words = (Word * 2)()\n    assert lib.syscall(125, ctypes.byref(header), ctypes.byref(words)) == 0, ctypes.get_errno()\n    masks = {key: getattr(words[0], key) | (getattr(words[1], key) << 32) for key in keys[:3]}\n    proc = dict(line.split(':', 1) for line in pathlib.Path('/proc/%d/status' % pid).read_text().splitlines() if ':' in line)\n    for key, label in zip(keys, ['CapPrm', 'CapEff', 'CapInh', 'CapAmb', 'CapBnd']):\n        value = int(proc[label], 16)\n        if key in masks:\n            assert masks[key] == value, (key, masks[key], value)\n        else:\n            masks[key] = value\n    return masks\ndef own_prctl(masks):\n    for index in range(41):\n        assert lib.prctl(23, index, 0, 0, 0) == ((masks['bounding'] >> index) & 1)\n        assert lib.prctl(47, 1, index, 0, 0) == ((masks['ambient'] >> index) & 1)\ndef check_state(pid, mode):\n    assert int(pathlib.Path('/proc/sys/kernel/cap_last_cap').read_text()) == 40\n    masks = read(pid)\n    if mode == 'empty':\n        assert os.geteuid() == 2000\n        assert all(masks[key] == 0 for key in keys[:4]), masks\n    else:\n        assert os.geteuid() == 0\n        assert masks == dict(permitted=full, effective=full, inheritable=selected, ambient=selected, bounding=full), masks\n    own_prctl(masks)\n    return masks\ndef render(mask):\n    return ','.join('CAP_' + name for i, name in enumerate(names) if mask & (1 << i))\ndef main():\n    operation, pid, mode = sys.argv[1], int(sys.argv[2]), sys.argv[3]\n    masks = check_state(pid, mode)\n    if operation == 'control':\n        return\n    if operation == 'probe':\n        assert sys.argv[4:] == ['0', '0'], sys.argv[4:]\n        expected = ''.join(key + ': ' + render(masks[key]) + '\\n' for key in keys)\n        assert pathlib.Path('probe.out').read_text() == expected\n        assert pathlib.Path('values.out').read_text() == expected\n        assert all(pathlib.Path(name).read_bytes() == b'' for name in ['probe.err', 'bind.out', 'bind.err'])\n    elif operation == 'has':\n        spellings = [('CAP_NET_RAW', 13), ('cap_net_raw', 13), ('NET_RAW', 13), ('Net_Raw', 13), ('CAP_BPF', 39), ('bpf', 39), ('CaP_Checkpoint_Restore', 40)]\n        expected = ''.join(name + ':' + str(0 if masks['effective'] & (1 << bit) else 1) + '\\n' for name, bit in spellings)\n        assert pathlib.Path('statuses.out').read_text() == expected\n        assert pathlib.Path('has.out').read_bytes() == b'' and pathlib.Path('has.err').read_bytes() == b''\n    else:\n        raise AssertionError(operation)\n    pathlib.Path('kernel-masks.json').write_text(json.dumps(masks, sort_keys=True) + '\\n')\n    print('capability ' + operation + ' verified')\nif __name__ == '__main__':\n    main()\n",
+        "prepare.py": "# SPDX-License-Identifier: MIT\nimport ctypes, os, sys\nimport oracle\nassert os.geteuid() == 0\ncurrent = oracle.read(os.getpid())\nassert current['permitted'] == current['effective'] == current['bounding'] == oracle.full\nheader = oracle.Header(0x20080522, 0)\nwords = (oracle.Word * 2)()\nfor i in range(2):\n    words[i].effective = (oracle.full >> (32 * i)) & 0xffffffff\n    words[i].permitted = words[i].effective\n    words[i].inheritable = (oracle.selected >> (32 * i)) & 0xffffffff\nassert oracle.lib.syscall(126, ctypes.byref(header), ctypes.byref(words)) == 0, ctypes.get_errno()\nfor bit in [13, 39, 40]:\n    assert oracle.lib.prctl(47, 2, bit, 0, 0) == 0, ctypes.get_errno()\noracle.check_state(os.getpid(), 'populated')\nif len(sys.argv) > 1:\n    os.execv(sys.argv[1], [sys.argv[1], '--noprofile', '--norc', 'case.sh'])\n",
+        "case.sh": "/usr/bin/python3 oracle.py control \"$BASHPID\" populated || exit 90\ncaps probe >probe.out 2>probe.err; first=$?\ncaps probe -V VIEW >bind.out 2>bind.err; second=$?\nprintf 'permitted: %s\\neffective: %s\\ninheritable: %s\\nambient: %s\\nbounding: %s\\n' \"$VIEW_permitted\" \"$VIEW_effective\" \"$VIEW_inheritable\" \"$VIEW_ambient\" \"$VIEW_bounding\" >values.out\n/usr/bin/python3 oracle.py probe \"$BASHPID\" populated \"$first\" \"$second\"\n"
+      },
+      "requires": [
+        "python3",
+        "unshare"
+      ],
+      "expected_status": 0,
+      "stdout": "capability probe verified\n",
+      "stderr": "",
+      "covers": [
+        "caps/caps-probe-masks"
+      ],
+      "features": [
+        "userns"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/unshare --user --map-root-user --fork /usr/bin/python3 prepare.py",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/unshare --user --map-root-user --fork /usr/bin/python3 prepare.py \"$BASH\""
+    },
+    {
+      "id": "migration-caps-has-unknown-syscall-guard",
+      "loadable": "caps",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Unknown capability lookup rejects before capget",
+      "oracle": "Documented unknown-name status and a positively controlled seccomp kill filter on capget.",
+      "requires": [
+        "python3"
+      ],
+      "expected_status": 0,
+      "stdout": "status=2 stdout=empty diagnostic=unknown\n",
+      "stderr": "",
+      "covers": [
+        "caps/caps-has-membership"
+      ],
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "setup_script": "if /usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill capget -- /usr/bin/python3 -c 'import ctypes;ctypes.CDLL(None).syscall(125,0,0)' >control.out 2>control.err; then rc=0; else rc=$?; fi; [[ $rc == 159 ]] || exit 90; rm -f control.out control.err",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill capget -- \"$BASH\" --noprofile --norc -c 'caps has NOT_A_CAPABILITY >out 2>err; rc=$?; text=$(<err); [[ ! -s out && $text == *\"unknown capability\"* ]] || exit 90; printf \"status=%s stdout=empty diagnostic=unknown\\n\" \"$rc\"'"
+    }
+  ]
+}

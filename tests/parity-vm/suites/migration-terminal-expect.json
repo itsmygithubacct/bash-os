@@ -1,0 +1,185 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "id": "migration-expect-spawn-round-trip",
+   "loadable": "expect",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "spawn allocates a PTY and starts the child as a session leader with the PTY as its controlling terminal (child self-check: getsid==pid, isatty, tcgetpgrp==getpgrp, /dev/tty opens); FD_VAR is an open descriptor and PID_VAR is the child's own pid; the prompt is matched and captured with -V; sendline reaches the child as 'alice\\n' and is echoed by the line discipline; a CR sent with send arrives as NL (ICRNL); after the child exits, expect returns 2 and eof 0; close returns the exit status 7 and the pid no longer exists.",
+   "script": "expect log_user off\nexpect spawn /usr/bin/python3 rt.py dialog -h fd -h pid; echo \"spawn=$?\" > spawn\n[[ $fd =~ ^[0-9]+$ && -e /proc/self/fd/$fd ]] && echo fd-open >> spawn\n[[ $pid =~ ^[1-9][0-9]*$ ]] && echo pid-numeric >> spawn\nexpect expect \"$fd\" 'leader=[a-z]+ ctty=[a-z]+ pid=[0-9]+'$'\\r' -t 10 -V info; echo \"info=$?\" >> spawn\ninfo=${info%$'\\r'}\n[[ ${info##*pid=} == \"$pid\" ]] && echo pid-is-child >> spawn || echo pid-differs >> spawn\nprintf '%s\\n' \"${info% pid=*}\" >> spawn\nexpect expect \"$fd\" 'name\\? $' -t 10 -V prompt; printf 'rc=%s prompt=[%s]\\n' $? \"$prompt\" > prompt\nexpect sendline \"$fd\" alice; echo \"sendline=$?\" > line\nexpect expect \"$fd\" \"got='[^']*'\" -t 10 -V got; printf 'rc=%s %s\\n' $? \"$got\" >> line\nexpect expect \"$fd\" $'alice\\r' -t 0; echo \"echoed=$?\" >> line\nexpect expect \"$fd\" 'cmd\\? $' -t 10; echo \"cmd=$?\" >> line\nexpect send \"$fd\" $'bob\\r'; echo \"send=$?\" >> line\nexpect expect \"$fd\" \"got2='[^']*'\" -t 10 -V got2; printf 'rc=%s %s\\n' $? \"$got2\" >> line\nexpect expect \"$fd\" never-printed -t 10; echo \"expect-at-eof=$?\" > end\nexpect eof \"$fd\" -t 10; echo \"eof=$?\" >> end\nexpect close \"$fd\" \"$pid\"; echo \"close=$?\" >> end\n[[ -e /proc/$pid ]] && echo child-present >> end || echo child-gone >> end\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "expect/pty-round-trip"
+   ],
+   "oracle": "expect help text (expect.c expect_doc): spawn CMD -h FD_VAR -h PID_VAR; expect FD PATTERN [-t SEC] [-V VAR]; expect-alt FD PAT... -V WHICH_VAR -V MATCH_VAR; send/sendline; send-secret FD HANDLE; eof FD [-t SEC]; close FD PID; log FD -F LOGFD [-m] | off; log_user on|off; 'Positive -t SEC bounds the whole wait, including while output keeps arriving'; 'zero checks buffered and ready input without waiting'; expect/expect-alt return 0 match, 1 timeout, 2 EOF; eof returns 0 EOF, 1 timeout. PTY semantics (session leader, controlling terminal, ICRNL/ECHO/ONLCR defaults, hangup on master close) per POSIX/Linux pty(7) and termios(3).",
+   "comparison": "contract: exact rc/capture lines; PID compared with the child's self-reported pid (semantic marker)",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "files": {
+    "rt.py": "import os, signal, sys, time\ndef w(s): os.write(1, s.encode())\nmode = sys.argv[1]\nif mode == 'dialog':\n    leader = os.getsid(0) == os.getpid() and os.isatty(0) and os.tcgetpgrp(0) == os.getpgrp()\n    try:\n        os.close(os.open('/dev/tty', os.O_RDWR)); ctty = 'yes'\n    except OSError:\n        ctty = 'no'\n    w('leader=%s ctty=%s pid=%d\\n' % ('yes' if leader else 'no', ctty, os.getpid()))\n    w('name? ')\n    w('got=%r\\n' % os.read(0, 100).decode())\n    w('cmd? ')\n    w('got2=%r\\n' % os.read(0, 100).decode())\n    sys.exit(7)\nif mode == 'killself':\n    w('ready\\n')\n    os.kill(os.getpid(), signal.SIGTERM)\n    time.sleep(5)\nif mode == 'linger':\n    w('ready\\n')\n    time.sleep(30)\n    sys.exit(3)\n"
+   },
+   "timeout": 40,
+   "expected_files": {
+    "spawn": "spawn=0\nfd-open\npid-numeric\ninfo=0\npid-is-child\nleader=yes ctty=yes\n",
+    "prompt": "rc=0 prompt=[name? ]\n",
+    "line": "sendline=0\nrc=0 got='alice\\n'\nechoed=0\ncmd=0\nsend=0\nrc=0 got2='bob\\n'\n",
+    "end": "expect-at-eof=2\neof=0\nclose=7\nchild-gone\n"
+   }
+  },
+  {
+   "id": "migration-expect-close-signal-status",
+   "loadable": "expect",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "close reports signal deaths as 128+N: a child that kills itself with SIGTERM gives 143 after eof; a child still sleeping when close hangs up the PTY master dies of SIGHUP and close returns 129 (it does not wait for the 30 s sleep); both pids are gone afterwards. No process outlives the case (guest stray-process check).",
+   "script": "expect log_user off\nexpect spawn /usr/bin/python3 rt.py killself -h fd -h pid\nexpect expect \"$fd\" ready -t 10; echo \"ready=$?\" > sig\nexpect eof \"$fd\" -t 10; echo \"eof=$?\" >> sig\nexpect close \"$fd\" \"$pid\"; echo \"close=$?\" >> sig\n[[ -e /proc/$pid ]] && echo child-present >> sig || echo child-gone >> sig\nexpect spawn /usr/bin/python3 rt.py linger -h fd -h pid\nexpect expect \"$fd\" ready -t 10; echo \"ready=$?\" > hup\nt0=${EPOCHREALTIME/./}; expect close \"$fd\" \"$pid\"; rc=$?; t1=${EPOCHREALTIME/./}\necho \"close=$rc\" >> hup\n(( (t1 - t0) / 1000 < 10000 )) && echo close-did-not-wait-for-sleep >> hup || echo close-waited >> hup\n[[ -e /proc/$pid ]] && echo child-present >> hup || echo child-gone >> hup\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "expect/pty-round-trip"
+   ],
+   "oracle": "expect help text (expect.c expect_doc): spawn CMD -h FD_VAR -h PID_VAR; expect FD PATTERN [-t SEC] [-V VAR]; expect-alt FD PAT... -V WHICH_VAR -V MATCH_VAR; send/sendline; send-secret FD HANDLE; eof FD [-t SEC]; close FD PID; log FD -F LOGFD [-m] | off; log_user on|off; 'Positive -t SEC bounds the whole wait, including while output keeps arriving'; 'zero checks buffered and ready input without waiting'; expect/expect-alt return 0 match, 1 timeout, 2 EOF; eof returns 0 EOF, 1 timeout. PTY semantics (session leader, controlling terminal, ICRNL/ECHO/ONLCR defaults, hangup on master close) per POSIX/Linux pty(7) and termios(3).",
+   "comparison": "contract: exact close statuses; elapsed bound is a coarse semantic predicate (<10 s vs a 30 s sleep)",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "files": {
+    "rt.py": "import os, signal, sys, time\ndef w(s): os.write(1, s.encode())\nmode = sys.argv[1]\nif mode == 'dialog':\n    leader = os.getsid(0) == os.getpid() and os.isatty(0) and os.tcgetpgrp(0) == os.getpgrp()\n    try:\n        os.close(os.open('/dev/tty', os.O_RDWR)); ctty = 'yes'\n    except OSError:\n        ctty = 'no'\n    w('leader=%s ctty=%s pid=%d\\n' % ('yes' if leader else 'no', ctty, os.getpid()))\n    w('name? ')\n    w('got=%r\\n' % os.read(0, 100).decode())\n    w('cmd? ')\n    w('got2=%r\\n' % os.read(0, 100).decode())\n    sys.exit(7)\nif mode == 'killself':\n    w('ready\\n')\n    os.kill(os.getpid(), signal.SIGTERM)\n    time.sleep(5)\nif mode == 'linger':\n    w('ready\\n')\n    time.sleep(30)\n    sys.exit(3)\n"
+   },
+   "timeout": 40,
+   "expected_files": {
+    "sig": "ready=0\neof=0\nclose=143\nchild-gone\n",
+    "hup": "ready=0\nclose=129\nclose-did-not-wait-for-sleep\nchild-gone\n"
+   }
+  },
+  {
+   "id": "migration-expect-alt-on-pty",
+   "loadable": "expect",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "On a spawned PTY: once 'beta alpha id=42' is buffered, expect-alt alpha beta picks pattern 0 (first listed) although beta occurs first; a later expect-alt zzz 'id=[0-9]+' binds WHICH_VAR=1 and MATCH_VAR=id=42; a match spanning two reads ('spl' then 'it-ok' 300 ms later, the first part observed separately) is found; with -t 0 already-ready bytes ('late-token', written before the shell's 600 ms pause) are consumed and matched, and an absent pattern returns 1 at once.",
+   "script": "expect log_user off\nexpect spawn /usr/bin/python3 alt.py -h fd -h pid\nexpect expect \"$fd\" 'id=[0-9]+'$'\\r' -t 10; echo \"line=$?\" > alt\nexpect expect-alt \"$fd\" alpha beta -t 10 -V which -V m; printf 'rc=%s which=%s match=%s\\n' $? \"$which\" \"$m\" >> alt\nexpect expect-alt \"$fd\" zzz 'id=[0-9]+' -t 10 -V which -V m; printf 'rc=%s which=%s match=%s\\n' $? \"$which\" \"$m\" >> alt\nexpect expect \"$fd\" spl -t 10; echo \"first-part=$?\" > split\nexpect expect \"$fd\" 'split-ok' -t 10 -V sp; printf 'rc=%s match=%s\\n' $? \"$sp\" >> split\nexpect expect \"$fd\" mark1 -t 10; echo \"mark=$?\" > zero\nsleep 0.6\nt0=${EPOCHREALTIME/./}\nexpect expect \"$fd\" late-token -t 0; echo \"ready-bytes=$?\" >> zero\nexpect expect \"$fd\" never-printed -t 0; echo \"absent=$?\" >> zero\nt1=${EPOCHREALTIME/./}\n(( (t1 - t0) / 1000 < 500 )) && echo no-wait >> zero || echo waited >> zero\nexpect sendline \"$fd\" quit; expect eof \"$fd\" -t 10; echo \"eof=$?\" >> zero\nexpect close \"$fd\" \"$pid\"; echo \"close=$?\" >> zero\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "expect/alt-pattern-buffering"
+   ],
+   "oracle": "expect help text (expect.c expect_doc): spawn CMD -h FD_VAR -h PID_VAR; expect FD PATTERN [-t SEC] [-V VAR]; expect-alt FD PAT... -V WHICH_VAR -V MATCH_VAR; send/sendline; send-secret FD HANDLE; eof FD [-t SEC]; close FD PID; log FD -F LOGFD [-m] | off; log_user on|off; 'Positive -t SEC bounds the whole wait, including while output keeps arriving'; 'zero checks buffered and ready input without waiting'; expect/expect-alt return 0 match, 1 timeout, 2 EOF; eof returns 0 EOF, 1 timeout. PTY semantics (session leader, controlling terminal, ICRNL/ECHO/ONLCR defaults, hangup on master close) per POSIX/Linux pty(7) and termios(3).",
+   "comparison": "contract: exact rc/WHICH/MATCH lines; -t 0 promptness is a coarse semantic predicate (<500 ms)",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "files": {
+    "alt.py": "import os, time\nos.write(1, b'beta alpha id=42\\n')\ntime.sleep(0.3)\nos.write(1, b'spl')\ntime.sleep(0.3)\nos.write(1, b'it-ok\\n')\ntime.sleep(0.2)\nos.write(1, b'mark1\\n')\ntime.sleep(0.2)\nos.write(1, b'late-token\\n')\nos.read(0, 100)\n"
+   },
+   "timeout": 40,
+   "expected_files": {
+    "alt": "line=0\nrc=0 which=0 match=alpha\nrc=0 which=1 match=id=42\n",
+    "split": "first-part=0\nrc=0 match=split-ok\n",
+    "zero": "mark=0\nready-bytes=0\nabsent=1\nno-wait\neof=0\nclose=0\n"
+   }
+  },
+  {
+   "id": "migration-expect-deadline-and-eof",
+   "loadable": "expect",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "A child printing 'x' every 50 ms forever does not extend expect -t 1: it returns 1 after 0.9-2.0 s. With a silent live child, eof -t 1 and expect -t 1 both return 1 (timeout); after the child exits, expect returns 2 and eof 0, each well before its 10 s deadline (<3 s).",
+   "script": "expect log_user off\nexpect spawn /usr/bin/python3 dl.py stream -h fd -h pid\nexpect expect \"$fd\" x -t 10; echo \"first=$?\" > stream\nt0=${EPOCHREALTIME/./}; expect expect \"$fd\" never-printed -t 1; rc=$?; t1=${EPOCHREALTIME/./}\necho \"timeout=$rc\" >> stream; ms=$(( (t1 - t0) / 1000 ))\n(( ms >= 900 && ms < 2000 )) && echo bounded-by-deadline >> stream || echo elapsed-outside-0.9-2.0s >> stream\nexpect close \"$fd\" \"$pid\"; echo closed >> stream\nexpect spawn /usr/bin/python3 dl.py wait -h fd -h pid\nexpect expect \"$fd\" ready -t 10; echo \"ready=$?\" > status\nexpect eof \"$fd\" -t 1; echo \"eof-live=$?\" >> status\nexpect expect \"$fd\" never-printed -t 1; echo \"expect-live=$?\" >> status\nexpect sendline \"$fd\" go\nt0=${EPOCHREALTIME/./}; expect expect \"$fd\" never-printed -t 10; rc=$?; t1=${EPOCHREALTIME/./}\necho \"expect-eof=$rc\" >> status; (( (t1 - t0) / 1000 < 3000 )) && echo expect-prompt >> status || echo expect-slow >> status\nt0=${EPOCHREALTIME/./}; expect eof \"$fd\" -t 10; rc=$?; t1=${EPOCHREALTIME/./}\necho \"eof=$rc\" >> status; (( (t1 - t0) / 1000 < 3000 )) && echo eof-prompt >> status || echo eof-slow >> status\nexpect close \"$fd\" \"$pid\"; echo \"close=$?\" >> status\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "expect/deadline-eof-timeout"
+   ],
+   "oracle": "expect help text (expect.c expect_doc): spawn CMD -h FD_VAR -h PID_VAR; expect FD PATTERN [-t SEC] [-V VAR]; expect-alt FD PAT... -V WHICH_VAR -V MATCH_VAR; send/sendline; send-secret FD HANDLE; eof FD [-t SEC]; close FD PID; log FD -F LOGFD [-m] | off; log_user on|off; 'Positive -t SEC bounds the whole wait, including while output keeps arriving'; 'zero checks buffered and ready input without waiting'; expect/expect-alt return 0 match, 1 timeout, 2 EOF; eof returns 0 EOF, 1 timeout. PTY semantics (session leader, controlling terminal, ICRNL/ECHO/ONLCR defaults, hangup on master close) per POSIX/Linux pty(7) and termios(3).",
+   "comparison": "contract: exact statuses; elapsed windows are coarse semantic predicates stated in the file text (0.9-2.0 s for -t 1; <3 s for EOF against a 10 s deadline)",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "files": {
+    "dl.py": "import os, sys, time\nif sys.argv[1] == 'stream':\n    while True:\n        os.write(1, b'x')\n        time.sleep(0.05)\nos.write(1, b'ready\\n')\nos.read(0, 100)\n"
+   },
+   "timeout": 40,
+   "expected_files": {
+    "stream": "first=0\ntimeout=1\nbounded-by-deadline\nclosed\n",
+    "status": "ready=0\neof-live=1\nexpect-live=1\nexpect-eof=2\nexpect-prompt\neof=0\neof-prompt\nclose=0\n"
+   }
+  },
+  {
+   "id": "migration-expect-transcript-pty",
+   "loadable": "expect",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Four log descriptors with -m receive the identical transcript of a three-prompt PTY dialog in the order the bytes happened: incoming prompt, '>>>' outgoing line, '<<<' incoming echo + reply + next prompt, with a marker on every direction change; a fifth log FD is refused (max 4); log FD off stops logging (the third exchange is absent). log_user prints its state; with log_user on the child output is copied to expect's stdout, with log_user off it is not while the logs still record it.",
+   "script": "exec 5>log-a 6>log-b 7>log-c 8>log-d 9>log-e\nexpect log_user > user-state\nexpect spawn /usr/bin/python3 tr.py -h fd -h pid\nfor l in 5 6 7 8; do expect log \"$fd\" -F $l -m; echo \"log$l=$?\" >> rcs; done\nexpect log \"$fd\" -F 9 -m 2> err; echo \"log9=$?\" >> rcs\n[[ $(< err) == *'log: too many log fds (max 4)' ]] && echo fifth-refused >> rcs\nexpect expect \"$fd\" 'p1> ' -t 10 > out-on; echo \"p1=$?\" >> rcs\nexpect log_user off; expect log_user >> user-state\nexpect sendline \"$fd\" one\nexpect expect \"$fd\" 'p2> ' -t 10 > out-off; echo \"p2=$?\" >> rcs\nexpect send \"$fd\" $'two\\n'\nexpect expect \"$fd\" 'p3> ' -t 10 >> out-off; echo \"p3=$?\" >> rcs\nexpect log \"$fd\" off; echo \"off=$?\" >> rcs\nexpect sendline \"$fd\" three\nexpect expect \"$fd\" 'reply:three' -t 10 >> out-off; echo \"r3=$?\" >> rcs\nexpect eof \"$fd\" -t 10; echo \"eof=$?\" >> rcs\nexpect close \"$fd\" \"$pid\"; echo \"close=$?\" >> rcs\nexec 5>&- 6>&- 7>&- 8>&- 9>&-\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "expect/transcript-logging"
+   ],
+   "oracle": "expect help text (expect.c expect_doc): spawn CMD -h FD_VAR -h PID_VAR; expect FD PATTERN [-t SEC] [-V VAR]; expect-alt FD PAT... -V WHICH_VAR -V MATCH_VAR; send/sendline; send-secret FD HANDLE; eof FD [-t SEC]; close FD PID; log FD -F LOGFD [-m] | off; log_user on|off; 'Positive -t SEC bounds the whole wait, including while output keeps arriving'; 'zero checks buffered and ready input without waiting'; expect/expect-alt return 0 match, 1 timeout, 2 EOF; eof returns 0 EOF, 1 timeout. PTY semantics (session leader, controlling terminal, ICRNL/ECHO/ONLCR defaults, hangup on master close) per POSIX/Linux pty(7) and termios(3). Marker strings '<<<\\n'/'>>>\\n' on direction change are from expect.c be_log_bytes.",
+   "comparison": "contract: exact transcript bytes in each log file and exact stdout capture",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "files": {
+    "tr.py": "import os\nfor i in (1, 2, 3):\n    os.write(1, b'p%d> ' % i)\n    line = os.read(0, 100)\n    os.write(1, b'reply:' + line.rstrip(b'\\n') + b'\\n')\n"
+   },
+   "timeout": 40,
+   "expected_files": {
+    "log-a": "<<<\np1> >>>\none\n<<<\none\r\nreply:one\r\np2> >>>\ntwo\n<<<\ntwo\r\nreply:two\r\np3> ",
+    "log-b": "<<<\np1> >>>\none\n<<<\none\r\nreply:one\r\np2> >>>\ntwo\n<<<\ntwo\r\nreply:two\r\np3> ",
+    "log-c": "<<<\np1> >>>\none\n<<<\none\r\nreply:one\r\np2> >>>\ntwo\n<<<\ntwo\r\nreply:two\r\np3> ",
+    "log-d": "<<<\np1> >>>\none\n<<<\none\r\nreply:one\r\np2> >>>\ntwo\n<<<\ntwo\r\nreply:two\r\np3> ",
+    "log-e": "",
+    "user-state": "log_user on\nlog_user off\n",
+    "out-on": "p1> ",
+    "out-off": "",
+    "rcs": "log5=0\nlog6=0\nlog7=0\nlog8=0\nlog9=1\nfifth-refused\np1=0\np2=0\np3=0\noff=0\nr3=0\neof=0\nclose=0\n"
+   }
+  },
+  {
+   "id": "migration-expect-send-secret",
+   "loadable": "expect",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "A crypto secret handle (crypto secret-read from a run-time generated file) is delivered by send-secret to a spawned child that reads with ECHO off: the child's line equals the secret exactly. Malformed ('abc'), unknown ('15:999') and scrubbed handles are refused with the crypto diagnostic before that, writing nothing (else the child's line would not match exactly). The secret appears in neither the transcript log, expect's stdout (log_user on), nor the shell variable listing.",
+   "script": "/usr/bin/python3 mk.py\ncrypto secret-read -h H < pw; echo \"read=$?\" > rcs\ncrypto secret-read -h H2 < pw; crypto secret-scrub \"$H2\"; echo \"scrub=$?\" >> rcs\nexec 5>log\nexpect spawn /usr/bin/python3 sec.py -h fd -h pid\nexpect log \"$fd\" -F 5 -m\nexpect expect \"$fd\" 'pass\\? ' -t 10 > out; echo \"prompt=$?\" >> rcs\nfor h in abc 15:999 \"$H2\"; do\n  expect send-secret \"$fd\" \"$h\" 2> err; echo \"bad=$?\" >> rcs\n  [[ $(< err) == *'secret-write-fd: invalid handle' ]] && echo diagnosed >> rcs\ndone\nexpect send-secret \"$fd\" \"$H\"; echo \"secret=$?\" >> rcs\nexpect sendline \"$fd\" ''\nexpect expect \"$fd\" 'secret-match=[a-z]+ len=[0-9]+'$'\\r' -t 10 -V res >> out; printf 'rc=%s %s\\n' $? \"${res%$'\\r'}\" >> rcs\nexpect eof \"$fd\" -t 10; expect close \"$fd\" \"$pid\"; echo \"close=$?\" >> rcs\nexec 5>&-\nset > vars\n/usr/bin/python3 chk.py log out vars\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "expect/secret-handle-delivery"
+   ],
+   "oracle": "expect help text (expect.c expect_doc): spawn CMD -h FD_VAR -h PID_VAR; expect FD PATTERN [-t SEC] [-V VAR]; expect-alt FD PAT... -V WHICH_VAR -V MATCH_VAR; send/sendline; send-secret FD HANDLE; eof FD [-t SEC]; close FD PID; log FD -F LOGFD [-m] | off; log_user on|off; 'Positive -t SEC bounds the whole wait, including while output keeps arriving'; 'zero checks buffered and ready input without waiting'; expect/expect-alt return 0 match, 1 timeout, 2 EOF; eof returns 0 EOF, 1 timeout. PTY semantics (session leader, controlling terminal, ICRNL/ECHO/ONLCR defaults, hangup on master close) per POSIX/Linux pty(7) and termios(3). crypto help: secret-read -h VAR reads one line into a handle; secret-scrub HANDLE frees it; bashcrypto_secret_write_fd rejects unknown handles ('secret-write-fd: invalid handle').",
+   "comparison": "contract: exact rc lines; secret equality and absence checked by fixed-name helpers that write present/absent markers (semantic)",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "files": {
+    "sec.py": "import os, sys, termios\nsecret = open('pw', 'rb').read().rstrip(b'\\n')\nattrs = termios.tcgetattr(0)\nquiet = list(attrs); quiet[3] &= ~termios.ECHO\ntermios.tcsetattr(0, termios.TCSANOW, quiet)\nos.write(1, b'pass? ')\nline = os.read(0, 200).rstrip(b'\\n')\ntermios.tcsetattr(0, termios.TCSANOW, attrs)\nos.write(1, b'secret-match=%s len=%d\\n' % (b'yes' if line == secret else b'no', len(line)))\n",
+    "mk.py": "import sys\n# Synthetic, run-time fixture passphrase (not a credential); written to a file so it never enters shell text.\nopen('pw', 'w').write('fx-' + 'Zq81' + '-pty-' + str(4471 * 3) + '\\n')\n",
+    "chk.py": "import sys\nsecret = open('pw', 'rb').read().rstrip(b'\\n')\nwith open('leak-check', 'w') as out:\n    for name in sys.argv[1:]:\n        out.write('%s %s\\n' % (name, 'present' if secret in open(name, 'rb').read() else 'absent'))\n"
+   },
+   "timeout": 40,
+   "expected_files": {
+    "rcs": "read=0\nscrub=0\nprompt=0\nbad=1\ndiagnosed\nbad=1\ndiagnosed\nbad=1\ndiagnosed\nsecret=0\nrc=0 secret-match=yes len=17\nclose=0\n",
+    "leak-check": "log absent\nout absent\nvars absent\n"
+   }
+  }
+ ]
+}

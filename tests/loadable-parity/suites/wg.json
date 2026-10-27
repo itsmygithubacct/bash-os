@@ -83,19 +83,19 @@
       "id": "deferred-set-kernel-apply",
       "kind": "deferred",
       "purpose": "Validate actual device mutation and kernel acknowledgement for wg set.",
-      "reason": "Requires a disposable WireGuard-enabled Linux VM with an isolated test interface, generic-netlink family support, and CAP_NET_ADMIN. The harness intentionally has no capabilities and cannot safely apply kernel device state."
+      "reason": "No executed case reaches netlink. Interface creation in a private netns is possible from the VM script as root."
     },
     {
       "id": "deferred-show-device-state",
       "kind": "deferred",
       "purpose": "Validate decoding and formatting of real device and peer state returned by the kernel for wg show IFACE.",
-      "reason": "Requires a disposable WireGuard-enabled Linux VM with a preconfigured test interface and peer state so the GET_DEVICE reply can be checked against the independent wg(8) contract. No live kernel query is attempted here."
+      "reason": "No executed case queries a device."
     },
     {
       "id": "deferred-setconf-kernel-apply",
       "kind": "deferred",
       "purpose": "Validate that a valid configuration is applied to a WireGuard device and can be read back from kernel state.",
-      "reason": "Requires a disposable WireGuard-enabled Linux VM, an isolated test interface, and CAP_NET_ADMIN for setconf plus a read-back query. The local dry-run contract only validates parsing and encoded bytes, not application."
+      "reason": "Parsing/encoding is covered in dry-run, but no case applies a configuration or reads kernel state back."
     },
     {
       "id": "set-dryrun-rejects-ipv4-prefix-33",

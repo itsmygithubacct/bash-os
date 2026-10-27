@@ -101,7 +101,7 @@
       "id": "live-server-exchange",
       "purpose": "Verify serve/run bind behavior and the full client-visible DHCPv6 exchange using an isolated peer, without treating offline seams as proof of socket behavior.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM or isolated network mock with a controlled DHCPv6 client on UDP 546 and server endpoint on UDP 547, an independent RFC 8415 peer/oracle, packet capture, and lease-file checks. This suite's safety scope forbids network activity, so no live serve/run operation is executed or claimed passed."
+      "reason": "Offline seams are covered; the socket loop is reachable on [::1] with BASHDHCPD6_* ports, but no IPv6 client peer exists."
     },
     {
       "id": "relay-forwarding",
@@ -116,7 +116,7 @@
       "id": "leasequery-lifetimes",
       "purpose": "Verify RFC 5007 queries by address and client ID, including active lease data, misses, and bounded preferred/valid remaining lifetime fields.",
       "kind": "deferred",
-      "reason": "A meaningful success-path oracle needs a frozen clock or clock mock plus an independent RFC 5007 encoder to check IAADDR lifetimes and CLT_TIME across boundary values. No matching GNU/Kea reference is available, and this operation is not claimed passed; run it later with a disposable deterministic clock/reference fixture."
+      "reason": "leasequery is an offline verb; a frozen clock is unnecessary because the script can seed lease expiries relative to its own clock read and assert bounded windows (as legacy/dhcpd/lease-db-relative-crud does)."
     },
     {
       "id": "reply-variable-binding",

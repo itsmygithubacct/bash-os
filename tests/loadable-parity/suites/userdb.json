@@ -74,25 +74,25 @@
       "id": "defer-passwd-verification",
       "kind": "deferred",
       "purpose": "Built-in passwd-backed userdb verification, including success and wrong-password results.",
-      "reason": "Requires a future disposable VM or reviewed auth mock with a dedicated synthetic passwd/shadow fixture, a fixed dummy password hash, and an independent verifier. This suite must not inspect installed credentials or invoke authentication against a real account."
+      "reason": "No executed case. The built-in path re-executes /proc/self/exe running 'builtin passwd verify-fd', which reads PHCLIB_PASSWD/PHCLIB_SHADOW fixture files; this works in a plain shell case without privileges. An independent Argon2id PHC string must be supplied as fixture data."
     },
     {
       "id": "defer-provider-lookup",
       "kind": "deferred",
       "purpose": "Configured provider lookup ordering, record validation, return-code handling, and timeout behavior.",
-      "reason": "Requires a future disposable fixture with a reviewed bounded mock provider executable and independently specified records and return codes. No configured provider process or live service is executed here."
+      "reason": "No executed case runs a provider. The modern shell group's workspace is the fixed absolute path /tmp/parity-case inside the VM, so provider executables can be registered with absolute private paths; the historical 'only relative paths permitted' reason applied to the legacy bubblewrap runner, not to the VM driver."
     },
     {
       "id": "defer-provider-registry",
       "kind": "deferred",
       "purpose": "Configured provider listing plus add-provider and remove-provider state and validation behavior.",
-      "reason": "Requires a future disposable VM or reviewed provider-registry mock with a private configuration and fixture executable mapping. Successful registration requires absolute executable paths in this API; current fixtures permit only relative private paths and make no authentication-provider configuration changes. Verify ordering, duplicate/invalid definitions and removal there."
+      "reason": "Only the empty-chain listing executed. The modern shell group's workspace is the fixed absolute path /tmp/parity-case inside the VM, so provider executables can be registered with absolute private paths; the historical 'only relative paths permitted' reason applied to the legacy bubblewrap runner, not to the VM driver."
     },
     {
       "id": "defer-ldap-password-fd",
       "kind": "deferred",
       "purpose": "LDAP provider password transport on fd 3, bounded output handling, timeout, and child cleanup.",
-      "reason": "Requires a future disposable VM with a reviewed mock ldap provider that consumes only a fixed dummy password over fd 3. This is needed to test provider process and timeout behavior without real LDAP, network access, or installed credentials."
+      "reason": "No executed case runs a configured provider. The modern shell group's workspace is the fixed absolute path /tmp/parity-case inside the VM, so provider executables can be registered with absolute private paths; the historical 'only relative paths permitted' reason applied to the legacy bubblewrap runner, not to the VM driver."
     },
     {
       "id": "lookup-private-record-selection",

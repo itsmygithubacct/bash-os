@@ -45,13 +45,13 @@
       "id": "dry_run_selection",
       "kind": "deferred",
       "purpose": "Verify read-only target selection and omit-list handling without enumerating the runner's process set.",
-      "reason": "Requires a future disposable PID-namespace VM or reviewed /proc fixture adapter plus an independent selection oracle. Exercise --dry-run with synthetic entries covering caller-session and self exclusion, empty-cmdline kernel-thread exclusion, omitted PIDs, malformed/disappearing records, and eligible outside-session PIDs. This suite does not invoke the operation."
+      "reason": "No killall5 operation executed. The dry-run path is read-only and already supports BASHOS_PROC_ROOT, so the original deferral reason (no fixture adapter) no longer applies to the candidate side. No GNU killall5 oracle exists; sysvinit-utils killall5 in the image has no dry-run."
     },
     {
       "id": "signal_delivery",
       "kind": "deferred",
       "purpose": "Verify the broadcast signal selection, omit-list behavior, and failure handling without sending signals to the runner's process set.",
-      "reason": "Requires a future disposable PID-namespace VM with a reviewed kill(2) interceptor or explicitly owned sacrificial children and an independent expected-call oracle. Verify default and named signal numbers, excluded session/self/omitted PIDs, and injected ESRCH/EPERM outcomes. Never target host or general runner processes; this suite does not invoke signal delivery."
+      "reason": "Broadcast delivery is safe in the legacy runner's private PID namespace: its members are bwrap's init (PID 1), the case shell (own session via --new-session) and fixture children, so `killall5 -SIG -o 1` reaches only setsid fixture children. sysvinit killall5 refuses non-root callers, so no GNU byte oracle exists; trap logs are the oracle. ESRCH needs syscall injection."
     }
   ]
 }

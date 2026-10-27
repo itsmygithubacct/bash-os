@@ -235,7 +235,7 @@
       "id": "foreign-owner-and-group",
       "kind": "deferred",
       "purpose": "Check chmod permission denial and set-ID clearing when operating on files not owned by the caller or belonging to an unrelated group.",
-      "reason": "Requires a future disposable VM provisioned with at least two unprivileged UIDs and controlled group membership (or a separately reviewed ownership syscall mock). The current fixture namespace exposes one identity, and this suite must not create/change host accounts or ownership. No operation was run and this is not a pass."
+      "reason": "No foreign-ownership case executed. Root-owned guest files make the EPERM path reachable now; set-ID clearing and second-unprivileged-uid ownership need controller-run ownership setup."
     },
     {
       "id": "numeric-looking-missing-operand",

@@ -53,25 +53,25 @@
       "id": "deferred_socket_lifecycle",
       "kind": "deferred",
       "purpose": "Verify listen on loopback with an ephemeral port, one successful HTTP/1.1 GET accept and its bound variables, then a nonblocking timeout with no client.",
-      "reason": "Requires a future disposable VM with an isolated loopback client/server fixture or an independently reviewed socket mock. The current task forbids network activity, so neither httpd listen nor accept is invoked."
+      "reason": "No socket fixture; r3 can run today in the shell group (no client needed), r1-r2 need a loopback client."
     },
     {
       "id": "deferred_request_errors",
       "kind": "deferred",
       "purpose": "Verify malformed request handling and the documented 400, 413, and 431 refusals, including an oversized Content-Length rejected before a body is sent.",
-      "reason": "Requires a future disposable VM or deterministic socket mock that can submit bounded raw requests and capture replies. The current task forbids network activity, so accept is not invoked."
+      "reason": "No raw-request fixture; the tcp-client peer covers r1-r4 (it sends a fixed payload and reads to EOF), r5 needs a client that half-closes after sending."
     },
     {
       "id": "deferred_reply_framing",
       "kind": "deferred",
       "purpose": "Verify reply emits byte-exact status, Content-Type, Content-Length, Connection: close, and file/stdin bodies, and closes the client descriptor.",
-      "reason": "Requires a future disposable VM with a socket-pair fixture or a reviewed send/close syscall mock. No reply socket is created or used in this suite."
+      "reason": "No socket fixture exercises httpd reply; the existing tcp-client network peer can drive it."
     },
     {
       "id": "deferred_request_deadline",
       "kind": "deferred",
       "purpose": "Verify a partial request that stalls past the documented total request deadline receives 408 and leaves request variables unbound.",
-      "reason": "Requires a future disposable VM with a bounded loopback client and the dedicated short-timeout test build, or a deterministic socket/clock mock. No client connection or timeout operation is run here."
+      "reason": "Needs a client that sends a partial request and keeps reading for longer than the 10 s deadline; the existing tcp-client peer gives up after its 3 s IO timeout, so a helper or peer option is needed. A short-timeout build is not required."
     },
     {
       "id": "part-binary-and-output-mode",

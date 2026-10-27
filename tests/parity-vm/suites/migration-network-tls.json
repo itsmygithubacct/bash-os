@@ -1,0 +1,380 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-curl-https-cacert",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "https",
+      "peer_port": 20443,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing",
+        "tls"
+      ],
+      "script": "curl -s --cacert /tmp/parity-peer-tls/ca.pem \"https://127.0.0.1:$FIXTURE_PORT/body\"",
+      "stderr": "",
+      "stdout_base64": "Zml4dHVyZQBib2R5Cg==",
+      "expected_requests": [
+        {
+          "method": "GET",
+          "path": "/body",
+          "request_line": "GET /body HTTP/1.1",
+          "header:host": "127.0.0.1:20443",
+          "body_framing": "none",
+          "tls": "ok"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/https-trust-policy"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1); the https peer serves the same resource table behind TLS 1.2+ with a throwaway CA generated in the guest (ca.pem signed the 127.0.0.1 leaf, other-ca.pem did not); CURLE_PEER_FAILED_VERIFICATION is 60",
+      "comparison": "exact stdout/stderr bytes, status and fixture tree vs upstream curl, plus decoded request fields; TLS handshake outcome recorded by the peer",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-curl-https-default-trust-rejects",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "https",
+      "peer_port": 20443,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing",
+        "tls"
+      ],
+      "script": "curl -s \"https://127.0.0.1:$FIXTURE_PORT/body\"; echo \"status=$?\"",
+      "stderr": "",
+      "stdout": "status=60\n",
+      "expected_requests": [
+        {
+          "tls": "handshake-failed"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/https-trust-policy"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1); the https peer serves the same resource table behind TLS 1.2+ with a throwaway CA generated in the guest (ca.pem signed the 127.0.0.1 leaf, other-ca.pem did not); CURLE_PEER_FAILED_VERIFICATION is 60",
+      "comparison": "status printed after the transfer and empty body compared with upstream curl; peer records a refused handshake",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-curl-https-wrong-ca-rejects",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "https",
+      "peer_port": 20443,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing",
+        "tls"
+      ],
+      "script": "curl -s --cacert /tmp/parity-peer-tls/other-ca.pem \"https://127.0.0.1:$FIXTURE_PORT/body\"; echo \"status=$?\"",
+      "stderr": "",
+      "stdout": "status=60\n",
+      "expected_requests": [
+        {
+          "tls": "handshake-failed"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/https-trust-policy"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1); the https peer serves the same resource table behind TLS 1.2+ with a throwaway CA generated in the guest (ca.pem signed the 127.0.0.1 leaf, other-ca.pem did not); CURLE_PEER_FAILED_VERIFICATION is 60",
+      "comparison": "status printed after the transfer and empty body compared with upstream curl; peer records a refused handshake",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-curl-https-insecure",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "https",
+      "peer_port": 20443,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing",
+        "tls"
+      ],
+      "script": "curl -sk \"https://127.0.0.1:$FIXTURE_PORT/body\"",
+      "stderr": "",
+      "stdout_base64": "Zml4dHVyZQBib2R5Cg==",
+      "expected_requests": [
+        {
+          "method": "GET",
+          "path": "/body",
+          "request_line": "GET /body HTTP/1.1",
+          "header:host": "127.0.0.1:20443",
+          "body_framing": "none",
+          "tls": "ok"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/https-trust-policy"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1); the https peer serves the same resource table behind TLS 1.2+ with a throwaway CA generated in the guest (ca.pem signed the 127.0.0.1 leaf, other-ca.pem did not); CURLE_PEER_FAILED_VERIFICATION is 60",
+      "comparison": "exact stdout/stderr bytes, status and fixture tree vs upstream curl, plus decoded request fields; -k accepts the untrusted chain",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-curl-https-post-wire",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "https",
+      "peer_port": 20443,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing",
+        "tls"
+      ],
+      "script": "curl -s --cacert /tmp/parity-peer-tls/ca.pem -d \"a=1\" \"https://127.0.0.1:$FIXTURE_PORT/echo\"",
+      "stderr": "",
+      "stdout": "a=1",
+      "expected_requests": [
+        {
+          "method": "POST",
+          "path": "/echo",
+          "body_base64": "YT0x",
+          "tls": "ok",
+          "header:content-length": "3",
+          "header:content-type": "application/x-www-form-urlencoded"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/https-trust-policy",
+        "curl/request-wire-shape"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1); the https peer serves the same resource table behind TLS 1.2+ with a throwaway CA generated in the guest (ca.pem signed the 127.0.0.1 leaf, other-ca.pem did not); CURLE_PEER_FAILED_VERIFICATION is 60",
+      "comparison": "exact stdout/stderr bytes, status and fixture tree vs upstream curl, plus decoded request fields; request wire decoded after TLS",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-http-tls-transaction",
+      "loadable": "http",
+      "group": "network",
+      "driver": "network",
+      "peer": "https",
+      "peer_port": 20443,
+      "candidate_script": "http request \"https://127.0.0.1:$FIXTURE_PORT/echo?x=1\" -X POST -H \"X-Fixture: one\" -d \"h\u00e9llo\" | crypto tls connect \"127.0.0.1:$FIXTURE_PORT\" -s 127.0.0.1 -c /tmp/parity-peer-tls/ca.pem > response && http response-body response -o body -S status && rm response && printf '%s\\n' \"$status\"",
+      "reference_script": "curl -s --cacert /tmp/parity-peer-tls/ca.pem -X POST -H \"X-Fixture: one\" -H \"Content-Type:\" --data-binary \"h\u00e9llo\" -o body -w '%{http_code}\\n' \"https://127.0.0.1:$FIXTURE_PORT/echo?x=1\"",
+      "stderr": "",
+      "stdout": "200\n",
+      "expected_files": {
+        "body": "h\u00e9llo"
+      },
+      "expected_requests": [
+        {
+          "method": "POST",
+          "path": "/echo?x=1",
+          "header:host": "127.0.0.1:20443",
+          "header:x-fixture": "one",
+          "header:content-length": "6",
+          "body_base64": "aMOpbGxv",
+          "body_framing": "content-length",
+          "tls": "ok"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "http/loopback-transaction"
+      ],
+      "oracle": "Candidate frames the request with `http request`, carries it with `crypto tls connect -c ca.pem`, extracts it with `http response-body`; the reference performs the same exchange with upstream curl --cacert against the same https peer.",
+      "comparison": "semantic transaction over TLS: printed status, body file bytes and decoded request fields compared, not raw request bytes",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-dns-dot-query",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns-tls",
+      "peer_port": 20853,
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\n"
+      },
+      "candidate_script": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; dns query www.example.test A --dot -h \"127.0.0.1:$FIXTURE_PORT\" --dot-ca /tmp/parity-peer-tls/ca.pem",
+      "reference_script": "dig +short +tls +tls-ca=/tmp/parity-peer-tls/ca.pem -p \"$FIXTURE_PORT\" @127.0.0.1 www.example.test A",
+      "stderr": "",
+      "stdout": "192.0.2.10\n",
+      "expected_requests": [
+        {
+          "transport": "tls",
+          "qname": "www.example.test",
+          "qtype": "A",
+          "qclass": "IN",
+          "opcode": 0,
+          "rd": true,
+          "tls": "ok"
+        }
+      ],
+      "compare_request_keys": [
+        "transport",
+        "qname",
+        "qtype",
+        "qclass",
+        "opcode",
+        "rd",
+        "tls"
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-dot-doh"
+      ],
+      "oracle": "BIND dig 9.20 +tls with +tls-ca against the dns-tls peer (RFC 7858: RFC 1035 TCP framing inside TLS) using the guest-generated throwaway CA",
+      "comparison": "adapted CLI output: answer lines vs dig +short; decoded query fields and TLS outcome recorded by the peer compared",
+      "requires": [
+        "dig"
+      ]
+    },
+    {
+      "id": "migration-dns-dot-wrong-ca-rejects",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns-tls",
+      "peer_port": 20853,
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\n"
+      },
+      "candidate_script": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; if dns query www.example.test A --dot -h \"127.0.0.1:$FIXTURE_PORT\" --dot-ca /tmp/parity-peer-tls/other-ca.pem 2>/dev/null; then echo answered; else echo failed; fi",
+      "reference_script": "out=$(dig +short +tries=1 +tls +tls-ca=/tmp/parity-peer-tls/other-ca.pem -p \"$FIXTURE_PORT\" @127.0.0.1 www.example.test A 2>/dev/null | grep -v \"^;;\"); if [ -n \"$out\" ]; then echo answered; else echo failed; fi",
+      "stderr": "",
+      "stdout": "failed\n",
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-dot-doh"
+      ],
+      "oracle": "BIND dig 9.20 +tls with +tls-ca against the dns-tls peer (RFC 7858: RFC 1035 TCP framing inside TLS) using the guest-generated throwaway CA; other-ca.pem did not sign the leaf",
+      "comparison": "No answer and a failed TLS handshake on both sides; the peer must observe the attempt so a transport-launch failure cannot masquerade as certificate verification.",
+      "requires": [
+        "dig"
+      ],
+      "expected_requests": [
+        {
+          "tls": "handshake-failed"
+        }
+      ]
+    },
+    {
+      "id": "migration-dns-doh-post",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "https",
+      "peer_port": 20443,
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\n",
+        "doh-query.bin": {
+          "base64": "EjQBAAABAAAAAAAAA3d3dwdleGFtcGxlBHRlc3QAAAEAAQ=="
+        }
+      },
+      "candidate_script": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; dns query www.example.test A --doh \"https://127.0.0.1:$FIXTURE_PORT/dns-query\"",
+      "reference_script": "set -o pipefail\ncurl --http1.1 --silent --show-error --fail --cacert /etc/ssl/cert.pem -H \"Content-Type: application/dns-message\" --data-binary @doh-query.bin \"https://127.0.0.1:$FIXTURE_PORT/dns-query\" | /usr/bin/python3 -c 'import sys,struct,ipaddress\nb=sys.stdin.buffer.read()\nassert len(b)==50, (len(b),b)\nid,flags,qd,an,ns,ar=struct.unpack(\"!6H\",b[:12])\nassert id==0x1234 and flags&0x8000 and flags&15==0 and (qd,an,ns,ar)==(1,1,0,0)\nassert b[12:34]==bytes.fromhex(\"03777777076578616d706c6504746573740000010001\"), b[12:34]\nassert b[34:36]==b\"\\xc0\\x0c\"\ntyp,cls,ttl,n=struct.unpack(\"!HHIH\",b[36:46]);assert (typ,cls,n)==(1,1,4)\nprint(ipaddress.IPv4Address(b[46:50]))\n'",
+      "stderr": "",
+      "stdout": "192.0.2.10\n",
+      "expected_requests": [
+        {
+          "method": "POST",
+          "path": "/dns-query",
+          "header:content-type": "application/dns-message",
+          "dns_qname": "www.example.test",
+          "dns_qtype": "A",
+          "tls": "ok"
+        }
+      ],
+      "compare_request_keys": [
+        "method",
+        "path",
+        "header:content-type",
+        "dns_qname",
+        "dns_qtype",
+        "dns_qclass",
+        "dns_opcode",
+        "dns_rd",
+        "tls"
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-dot-doh"
+      ],
+      "oracle": "RFC 8484 POST application/dns-message over HTTPS. Reference: upstream curl HTTP/1.1 sends a fixed RFC 1035 A query; independent struct/ipaddress decoding asserts the response ID, flags, section counts, question, A record type/class/length, and prints its address. Both sides use the guest-installed public fixture CA.",
+      "comparison": "Answer output and decoded HTTP method/path/content-type plus DNS question fields; HTTP version is HTTP/1.1. BIND dig uses HTTP/2 and is not an oracle against this HTTP/1.1-only peer.",
+      "requires": [
+        "curl",
+        "python3"
+      ],
+      "peer_install_ca": true
+    }
+  ]
+}

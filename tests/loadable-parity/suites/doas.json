@@ -45,25 +45,25 @@
       "id": "authority_policy_and_verification",
       "kind": "deferred",
       "purpose": "Exercise non-root allow, deny, non-interactive deny, and interactive verification behavior at the authority boundary.",
-      "reason": "Requires a disposable VM with a purpose-built /dev/bashos-auth ioctl mock, deterministic private caller/target account rows, and a controlled verifier child. Capture the request fields and verify denied requests never start the command; no live authority device or password path is suitable here."
+      "reason": "All obligations depend on guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour. Without it the builtin routes to the external delegate (separate topic)."
     },
     {
       "id": "external_delegate_fallback",
       "kind": "deferred",
       "purpose": "Check the no-authority fallback's doas argv translation, status propagation, environment refresh, and descriptor cleanup.",
-      "reason": "Requires a disposable non-root VM and a harmless executable delegate created inside its private fixture directory. The delegate must record argv/environment/open descriptors and return selected statuses; no delegate or command is launched by this suite."
+      "reason": "The fallback is unprivileged and observable with a private delegate script; the original deferral to a privileged VM is unnecessary."
     },
     {
       "id": "root_target_and_group_drop",
       "kind": "deferred",
       "purpose": "Verify root-route target uid/gid selection, explicit group membership handling, and the resulting child identity.",
-      "reason": "Requires a disposable VM or reviewed credential-syscall mock with private passwd/group rows and a non-root target account. Assertions must cover requested and effective uid/gid plus supplementary groups without changing host accounts or credentials."
+      "reason": "The root route needs no authority device (doas.c bda_run_root) but needs euid 0 with private /etc/passwd and /etc/group: guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid)."
     },
     {
       "id": "child_argv_environment_status",
       "kind": "deferred",
       "purpose": "Verify command arguments remain literal and the child receives the documented scrubbed environment, closed inherited descriptors, and command status.",
-      "reason": "Requires the disposable credential-drop fixture above plus a harmless private command stub that reports argv/environment/fds and has controlled exit cases. Include empty, quoted, whitespace, and newline arguments; assert cleanup and status propagation in the VM only."
+      "reason": "The scrubbed-environment contract applies on the root route (guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid)) and the authority route (guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour). Literal argv, fd closure and status propagation are separately observable on the unprivileged delegate route (see external_delegate_fallback), which does not scrub the environment."
     }
   ]
 }

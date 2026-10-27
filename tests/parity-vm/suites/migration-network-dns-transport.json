@@ -1,0 +1,257 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-dns-dot-query-hosted-bash",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns-tls",
+      "peer_port": 20853,
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\n"
+      },
+      "candidate_script": "[ /proc/$$/exe -ef \"$HOME/pbin/bash\" ] || { echo \"transport fixture: $HOME/pbin/bash is not the running candidate\" >&2; exit 97; }\nPATH=\"$HOME/pbin\"\nexport BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; dns query www.example.test A --dot -h \"127.0.0.1:$FIXTURE_PORT\" --dot-ca /tmp/parity-peer-tls/ca.pem",
+      "reference_script": "dig +short +tls +tls-ca=/tmp/parity-peer-tls/ca.pem -p \"$FIXTURE_PORT\" @127.0.0.1 www.example.test A",
+      "stderr": "",
+      "stdout": "192.0.2.10\n",
+      "expected_requests": [
+        {
+          "transport": "tls",
+          "qname": "www.example.test",
+          "qtype": "A",
+          "qclass": "IN",
+          "opcode": 0,
+          "rd": true,
+          "tls": "ok"
+        }
+      ],
+      "compare_request_keys": [
+        "transport",
+        "qname",
+        "qtype",
+        "qclass",
+        "opcode",
+        "rd",
+        "tls"
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-dot-doh"
+      ],
+      "oracle": "BIND dig 9.20 +tls with +tls-ca against the dns-tls peer (RFC 7858: RFC 1035 TCP framing inside TLS) using the guest-generated throwaway CA",
+      "comparison": "adapted CLI output: answer lines vs dig +short; decoded query fields and TLS outcome recorded by the peer compared; candidate PATH contains only $HOME/pbin/bash, a symlink to the unchanged candidate binary (checked against /proc/$$/exe), so the documented execlp(\"bash\") transport (dns.c:2527-2531 DoT, 2977-2988 DoH) reaches builtin crypto tls connect / builtin curl; the PATH=/empty original migration-dns-dot-query stays as separate evidence",
+      "requires": [
+        "dig"
+      ],
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\n"
+    },
+    {
+      "id": "migration-dns-dot-wrong-ca-rejects-hosted-bash",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns-tls",
+      "peer_port": 20853,
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\noptions attempts:1\n"
+      },
+      "candidate_script": "[ /proc/$$/exe -ef \"$HOME/pbin/bash\" ] || { echo \"transport fixture: $HOME/pbin/bash is not the running candidate\" >&2; exit 97; }\nPATH=\"$HOME/pbin\"\nexport BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; if dns query www.example.test A --dot -h \"127.0.0.1:$FIXTURE_PORT\" --dot-ca /tmp/parity-peer-tls/other-ca.pem 2>/dev/null; then echo answered; else echo failed; fi",
+      "reference_script": "out=$(dig +short +tries=1 +tls +tls-ca=/tmp/parity-peer-tls/other-ca.pem -p \"$FIXTURE_PORT\" @127.0.0.1 www.example.test A 2>/dev/null | grep -v \"^;;\"); if [ -n \"$out\" ]; then echo answered; else echo failed; fi",
+      "stderr": "",
+      "stdout": "failed\n",
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-dot-doh"
+      ],
+      "oracle": "BIND dig 9.20 +tls with +tls-ca against the dns-tls peer (RFC 7858: RFC 1035 TCP framing inside TLS) using the guest-generated throwaway CA; other-ca.pem did not sign the leaf",
+      "comparison": "No answer and a failed TLS handshake on both sides; the peer must observe the attempt so a transport-launch failure cannot masquerade as certificate verification.; candidate PATH contains only $HOME/pbin/bash, a symlink to the unchanged candidate binary (checked against /proc/$$/exe), so the documented execlp(\"bash\") transport (dns.c:2527-2531 DoT, 2977-2988 DoH) reaches builtin crypto tls connect / builtin curl; the PATH=/empty original migration-dns-dot-wrong-ca-rejects stays as separate evidence; the case resolv.conf sets options attempts:1 (documented) so the candidate makes one attempt like dig +tries=1",
+      "requires": [
+        "dig"
+      ],
+      "expected_requests": [
+        {
+          "tls": "handshake-failed"
+        }
+      ],
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\n"
+    },
+    {
+      "id": "migration-dns-doh-post-hosted-bash",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "https",
+      "peer_port": 20443,
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\n",
+        "doh-query.bin": {
+          "base64": "EjQBAAABAAAAAAAAA3d3dwdleGFtcGxlBHRlc3QAAAEAAQ=="
+        }
+      },
+      "candidate_script": "[ /proc/$$/exe -ef \"$HOME/pbin/bash\" ] || { echo \"transport fixture: $HOME/pbin/bash is not the running candidate\" >&2; exit 97; }\nPATH=\"$HOME/pbin\"\nexport BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; dns query www.example.test A --doh \"https://127.0.0.1:$FIXTURE_PORT/dns-query\"",
+      "reference_script": "set -o pipefail\ncurl --http1.1 --silent --show-error --fail --cacert /etc/ssl/cert.pem -H \"Content-Type: application/dns-message\" --data-binary @doh-query.bin \"https://127.0.0.1:$FIXTURE_PORT/dns-query\" | /usr/bin/python3 -c 'import sys,struct,ipaddress\nb=sys.stdin.buffer.read()\nassert len(b)==50, (len(b),b)\nid,flags,qd,an,ns,ar=struct.unpack(\"!6H\",b[:12])\nassert id==0x1234 and flags&0x8000 and flags&15==0 and (qd,an,ns,ar)==(1,1,0,0)\nassert b[12:34]==bytes.fromhex(\"03777777076578616d706c6504746573740000010001\"), b[12:34]\nassert b[34:36]==b\"\\xc0\\x0c\"\ntyp,cls,ttl,n=struct.unpack(\"!HHIH\",b[36:46]);assert (typ,cls,n)==(1,1,4)\nprint(ipaddress.IPv4Address(b[46:50]))\n'",
+      "stderr": "",
+      "stdout": "192.0.2.10\n",
+      "expected_requests": [
+        {
+          "method": "POST",
+          "path": "/dns-query",
+          "header:content-type": "application/dns-message",
+          "dns_qname": "www.example.test",
+          "dns_qtype": "A",
+          "tls": "ok"
+        }
+      ],
+      "compare_request_keys": [
+        "method",
+        "path",
+        "header:content-type",
+        "dns_qname",
+        "dns_qtype",
+        "dns_qclass",
+        "dns_opcode",
+        "dns_rd",
+        "tls"
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-dot-doh"
+      ],
+      "oracle": "RFC 8484 POST application/dns-message over HTTPS. Reference: upstream curl HTTP/1.1 sends a fixed RFC 1035 A query; independent struct/ipaddress decoding asserts the response ID, flags, section counts, question, A record type/class/length, and prints its address. Both sides use the guest-installed public fixture CA.",
+      "comparison": "Answer output and decoded HTTP method/path/content-type plus DNS question fields; HTTP version is HTTP/1.1. BIND dig uses HTTP/2 and is not an oracle against this HTTP/1.1-only peer.; candidate PATH contains only $HOME/pbin/bash, a symlink to the unchanged candidate binary (checked against /proc/$$/exe), so the documented execlp(\"bash\") transport (dns.c:2527-2531 DoT, 2977-2988 DoH) reaches builtin crypto tls connect / builtin curl; the PATH=/empty original migration-dns-doh-post stays as separate evidence",
+      "requires": [
+        "curl",
+        "python3"
+      ],
+      "peer_install_ca": true,
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\n"
+    },
+    {
+      "id": "migration-dns-dot-query-hosted-env",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns-tls",
+      "peer_port": 20853,
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\n"
+      },
+      "candidate_script": "[ /proc/$$/exe -ef \"$HOME/pbin/bash\" ] || { echo \"transport fixture: $HOME/pbin/bash is not the running candidate\" >&2; exit 97; }\nPATH=\"$HOME/pbin\" exec \"$HOME/pbin/bash\" --noprofile --norc \"$HOME/transport.sh\"\n",
+      "reference_script": "dig +short +tls +tls-ca=/tmp/parity-peer-tls/ca.pem -p \"$FIXTURE_PORT\" @127.0.0.1 www.example.test A",
+      "stderr": "",
+      "stdout": "192.0.2.10\n",
+      "expected_requests": [
+        {
+          "transport": "tls",
+          "qname": "www.example.test",
+          "qtype": "A",
+          "qclass": "IN",
+          "opcode": 0,
+          "rd": true,
+          "tls": "ok"
+        }
+      ],
+      "compare_request_keys": [
+        "transport",
+        "qname",
+        "qtype",
+        "qclass",
+        "opcode",
+        "rd",
+        "tls"
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-dot-doh"
+      ],
+      "oracle": "BIND dig 9.20 +tls with +tls-ca against the dns-tls peer (RFC 7858: RFC 1035 TCP framing inside TLS) using the guest-generated throwaway CA",
+      "comparison": "adapted CLI output: answer lines vs dig +short; decoded query fields and TLS outcome recorded by the peer compared; candidate PATH contains only $HOME/pbin/bash, a symlink to the unchanged candidate binary (checked against /proc/$$/exe), so the documented execlp(\"bash\") transport (dns.c:2527-2531 DoT, 2977-2988 DoH) reaches builtin crypto tls connect / builtin curl; the PATH=/empty original migration-dns-dot-query stays as separate evidence; the candidate re-executes itself with PATH=$HOME/pbin in its process environment and checks /proc/$$/environ, because a shell-variable PATH reaches execlp only in the static build (batch 9 *-hosted-bash dynamic evidence)",
+      "requires": [
+        "dig"
+      ],
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\ncat > \"$HOME/transport.sh\" <<'SHEOF'\n[ /proc/$$/exe -ef \"$HOME/pbin/bash\" ] || { echo \"transport fixture: $HOME/pbin/bash is not the running candidate\" >&2; exit 97; }\np=; while IFS= read -r -d '' e; do [[ $e == PATH=* ]] && p=${e#PATH=}; done < /proc/$$/environ\n[ \"$p\" = \"$HOME/pbin\" ] || { echo \"transport fixture: process environment PATH is '$p'\" >&2; exit 98; }\nexport BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; dns query www.example.test A --dot -h \"127.0.0.1:$FIXTURE_PORT\" --dot-ca /tmp/parity-peer-tls/ca.pem\nSHEOF\n"
+    },
+    {
+      "id": "migration-dns-dot-wrong-ca-rejects-hosted-env",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns-tls",
+      "peer_port": 20853,
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\noptions attempts:1\n"
+      },
+      "candidate_script": "[ /proc/$$/exe -ef \"$HOME/pbin/bash\" ] || { echo \"transport fixture: $HOME/pbin/bash is not the running candidate\" >&2; exit 97; }\nPATH=\"$HOME/pbin\" exec \"$HOME/pbin/bash\" --noprofile --norc \"$HOME/transport.sh\"\n",
+      "reference_script": "out=$(dig +short +tries=1 +tls +tls-ca=/tmp/parity-peer-tls/other-ca.pem -p \"$FIXTURE_PORT\" @127.0.0.1 www.example.test A 2>/dev/null | grep -v \"^;;\"); if [ -n \"$out\" ]; then echo answered; else echo failed; fi",
+      "stderr": "",
+      "stdout": "failed\n",
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-dot-doh"
+      ],
+      "oracle": "BIND dig 9.20 +tls with +tls-ca against the dns-tls peer (RFC 7858: RFC 1035 TCP framing inside TLS) using the guest-generated throwaway CA; other-ca.pem did not sign the leaf",
+      "comparison": "No answer and a failed TLS handshake on both sides; the peer must observe the attempt so a transport-launch failure cannot masquerade as certificate verification.; candidate PATH contains only $HOME/pbin/bash, a symlink to the unchanged candidate binary (checked against /proc/$$/exe), so the documented execlp(\"bash\") transport (dns.c:2527-2531 DoT, 2977-2988 DoH) reaches builtin crypto tls connect / builtin curl; the PATH=/empty original migration-dns-dot-wrong-ca-rejects stays as separate evidence; the case resolv.conf sets options attempts:1 (documented) so the candidate makes one attempt like dig +tries=1; the candidate re-executes itself with PATH=$HOME/pbin in its process environment and checks /proc/$$/environ, because a shell-variable PATH reaches execlp only in the static build (batch 9 *-hosted-bash dynamic evidence)",
+      "requires": [
+        "dig"
+      ],
+      "expected_requests": [
+        {
+          "tls": "handshake-failed"
+        }
+      ],
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\ncat > \"$HOME/transport.sh\" <<'SHEOF'\n[ /proc/$$/exe -ef \"$HOME/pbin/bash\" ] || { echo \"transport fixture: $HOME/pbin/bash is not the running candidate\" >&2; exit 97; }\np=; while IFS= read -r -d '' e; do [[ $e == PATH=* ]] && p=${e#PATH=}; done < /proc/$$/environ\n[ \"$p\" = \"$HOME/pbin\" ] || { echo \"transport fixture: process environment PATH is '$p'\" >&2; exit 98; }\nexport BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; if dns query www.example.test A --dot -h \"127.0.0.1:$FIXTURE_PORT\" --dot-ca /tmp/parity-peer-tls/other-ca.pem 2>/dev/null; then echo answered; else echo failed; fi\nSHEOF\n"
+    },
+    {
+      "id": "migration-dns-doh-post-hosted-env",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "https",
+      "peer_port": 20443,
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\n",
+        "doh-query.bin": {
+          "base64": "EjQBAAABAAAAAAAAA3d3dwdleGFtcGxlBHRlc3QAAAEAAQ=="
+        }
+      },
+      "candidate_script": "[ /proc/$$/exe -ef \"$HOME/pbin/bash\" ] || { echo \"transport fixture: $HOME/pbin/bash is not the running candidate\" >&2; exit 97; }\nPATH=\"$HOME/pbin\" exec \"$HOME/pbin/bash\" --noprofile --norc \"$HOME/transport.sh\"\n",
+      "reference_script": "set -o pipefail\ncurl --http1.1 --silent --show-error --fail --cacert /etc/ssl/cert.pem -H \"Content-Type: application/dns-message\" --data-binary @doh-query.bin \"https://127.0.0.1:$FIXTURE_PORT/dns-query\" | /usr/bin/python3 -c 'import sys,struct,ipaddress\nb=sys.stdin.buffer.read()\nassert len(b)==50, (len(b),b)\nid,flags,qd,an,ns,ar=struct.unpack(\"!6H\",b[:12])\nassert id==0x1234 and flags&0x8000 and flags&15==0 and (qd,an,ns,ar)==(1,1,0,0)\nassert b[12:34]==bytes.fromhex(\"03777777076578616d706c6504746573740000010001\"), b[12:34]\nassert b[34:36]==b\"\\xc0\\x0c\"\ntyp,cls,ttl,n=struct.unpack(\"!HHIH\",b[36:46]);assert (typ,cls,n)==(1,1,4)\nprint(ipaddress.IPv4Address(b[46:50]))\n'",
+      "stderr": "",
+      "stdout": "192.0.2.10\n",
+      "expected_requests": [
+        {
+          "method": "POST",
+          "path": "/dns-query",
+          "header:content-type": "application/dns-message",
+          "dns_qname": "www.example.test",
+          "dns_qtype": "A",
+          "tls": "ok"
+        }
+      ],
+      "compare_request_keys": [
+        "method",
+        "path",
+        "header:content-type",
+        "dns_qname",
+        "dns_qtype",
+        "dns_qclass",
+        "dns_opcode",
+        "dns_rd",
+        "tls"
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-dot-doh"
+      ],
+      "oracle": "RFC 8484 POST application/dns-message over HTTPS. Reference: upstream curl HTTP/1.1 sends a fixed RFC 1035 A query; independent struct/ipaddress decoding asserts the response ID, flags, section counts, question, A record type/class/length, and prints its address. Both sides use the guest-installed public fixture CA.",
+      "comparison": "Answer output and decoded HTTP method/path/content-type plus DNS question fields; HTTP version is HTTP/1.1. BIND dig uses HTTP/2 and is not an oracle against this HTTP/1.1-only peer.; candidate PATH contains only $HOME/pbin/bash, a symlink to the unchanged candidate binary (checked against /proc/$$/exe), so the documented execlp(\"bash\") transport (dns.c:2527-2531 DoT, 2977-2988 DoH) reaches builtin crypto tls connect / builtin curl; the PATH=/empty original migration-dns-doh-post stays as separate evidence; the candidate re-executes itself with PATH=$HOME/pbin in its process environment and checks /proc/$$/environ, because a shell-variable PATH reaches execlp only in the static build (batch 9 *-hosted-bash dynamic evidence)",
+      "requires": [
+        "curl",
+        "python3"
+      ],
+      "peer_install_ca": true,
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\ncat > \"$HOME/transport.sh\" <<'SHEOF'\n[ /proc/$$/exe -ef \"$HOME/pbin/bash\" ] || { echo \"transport fixture: $HOME/pbin/bash is not the running candidate\" >&2; exit 97; }\np=; while IFS= read -r -d '' e; do [[ $e == PATH=* ]] && p=${e#PATH=}; done < /proc/$$/environ\n[ \"$p\" = \"$HOME/pbin\" ] || { echo \"transport fixture: process environment PATH is '$p'\" >&2; exit 98; }\nexport BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; dns query www.example.test A --doh \"https://127.0.0.1:$FIXTURE_PORT/dns-query\"\nSHEOF\n"
+    }
+  ]
+}

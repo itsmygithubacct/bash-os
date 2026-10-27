@@ -55,31 +55,31 @@
       "id": "default-term-owned-target",
       "kind": "deferred",
       "purpose": "Verify default TERM reaches only selected private fixture processes and never the invoking shell.",
-      "reason": "Requires a disposable VM with uniquely named, test-owned child processes, parent-PID restriction, and signal acknowledgements, or a reviewed fail-closed procfs/kill syscall mock that records every target. This environment's safety rules prohibit invoking pkill operations."
+      "reason": "No pkill delivery case exists. In the VM a private-PID-namespace legacy case or a plain-driver case with owned children is safe; the historic prohibition no longer applies."
     },
     {
       "id": "signal-names-zero-and-count",
       "kind": "deferred",
       "purpose": "Verify named and numeric signal parsing, signal zero, -c output, and success/no-match statuses against controlled delivery results.",
-      "reason": "Requires a disposable VM with a private owned-process set or a fail-closed kill interceptor that records signal numbers and injects successes and failures; no real signal operation is permitted in this suite."
+      "reason": "Signal parsing and delivery are unexercised. Owned children in the legacy runner's private PID namespace make delivery deterministic and observable through traps."
     },
     {
       "id": "regex-cmdline-and-selectors",
       "kind": "deferred",
       "purpose": "Verify POSIX ERE matching, -f/-x command-line behavior, and combined UID/parent selectors against a known process set.",
-      "reason": "Requires a disposable VM with isolated process fixtures or a synthetic procfs adapter plus a fail-closed kill mock and independent PID-set arithmetic. Running pkill against a live process table is prohibited here."
+      "reason": "pkill shares pgrep's walker but no pkill run selected anything; live UID combinations need processes with other UIDs."
     },
     {
       "id": "newest-oldest-selection",
       "kind": "deferred",
       "purpose": "Verify -n/-o select the expected single process, including equal-start-time PID tie breaking.",
-      "reason": "Requires deterministic synthetic proc stat records and a kill syscall mock that captures the single chosen PID; live process ages are not a safe deterministic oracle."
+      "reason": "Live newest/oldest delivery is implementable with sequentially started owned children; tie-breaking is not, because delivery is refused for synthetic trees and live ties cannot be forced."
     },
     {
       "id": "invalid-input-and-delivery-errors",
       "kind": "deferred",
       "purpose": "Verify invalid regexes/options produce usage status without any signal request, and that ESRCH/EPERM failures affect diagnostics, count, and final status as documented.",
-      "reason": "Requires an isolated synthetic proc tree and fail-closed kill mock with injected errno results and an assertion that invalid input makes zero delivery calls. Invoking operation cases is outside the permitted safety scope."
+      "reason": "No pkill error path executed. Usage errors and EPERM are reproducible in the VM; ESRCH needs syscall injection."
     }
   ]
 }

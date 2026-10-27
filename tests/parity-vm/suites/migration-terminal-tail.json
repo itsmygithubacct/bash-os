@@ -1,0 +1,176 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-tail-follow-append",
+      "loadable": "tail",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "tail/follow-append-and-rotation"
+      ],
+      "purpose": "tail -f prints the initial line, then each line a background writer appends; ^C ends the follow loop with the shell's SIGINT status and leaves no live writer",
+      "oracle": "parity vs GNU coreutils 9.7 tail run by the reference shell",
+      "comparison": "raw PTY output order checked by successive expects; exit status and tree compared",
+      "requires": [
+        "mv",
+        "sleep",
+        "tail"
+      ],
+      "timeout": 20,
+      "script": "printf 'a\\n' > log\n{ /usr/bin/sleep 0.4; printf 'b\\n' >> log; /usr/bin/sleep 0.4; printf 'c\\n' >> log; } &\ntail -f log",
+      "steps": [
+        {
+          "expect": "a\\r\\n"
+        },
+        {
+          "expect": "b\\r\\n"
+        },
+        {
+          "expect": "c\\r\\n"
+        },
+        {
+          "settle_ms": 300
+        },
+        {
+          "send": "\u0003"
+        },
+        {
+          "settle_ms": 200
+        }
+      ],
+      "expected_status": 130,
+      "expected_files": {
+        "log": "a\nb\nc\n"
+      }
+    },
+    {
+      "id": "migration-tail-follow-rotation",
+      "loadable": "tail",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "tail/follow-append-and-rotation"
+      ],
+      "purpose": "tail -F keeps following the name across a rename and recreate: a, b from the original file, then c, d from the new one; ^C ends it with status 130 (diagnostics discarded here, checked separately)",
+      "oracle": "parity vs GNU coreutils 9.7 tail run by the reference shell",
+      "comparison": "raw PTY output order by successive expects; exit status and tree compared",
+      "requires": [
+        "mv",
+        "sleep",
+        "tail"
+      ],
+      "timeout": 20,
+      "script": "printf 'a\\n' > log\n{ /usr/bin/sleep 0.5; printf 'b\\n' >> log; /usr/bin/sleep 0.5; mv log log.1; /usr/bin/sleep 0.6; printf 'c\\n' > log; /usr/bin/sleep 0.6; printf 'd\\n' >> log; } &\ntail -F log 2>/dev/null",
+      "steps": [
+        {
+          "expect": "a\\r\\n"
+        },
+        {
+          "expect": "b\\r\\n"
+        },
+        {
+          "expect": "c\\r\\n"
+        },
+        {
+          "expect": "d\\r\\n"
+        },
+        {
+          "settle_ms": 300
+        },
+        {
+          "send": "\u0003"
+        },
+        {
+          "settle_ms": 200
+        }
+      ],
+      "expected_status": 130,
+      "expected_files": {
+        "log": "c\nd\n",
+        "log.1": "a\nb\n"
+      }
+    },
+    {
+      "id": "migration-tail-follow-retry-missing",
+      "loadable": "tail",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "tail/follow-append-and-rotation"
+      ],
+      "purpose": "tail -F on a file that does not exist yet waits and prints it once a writer creates it",
+      "oracle": "parity vs GNU coreutils 9.7 tail run by the reference shell",
+      "comparison": "raw PTY output by expect; exit status and tree compared",
+      "requires": [
+        "mv",
+        "sleep",
+        "tail"
+      ],
+      "timeout": 20,
+      "script": "{ /usr/bin/sleep 0.6; printf 'x\\n' > late; /usr/bin/sleep 0.4; printf 'y\\n' >> late; } &\ntail -F late 2>/dev/null",
+      "steps": [
+        {
+          "expect": "x\\r\\n"
+        },
+        {
+          "expect": "y\\r\\n"
+        },
+        {
+          "settle_ms": 300
+        },
+        {
+          "send": "\u0003"
+        },
+        {
+          "settle_ms": 200
+        }
+      ],
+      "expected_status": 130,
+      "expected_files": {
+        "late": "x\ny\n"
+      }
+    },
+    {
+      "id": "migration-tail-follow-diagnostics",
+      "loadable": "tail",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "tail/follow-append-and-rotation"
+      ],
+      "purpose": "The -F diagnostics for an initially missing file and for a rename/recreate, captured in a file and compared byte for byte with GNU tail",
+      "oracle": "parity vs GNU coreutils 9.7 tail run by the reference shell; the gaps between writer events (0.5-0.6 s) keep GNU's inotify message sequence stable",
+      "comparison": "exact bytes of the captured stderr file via tree parity; data order by expects",
+      "requires": [
+        "mv",
+        "sleep",
+        "tail"
+      ],
+      "timeout": 20,
+      "script": "{ /usr/bin/sleep 0.6; printf 'a\\n' > log; /usr/bin/sleep 0.6; mv log log.1; /usr/bin/sleep 0.6; printf 'c\\n' > log; } &\ntail -F log 2> diag",
+      "steps": [
+        {
+          "expect": "a\\r\\n"
+        },
+        {
+          "expect": "c\\r\\n"
+        },
+        {
+          "settle_ms": 300
+        },
+        {
+          "send": "\u0003"
+        },
+        {
+          "settle_ms": 200
+        }
+      ],
+      "expected_status": 130,
+      "expected_files": {
+        "log": "c\n",
+        "log.1": "a\n"
+      }
+    }
+  ]
+}

@@ -32,51 +32,175 @@
     },
     {
       "id": "deferred-child-status-and-lookup",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify ordinary child output and statuses 0 and 7, plus command-not-found 127 and non-executable-command 126.",
-      "reason": "Requires a disposable Linux VM or reviewed private process mock with a fixture-only working directory, PATH, and executable/non-executable child files. Compare the timeout builtin and GNU coreutils timeout on the same cases; never point command lookup outside that fixture."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-timeout-child-status-0"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-child-status-7"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-exec-missing"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-exec-nonexecutable"
+        }
+      ]
     },
     {
       "id": "deferred-default-expiration",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify expiration sends the default TERM to a bounded child and returns 124 while leaving the parent shell usable.",
-      "reason": "Requires a future disposable Linux VM with a private process namespace and a controlled fixture child that traps TERM and records receipt only in the private fixture directory. Compare status and child effects with GNU coreutils timeout; do not signal any process outside the fixture."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-timeout-signal-default"
+        },
+        {
+          "group": "terminal",
+          "id": "timeout-background-group"
+        }
+      ]
     },
     {
       "id": "deferred-custom-signal-verbose",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify -s USR1 delivery and --verbose's signal diagnostic for a child that handles USR1 and exits on receipt.",
-      "reason": "Requires a future disposable Linux VM with a private process namespace with a fixture child and private process group. Compare the observed signal, timeout status, and verbose stderr with GNU coreutils timeout; do not target external PIDs."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-timeout-invalid-signal"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-signal-usr1-long-equals"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-signal-usr1-long-value"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-signal-usr1-short"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-signal-usr1-short-verbose"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-signal-usr1-verbose"
+        }
+      ]
     },
     {
       "id": "deferred-kill-after-escalation",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify -k escalation after an ignored initial signal, including the exact monitor/child exit status and private group effects observed with GNU timeout.",
-      "reason": "Requires a future disposable Linux VM with a private PID namespace, a fixture child that ignores TERM, a reviewed bounded cleanup supervisor and GNU timeout. Measure whether SIGKILL reaches the monitor as well as the child; GNU may return 137 rather than 124. Compare observed statuses and signals exactly; never signal host processes."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-timeout-escalation-long-equals"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-escalation-long-value"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-escalation-short"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-kill-after-invalid"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-tree-hard"
+        }
+      ]
     },
     {
       "id": "deferred-preserve-status",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify --preserve-status returns the child's resulting exit status after timeout instead of the default 124.",
-      "reason": "Requires a future disposable Linux VM with a private process namespace and a private child that handles TERM and exits with a fixed nonzero status. Compare default and --preserve-status results against GNU coreutils timeout; all child effects must remain in the fixture."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-timeout-preserved-death"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-signal-default"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-signal-preserved"
+        }
+      ]
     },
     {
       "id": "deferred-duration-contract",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify zero disables the deadline, fractional seconds and s/m/h/d suffixes parse, and malformed or negative durations fail before child side effects.",
-      "reason": "Requires a disposable VM or reviewed private process mock with short, bounded fixture children and a marker inside the fixture directory. Compare accepted/rejected duration cases, statuses, and marker state with GNU coreutils timeout; do not run long-duration waits."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-timeout-duration-invalid"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-duration-valid"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-zero-disabled"
+        }
+      ]
     },
     {
       "id": "deferred-sigchld-reaping",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify a background job that exits while timeout waits is reaped by Bash, a CHLD trap remains observable, and timeout still waits for its own child.",
-      "reason": "Requires a future disposable Linux VM with a private PID namespace, a shell fixture with private background children, and bounded waits. Compare job state, trap observation, elapsed ordering, and final status with a documented GNU/Bash reference; inspect only fixture PIDs."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-timeout-sigchld-reaping"
+        }
+      ]
     },
     {
       "id": "deferred-foreground-process-group",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify default process-group isolation and --foreground terminal signal behavior, including the effect on a child process tree.",
-      "reason": "Requires a disposable Linux VM with a private PTY/terminal driver and a supervised fixture process tree. Compare process-group membership and signal forwarding with GNU coreutils timeout, and assert all processes belong to the fixture namespace."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-timeout-tree-default"
+        },
+        {
+          "group": "shell",
+          "id": "migration-timeout-tree-foreground"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-timeout-foreground-ctrl-c"
+        },
+        {
+          "group": "terminal",
+          "id": "timeout-background-group"
+        },
+        {
+          "group": "terminal",
+          "id": "timeout-foreground-reads-terminal"
+        }
+      ]
     }
   ]
 }

@@ -63,25 +63,25 @@
       "id": "deferred-service-lifecycle",
       "kind": "deferred",
       "purpose": "Qualify once/up/down/restart/signal/status/run and shutdown semantics with services confined to an owned fixture process tree.",
-      "reason": "Requires a disposable VM or reviewed supervisor mock that redirects every BASHSV_* directory to a private fixture, launches only a known child, proves process-tree ownership, and reaps only that child's descendants. This environment's instructions prohibit running service managers and process-control operations."
+      "reason": "sv honours BASHSV_DIR/BASHSV_RUNDIR/BASHSV_LOGDIR (sv.c doc; the executed log cases already redirect BASHSV_RUNDIR), so an owned service tree under the case directory is unprivileged. runit is not installed, so expectations are contracts from sv.c's documented directives. Signals target only the case's own service children; the plain driver detects strays."
     },
     {
       "id": "deferred-readiness-and-ordering",
       "kind": "deferred",
       "purpose": "Qualify restart policies, finish hooks, readiness checks, oneshot behavior, and dependency-ordered boot and shutdown.",
-      "reason": "Requires a disposable VM with a synthetic service tree, bounded owned child processes, private run/log state, and synchronization fixtures for readiness and finish ordering. These operations execute and signal services, which are outside the permitted runtime checks."
+      "reason": "sv honours BASHSV_DIR/BASHSV_RUNDIR/BASHSV_LOGDIR (sv.c doc; the executed log cases already redirect BASHSV_RUNDIR), so an owned service tree under the case directory is unprivileged. runit is not installed, so expectations are contracts from sv.c's documented directives. notify readiness uses an abstract AF_UNIX datagram socket, which is unprivileged."
     },
     {
       "id": "deferred-activation-protocols",
       "kind": "deferred",
       "purpose": "Qualify socket and path activation, notify readiness, and timer scheduling without contacting host services or peers.",
-      "reason": "Requires an isolated disposable VM or reviewed mocks: a private inherited-FD/Unix-socket fixture, synthetic inotify events, a private cron-spool tree, and bounded notification peers. Network and service activation operations are prohibited in this run."
+      "reason": "sv honours BASHSV_DIR/BASHSV_RUNDIR/BASHSV_LOGDIR (sv.c doc; the executed log cases already redirect BASHSV_RUNDIR), so an owned service tree under the case directory is unprivileged. runit is not installed, so expectations are contracts from sv.c's documented directives. All four protocols are unprivileged with private paths and loopback."
     },
     {
       "id": "deferred-privilege-and-namespaces",
       "kind": "deferred",
       "purpose": "Qualify service user drops, capability drops, and namespace directives.",
-      "reason": "Requires a dedicated disposable VM or syscall/credential mock with controlled UID/GID mappings and capabilities, plus an independently verified namespace boundary. This runner has no capabilities and the instructions prohibit user/account and kernel namespace changes."
+      "reason": "Namespace directives (with a user namespace) and directive-failure handling are unprivileged; actual user and capability drops need guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid)."
     }
   ]
 }

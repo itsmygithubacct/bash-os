@@ -109,13 +109,13 @@
       "id": "capture-write-fixed-frames",
       "kind": "deferred",
       "purpose": "Capture a known frame count into a classic pcap file and verify global and per-record fields, snaplen truncation, and output permissions.",
-      "reason": "Requires CAP_NET_RAW plus deterministic Ethernet frame injection on a private isolated link, or a reviewed AF_PACKET mock. A future disposable VM must inject fixed frame bytes, run capture with bounded -c/-s/-W settings, and independently decode the resulting pcap; no host interface or real network target is in scope."
+      "reason": "No executed case writes a capture. Frame injection and capture are possible as VM root in a script-created netns."
     },
     {
       "id": "capture-interface-timeout",
       "kind": "deferred",
       "purpose": "Check interface selection and bounded timeout behavior with and without injected packets.",
-      "reason": "Requires a disposable VM with a private test interface that can be selected by name and driven by a controlled packet source while holding CAP_NET_RAW. A future fixture should verify only frames from that interface are written and that -W terminates the no-traffic case within a bounded interval."
+      "reason": "No executed capture case. The VM script runs as root (CAP_NET_RAW) and can create a private netns with two veth interfaces and inject frames with a python AF_PACKET helper."
     },
     {
       "id": "info-swapped-nanosecond",

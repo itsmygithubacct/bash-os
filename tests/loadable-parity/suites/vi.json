@@ -83,14 +83,55 @@
     {
       "id": "interactive-pty-edit",
       "purpose": "Track interactive normal/insert/command-mode screen behavior and saves when the editor owns a real terminal.",
-      "kind": "deferred",
-      "reason": "Requires a disposable VM with a controlled PTY and terminal settings plus an independent POSIX vi reference. The supplied runner starts fixtures with stdin disconnected to /dev/null and has no PTY facility, so no interactive operation was executed. A future test must use only relative fixture files and compare final bytes and bounded screen behavior inside that VM."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "migration-vi-edited-screen-and-command"
+        },
+        {
+          "group": "terminal",
+          "id": "vi-count-delete"
+        },
+        {
+          "group": "terminal",
+          "id": "vi-delete-undo"
+        },
+        {
+          "group": "terminal",
+          "id": "vi-dot-repeat"
+        },
+        {
+          "group": "terminal",
+          "id": "vi-edit-save"
+        },
+        {
+          "group": "terminal",
+          "id": "vi-join"
+        },
+        {
+          "group": "terminal",
+          "id": "vi-quit-modified-refused"
+        },
+        {
+          "group": "terminal",
+          "id": "vi-search-change"
+        },
+        {
+          "group": "terminal",
+          "id": "vi-substitute"
+        },
+        {
+          "group": "terminal",
+          "id": "vi-yank-put"
+        }
+      ]
     },
     {
       "id": "terminal-keys-resize",
       "purpose": "Track terminal arrow-key decoding and viewport behavior after a deterministic window resize.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM PTY driver that can set TERM/terminfo and resize the terminal to fixed dimensions, along with an independent vi reference. The current runner cannot allocate or resize a PTY. Future fixtures must use scripted key bytes and relative files only; this behavior was not run or claimed as passed."
+      "reason": "Down-arrow decoding and a basic resize redraw ran (the candidate fails redraw). Wider key coverage and cursor-tracking viewport behavior are not exercised."
     },
     {
       "id": "ex-quit-preserves-source",

@@ -146,9 +146,42 @@
     },
     {
       "id": "pty-terminal-attributes",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify output to an attached terminal leaves terminal modes and attributes unchanged while producing the selected clear sequence.",
-      "reason": "The provided fixture runner always captures stdout through a file and has no PTY attachment or termios observation fields. A future isolated PTY fixture should capture bashclear and ncurses clear output, snapshot the PTY attributes before and after each invocation, and compare the captured bytes without connecting to a host terminal."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "clear-default"
+        },
+        {
+          "group": "terminal",
+          "id": "clear-keep-scrollback"
+        },
+        {
+          "group": "terminal",
+          "id": "clear-linux"
+        },
+        {
+          "group": "terminal",
+          "id": "clear-vt100"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-clear-default-winsize"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-clear-keep-scrollback-winsize"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-clear-linux-winsize"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-clear-vt100-winsize"
+        }
+      ]
     },
     {
       "id": "help-contract-details",
@@ -161,9 +194,34 @@
     },
     {
       "id": "output-failure-and-shell-recovery",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Inject partial-write and PTY-specific output failures and verify recovery after those failures; ordinary captured output, closed stdout, repeated calls and input preservation execute in separate cases.",
-      "reason": "Requires a future disposable VM with a reviewed partial-write fault mock or a private PTY driver to produce bounded output errors deterministically. The runnable closed-output-recovery case covers EBADF and restored shell output without host devices; partial-write and attached-terminal behavior remain unqualified."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/clear/closed-output-recovery"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/clear/local-term-and-input"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/clear/xterm-screen-and-scrollback"
+        },
+        {
+          "group": "shell",
+          "id": "migration-clear-full-device"
+        },
+        {
+          "group": "shell",
+          "id": "migration-clear-hung-up-pty"
+        },
+        {
+          "group": "shell",
+          "id": "migration-clear-short-write"
+        }
+      ]
     },
     {
       "id": "local-term-and-input",

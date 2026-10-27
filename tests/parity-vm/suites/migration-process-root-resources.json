@@ -1,0 +1,655 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-prlimit-set-numeric",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set numeric",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=32; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "stdout": "status=0\nlimits=32,32\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-prlimit-set-pair",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set pair",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=32:96; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "stdout": "status=0\nlimits=32,96\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-prlimit-set-soft-only",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set soft only",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=32:; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "stdout": "status=0\nlimits=32,128\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-prlimit-set-hard-only",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set hard only",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=:96; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "stdout": "status=0\nlimits=64,96\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-prlimit-set-unlimited",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set unlimited",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit -p \"$child\" --rss=unlimited; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" RSS",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "stdout": "status=0\nlimits=unlimited,unlimited\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-prlimit-set-reversed",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set reversed",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=96:64 > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE\n[[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-prlimit-set-invalid-word",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set invalid word",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=nope > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE\n[[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-prlimit-set-invalid-suffix",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set invalid suffix",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=64x > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE\n[[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-prlimit-set-invalid-range",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set invalid range",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=1:2:3 > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE\n[[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-prlimit-set-negative",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set negative",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=-1 > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE\n[[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-prlimit-command-child",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit command child",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "before=$(/usr/bin/python3 -c 'import os,resource;print(resource.prlimit(os.getppid(),resource.RLIMIT_NOFILE))')\nprlimit --nofile=32:64 /usr/bin/python3 child.py \"a b\" \"\" \"--literal\"; printf \"status=%s\\n\" \"$?\"\nafter=$(/usr/bin/python3 -c 'import os,resource;print(resource.prlimit(os.getppid(),resource.RLIMIT_NOFILE))'); [[ $before == \"$after\" ]] && echo parent=unchanged || echo parent=changed",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/command-mode-child"
+      ],
+      "stdout": "nofile=32,64\n[\"a b\", \"\", \"--literal\"]\nstatus=7\nparent=unchanged\n",
+      "files": {
+        "child.py": "import resource,sys,json\nprint(\"nofile=\"+\",\".join(str(n) for n in resource.getrlimit(resource.RLIMIT_NOFILE)))\nprint(json.dumps(sys.argv[1:]))\nsys.exit(7)\n"
+      }
+    },
+    {
+      "id": "migration-prlimit-command-signal",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit command signal",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker. GNU exec makes its invoking Bash report Terminated; the builtin may return a numeric signal status without that shell diagnostic.",
+      "script": "prlimit --nofile=64:64 /usr/bin/python3 -c 'import os,signal;os.kill(os.getpid(),signal.SIGTERM)'; printf \"status=%s\\n\" \"$?\"",
+      "stderr": "Terminated                 prlimit --nofile=64:64 /usr/bin/python3 -c 'import os,signal;os.kill(os.getpid(),signal.SIGTERM)'\n",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/command-mode-child"
+      ],
+      "stdout": "status=143\n"
+    },
+    {
+      "id": "migration-prlimit-command-missing",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit command missing",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "prlimit --nofile=64:64 /nonexistent-parity-command > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/command-mode-child"
+      ],
+      "stdout": "status=127 diagnostic=yes\nstdout=empty\n",
+      "files": {
+        "not-executable": "fixture data\n"
+      }
+    },
+    {
+      "id": "migration-prlimit-command-nonexecutable",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit command nonexecutable",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "prlimit --nofile=64:64 ./not-executable > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/command-mode-child"
+      ],
+      "stdout": "status=126 diagnostic=yes\nstdout=empty\n",
+      "files": {
+        "not-executable": "fixture data\n"
+      }
+    },
+    {
+      "id": "migration-prlimit-query-owned-long",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit query owned long",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/pid-target-and-errors",
+        "prlimit/query-output-formats"
+      ],
+      "stdout": "NOFILE\t64\t128\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      },
+      "candidate_script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile --raw --noheadings",
+      "reference_script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nvalues=$(prlimit --pid \"$child\" --nofile --raw --noheadings --output SOFT,HARD); rc=$?; read -r soft hard <<< \"$values\"; printf \"NOFILE\\t%s\\t%s\\n\" \"$soft\" \"$hard\"; exit \"$rc\""
+    },
+    {
+      "id": "migration-prlimit-query-owned-short",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit query owned short",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/pid-target-and-errors",
+        "prlimit/query-output-formats"
+      ],
+      "stdout": "NOFILE\t64\t128\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      },
+      "candidate_script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit -p \"$child\" --nofile --raw --noheadings",
+      "reference_script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nvalues=$(prlimit -p \"$child\" --nofile --raw --noheadings --output SOFT,HARD); rc=$?; read -r soft hard <<< \"$values\"; printf \"NOFILE\\t%s\\t%s\\n\" \"$soft\" \"$hard\"; exit \"$rc\""
+    },
+    {
+      "id": "migration-prlimit-pid-word",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit pid word",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "prlimit --pid abc --nofile > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/pid-target-and-errors"
+      ]
+    },
+    {
+      "id": "migration-prlimit-pid-negative",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit pid negative",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "prlimit --pid -5 --nofile > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/pid-target-and-errors"
+      ]
+    },
+    {
+      "id": "migration-prlimit-pid-overflow",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit pid overflow",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "prlimit --pid 9999999999999999999999999 --nofile > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/pid-target-and-errors"
+      ]
+    },
+    {
+      "id": "migration-prlimit-pid-reaped",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit pid reaped",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "/usr/bin/true & child=$!; wait \"$child\"\nprlimit --pid \"$child\" --nofile > out 2> err; rc=$?; diagnostic=$(<err); [[ $diagnostic == *\"No such process\"* ]] && d=ESRCH || d=other; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "true"
+      ],
+      "covers": [
+        "prlimit/pid-target-and-errors"
+      ],
+      "stdout": "status=1 diagnostic=ESRCH\nstdout=empty\n"
+    },
+    {
+      "id": "migration-renice-owned-absolute",
+      "loadable": "renice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "renice owned absolute",
+      "oracle": "Locked util-linux renice and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "before=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))')\n/usr/bin/python3 worker.py 3 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nrenice  5 -p \"$child\" > out 2> err; rc=$?\nprintf -v expected \"%s (process ID) old priority 3, new priority 5\" \"$child\"\nactual=$(<out); [[ $actual == \"$expected\" ]] && echo output=exact || echo output=other\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 -c 'import os,sys;print(\"nice=\"+str(os.getpriority(os.PRIO_PROCESS,int(sys.argv[1]))))' \"$child\"\nafter=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))'); [[ $before == \"$after\" ]] && echo parent=unchanged || echo parent=changed\n[[ ! -s err ]] && echo diagnostic=empty || echo diagnostic=present; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "renice",
+        "python3"
+      ],
+      "covers": [
+        "renice/owned_pid_absolute_priority"
+      ],
+      "stdout": "output=exact\nstatus=0\nnice=5\nparent=unchanged\ndiagnostic=empty\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-renice-owned-short",
+      "loadable": "renice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "renice owned short",
+      "oracle": "Locked util-linux renice and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "before=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))')\n/usr/bin/python3 worker.py 3 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nrenice -n 6 -p \"$child\" > out 2> err; rc=$?\nprintf -v expected \"%s (process ID) old priority 3, new priority 6\" \"$child\"\nactual=$(<out); [[ $actual == \"$expected\" ]] && echo output=exact || echo output=other\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 -c 'import os,sys;print(\"nice=\"+str(os.getpriority(os.PRIO_PROCESS,int(sys.argv[1]))))' \"$child\"\nafter=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))'); [[ $before == \"$after\" ]] && echo parent=unchanged || echo parent=changed\n[[ ! -s err ]] && echo diagnostic=empty || echo diagnostic=present; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "renice",
+        "python3"
+      ],
+      "covers": [
+        "renice/owned_pid_absolute_priority"
+      ],
+      "stdout": "output=exact\nstatus=0\nnice=6\nparent=unchanged\ndiagnostic=empty\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-renice-owned-posix-relative",
+      "loadable": "renice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "renice owned posix relative",
+      "oracle": "Locked util-linux renice and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "before=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))')\n/usr/bin/python3 worker.py 3 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nexport POSIXLY_CORRECT=1\nrenice -n 2 -p \"$child\" > out 2> err; rc=$?\nprintf -v expected \"%s (process ID) old priority 3, new priority 5\" \"$child\"\nactual=$(<out); [[ $actual == \"$expected\" ]] && echo output=exact || echo output=other\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 -c 'import os,sys;print(\"nice=\"+str(os.getpriority(os.PRIO_PROCESS,int(sys.argv[1]))))' \"$child\"\nafter=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))'); [[ $before == \"$after\" ]] && echo parent=unchanged || echo parent=changed\n[[ ! -s err ]] && echo diagnostic=empty || echo diagnostic=present; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "renice",
+        "python3"
+      ],
+      "covers": [
+        "renice/owned_pid_absolute_priority"
+      ],
+      "stdout": "output=exact\nstatus=0\nnice=5\nparent=unchanged\ndiagnostic=empty\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "migration-renice-boundary-clamp",
+      "loadable": "renice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "renice boundary clamp",
+      "oracle": "Locked util-linux renice and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "before=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))')\n/usr/bin/python3 worker.py 3 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nrenice 20 -p \"$child\" > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import os,sys;print(\"nice=\"+str(os.getpriority(os.PRIO_PROCESS,int(sys.argv[1]))))' \"$child\"\nafter=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))'); [[ $before == \"$after\" ]] && echo parent=unchanged || echo parent=changed\nrm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "renice",
+        "python3"
+      ],
+      "covers": [
+        "renice/priority_boundaries_and_permission"
+      ],
+      "stdout": "status=0 diagnostic=no\nnice=19\nparent=unchanged\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      },
+      "setup_script": "/usr/bin/python3 -c 'import resource;assert resource.getrlimit(resource.RLIMIT_NICE)==(0,0)'"
+    },
+    {
+      "id": "migration-renice-boundary-int-max",
+      "loadable": "renice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "renice boundary int max",
+      "oracle": "Locked util-linux renice and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "before=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))')\n/usr/bin/python3 worker.py 3 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nrenice 2147483647 -p \"$child\" > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import os,sys;print(\"nice=\"+str(os.getpriority(os.PRIO_PROCESS,int(sys.argv[1]))))' \"$child\"\nafter=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))'); [[ $before == \"$after\" ]] && echo parent=unchanged || echo parent=changed\nrm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "renice",
+        "python3"
+      ],
+      "covers": [
+        "renice/priority_boundaries_and_permission"
+      ],
+      "stdout": "status=0 diagnostic=no\nnice=19\nparent=unchanged\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      },
+      "setup_script": "/usr/bin/python3 -c 'import resource;assert resource.getrlimit(resource.RLIMIT_NICE)==(0,0)'"
+    },
+    {
+      "id": "migration-renice-boundary-int-min",
+      "loadable": "renice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "renice boundary int min",
+      "oracle": "Locked util-linux renice and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "before=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))')\n/usr/bin/python3 worker.py 3 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nrenice -2147483648 -p \"$child\" > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import os,sys;print(\"nice=\"+str(os.getpriority(os.PRIO_PROCESS,int(sys.argv[1]))))' \"$child\"\nafter=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))'); [[ $before == \"$after\" ]] && echo parent=unchanged || echo parent=changed\nrm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "renice",
+        "python3"
+      ],
+      "covers": [
+        "renice/priority_boundaries_and_permission"
+      ],
+      "stdout": "status=1 diagnostic=yes\nnice=3\nparent=unchanged\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      },
+      "setup_script": "/usr/bin/python3 -c 'import resource;assert resource.getrlimit(resource.RLIMIT_NICE)==(0,0)'"
+    },
+    {
+      "id": "migration-renice-boundary-overflow",
+      "loadable": "renice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "renice boundary overflow",
+      "oracle": "Locked util-linux renice and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "before=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))')\n/usr/bin/python3 worker.py 3 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nrenice 2147483648 -p \"$child\" > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import os,sys;print(\"nice=\"+str(os.getpriority(os.PRIO_PROCESS,int(sys.argv[1]))))' \"$child\"\nafter=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))'); [[ $before == \"$after\" ]] && echo parent=unchanged || echo parent=changed\nrm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "renice",
+        "python3"
+      ],
+      "covers": [
+        "renice/priority_boundaries_and_permission"
+      ],
+      "stdout": "status=1 diagnostic=yes\nnice=3\nparent=unchanged\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      },
+      "setup_script": "/usr/bin/python3 -c 'import resource;assert resource.getrlimit(resource.RLIMIT_NICE)==(0,0)'"
+    },
+    {
+      "id": "migration-renice-boundary-denied",
+      "loadable": "renice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "renice boundary denied",
+      "oracle": "Locked util-linux renice and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "before=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))')\n/usr/bin/python3 worker.py 3 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nrenice -1 -p \"$child\" > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import os,sys;print(\"nice=\"+str(os.getpriority(os.PRIO_PROCESS,int(sys.argv[1]))))' \"$child\"\nafter=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))'); [[ $before == \"$after\" ]] && echo parent=unchanged || echo parent=changed\nrm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "renice",
+        "python3"
+      ],
+      "covers": [
+        "renice/priority_boundaries_and_permission"
+      ],
+      "stdout": "status=1 diagnostic=yes\nnice=3\nparent=unchanged\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      },
+      "setup_script": "/usr/bin/python3 -c 'import resource;assert resource.getrlimit(resource.RLIMIT_NICE)==(0,0)'"
+    }
+  ]
+}

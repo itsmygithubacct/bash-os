@@ -40,31 +40,31 @@
       "id": "forwarding-env-status",
       "purpose": "Exercise argument forwarding (including empty and spaced words), exported-variable visibility, and child exit-status propagation without contacting a package index.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM/package tree with a deterministic local stand-in installed at the documented uv helper path; the harness cannot supply that sibling executable. The future fixture should record argv and exported variables and return a chosen nonzero status, with no network access."
+      "reason": "uv is an optional loadable absent from both qualified binaries: legacy/uv/builtin-type and short-help-synopsis are SKIP ('loadable is not present in the candidate binary') in final-static and final-dynamic. The helper resolves ../libexec/uv/uv beside a loaded uv.so (uv.c dladdr) or the compiled-in /usr/lib/bash-os/libexec/uv/uv, so a relative package root works once a uv.so artifact is in the payload and the dynamic build can `enable -f` it. The candidate under qualification cannot execute any uv operation."
     },
     {
       "id": "helper-resolution-after-cd",
       "purpose": "Verify that a uv.so loaded from a relative package path keeps resolving its sibling helper after the shell changes its working directory.",
       "kind": "deferred",
-      "reason": "Requires a disposable package root containing both uv.so and a local stand-in under the documented sibling libexec/uv path, loaded before changing directories. The harness cannot mount or populate the compiled-in package path."
+      "reason": "uv is an optional loadable absent from both qualified binaries: legacy/uv/builtin-type and short-help-synopsis are SKIP ('loadable is not present in the candidate binary') in final-static and final-dynamic. The helper resolves ../libexec/uv/uv beside a loaded uv.so (uv.c dladdr) or the compiled-in /usr/lib/bash-os/libexec/uv/uv, so a relative package root works once a uv.so artifact is in the payload and the dynamic build can `enable -f` it. The candidate under qualification cannot execute any uv operation."
     },
     {
       "id": "missing-helper-diagnostic",
       "purpose": "Check the documented status 127 and install hint when the separately packaged uv executable is missing.",
       "kind": "deferred",
-      "reason": "Requires a disposable package layout in which the builtin is present but its helper is deliberately absent; the harness has no isolated package-root injection for this compiled-in loadable, and the host /usr tree is read-only."
+      "reason": "uv is an optional loadable absent from both qualified binaries: legacy/uv/builtin-type and short-help-synopsis are SKIP ('loadable is not present in the candidate binary') in final-static and final-dynamic. The helper resolves ../libexec/uv/uv beside a loaded uv.so (uv.c dladdr) or the compiled-in /usr/lib/bash-os/libexec/uv/uv, so a relative package root works once a uv.so artifact is in the payload and the dynamic build can `enable -f` it. The candidate under qualification cannot execute any uv operation."
     },
     {
       "id": "signal-status-mapping",
       "purpose": "Check child signal defaults and the documented 128+N status mapping without signaling any host or unrelated process.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM with the sibling helper replaced by a reviewed stand-in that terminates only itself with a selected signal. No child signal behavior is exercised by this suite."
+      "reason": "uv is an optional loadable absent from both qualified binaries: legacy/uv/builtin-type and short-help-synopsis are SKIP ('loadable is not present in the candidate binary') in final-static and final-dynamic. The helper resolves ../libexec/uv/uv beside a loaded uv.so (uv.c dladdr) or the compiled-in /usr/lib/bash-os/libexec/uv/uv, so a relative package root works once a uv.so artifact is in the payload and the dynamic build can `enable -f` it. The candidate under qualification cannot execute any uv operation."
     },
     {
       "id": "local-project-operation",
       "purpose": "Exercise a useful upstream uv operation against a tiny local project and verify its resulting fixture tree without network access.",
       "kind": "deferred",
-      "reason": "Requires the pinned upstream uv executable in a disposable package tree and an isolated local project fixture. The helper is not supplied to the runner; if dependency resolution is included, it must use a local-only mock index. This has no matching GNU CLI oracle."
+      "reason": "uv is an optional loadable absent from both qualified binaries: legacy/uv/builtin-type and short-help-synopsis are SKIP ('loadable is not present in the candidate binary') in final-static and final-dynamic. The helper resolves ../libexec/uv/uv beside a loaded uv.so (uv.c dladdr) or the compiled-in /usr/lib/bash-os/libexec/uv/uv, so a relative package root works once a uv.so artifact is in the payload and the dynamic build can `enable -f` it. The candidate under qualification cannot execute any uv operation."
     }
   ]
 }

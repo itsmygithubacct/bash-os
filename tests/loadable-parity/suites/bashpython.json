@@ -130,13 +130,13 @@
       "id": "interactive-prompt",
       "kind": "deferred",
       "purpose": "Check prompt input, output, and EOF behavior for the documented interactive invocation.",
-      "reason": "Requires a bounded PTY driver to provide terminal input and observe the prompt; the fixture runner supplies no PTY. A future disposable VM test should use only a private PTY, fixed input lines, and a bounded EOF sequence."
+      "reason": "bashpython is optional and missing from both qualified binaries, and no terminal case exists. The PTY driver can supply input and observe prompts (expect/send/termios/terminal_restored), so a PTY is no longer the blocker."
     },
     {
       "id": "keyboard-interrupt",
       "kind": "deferred",
       "purpose": "Compare caught and unhandled KeyboardInterrupt behavior between the builtin and standalone Python.",
-      "reason": "Requires controlled SIGINT injection while a bounded Python child is waiting. The current runner has no fixture-scoped signal controller. A future disposable VM test should target only the fixture's own process group and capture child and shell status."
+      "reason": "Optional module missing from both builds. The stated blocker (no fixture-scoped signal controller) is stale: the PTY driver sends ^C through the private terminal's line discipline only to that PTY's foreground group, and foreground_job [SIGINT] can wait until the child accepts SIGINT."
     }
   ]
 }

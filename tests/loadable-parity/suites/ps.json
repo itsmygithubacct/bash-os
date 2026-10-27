@@ -152,7 +152,7 @@
       "id": "live-table-and-aux-snapshot",
       "kind": "deferred",
       "purpose": "Validate default full-table enumeration and aux layout, percentages, and start times against a stable real procfs process set.",
-      "reason": "Requires a disposable Linux VM with a private procfs mount, a controlled process tree, fixed locale/time settings, and GNU procps ps observing the same snapshot. The provided runner's live process table is intentionally nondeterministic, and GNU ps cannot consume the candidate's BASHOS_PROC_ROOT fixture."
+      "reason": "The legacy runner's bwrap private PID namespace inside the VM contains only bwrap's init, the case shell and its children, giving a stable process set; GNU ps sees one extra process (itself), which the comparison must account for."
     }
   ]
 }

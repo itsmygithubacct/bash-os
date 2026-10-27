@@ -1,0 +1,122 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "id": "migration-escdelay-builtin-state-reaches-decoder",
+   "loadable": "escdelay",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "A grace configured with the escdelay builtin (global 'escdelay set 1000', and per screen 'escdelay set --screen tty 1000' with a wgetch handle named tty) makes a CSI split 200 ms after ESC decode as Up, as the escdelay documentation describes the knob for the input pipeline. The candidate's decoders read only the environment, so this case is expected to record that mismatch.",
+   "script": "unset BASHESCDELAY BASHKGETCH_ESCDELAY\nescdelay set 1000; escdelay get > global\n/usr/bin/python3 tw.py 1b s200 5b41 | { kgetch read; kgetch read; } > kgetch-keys\n/usr/bin/python3 tw.py 1b s200 5b41 | { wgetch read 0; wgetch read 0; } > wgetch-keys\nescdelay set --screen tty 1000; escdelay get --screen tty > screen\n/usr/bin/python3 tw.py 1b s200 5b41 | { wgetch open 0 tty > h; read -r h < h; wgetch read \"$h\"; wgetch read \"$h\"; } > screen-keys\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "escdelay/decoder-timing-integration"
+   ],
+   "oracle": "escdelay help text: 'Configurable ESC grace knob for the bash-os input pipeline', set [--screen NAME] MS with 0..5000 bounds and precedence $BASHESCDELAY_SCREEN_<NAME> > per-screen state > $BASHESCDELAY > global state > 50; kgetch/wgetch help: ESC grace 50 ms by default, BASHESCDELAY (and BASHKGETCH_ESCDELAY for kgetch) set it; values outside 0..5000 or non-numeric are ignored (default 50).",
+   "comparison": "contract: escdelay get output exact; decoded keys compared with the documented effect of the configured grace (Up within 1000 ms)",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "files": {
+    "tw.py": "import os, sys, time\n# Timed writer: each argument is hex bytes to write, or sNNN to sleep NNN ms.\nfor arg in sys.argv[1:]:\n    if arg.startswith('s'):\n        time.sleep(int(arg[1:]) / 1000)\n    else:\n        os.write(1, bytes.fromhex(arg))\n"
+   },
+   "expected_files": {
+    "global": "1000\n",
+    "screen": "1000\n",
+    "kgetch-keys": "key_up 257\nnone 0\n",
+    "wgetch-keys": "key_up 257\nnone 0\n",
+    "screen-keys": "key_up 257\nnone 0\n"
+   }
+  },
+  {
+   "id": "migration-escdelay-env-grace",
+   "loadable": "escdelay",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "BASHESCDELAY=200: a CSI 100 ms after ESC decodes as Up and one 400 ms after ESC splits into ESC, '[' and 'A', for both kgetch and wgetch.",
+   "script": "export BASHESCDELAY=200\nfor r in kgetch wgetch; do\n  if [[ $r == kgetch ]]; then rd='kgetch read'; else rd='wgetch read 0'; fi\n  /usr/bin/python3 tw.py 1b s100 5b41 | { $rd; $rd; } > $r-within\n  /usr/bin/python3 tw.py 1b s400 5b41 | { $rd; $rd; $rd; $rd; } > $r-after\ndone\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "escdelay/decoder-timing-integration",
+    "wgetch/escape-timing"
+   ],
+   "oracle": "escdelay help text: 'Configurable ESC grace knob for the bash-os input pipeline', set [--screen NAME] MS with 0..5000 bounds and precedence $BASHESCDELAY_SCREEN_<NAME> > per-screen state > $BASHESCDELAY > global state > 50; kgetch/wgetch help: ESC grace 50 ms by default, BASHESCDELAY (and BASHKGETCH_ESCDELAY for kgetch) set it; values outside 0..5000 or non-numeric are ignored (default 50).",
+   "comparison": "contract: decoded keys from a timed pipe writer, 100 ms / 400 ms around a 200 ms grace",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "files": {
+    "tw.py": "import os, sys, time\n# Timed writer: each argument is hex bytes to write, or sNNN to sleep NNN ms.\nfor arg in sys.argv[1:]:\n    if arg.startswith('s'):\n        time.sleep(int(arg[1:]) / 1000)\n    else:\n        os.write(1, bytes.fromhex(arg))\n"
+   },
+   "expected_files": {
+    "kgetch-within": "key_up 257\nnone 0\n",
+    "kgetch-after": "esc 27\nchar 91\nchar 65\nnone 0\n",
+    "wgetch-within": "key_up 257\nnone 0\n",
+    "wgetch-after": "esc 27\nchar 91\nchar 65\nnone 0\n"
+   }
+  },
+  {
+   "id": "migration-escdelay-env-boundaries",
+   "loadable": "escdelay",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "BASHESCDELAY=0: an ESC whose continuation arrives 50 ms later is ESC at once (separate '[' 'A'); BASHESCDELAY=5000: a continuation 400 ms later still decodes as Up. Both decoders.",
+   "script": "for r in kgetch wgetch; do\n  if [[ $r == kgetch ]]; then rd='kgetch read'; else rd='wgetch read 0'; fi\n  BASHESCDELAY=0; export BASHESCDELAY\n  /usr/bin/python3 tw.py 1b s50 5b41 | { $rd; $rd; $rd; $rd; } > $r-zero\n  BASHESCDELAY=5000\n  /usr/bin/python3 tw.py 1b s400 5b41 | { $rd; $rd; } > $r-max\ndone\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "escdelay/decoder-timing-integration"
+   ],
+   "oracle": "escdelay help text: 'Configurable ESC grace knob for the bash-os input pipeline', set [--screen NAME] MS with 0..5000 bounds and precedence $BASHESCDELAY_SCREEN_<NAME> > per-screen state > $BASHESCDELAY > global state > 50; kgetch/wgetch help: ESC grace 50 ms by default, BASHESCDELAY (and BASHKGETCH_ESCDELAY for kgetch) set it; values outside 0..5000 or non-numeric are ignored (default 50).",
+   "comparison": "contract: decoded keys at the 0 and 5000 ms bounds",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "files": {
+    "tw.py": "import os, sys, time\n# Timed writer: each argument is hex bytes to write, or sNNN to sleep NNN ms.\nfor arg in sys.argv[1:]:\n    if arg.startswith('s'):\n        time.sleep(int(arg[1:]) / 1000)\n    else:\n        os.write(1, bytes.fromhex(arg))\n"
+   },
+   "expected_files": {
+    "kgetch-zero": "esc 27\nchar 91\nchar 65\nnone 0\n",
+    "kgetch-max": "key_up 257\nnone 0\n",
+    "wgetch-zero": "esc 27\nchar 91\nchar 65\nnone 0\n",
+    "wgetch-max": "key_up 257\nnone 0\n"
+   }
+  },
+  {
+   "id": "migration-escdelay-env-fallback",
+   "loadable": "escdelay",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Out-of-range or malformed BASHESCDELAY values (abc, 6000, -1, 12x, empty) fall back to 50 ms: a continuation 20 ms after ESC decodes as Up and one 300 ms after ESC splits. kgetch's BASHKGETCH_ESCDELAY falls back the same way.",
+   "script": "for v in abc 6000 -1 12x ''; do\n  export BASHESCDELAY=$v\n  /usr/bin/python3 tw.py 1b s20 5b41 1b s300 5b41 | { for i in 1 2 3 4 5; do wgetch read 0; done; } >> wgetch\n  unset BASHESCDELAY; export BASHKGETCH_ESCDELAY=$v\n  /usr/bin/python3 tw.py 1b s20 5b41 1b s300 5b41 | { for i in 1 2 3 4 5; do kgetch read; done; } >> kgetch\n  unset BASHKGETCH_ESCDELAY\ndone\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "escdelay/decoder-timing-integration"
+   ],
+   "oracle": "escdelay help text: 'Configurable ESC grace knob for the bash-os input pipeline', set [--screen NAME] MS with 0..5000 bounds and precedence $BASHESCDELAY_SCREEN_<NAME> > per-screen state > $BASHESCDELAY > global state > 50; kgetch/wgetch help: ESC grace 50 ms by default, BASHESCDELAY (and BASHKGETCH_ESCDELAY for kgetch) set it; values outside 0..5000 or non-numeric are ignored (default 50).",
+   "comparison": "contract: decoded keys for each invalid value",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "files": {
+    "tw.py": "import os, sys, time\n# Timed writer: each argument is hex bytes to write, or sNNN to sleep NNN ms.\nfor arg in sys.argv[1:]:\n    if arg.startswith('s'):\n        time.sleep(int(arg[1:]) / 1000)\n    else:\n        os.write(1, bytes.fromhex(arg))\n"
+   },
+   "timeout": 30,
+   "expected_files": {
+    "wgetch": "key_up 257\nesc 27\nchar 91\nchar 65\nnone 0\nkey_up 257\nesc 27\nchar 91\nchar 65\nnone 0\nkey_up 257\nesc 27\nchar 91\nchar 65\nnone 0\nkey_up 257\nesc 27\nchar 91\nchar 65\nnone 0\nkey_up 257\nesc 27\nchar 91\nchar 65\nnone 0\n",
+    "kgetch": "key_up 257\nesc 27\nchar 91\nchar 65\nnone 0\nkey_up 257\nesc 27\nchar 91\nchar 65\nnone 0\nkey_up 257\nesc 27\nchar 91\nchar 65\nnone 0\nkey_up 257\nesc 27\nchar 91\nchar 65\nnone 0\nkey_up 257\nesc 27\nchar 91\nchar 65\nnone 0\n"
+   }
+  }
+ ]
+}

@@ -138,9 +138,14 @@
     },
     {
       "id": "terminal-newline-flush",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check terminal output delivery at newline while expand input remains open.",
-      "reason": "Requires a PTY and a synchronized producer/consumer that can write one line, observe output before EOF, then close the input. The declarative fixture runner captures stdout in a regular file and has no PTY driver; perform this in a future disposable VM with an isolated PTY harness."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "expand-terminal-line"
+        }
+      ]
     },
     {
       "id": "invalid-tablist-gnu",

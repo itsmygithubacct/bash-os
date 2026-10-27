@@ -106,13 +106,18 @@
       "id": "cross-owner-hardlink-permission",
       "kind": "deferred",
       "purpose": "Exercise hard-link permission checks across an ownership boundary.",
-      "reason": "Requires a disposable VM or reviewed privilege-separated mock that can create two distinct UIDs, arrange a sticky writable directory containing a differently owned source, and set the protected-hardlinks policy. The provided fixtures use one unprivileged identity; do not alter host users, ownership, or kernel policy."
+      "reason": "Cross-owner fixtures need driver-side ownership setup. A uid-2000 fixture cannot chown (CAP_CHOWN) or create another uid's file, and toggling the policy needs root plus restore."
     },
     {
       "id": "cross-filesystem-link-rejection",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify a hard-link attempt across filesystems fails without creating the destination.",
-      "reason": "Requires a disposable VM with two private writable filesystems mounted at fixture directories, or a reviewed syscall mock that returns EXDEV for link(). Mount operations are outside this run; both reference and candidate must see the same isolated filesystem boundary."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-link-cross-filesystem-rejection-r2"
+        }
+      ]
     },
     {
       "id": "hardlink-content-alias",

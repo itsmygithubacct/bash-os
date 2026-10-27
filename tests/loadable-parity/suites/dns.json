@@ -51,39 +51,185 @@
     },
     {
       "id": "dns-query-udp-tcp",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise DNS query construction, response parsing, common RR presentation, error responses, resolver search order, and TC-triggered TCP fallback.",
-      "reason": "Requires a controlled UDP DNS responder and TCP fallback peer to exchange packets. Network activity is outside this task's allowed execution. A future disposable VM must bind only private loopback fixtures, record request bytes, and compare response parsing against RFC 1035 encodings and normalized dig/drill output; include A, AAAA, MX, TXT, PTR, NXDOMAIN, malformed response, and truncation cases."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "dns-a"
+        },
+        {
+          "group": "network",
+          "id": "dns-aaaa"
+        },
+        {
+          "group": "network",
+          "id": "dns-cname"
+        },
+        {
+          "group": "network",
+          "id": "dns-cname-chain-a"
+        },
+        {
+          "group": "network",
+          "id": "dns-mx"
+        },
+        {
+          "group": "network",
+          "id": "dns-ns"
+        },
+        {
+          "group": "network",
+          "id": "dns-nxdomain"
+        },
+        {
+          "group": "network",
+          "id": "dns-ptr"
+        },
+        {
+          "group": "network",
+          "id": "dns-query-server-option"
+        },
+        {
+          "group": "network",
+          "id": "dns-soa"
+        },
+        {
+          "group": "network",
+          "id": "dns-truncated-tcp-retry"
+        },
+        {
+          "group": "network",
+          "id": "dns-txt"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-malformed-pointer"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-malformed-short"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-malformed-wrong-id"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-nameserver-fallback"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-nodata"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-refused"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-search-list-order"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-search-ndots-original-first"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-servfail"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-wire-edns-do"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-wire-noedns"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-resolv-conf-order"
+        }
+      ]
     },
     {
       "id": "dns-dot-doh",
       "kind": "deferred",
       "purpose": "Exercise DNS-over-TLS and DNS-over-HTTPS framing, certificate validation, and DNS message handling through each transport.",
-      "reason": "Requires TLS and HTTPS peers plus certificate fixtures or the documented BASHDNS_DOT_CMD/BASHDNS_DOH_CMD transport seams. This task forbids network activity. A future disposable VM must use loopback-only mock peers, a private test CA, fixed DNS wire replies, and byte-level TLS/HTTP framing assertions."
+      "reason": "Remaining obligations: r4: Both transports now return the same single A answer as UDP. Additional RR types, multi-record answers and error rcodes (NXDOMAIN, SERVFAIL) through DoT/DoH are not compared with the UDP path.; r5: The independent DoT client receives the zone answer. DoH requests fail in the HTTP/2 path; its TLS handshake and reachable DNS-message handling need separate probes."
     },
     {
       "id": "dns-update-notify",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise RFC 2136 update and RFC 1996 notify requests, prerequisite encodings, TSIG signing, and peer response validation.",
-      "reason": "These client operations send DNS packets and need a controlled authoritative peer. A future disposable VM must provide loopback UDP/TCP responders and compare the requests with independently encoded RFC 2136/RFC 1996 messages and HMAC-SHA256 TSIG calculations. No packets are sent in this suite."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-dns-notify-ack"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-notify-no-response"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-notify-tsig"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-notify-tsig-bad-reply"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-notify-tsig-unsigned-reply"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-update-add-prereq"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-update-error-rcodes"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-update-prereq-delete-encodings"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-update-tsig"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-update-tsig-key-first"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-update-tsig-key-first-bad-reply"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-update-tsig-key-first-unsigned-reply"
+        }
+      ]
     },
     {
       "id": "dns-authoritative-service",
       "kind": "deferred",
       "purpose": "Exercise authoritative UDP/TCP answers, zone selection, transfer/update policy, TSIG, and opt-in service features against clients.",
-      "reason": "The auth-serve subcommand opens a network listener and requires client exchanges. A future disposable VM must isolate the listener to loopback, provide deterministic zone fixtures and independent DNS packet encoders, and verify answers, denied/allowed transfer behavior, and permitted update behavior without contacting any external peer."
+      "reason": "Remaining obligations: r6: Response-rate-limit slip is not asserted. Control, notify, DoT and DoH HTTP/1.1 plus HTTP/2 message handling are now reached; HTTP/2 response header defects remain FAIL."
     },
     {
       "id": "dns-recursive-service",
       "kind": "deferred",
       "purpose": "Exercise resolver forwarding/cache behavior and the documented recursive, DNSSEC, DNS64, and policy paths against controlled peers.",
-      "reason": "The resolver service exchanges DNS packets with clients and upstreams. A future disposable VM must use a loopback client and scripted upstream server, fixed time and zone data, and independent DNSSEC/DNS64 expectations. This suite performs no network activity."
+      "reason": "Remaining obligations: r3: No referral-serving peer.; r4: Not executed; requires signed zone data and an injected clock."
     },
     {
       "id": "dns-slave-transfer-poll",
       "kind": "deferred",
       "purpose": "Exercise slave IXFR/AXFR transfer verification and DNSKEY polling used by trust-anchor rollover.",
-      "reason": "Transfer and polling paths require a controlled DNS primary and response stream. A future disposable VM must expose only a loopback primary with fixed signed zone/DNSKEY fixtures, injected timestamps, and independently computed TSIG/signature expectations. No transfer or poll is run here."
+      "reason": "No primary/transfer peer exists. rfc5011-step (logic only) and slave-verify-chain are host-safe but also unexecuted."
     },
     {
       "id": "offline-chain",

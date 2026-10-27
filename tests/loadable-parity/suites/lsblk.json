@@ -100,13 +100,42 @@
       "id": "live-device-inventory-deferred",
       "purpose": "Check enumeration and topology for actual kernel block devices, including loop or device-mapper nodes, without touching or changing them.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM with explicitly provisioned virtual block devices and a known sysfs inventory, or a separately reviewed sysfs/device mock. The shared host inventory and real device nodes are out of scope."
+      "reason": "Remaining obligations: r2: loop/dm nodes need F1-LOOP and F5-DM; r3: Mountpoints and the empty candidate FSTYPE versus util-linux udev values are observed. All live block nodes are unreadable to uid2000, so direct on-device superblock probing remains unexercised."
     },
     {
       "id": "gnu-sysfs-parity-deferred",
       "purpose": "Compare the synthetic block tree directly against GNU util-linux lsblk once the reference can consume the same sysfs fixture.",
-      "kind": "deferred",
-      "reason": "The mandatory controller sandbox has no /sys/dev/block, and GNU lsblk --sysroot does not redirect that sysfs lookup. Requires a future isolated reference mode with a disposable /sys mock or an independently validated GNU lsblk build that accepts a sysfs root."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/lsblk/disk-operand"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/lsblk/ext-superblock-probe"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/lsblk/nodeps-list"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/lsblk/pairs-attributes"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/lsblk/tree-branches"
+        },
+        {
+          "group": "shell",
+          "id": "migration-lsblk-sysfs-attributes"
+        },
+        {
+          "group": "shell",
+          "id": "migration-lsblk-sysfs-formatting"
+        }
+      ]
     }
   ]
 }

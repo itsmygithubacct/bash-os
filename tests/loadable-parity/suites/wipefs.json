@@ -64,7 +64,7 @@
       "id": "signature-erasure-deferred",
       "kind": "deferred",
       "purpose": "Qualify -a byte changes, including multiple signatures and preservation of unrelated fixture data.",
-      "reason": "Requires a disposable VM or reviewed private-image mock that confines all writes to throwaway regular-file images, plus independently encoded signature vectors and an independent util-linux/reference-byte oracle. Verify -a clears only specified magic bytes, preserves neighboring data, and compare repeated/no-match behavior; separately verify -n preserves the image. The destructive operation is not run here."
+      "reason": "Remaining obligations: r5: unchanged: needs a block device node"
     },
     {
       "id": "no-signature-files",

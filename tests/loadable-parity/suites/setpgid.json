@@ -52,21 +52,40 @@
     },
     {
       "id": "defer_owned_child_moves",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise successful default and explicit process-group changes and verify the resulting group after each change.",
-      "reason": "Requires a future disposable Linux VM or reviewed syscall mock. In the VM, use only the test shell and a blocked, unexecuted child created and reaped by that shell; cover (pid=0,pgid=0), explicit self IDs, child-to-own-PID group changes, and moves back to the inherited same-session group. Independently query state with Python os.getpgid/os.getsid (and compare syscall behavior with Python os.setpgid). This operation is deliberately not invoked in the metadata-only suite."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-setpgid-owned-kernel-and-errors"
+        }
+      ]
     },
     {
       "id": "defer_argument_validation",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify exact arity, numeric/nonnegative parsing and pid_t range rejection without changing process-group state.",
-      "reason": "Requires a future disposable VM or reviewed syscall mock that can record whether setpgid(2) was reached. Check missing/extra operands, nonnumeric and negative values, intmax overflow, and values outside pid_t; verify documented status classes and that rejected inputs make no syscall. No loadable operation invocation is attempted here."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-setpgid-invalid-syscall-guard"
+        },
+        {
+          "group": "shell",
+          "id": "migration-setpgid-owned-kernel-and-errors"
+        }
+      ]
     },
     {
       "id": "defer_kernel_errors",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify kernel error handling for a missing/reaped or nonchild PID, an unavailable group, a session leader, and an executed child.",
-      "reason": "Requires a future disposable Linux VM with a private test session, or a reviewed syscall mock with independently specified errno results. Any real-kernel targets must be the shell or children created and reaped by the test; use Python os.getpgid/os.getsid to verify state remains unchanged after each failure. Never target unrelated processes or signal a process group. Not invoked here because this exercises kernel process control."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-setpgid-owned-kernel-and-errors"
+        }
+      ]
     }
   ]
 }

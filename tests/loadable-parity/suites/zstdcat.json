@@ -149,9 +149,18 @@
     },
     {
       "id": "oversized-decoder-window",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check the documented decoder window ceiling using a small frame that advertises a window above 128 MiB.",
-      "reason": "Run only in a future disposable VM with at least 512 MiB available memory and an independently generated, size-bounded frame advertising a 256 MiB window. First validate that fixture with zstd project zstdcat, then assert bash-os zstdcat rejects it at its documented 128 MiB decoder-window limit. This suite limits runtime fixtures to small resource use, so this operation is DEFERRED and is not counted as passed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-zstdcat-window-128mib-control"
+        },
+        {
+          "group": "shell",
+          "id": "migration-zstdcat-window-256mib-rejected"
+        }
+      ]
     },
     {
       "id": "raw-binary-default-stdin",

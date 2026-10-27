@@ -58,7 +58,7 @@
       "id": "submit_fixture_backend",
       "kind": "deferred",
       "purpose": "Exercise deterministic file and stdin submissions, literal backend argv, complete-byte acceptance, and spool cleanup without delivering a real print job.",
-      "reason": "Requires a future disposable VM allowing a private absolute-path fixture backend, or a reviewed exec mock; this suite permits only relative fixture paths. The backend must record argv/input bytes without printer or network activity, covering full/partial acceptance and cleanup. No successful backend-delivery submit operation is run here."
+      "reason": "Only pre-delivery rejection and listing run. A private absolute backend script in the VM case directory is sufficient; no exec mock is needed."
     },
     {
       "id": "list-private-spool",
@@ -73,7 +73,7 @@
       "id": "cancel_owned_child",
       "kind": "deferred",
       "purpose": "Exercise stale-job cleanup and live cancellation through the control FIFO while proving cancellation affects only the submitter's fixture backend child.",
-      "reason": "Requires a future disposable VM or reviewed process/FIFO mock with a private scratch spool, a fixture-owned submitter, and a fixture backend child. Verify stale metadata does not direct signals, the live control FIFO is used, only the owned child can receive termination, and spool entries are removed. Do not signal any host or unrelated process. No cancel operation is run in this suite."
+      "reason": "Live cancellation uses a FIFO and an owned backend child; the plain driver provides the isolation and stray detection the original reason required."
     },
     {
       "id": "submit-without-backend",

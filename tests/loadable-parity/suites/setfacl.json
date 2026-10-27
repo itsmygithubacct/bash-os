@@ -105,9 +105,34 @@
     },
     {
       "id": "extended_acl_semantics_deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate named entry creation, automatic and explicit masks, named-entry modification/removal, and -b removal followed by a base edit.",
-      "reason": "The reference GNU CLI and candidate both returned EINVAL while creating a named ACL in this isolated fixture environment, including with namespace-local numeric ID 0. A future run needs a disposable Linux VM with POSIX ACL xattr support and a distinct mapped UID/GID; only then can these extended ACL operations be compared."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/setfacl/invalid_acl_rejected"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/setfacl/modify_base_permissions"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/setfacl/repeated-base-edits"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/setfacl/set_base_acl"
+        },
+        {
+          "group": "shell",
+          "id": "migration-setfacl-extended-acl-sequence"
+        },
+        {
+          "group": "shell",
+          "id": "migration-setfacl-invalid-entries-and-dashdash"
+        }
+      ]
     },
     {
       "id": "repeated-base-edits",

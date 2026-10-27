@@ -127,15 +127,53 @@
     },
     {
       "id": "nohup-tty-redirection-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "The tty branches select /dev/null for terminal stdin and append terminal stdout to nohup.out, with related stderr routing and HOME fallback.",
-      "reason": "Requires a disposable PTY fixture that can assign stdin/stdout/stderr as tty or pipe independently, inspect nohup.out contents and mode, and arrange a relative nohup.out open failure to exercise the HOME fallback. The supplied runner uses stdin /dev/null plus captured output pipes, so it cannot establish these conditions."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "migration-nohup-append-existing"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-nohup-home-fallback"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-nohup-stderr-tty-only"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-nohup-stderr-tty-stdout-file"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-nohup-stdin-tty-only"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-nohup-stdout-pipe"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-nohup-stdout-tty-only"
+        },
+        {
+          "group": "terminal",
+          "id": "nohup-terminal-output"
+        }
+      ]
     },
     {
       "id": "nohup-terminal-hangup-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify the child ignores SIGHUP across a controlled controlling-terminal disconnect.",
-      "reason": "Requires a disposable PTY session and a helper that closes the PTY master to generate hangup only for the fixture's foreground process group, then observes the child's completion and status. This runner has no PTY control interface; no process signal is sent by this suite."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "migration-nohup-hangup-survives"
+        }
+      ]
     },
     {
       "id": "private-nonexecutable",

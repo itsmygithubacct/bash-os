@@ -104,9 +104,30 @@
     },
     {
       "id": "pty-fragmented-input",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify terminal-facing read behavior when a multibyte scalar arrives in separate writes.",
-      "reason": "Requires a disposable private PTY plus a deterministic inter-byte input scheduler to distinguish a complete UTF-8 scalar from temporarily incomplete terminal input. The provided runner has no PTY driver; do not use a host terminal."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/wget_wch/read-stdin-cluster"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-wget-wch-canonical-vs-pipe"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-wget-wch-fragmented-scalar"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-wget-wch-incomplete-at-eof"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-wget-wch-late-combining-mark"
+        }
+      ]
     },
     {
       "id": "owned-pipe-clusters-eof",

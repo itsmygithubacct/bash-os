@@ -3,6 +3,27 @@
 All notable changes to bash-os are recorded here. Versions follow
 [semantic versioning](https://semver.org/); `VERSION` holds the current one.
 
+## 0.1.3 — Unreleased
+
+- Added a disposable KVM test environment with pinned reference Bash, isolated
+  terminal and loopback network fixtures, bounded execution, raw evidence and
+  explicit lifecycle checks. The historical suites retain all deferred cases.
+- Added independent Unicode 17 and published protocol/cryptographic vectors,
+  plus a reproducible Bash and command interface inventory. The
+  [parity scope](docs/parity-scope.md) documents the remaining coverage.
+- `curl` sends nondefault ports in Host, handles repeated and file-based data,
+  honors header overrides and silent errors, and follows redirect method and
+  transfer-status behavior more closely. `dns` stops retrying a verified
+  NXDOMAIN response.
+- Both Linux x86-64 builds pass 172 of 199 new fixtures and retain 27 observed
+  mismatches. The historical suites retain 3,171 passes, 24 failures, 23 optional
+  skips and 600 deferrals. Final qualifying results have no harness errors.
+- Independent data checks execute 9,331,283 assertions per build, with 40
+  retained NFC/NFKC composition-exclusion failures. See the
+  [validation record](docs/data/parity-0.1.3-validation.json) for separate
+  parity/contract counts, fixture revalidation, evidence hashes and exclusions.
+  These additions do not establish complete Bash or command parity.
+
 ## 0.1.2 — 2026-10-26
 
 - `bc` now treats bare operands as filenames and uses GNU's success status

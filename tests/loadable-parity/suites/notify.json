@@ -61,20 +61,35 @@
     {
       "id": "notify-filesystem-datagram",
       "purpose": "Verify a successful filesystem-path AF_UNIX datagram send and byte-exact payload delivery, including an embedded newline.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable Linux VM or reviewed private socket fixture that owns a filesystem AF_UNIX SOCK_DGRAM receiver and independently checks exactly one byte-exact datagram. This task requires notify send operations to remain deferred."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-notify-filesystem-datagram"
+        }
+      ]
     },
     {
       "id": "notify-abstract-datagram",
       "purpose": "Verify systemd's @name spelling maps to the expected Linux abstract AF_UNIX address and delivers one exact datagram.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable Linux VM or reviewed private abstract-namespace receiver fixture. The fixture must bind only its own abstract name and check exact datagram bytes; no system service or ambient socket may be contacted. This task requires notify send operations to remain deferred."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-notify-abstract-datagram"
+        }
+      ]
     },
     {
       "id": "notify-address-and-send-errors",
       "purpose": "Qualify empty and overlong socket names, an unavailable destination, and descriptor/error handling on send failure.",
-      "kind": "deferred",
-      "reason": "Requires a future reviewed syscall mock or disposable Linux VM with deterministic socket/sendto failures. It must verify invalid names fail before socket creation, failed sends return nonzero with a diagnostic, and descriptors are closed; no real endpoint may be used. This task requires notify send operations to remain deferred."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-notify-address-send-errors"
+        }
+      ]
     }
   ]
 }

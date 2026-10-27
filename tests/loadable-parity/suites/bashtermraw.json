@@ -43,33 +43,94 @@
     },
     {
       "id": "deferred-raw-cooked",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare raw-mode flag changes and cooked restoration against an independently captured PTY baseline.",
-      "reason": "Requires a disposable PTY driver that assigns the fixture process a controlling terminal. In a future fixture, capture `stty -g` before raw, assert GNU `stty -a` shows canonical input and echo disabled with VMIN=1/VTIME=0 after raw, then compare cooked mode byte-for-byte with the captured GNU stty state. The current runner supplies neither a controlling PTY nor stdin bytes, so this operation is not executed."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "bashtermraw-raw-cooked"
+        }
+      ]
     },
     {
       "id": "deferred-size-state-restore",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise TIOCGWINSZ reporting and stty-g/stty-set round-trip of termios flags, control characters, speeds, and window dimensions.",
-      "reason": "Requires a disposable controlling PTY whose size and termios can be set and observed independently. A future PTY fixture should set a known rows/columns pair with GNU `stty`, compare `bashtermraw size` with GNU `stty size`, capture `stty-g`, perturb supported state, apply `stty-set`, and compare GNU `stty -g` plus the window size with the saved values. No PTY state operation is run here."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "bashtermraw-size-resize"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-bashtermraw-stty-roundtrip"
+        }
+      ]
     },
     {
       "id": "deferred-key-decoder",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check keypress decoding for plain ASCII, control keys, CSI and SS3 navigation/function keys, modifiers, bracketed-paste boundaries, and isolated ESC timing.",
-      "reason": "Requires a disposable PTY master/slave driver that places the slave in raw mode and feeds deterministic byte sequences to the master while the candidate reads the controlling slave. Future assertions should use the documented decoder table in the source and include a bounded ESC-only timeout case. The current runner closes stdin and cannot supply an interactive PTY stream."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "bashtermraw-key-decoder"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-bashtermraw-control-letters"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-bashtermraw-function-keys"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-bashtermraw-navigation-keys"
+        }
+      ]
     },
     {
       "id": "deferred-ansi-output",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Capture terminal-side output for cursor positioning, line/screen clearing, clear options, cursor visibility, and bracketed-paste toggles, including stdout redirection behavior.",
-      "reason": "Requires a disposable controlling PTY with its output captured separately from process stdout. A future fixture should compare literal output bytes to the documented CSI/DEC sequences for cup, clr-eol, clr-screen, clear, show, and paste, and verify that redirecting stdout does not redirect terminal writes. This runner has no controlling PTY and these commands write terminal state."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "bashtermraw-ansi-output"
+        },
+        {
+          "group": "terminal",
+          "id": "bashtermraw-cup-redirected"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-bashtermraw-clear-options"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-bashtermraw-redirected-routing"
+        }
+      ]
     },
     {
       "id": "deferred-reset-recovery",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify reset's recovery escape sequence and canonical termios restoration after controlled PTY state changes.",
-      "reason": "Requires a disposable PTY and a terminal-state observer. A future fixture should deliberately set a bounded noncanonical state, capture and compare reset's literal documented RIS/recovery bytes, then verify canonical/echo state through GNU `stty`; include reset -q only when terminal write failure can be safely injected. The current runner provides no PTY and reset mutates terminal state."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-bashtermraw-reset-no-terminal"
+        },
+        {
+          "group": "terminal",
+          "id": "bashtermraw-reset-recovery"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-bashtermraw-reset-sequence"
+        }
+      ]
     }
   ]
 }

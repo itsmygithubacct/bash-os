@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "corpus": "unicode",
+  "version": "17.0.0",
+  "publisher": "Unicode, Inc.",
+  "license": "Unicode-3.0",
+  "license_file": "LICENSE.txt",
+  "retrieved": "2026-10-26",
+  "redistribution": "Raw corpora stay outside the repository and reach the VM only through vm.py --references; the lock pins them.",
+  "files": [
+    {
+      "name": "GraphemeBreakTest.txt",
+      "url": "https://www.unicode.org/Public/17.0.0/ucd/auxiliary/GraphemeBreakTest.txt",
+      "sha256": "e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec",
+      "bytes": 126570,
+      "header": "# GraphemeBreakTest-17.0.0.txt",
+      "role": "UAX #29 extended grapheme cluster conformance"
+    },
+    {
+      "name": "NormalizationTest.txt",
+      "url": "https://www.unicode.org/Public/17.0.0/ucd/NormalizationTest.txt",
+      "sha256": "5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db",
+      "bytes": 2827429,
+      "header": "# NormalizationTest-17.0.0.txt",
+      "role": "UAX #15 normalization conformance, Parts 0-5 and the Part 1 invariance rule"
+    },
+    {
+      "name": "CaseFolding.txt",
+      "url": "https://www.unicode.org/Public/17.0.0/ucd/CaseFolding.txt",
+      "sha256": "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183",
+      "bytes": 87539,
+      "header": "# CaseFolding-17.0.0.txt",
+      "role": "full case folding (status C and F)"
+    },
+    {
+      "name": "UnicodeData.txt",
+      "url": "https://www.unicode.org/Public/17.0.0/ucd/UnicodeData.txt",
+      "sha256": "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c",
+      "bytes": 2198209,
+      "header": null,
+      "role": "simple case mappings"
+    },
+    {
+      "name": "SpecialCasing.txt",
+      "url": "https://www.unicode.org/Public/17.0.0/ucd/SpecialCasing.txt",
+      "sha256": "efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588",
+      "bytes": 17049,
+      "header": "# SpecialCasing-17.0.0.txt",
+      "role": "unconditional full case mappings and the Final_Sigma condition"
+    },
+    {
+      "name": "DerivedCoreProperties.txt",
+      "url": "https://www.unicode.org/Public/17.0.0/ucd/DerivedCoreProperties.txt",
+      "sha256": "24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08",
+      "bytes": 1134783,
+      "header": "# DerivedCoreProperties-17.0.0.txt",
+      "role": "Cased and Case_Ignorable for toTitlecase and Final_Sigma"
+    },
+    {
+      "name": "LICENSE.txt",
+      "url": "https://www.unicode.org/license.txt",
+      "sha256": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+      "bytes": 1995,
+      "header": null,
+      "role": "Unicode License v3 covering the data files"
+    }
+  ]
+}

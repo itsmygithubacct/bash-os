@@ -54,19 +54,19 @@
       "id": "install-helper-boundary",
       "kind": "deferred",
       "purpose": "Check install validation, single-call batching, literal helper argv, and helper exit-status propagation.",
-      "reason": "Requires a future disposable VM with an independently reviewed recording helper mock that performs no installation or real rollback. Requires a disposable private repo/root and a recording mock bl-pkg.sh, not the image helper. The mock should record argv elements and call count, avoid extraction and host writes, and return chosen statuses. Verify valid multiple names, missing/invalid names causing no helper call, one-command environment overrides, and returned helper status. Do not invoke /bash-os/bl-pkg.sh or install a real payload."
+      "reason": "Never executed, but every obligation is fixture-relative and reachable in the existing legacy runner with a recording mock helper script; no VM-level capability is involved."
     },
     {
       "id": "remove-rollback-boundary",
       "kind": "deferred",
       "purpose": "Check transaction lookup and rollback dispatch without performing a real package rollback.",
-      "reason": "Requires a future disposable VM with an independently reviewed recording helper mock that performs no installation or real rollback. Requires a disposable private state tree plus a recording rollback mock. Seed regular state files with distinct, shared, missing, malformed, and boundary transaction values; verify txn selection, one call per distinct transaction, argument order, partial failures, and propagated status. The mock must not remove or alter anything outside the private fixture."
+      "reason": "Never executed; all transaction-selection and dispatch obligations are fixture-relative and reachable in the existing legacy runner."
     },
     {
       "id": "image-helper-integration",
       "kind": "deferred",
       "purpose": "Qualify the real image-owned helper's install/remove integration and resulting package state.",
-      "reason": "The actual bl-pkg.sh and payload share belong to the bashy.box image and are absent from this source tree. This requires a disposable bashy.box VM with a private root/share, a tiny locally staged deterministic package, and the real image helper; verify installed files/state and rollback cleanup without network access or host paths."
+      "reason": "Blocked on an external artifact: the real bl-pkg.sh helper is not in this source tree or the parity image. Once supplied (pinned by hash), everything else runs under fixture-relative PAYLOAD_ROOT/PAYLOAD_REPO without privilege."
     },
     {
       "id": "inventory-filters",

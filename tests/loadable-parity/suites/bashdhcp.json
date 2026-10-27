@@ -74,25 +74,25 @@
       "id": "defer-discover-offer-request-ack",
       "kind": "deferred",
       "purpose": "Validate the complete DHCP client acquisition exchange and returned lease against a private peer.",
-      "reason": "Requires a future disposable Linux VM with an isolated IPv4 interface and a DHCP server mock that captures DISCOVER and REQUEST, returns OFFER and ACK using the observed xid/chaddr, and records the resulting lease output. No host interface or network activity is permitted here."
+      "reason": "Only the offline parser is executed. The live request path is reachable on loopback today: BASHDHCP_SERVER_ADDR/BASHDHCP_SERVER_PORT/BASHDHCP_CLIENT_PORT redirect it, and SO_BINDTODEVICE works as VM root with -i lo. What is missing is a DHCP-aware peer."
     },
     {
       "id": "defer-renew-ack",
       "kind": "deferred",
       "purpose": "Validate DHCP renewal packet fields and ACK handling using an isolated configured interface.",
-      "reason": "Requires a future disposable VM plus a unicast DHCP server mock bound to an isolated link; the mock must capture the renewal DHCPREQUEST (ciaddr/server identifier), return a matching ACK, and check the decoded lease. No real network target is permitted here."
+      "reason": "renew is reachable on loopback (server_id 127.0.0.1 + BASHDHCP_SERVER_PORT/CLIENT_PORT, -i lo); a DHCP-aware peer is missing."
     },
     {
       "id": "defer-release",
       "kind": "deferred",
       "purpose": "Validate that release emits a DHCPRELEASE with the lease address and server identifier to the intended isolated peer.",
-      "reason": "Requires a future disposable VM with an isolated IPv4 interface and a local UDP DHCP server mock that captures the datagram and verifies BOOTP/DHCPRELEASE fields without forwarding it. No host interface or network activity is permitted here."
+      "reason": "release is reachable on loopback (lease server_id=127.0.0.1, BASHDHCP_SERVER_PORT, -i lo as root); the existing udp peer captures raw bytes but the random xid prevents byte comparison, so a decoding peer record is needed."
     },
     {
       "id": "defer-inform-ack",
       "kind": "deferred",
       "purpose": "Validate DHCPINFORM construction and option-bearing ACK decoding on a private link.",
-      "reason": "Requires a future disposable VM and isolated DHCP mock that captures DHCPINFORM, returns a matching ACK, and checks the decoded configuration. This runner does not provide a network peer and no host network activity is permitted."
+      "reason": "inform hard-codes UDP port 67 and limited broadcast (bashdhcp.c:590) and binds no client port, so it needs a script-built private veth topology rather than the loopback peer; no fixture exists."
     },
     {
       "id": "parse-padding-and-ack",

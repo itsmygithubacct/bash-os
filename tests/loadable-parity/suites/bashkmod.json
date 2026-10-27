@@ -108,19 +108,19 @@
       "id": "defer-kernel-module-transitions",
       "kind": "deferred",
       "purpose": "Load/unload and non-dry-run modprobe mutate kernel module state.",
-      "reason": "Run only in a future disposable VM booted with a purpose-built test kernel and disposable modules, with CAP_SYS_MODULE and a snapshot/revert boundary. Compare load/unload state transitions with kmod insmod/rmmod/modprobe or a reviewed syscall mock that records finit_module and delete_module. The current fixture runner denies these syscalls, and host/kernel module changes are explicitly out of scope."
+      "reason": "Module load/unload needs CAP_SYS_MODULE in the initial user namespace, finit_module/delete_module not filtered, disposable modules matching the guest kernel (6.12.113+deb13-cloud-amd64, which may enforce module signatures), and state restore. No driver provides this; the legacy seccomp filter returns EPERM for these syscalls. Missing capability: CAP_SYS_MODULE in the initial user namespace (module state is global; USERNS gives no CAP_SYS_MODULE effect: finit_module/delete_module return EPERM under uid 2000 and in any user namespace)."
     },
     {
       "id": "defer-live-module-inventory",
       "kind": "deferred",
       "purpose": "bashkmod list reads the live /proc/modules file; live info reads kernel-owned sysfs state.",
-      "reason": "A future disposable VM or reviewed procfs/sysfs mock must provide a deterministic set of loaded test modules. Compare list output with lsmod and info fields with the corresponding synthetic/live sysfs values. The current list command has no path override for /proc/modules, and changing kernel module state to seed it is prohibited here."
+      "reason": "The live read paths are reachable unprivileged, but no case exercises them. The legacy runner lacks /sys, while the modern plain driver has /proc and /sys. A deterministic, seeded module set still needs module loading under PRIV-ROOT."
     },
     {
       "id": "defer-policy-command-effects",
       "kind": "deferred",
       "purpose": "modprobe policy can select soft dependencies and may execute configured install/remove argv while applying module actions.",
-      "reason": "Use a future isolated modules tree plus a reviewed execve and module-syscall mock that records helper argv, dependency order, blacklist decisions, and load/unload requests. Compare planning with kmod modprobe --dry-run/--show-depends. Do not run against host modprobe.d files or a live kernel."
+      "reason": "Policy planning and directive execution need only fixture files and an exec of an absolute path. They are not privileged, and no case exercises them. Only module-syscall effects need privilege."
     },
     {
       "id": "weak-modules-usable-relative-links",

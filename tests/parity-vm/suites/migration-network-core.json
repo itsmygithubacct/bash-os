@@ -1,0 +1,1131 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-curl-body-all-octets",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "http",
+      "peer_port": 20480,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing"
+      ],
+      "script": "curl -s \"http://127.0.0.1:$FIXTURE_PORT/all-octets\"",
+      "stderr": "",
+      "stdout_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w==",
+      "expected_requests": [
+        {
+          "method": "GET",
+          "path": "/all-octets",
+          "request_line": "GET /all-octets HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/http-body-framing"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1)",
+      "comparison": "exact stdout/stderr bytes, status and fixture tree vs upstream curl, plus decoded request fields",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-curl-chunked-all-octets",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "http",
+      "peer_port": 20480,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing"
+      ],
+      "script": "curl -s \"http://127.0.0.1:$FIXTURE_PORT/chunked-octets\"",
+      "stderr": "",
+      "stdout_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w==",
+      "expected_requests": [
+        {
+          "method": "GET",
+          "path": "/chunked-octets",
+          "request_line": "GET /chunked-octets HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/http-body-framing"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1)",
+      "comparison": "exact stdout/stderr bytes, status and fixture tree vs upstream curl, plus decoded request fields",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-curl-echo-high-bit-body",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "http",
+      "peer_port": 20480,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing"
+      ],
+      "files": {
+        "hi.bin": {
+          "base64": "AH+Aw6n+/wo="
+        }
+      },
+      "script": "curl -s --data-binary @hi.bin \"http://127.0.0.1:$FIXTURE_PORT/echo\"",
+      "stderr": "",
+      "stdout_base64": "AH+Aw6n+/wo=",
+      "expected_requests": [
+        {
+          "method": "POST",
+          "path": "/echo",
+          "body_base64": "AH+Aw6n+/wo=",
+          "header:content-length": "8",
+          "body_framing": "content-length"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/http-body-framing",
+        "curl/request-wire-shape"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1)",
+      "comparison": "exact stdout/stderr bytes, status and fixture tree vs upstream curl, plus decoded request fields",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-curl-fail-success",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "http",
+      "peer_port": 20480,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing"
+      ],
+      "script": "curl -sf \"http://127.0.0.1:$FIXTURE_PORT/body\"",
+      "stderr": "",
+      "stdout_base64": "Zml4dHVyZQBib2R5Cg==",
+      "expected_requests": [
+        {
+          "method": "GET",
+          "path": "/body",
+          "request_line": "GET /body HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/http-fail-policy"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1)",
+      "comparison": "exact stdout/stderr bytes, status and fixture tree vs upstream curl, plus decoded request fields",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-curl-server-error-without-fail",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "http",
+      "peer_port": 20480,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing"
+      ],
+      "script": "curl -s \"http://127.0.0.1:$FIXTURE_PORT/error\"",
+      "stderr": "",
+      "stdout": "error\n",
+      "expected_requests": [
+        {
+          "method": "GET",
+          "path": "/error",
+          "request_line": "GET /error HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/http-fail-policy"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1)",
+      "comparison": "exact stdout/stderr bytes, status and fixture tree vs upstream curl, plus decoded request fields",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-curl-redirect-relative-dot-segments",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "http",
+      "peer_port": 20480,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing"
+      ],
+      "script": "curl -sL \"http://127.0.0.1:$FIXTURE_PORT/dir/redirect-relative\"",
+      "stderr": "",
+      "stdout_base64": "Zml4dHVyZQBib2R5Cg==",
+      "expected_requests": [
+        {
+          "method": "GET",
+          "path": "/dir/redirect-relative",
+          "request_line": "GET /dir/redirect-relative HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none"
+        },
+        {
+          "method": "GET",
+          "path": "/body?from=relative",
+          "request_line": "GET /body?from=relative HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/redirect-resolution"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1)",
+      "comparison": "exact stdout/stderr bytes, status and fixture tree vs upstream curl, plus decoded request fields",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-curl-redirect-relative-sibling",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "http",
+      "peer_port": 20480,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing"
+      ],
+      "script": "curl -sL \"http://127.0.0.1:$FIXTURE_PORT/dir/redirect-sibling\"",
+      "stderr": "",
+      "stdout": "",
+      "expected_requests": [
+        {
+          "method": "GET",
+          "path": "/dir/redirect-sibling",
+          "request_line": "GET /dir/redirect-sibling HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none"
+        },
+        {
+          "method": "GET",
+          "path": "/echo",
+          "request_line": "GET /echo HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/redirect-resolution"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1)",
+      "comparison": "exact stdout/stderr bytes, status and fixture tree vs upstream curl, plus decoded request fields",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-curl-redirect-long-target",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "http",
+      "peer_port": 20480,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing"
+      ],
+      "script": "curl -sL -w \"%{http_code}\\n\" \"http://127.0.0.1:$FIXTURE_PORT/redirect-long\"",
+      "stderr": "",
+      "stdout": "200\n",
+      "expected_requests": [
+        {
+          "method": "GET",
+          "path": "/redirect-long",
+          "request_line": "GET /redirect-long HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none"
+        },
+        {
+          "method": "GET",
+          "path": "/echo?sig=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "request_line": "GET /echo?sig=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/redirect-resolution"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1)",
+      "comparison": "exact stdout/stderr bytes, status and fixture tree vs upstream curl, plus decoded request fields",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-curl-redirect-over-candidate-limit",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "http",
+      "peer_port": 20480,
+      "script": "curl -sSL \"http://127.0.0.1:$FIXTURE_PORT/redirect-too-long\" 2>err; echo \"status=$?\"; case \"$(<err)\" in *\"redirect target is longer than 8191 bytes\"*) echo diagnostic=present;; *) echo diagnostic=absent;; esac",
+      "kind": "contract",
+      "stderr": "",
+      "stdout": "status=1\ndiagnostic=present\n",
+      "expected_requests": [
+        {
+          "method": "GET",
+          "path": "/redirect-too-long",
+          "request_line": "GET /redirect-too-long HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/redirect-resolution"
+      ],
+      "oracle": "Candidate limit documented by tests/curl-https.py and loadables/curl.c BCURL_URL_MAX: a Location of 8192 bytes or more is refused with status 1 and a diagnostic. Upstream curl follows such a target, so this is a contract, not parity.",
+      "comparison": "contract: candidate status 1, diagnostic text present on stderr, empty stdout, and exactly one request (the target is not followed)"
+    },
+    {
+      "id": "migration-curl-header-names-order",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "http",
+      "peer_port": 20480,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing",
+        "header_names"
+      ],
+      "script": "curl -s -u \"user:pa:ss\" -H \"X-Fixture: one\" -o /dev/null \"http://127.0.0.1:$FIXTURE_PORT/body\"",
+      "stderr": "",
+      "stdout": "",
+      "expected_requests": [
+        {
+          "method": "GET",
+          "path": "/body",
+          "request_line": "GET /body HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none",
+          "header:authorization": "Basic dXNlcjpwYTpzcw==",
+          "header:x-fixture": "one"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/request-wire-shape"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1)",
+      "comparison": "wire: ordered request header names (header_names) compared with upstream curl, in addition to bytes/status/tree; User-Agent value differs by design but its position is compared",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-curl-header-set",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "http",
+      "peer_port": 20480,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing",
+        "header_set"
+      ],
+      "script": "curl -s -d \"a=1\" -o /dev/null \"http://127.0.0.1:$FIXTURE_PORT/echo\"",
+      "stderr": "",
+      "stdout": "",
+      "expected_requests": [
+        {
+          "method": "POST",
+          "path": "/echo",
+          "body_base64": "YT0x"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/request-wire-shape"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1)",
+      "comparison": "semantic: sorted set of request header names other than User-Agent (header_set) compared with upstream curl",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-curl-remote-name-nested-query",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "http",
+      "peer_port": 20480,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing"
+      ],
+      "script": "curl -s -O \"http://127.0.0.1:$FIXTURE_PORT/dir/sub/name.txt?x=1\"",
+      "stderr": "",
+      "stdout": "",
+      "expected_requests": [
+        {
+          "method": "GET",
+          "path": "/dir/sub/name.txt?x=1",
+          "request_line": "GET /dir/sub/name.txt?x=1 HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/response-file-effects"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1)",
+      "comparison": "exact stdout/stderr bytes, status and fixture tree vs upstream curl, plus decoded request fields",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "migration-http-transaction-error-status",
+      "loadable": "http",
+      "group": "network",
+      "driver": "network",
+      "peer": "http",
+      "peer_port": 20480,
+      "kind": "contract",
+      "script": "http request \"http://127.0.0.1:$FIXTURE_PORT/missing\" | nc connect 127.0.0.1 \"$FIXTURE_PORT\" -w 3 > response; if http response-body response -o body -S status; then rc=0; else rc=$?; fi; rm -f response; printf \"%s:%s:%s\\n\" \"$rc\" \"$status\" \"$(<body)\"",
+      "stderr": "",
+      "stdout": "1:404:missing\n",
+      "expected_requests": [
+        {
+          "method": "GET",
+          "path": "/missing",
+          "request_line": "GET /missing HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "content-length",
+          "header:content-length": "0",
+          "body_base64": ""
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "http/loopback-transaction"
+      ],
+      "oracle": "Project-specific contract: http request framing (RFC 9112) carried by nc connect to the loopback peer, then http response-body, whose documented 404 behaviour (bind status, write body, return 1) matches the offline legacy/http/response-error-status contract. Empty GET framing is specified by the pre-existing legacy/http/get-default-and-bind contract: Content-Length: 0.",
+      "comparison": "contract: printed rc:status:body from a real socket transaction plus decoded request fields"
+    },
+    {
+      "id": "migration-nc-tcp-half-close",
+      "loadable": "nc",
+      "group": "network",
+      "driver": "network",
+      "peer": "tcp-eof",
+      "candidate_script": "printf \"a\\0b\\377\" | nc connect 127.0.0.1 \"$FIXTURE_PORT\" -w 2",
+      "reference_script": "printf \"a\\0b\\377\" | nc -N -w 2 127.0.0.1 \"$FIXTURE_PORT\"",
+      "stderr": "",
+      "stdout_base64": "ZWNobzphAGL/",
+      "expected_requests": [
+        {
+          "body_base64": "YQBi/w==",
+          "saw_eof": true
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nc/deferred-tcp-connect-stream"
+      ],
+      "oracle": "netcat-openbsd 1.229 on the same peer; the bash-os nc verb syntax differs, so each side has its own script; -N is netcat-openbsd's shutdown-after-stdin-EOF. The tcp-eof peer replies only after it reads EOF.",
+      "comparison": "exact stdout bytes and status vs netcat-openbsd; peer records the request bytes and that it observed EOF (half-close) before replying",
+      "requires": [
+        "nc"
+      ]
+    },
+    {
+      "id": "migration-nc-udp-late-reply",
+      "loadable": "nc",
+      "group": "network",
+      "driver": "network",
+      "peer": "udp",
+      "peer_reply_delay_ms": 500,
+      "candidate_script": "printf \"hello\\n\" | nc connect 127.0.0.1 \"$FIXTURE_PORT\" -u -w 2",
+      "reference_script": "printf \"hello\\n\" | nc -u -w 2 127.0.0.1 \"$FIXTURE_PORT\"",
+      "stderr": "",
+      "stdout": "echo:hello\n",
+      "expected_requests": [
+        {
+          "body_base64": "aGVsbG8K"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nc/deferred-udp-connect-reply"
+      ],
+      "oracle": "netcat-openbsd 1.229 on the same peer; the bash-os nc verb syntax differs, so each side has its own script; the udp peer delays its reply 500 ms, inside the 2 s drain window",
+      "comparison": "exact stdout bytes and status vs netcat-openbsd; peer records the datagram",
+      "requires": [
+        "nc"
+      ]
+    },
+    {
+      "id": "migration-nc-udp-reply-after-window",
+      "loadable": "nc",
+      "group": "network",
+      "driver": "network",
+      "peer": "udp",
+      "peer_reply_delay_ms": 2500,
+      "timeout": 12,
+      "candidate_script": "start=$SECONDS; printf \"hello\\n\" | nc connect 127.0.0.1 \"$FIXTURE_PORT\" -u -w 1; echo \"status=$?\"; if (( SECONDS - start <= 2 )); then echo bounded; else echo unbounded; fi",
+      "reference_script": "start=$SECONDS; printf \"hello\\n\" | nc -u -w 1 127.0.0.1 \"$FIXTURE_PORT\"; echo \"status=$?\"; if (( SECONDS - start <= 2 )); then echo bounded; else echo unbounded; fi",
+      "stderr": "",
+      "stdout": "status=0\nbounded\n",
+      "expected_requests": [
+        {
+          "body_base64": "aGVsbG8K"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nc/deferred-udp-connect-reply"
+      ],
+      "oracle": "netcat-openbsd 1.229 on the same peer; the bash-os nc verb syntax differs, so each side has its own script; the udp peer delays its reply 2500 ms, after the 1 s drain window; Bash SECONDS bounds the elapsed time",
+      "comparison": "semantic: empty nc output, status, and elapsed <= 2 s on both sides; the late reply must not be printed",
+      "requires": [
+        "nc"
+      ]
+    },
+    {
+      "id": "migration-nc-udp-listen-reply-first-peer",
+      "loadable": "nc",
+      "group": "network",
+      "driver": "network",
+      "peer": "udp-clients",
+      "peer_port": 20487,
+      "timeout": 15,
+      "peer_datagrams": [
+        [
+          0,
+          100,
+          "first\n"
+        ],
+        [
+          1,
+          400,
+          "second\n"
+        ]
+      ],
+      "stderr": "",
+      "stdout": "first\nsecond\n",
+      "expected_requests": [
+        {
+          "sender": 0,
+          "sent_base64": [
+            "Zmlyc3QK"
+          ],
+          "received_base64": [
+            "cmVwbHkK"
+          ]
+        },
+        {
+          "sender": 1,
+          "sent_base64": [
+            "c2Vjb25kCg=="
+          ],
+          "received_base64": []
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nc/deferred-udp-listen-peer-cache"
+      ],
+      "oracle": "Project-specific nc UDP contract: listen receives datagrams on stdout, caches the first sender for stdin replies, and exits after the bounded trailing window. The independent peer sends two known datagrams from distinct sockets and records replies on each socket.",
+      "comparison": "Exact received datagram bytes, listener status, and per-sender replies: first sender gets reply, second gets none. OpenBSD discards second-sender input and is not an equivalent oracle for that API choice.",
+      "requires": [
+        "sleep"
+      ],
+      "kind": "contract",
+      "script": "{ sleep 0.8; printf \"reply\\n\"; } | nc listen \"$FIXTURE_PORT\" -s 127.0.0.1 -u -w 1"
+    },
+    {
+      "id": "migration-nc-listen-requires-address",
+      "loadable": "nc",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "script": "nc listen 20490 2>err; echo \"rc=$?\"; case \"$(<err)\" in *\"explicit -s ADDR\"*) echo diagnostic=present;; *) echo diagnostic=absent;; esac",
+      "stderr": "",
+      "stdout": "rc=2\ndiagnostic=present\n",
+      "expected_status": 0,
+      "covers": [
+        "nc/deferred-tcp-listen-one-peer",
+        "nc/deferred-usage-validation"
+      ],
+      "oracle": "Documented contract (nc_doc): listen requires an explicit -s ADDR; usage errors return 2 before any socket.",
+      "comparison": "contract: status 2, diagnostic present, empty stdout from nc"
+    },
+    {
+      "id": "migration-nc-listen-bound-address",
+      "loadable": "nc",
+      "group": "shell",
+      "driver": "plain",
+      "timeout": 15,
+      "candidate_script": "nc listen 20489 -s 127.0.0.2 -w 3 </dev/null > got & pid=$!\n/usr/bin/python3 - 20489 <<'PY'\nimport socket, sys, time\nport = int(sys.argv[1])\ndef listening():\n    rows = [l.split() for l in open(\"/proc/net/tcp\").readlines()[1:]]\n    return sorted(r[1] for r in rows if r[3] == \"0A\" and r[1].endswith(\":%04X\" % port))\ndeadline = time.monotonic() + 5\nwhile not listening() and time.monotonic() < deadline:\n    time.sleep(0.02)\nprint(\"listen\", \" \".join(listening()))\ntry:\n    socket.create_connection((\"127.0.0.1\", port), timeout=1).close(); print(\"127.0.0.1 accepted\")\nexcept OSError:\n    print(\"127.0.0.1 refused\")\nwith socket.create_connection((\"127.0.0.2\", port), timeout=3) as c:\n    c.sendall(b\"hi\\n\"); c.shutdown(socket.SHUT_WR)\n    data = b\"\"\n    while True:\n        chunk = c.recv(4096)\n        if not chunk: break\n        data += chunk\nprint(\"client received\", repr(data))\nPY\nwait \"$pid\"; echo \"listener=$?\"; printf \"listener got %s\" \"$(<got)\"; echo; rm got",
+      "reference_script": "nc -N -l 127.0.0.2 20489 </dev/null > got & pid=$!\n/usr/bin/python3 - 20489 <<'PY'\nimport socket, sys, time\nport = int(sys.argv[1])\ndef listening():\n    rows = [l.split() for l in open(\"/proc/net/tcp\").readlines()[1:]]\n    return sorted(r[1] for r in rows if r[3] == \"0A\" and r[1].endswith(\":%04X\" % port))\ndeadline = time.monotonic() + 5\nwhile not listening() and time.monotonic() < deadline:\n    time.sleep(0.02)\nprint(\"listen\", \" \".join(listening()))\ntry:\n    socket.create_connection((\"127.0.0.1\", port), timeout=1).close(); print(\"127.0.0.1 accepted\")\nexcept OSError:\n    print(\"127.0.0.1 refused\")\nwith socket.create_connection((\"127.0.0.2\", port), timeout=3) as c:\n    c.sendall(b\"hi\\n\"); c.shutdown(socket.SHUT_WR)\n    data = b\"\"\n    while True:\n        chunk = c.recv(4096)\n        if not chunk: break\n        data += chunk\nprint(\"client received\", repr(data))\nPY\nwait \"$pid\"; echo \"listener=$?\"; printf \"listener got %s\" \"$(<got)\"; echo; rm got",
+      "stderr": "",
+      "stdout": "listen 0200007F:5009\n127.0.0.1 refused\nclient received b''\nlistener=0\nlistener got hi\n",
+      "expected_status": 0,
+      "covers": [
+        "nc/deferred-tcp-listen-one-peer"
+      ],
+      "oracle": "netcat-openbsd 1.229 on the same peer; the bash-os nc verb syntax differs, so each side has its own script; a trusted /usr/bin/python3 helper on each side lists LISTEN sockets for the port from /proc/net/tcp, connects to an unrequested address (127.0.0.1) and then to the requested one (127.0.0.2)",
+      "comparison": "semantic: only 0200007F (127.0.0.2) is listening, 127.0.0.1 is refused, client bytes reach stdout, stdin EOF closes the listener's write side, and the listener exits 0 after that one peer; helper output and listener status compared",
+      "requires": [
+        "nc",
+        "python3"
+      ]
+    },
+    {
+      "id": "migration-nc-scan-range-sentinels",
+      "loadable": "nc",
+      "group": "network",
+      "driver": "network",
+      "peer": "tcp-ports",
+      "peer_ports": [
+        20482,
+        20483,
+        20485,
+        20486
+      ],
+      "candidate_script": "nc scan 127.0.0.1 20483 20485 -w 1",
+      "reference_script": "any=1; for p in 20483 20484 20485; do if nc -z -w 1 127.0.0.1 \"$p\" 2>/dev/null; then echo \"$p open\"; any=0; fi; done; exit \"$any\"",
+      "stderr": "",
+      "stdout": "20483 open\n20485 open\n",
+      "expected_requests": [
+        {
+          "port": 20483
+        },
+        {
+          "port": 20485
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nc/deferred-tcp-scan-range"
+      ],
+      "oracle": "Documented contract: one `PORT open` line per open port, status 0 iff any port is open. Monitored listeners just outside the requested range (20482, 20486) must see no connection. The reference probes 20483-20485 with netcat-openbsd -z.",
+      "comparison": "semantic: candidate scan output/status vs netcat-openbsd -z loop in the documented format; one probe on each in-range open listener and none on the two monitored out-of-range sentinels",
+      "requires": [
+        "nc"
+      ]
+    },
+    {
+      "id": "migration-nc-usage-connect-ports",
+      "loadable": "nc",
+      "group": "network",
+      "driver": "network",
+      "peer": "tcp-ports",
+      "peer_ports": [
+        20483
+      ],
+      "kind": "contract",
+      "script": "for p in 0 65536 99999 http 8x; do if nc connect 127.0.0.1 \"$p\" -w 1 </dev/null 2>/dev/null; then rc=0; else rc=$?; fi; echo \"$p=$rc\"; done",
+      "stderr": "",
+      "stdout": "0=2\n65536=2\n99999=2\nhttp=2\n8x=2\n",
+      "expected_requests": [],
+      "expected_status": 0,
+      "covers": [
+        "nc/deferred-usage-validation"
+      ],
+      "oracle": "Documented usage contract (topic nc/deferred-usage-validation; nc_doc): malformed or out-of-range decimal ports and reversed scan ranges return 2 before any socket. The tcp-ports peer monitors the target port.",
+      "comparison": "contract: per-value status and no connection recorded by the monitored listener; nc stdout must be empty"
+    },
+    {
+      "id": "migration-nc-usage-listen-ports",
+      "loadable": "nc",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "timeout": 15,
+      "script": "for p in 65536 99999 8x; do if nc listen \"$p\" -s 127.0.0.1 -w 1 </dev/null 2>/dev/null; then rc=0; else rc=$?; fi; echo \"$p=$rc\"; done",
+      "stderr": "",
+      "stdout": "65536=2\n99999=2\n8x=2\n",
+      "expected_status": 0,
+      "covers": [
+        "nc/deferred-usage-validation"
+      ],
+      "oracle": "Documented usage contract (topic nc/deferred-usage-validation; nc_doc): malformed or out-of-range decimal ports and reversed scan ranges return 2 before any socket. The tcp-ports peer monitors the target port.",
+      "comparison": "contract: per-value status; no listener may remain (the driver rejects stray children)"
+    },
+    {
+      "id": "migration-nc-usage-scan-ranges",
+      "loadable": "nc",
+      "group": "network",
+      "driver": "network",
+      "peer": "tcp-ports",
+      "peer_ports": [
+        20483,
+        20485
+      ],
+      "kind": "contract",
+      "script": "for r in \"20485 20483\" \"0 20483\" \"20483 65536\"; do if nc scan 127.0.0.1 $r -w 1 2>/dev/null; then rc=0; else rc=$?; fi; echo \"$r=$rc\"; done",
+      "stderr": "",
+      "stdout": "20485 20483=2\n0 20483=2\n20483 65536=2\n",
+      "expected_requests": [],
+      "expected_status": 0,
+      "covers": [
+        "nc/deferred-usage-validation"
+      ],
+      "oracle": "Documented usage contract (topic nc/deferred-usage-validation; nc_doc): malformed or out-of-range decimal ports and reversed scan ranges return 2 before any socket. The tcp-ports peer monitors the target port.",
+      "comparison": "contract: per-form status and no probe recorded by the monitored listeners"
+    },
+    {
+      "id": "migration-dns-refused",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns",
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\noptions timeout:1 attempts:1\n"
+      },
+      "candidate_script": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; if dns A www.other.test 2>/dev/null; then echo answered; else echo failed; fi",
+      "reference_script": "out=$(dig +short +tries=1 +time=1 @127.0.0.1 www.other.test A); if [ -n \"$out\" ]; then echo answered; else echo failed; fi",
+      "stderr": "",
+      "stdout": "failed\n",
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-query-udp-tcp"
+      ],
+      "oracle": "BIND dig 9.20 against the same RFC 1035 responder; responder answers REFUSED (out of zone)",
+      "comparison": "semantic: whether an answer is printed and the candidate's real status (answered/failed) vs whether dig +short printed anything; retry counts may legitimately differ and are not compared",
+      "requires": [
+        "dig"
+      ]
+    },
+    {
+      "id": "migration-dns-servfail",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns",
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\noptions timeout:1 attempts:1\n"
+      },
+      "candidate_script": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; if dns A servfail.example.test 2>/dev/null; then echo answered; else echo failed; fi",
+      "reference_script": "out=$(dig +short +tries=1 +time=1 @127.0.0.1 servfail.example.test A); if [ -n \"$out\" ]; then echo answered; else echo failed; fi",
+      "stderr": "",
+      "stdout": "failed\n",
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-query-udp-tcp"
+      ],
+      "oracle": "BIND dig 9.20 against the same RFC 1035 responder; responder answers SERVFAIL",
+      "comparison": "semantic: whether an answer is printed and the candidate's real status (answered/failed) vs whether dig +short printed anything; retry counts may legitimately differ and are not compared",
+      "requires": [
+        "dig"
+      ]
+    },
+    {
+      "id": "migration-dns-nodata",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns",
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\noptions timeout:1 attempts:1\n"
+      },
+      "candidate_script": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; if dns MX www.example.test 2>/dev/null; then echo answered; else echo failed; fi",
+      "reference_script": "out=$(dig +short +tries=1 +time=1 @127.0.0.1 www.example.test MX); if [ -n \"$out\" ]; then echo answered; else echo failed; fi",
+      "stderr": "",
+      "stdout": "failed\n",
+      "expected_requests": [
+        {
+          "transport": "udp",
+          "qname": "www.example.test",
+          "qtype": "MX",
+          "qclass": "IN",
+          "opcode": 0,
+          "rd": true
+        }
+      ],
+      "compare_request_keys": [
+        "transport",
+        "qname",
+        "qtype",
+        "qclass",
+        "opcode",
+        "rd"
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-query-udp-tcp"
+      ],
+      "oracle": "BIND dig 9.20 against the same RFC 1035 responder; responder answers NOERROR with no answer (NODATA)",
+      "comparison": "semantic: whether an answer is printed and the candidate's real status (answered/failed) vs whether dig +short printed anything; decoded query fields compared",
+      "requires": [
+        "dig"
+      ]
+    },
+    {
+      "id": "migration-dns-malformed-short",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns",
+      "kind": "contract",
+      "timeout": 15,
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\noptions timeout:1 attempts:1\n"
+      },
+      "script": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; if dns A short.malformed.example.test 2>/dev/null; then echo answered; else echo failed; fi",
+      "stderr": "",
+      "stdout": "failed\n",
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-query-udp-tcp"
+      ],
+      "oracle": "RFC 1035 4.1.1/4.1.4 and RFC 5452 9.1: a stub resolver must reject a reply cut to 11 octets and print no answer",
+      "comparison": "contract: candidate status is failure and nothing from the malformed reply is printed"
+    },
+    {
+      "id": "migration-dns-malformed-pointer",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns",
+      "kind": "contract",
+      "timeout": 15,
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\noptions timeout:1 attempts:1\n"
+      },
+      "script": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; if dns A pointer.malformed.example.test 2>/dev/null; then echo answered; else echo failed; fi",
+      "stderr": "",
+      "stdout": "failed\n",
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-query-udp-tcp"
+      ],
+      "oracle": "RFC 1035 4.1.1/4.1.4 and RFC 5452 9.1: a stub resolver must reject an answer owner pointing past the message and print no answer",
+      "comparison": "contract: candidate status is failure and nothing from the malformed reply is printed"
+    },
+    {
+      "id": "migration-dns-malformed-wrong-id",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns",
+      "kind": "contract",
+      "timeout": 15,
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\noptions timeout:1 attempts:1\n"
+      },
+      "script": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; if dns A wrongid.malformed.example.test 2>/dev/null; then echo answered; else echo failed; fi",
+      "stderr": "",
+      "stdout": "failed\n",
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-query-udp-tcp"
+      ],
+      "oracle": "RFC 1035 4.1.1/4.1.4 and RFC 5452 9.1: a stub resolver must reject a well-formed answer with the wrong message ID and print no answer",
+      "comparison": "contract: candidate status is failure and nothing from the malformed reply is printed"
+    },
+    {
+      "id": "migration-dns-search-list-order",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns",
+      "kind": "contract",
+      "files": {
+        "resolv.conf": "search missing.example.test example.test\nnameserver 127.0.0.1\noptions timeout:1 attempts:1\n"
+      },
+      "script": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; dns A www",
+      "stdout": "192.0.2.10\n",
+      "expected_requests": [
+        {
+          "transport": "udp",
+          "qname": "www.missing.example.test",
+          "qtype": "A",
+          "qclass": "IN",
+          "opcode": 0,
+          "rd": true
+        },
+        {
+          "transport": "udp",
+          "qname": "www.example.test",
+          "qtype": "A",
+          "qclass": "IN",
+          "opcode": 0,
+          "rd": true
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-query-udp-tcp"
+      ],
+      "oracle": "resolv.conf(5) search semantics (documented in dns.c: search/ndots honoured for query ordering): a name with fewer dots than ndots tries each search domain in order, continuing after NXDOMAIN",
+      "comparison": "contract: printed answer and the exact ordered query names recorded by the responder; stderr is retained as evidence, without a silence assertion because resolver ordering does not specify diagnostic policy"
+    },
+    {
+      "id": "migration-dns-search-ndots-original-first",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns",
+      "kind": "contract",
+      "files": {
+        "resolv.conf": "search missing.example.test\nnameserver 127.0.0.1\noptions timeout:1 attempts:1\n"
+      },
+      "script": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; dns A www.example.test",
+      "stderr": "",
+      "stdout": "192.0.2.10\n",
+      "expected_requests": [
+        {
+          "transport": "udp",
+          "qname": "www.example.test",
+          "qtype": "A",
+          "qclass": "IN",
+          "opcode": 0,
+          "rd": true
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-query-udp-tcp"
+      ],
+      "oracle": "resolv.conf(5): a name with at least ndots dots is tried as given before any search domain",
+      "comparison": "contract: printed answer and a single query for the name as given"
+    },
+    {
+      "id": "migration-dns-nameserver-fallback",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns",
+      "kind": "contract",
+      "timeout": 15,
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.9\nnameserver 127.0.0.1\noptions timeout:1 attempts:1\n"
+      },
+      "script": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; dns A www.example.test",
+      "stdout": "192.0.2.10\n",
+      "expected_requests": [
+        {
+          "transport": "udp",
+          "qname": "www.example.test",
+          "qtype": "A",
+          "qclass": "IN",
+          "opcode": 0,
+          "rd": true
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-query-udp-tcp"
+      ],
+      "oracle": "resolv.conf(5) nameserver order: the first server (127.0.0.9, nothing listening) fails and the second answers",
+      "comparison": "contract: printed answer, success, and exactly one query reaching the second server; stderr is retained as evidence, without a silence assertion because resolver ordering does not specify diagnostic policy"
+    },
+    {
+      "id": "migration-dns-resolv-conf-order",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "files": {
+        "resolv.conf": "search example.test\nnameserver 127.0.0.9\nnameserver 127.0.0.1\noptions ndots:2 timeout:1 attempts:1\n"
+      },
+      "script": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; dns resolv-conf",
+      "stderr": "",
+      "stdout": "nameserver\t127.0.0.9\tactive\nnameserver\t127.0.0.1\tfallback\noptions\tndots\t2\noptions\tattempts\t1\noptions\ttimeout\t1\noptions\trotate\toff\n",
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-query-udp-tcp"
+      ],
+      "oracle": "Documented dns resolv-conf TSV format (dns.c bd_resolv_conf_cmd doc): first nameserver active, later ones fallback, then ndots/attempts/timeout/rotate",
+      "comparison": "contract: exact TSV output for a fixture resolv.conf; no packets are sent"
+    },
+    {
+      "id": "migration-dns-query-header",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns",
+      "kind": "contract",
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\n"
+      },
+      "script": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"; dns A www.example.test",
+      "stderr": "",
+      "stdout": "192.0.2.10\n",
+      "expected_requests": [
+        {
+          "transport": "udp",
+          "qname": "www.example.test",
+          "qtype": "A",
+          "qclass": "IN",
+          "opcode": 0,
+          "rd": true,
+          "qr": false,
+          "aa": false,
+          "tc": false,
+          "ra": false,
+          "z": 0,
+          "rcode": 0,
+          "qdcount": 1,
+          "ancount": 0,
+          "nscount": 0
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dns/dns-query-udp-tcp"
+      ],
+      "oracle": "RFC 1035 4.1.1 stub query header: QR=0, opcode QUERY, AA=0, TC=0, RD=1, RA=0, Z=0, RCODE=0, QDCOUNT=1, ANCOUNT=0, NSCOUNT=0. AD/CD and ARCOUNT (EDNS) are recorded but not asserted.",
+      "comparison": "contract: decoded header fields of the query bytes as received by the responder, plus the printed answer"
+    }
+  ]
+}

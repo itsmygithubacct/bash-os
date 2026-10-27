@@ -1,0 +1,741 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-pidof-comm-only",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "comm only",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"pd-comm\"], \"children\": [{\"argv\": [\"pd-other\"], \"comm\": \"pd-comm\", \"label\": \"first\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-comm-match-and-miss"
+      ]
+    },
+    {
+      "id": "migration-pidof-comm-multiple",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "comm multiple",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"pd-comm\"], \"children\": [{\"argv\": [\"pd-other\"], \"comm\": \"pd-comm\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-other\"], \"comm\": \"pd-comm\", \"label\": \"second\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-comm-match-and-miss"
+      ]
+    },
+    {
+      "id": "migration-pidof-argv-prefix",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "argv prefix",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"pd-target\"], \"children\": [{\"argv\": [\"/virtual/path/pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-argv0-basename"
+      ]
+    },
+    {
+      "id": "migration-pidof-query-prefix",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "query prefix",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"/virtual/path/pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-argv0-basename"
+      ]
+    },
+    {
+      "id": "migration-pidof-login-argv",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "login argv",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"pd-target\"], \"children\": [{\"argv\": [\"-pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-argv0-basename"
+      ]
+    },
+    {
+      "id": "migration-pidof-single-first",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "single first",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-s\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-single-and-quiet"
+      ]
+    },
+    {
+      "id": "migration-pidof-quiet-multiple",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "quiet multiple",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-q\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-single-and-quiet"
+      ]
+    },
+    {
+      "id": "migration-pidof-separator-short",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "separator short",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path(sys.argv[2]).read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-S\", \"::\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}], \"parent_case\": false}\n",
+        "reference-config.json": "{\"arguments\": [\"-S\", \"::\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-custom-separator"
+      ],
+      "candidate_script": "/usr/bin/python3 supervisor.py \"$BASH\" config.json",
+      "reference_script": "/usr/bin/python3 supervisor.py \"$BASH\" reference-config.json"
+    },
+    {
+      "id": "migration-pidof-separator-alias",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "separator alias",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path(sys.argv[2]).read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-d\", \"::\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}], \"parent_case\": false}\n",
+        "reference-config.json": "{\"arguments\": [\"-S\", \"::\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-custom-separator"
+      ],
+      "candidate_script": "/usr/bin/python3 supervisor.py \"$BASH\" config.json",
+      "reference_script": "/usr/bin/python3 supervisor.py \"$BASH\" reference-config.json"
+    },
+    {
+      "id": "migration-pidof-separator-attached",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "separator attached",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path(sys.argv[2]).read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-S:\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}], \"parent_case\": false}\n",
+        "reference-config.json": "{\"arguments\": [\"-S\", \":\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-custom-separator"
+      ],
+      "candidate_script": "/usr/bin/python3 supervisor.py \"$BASH\" config.json",
+      "reference_script": "/usr/bin/python3 supervisor.py \"$BASH\" reference-config.json"
+    },
+    {
+      "id": "migration-pidof-separator-long",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "separator long",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path(sys.argv[2]).read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"--separator=::\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}], \"parent_case\": false}\n",
+        "reference-config.json": "{\"arguments\": [\"-S\", \"::\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-custom-separator"
+      ],
+      "candidate_script": "/usr/bin/python3 supervisor.py \"$BASH\" config.json",
+      "reference_script": "/usr/bin/python3 supervisor.py \"$BASH\" reference-config.json"
+    },
+    {
+      "id": "migration-pidof-omit-comma",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "omit comma",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path(sys.argv[2]).read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-o\", \"{first},{second}\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"third\", \"python\": false}], \"parent_case\": false}\n",
+        "reference-config.json": "{\"arguments\": [\"-o\", \"{first},{second}\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"third\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-omit-list"
+      ],
+      "candidate_script": "/usr/bin/python3 supervisor.py \"$BASH\" config.json",
+      "reference_script": "/usr/bin/python3 supervisor.py \"$BASH\" reference-config.json"
+    },
+    {
+      "id": "migration-pidof-omit-semicolon",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "omit semicolon",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path(sys.argv[2]).read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-o\", \"{first};{second}\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"third\", \"python\": false}], \"parent_case\": false}\n",
+        "reference-config.json": "{\"arguments\": [\"-o\", \"{first},{second}\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"third\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-omit-list"
+      ],
+      "candidate_script": "/usr/bin/python3 supervisor.py \"$BASH\" config.json",
+      "reference_script": "/usr/bin/python3 supervisor.py \"$BASH\" reference-config.json"
+    },
+    {
+      "id": "migration-pidof-omit-colon",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "omit colon",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path(sys.argv[2]).read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-o\", \"{first}:{second}\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"third\", \"python\": false}], \"parent_case\": false}\n",
+        "reference-config.json": "{\"arguments\": [\"-o\", \"{first},{second}\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"third\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-omit-list"
+      ],
+      "candidate_script": "/usr/bin/python3 supervisor.py \"$BASH\" config.json",
+      "reference_script": "/usr/bin/python3 supervisor.py \"$BASH\" reference-config.json"
+    },
+    {
+      "id": "migration-pidof-omit-repeated",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "omit repeated",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path(sys.argv[2]).read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-o\", \"{first}\", \"-o\", \"{second}\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"third\", \"python\": false}], \"parent_case\": false}\n",
+        "reference-config.json": "{\"arguments\": [\"-o\", \"{first},{second}\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"third\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-omit-list"
+      ],
+      "candidate_script": "/usr/bin/python3 supervisor.py \"$BASH\" config.json",
+      "reference_script": "/usr/bin/python3 supervisor.py \"$BASH\" reference-config.json"
+    },
+    {
+      "id": "migration-pidof-omit-invalid-zero",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "omit invalid zero",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-o\", \"0\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-omit-list"
+      ]
+    },
+    {
+      "id": "migration-pidof-omit-invalid-word",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "omit invalid word",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-o\", \"not-a-pid\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-omit-list"
+      ]
+    },
+    {
+      "id": "migration-pidof-omit-invalid-empty",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "omit invalid empty",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-o\", \"\", \"pd-target\"], \"children\": [{\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}, {\"argv\": [\"pd-target\"], \"comm\": \"pd-other\", \"label\": \"second\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-omit-list"
+      ]
+    },
+    {
+      "id": "migration-pidof-omit-parent",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "omit parent",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-o\", \"%PPID\", \"pd-parent\"], \"children\": [], \"parent_case\": true}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-omit-list"
+      ]
+    },
+    {
+      "id": "migration-pidof-script-enabled",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "script enabled",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-x\", \"fixture-script\"], \"children\": [{\"argv\": [\"/usr/bin/python3\", \"fixture-script\"], \"comm\": \"python3\", \"label\": \"first\", \"python\": true}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-script-match-x"
+      ]
+    },
+    {
+      "id": "migration-pidof-script-disabled",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "script disabled",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"fixture-script\"], \"children\": [{\"argv\": [\"/usr/bin/python3\", \"fixture-script\"], \"comm\": \"python3\", \"label\": \"first\", \"python\": true}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-script-match-x"
+      ]
+    },
+    {
+      "id": "migration-pidof-script-noninterpreter",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "script noninterpreter",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "fixture-script": "import ctypes,os,pathlib,signal\nassert ctypes.CDLL(None).prctl(15,os.environ['FIXTURE_COMM'].encode(),0,0,0)==0\npathlib.Path(os.environ['FIXTURE_READY']).write_text('ready\\n')\nsignal.alarm(20)\nwhile True:signal.pause()\n",
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/usr/bin/python3' if item.get('python') else './holder'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-x\", \"fixture-script\"], \"children\": [{\"argv\": [\"pd-holder\", \"fixture-script\"], \"comm\": \"pd-other\", \"label\": \"first\", \"python\": false}], \"parent_case\": false}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-script-match-x"
+      ]
+    },
+    {
+      "id": "migration-pidof-script-shell-enabled",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Compare script matching for a shell interpreter with -x enabled",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/bin/sh'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n  p.stdin.close()\n",
+        "config.json": "{\"arguments\": [\"-x\", \"fixture-shell\"], \"children\": [{\"argv\": [\"/bin/sh\", \"fixture-shell\"], \"comm\": \"sh\", \"label\": \"first\", \"shell\": true}], \"parent_case\": false}\n",
+        "fixture-shell": "printf \"ready\\n\" > \"$FIXTURE_READY\"\nread -r stop\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-script-match-x"
+      ]
+    },
+    {
+      "id": "migration-pidof-script-shell-disabled",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Compare script matching for a shell interpreter with -x disabled",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=item['argv'];executable='/bin/sh'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n  p.stdin.close()\n",
+        "config.json": "{\"arguments\": [\"fixture-shell\"], \"children\": [{\"argv\": [\"/bin/sh\", \"fixture-shell\"], \"comm\": \"sh\", \"label\": \"first\", \"shell\": true}], \"parent_case\": false}\n",
+        "fixture-shell": "printf \"ready\\n\" > \"$FIXTURE_READY\"\nread -r stop\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-script-match-x"
+      ]
+    },
+    {
+      "id": "migration-pidof-script-shebang-enabled",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Executable shebang script included by -x",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup. The executable script is started through its shebang, giving comm=fixture-shell and argv[1]=./fixture-shell; procps -x requires this comm/argv relationship, as described by its primary source.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=['./fixture-shell'];executable='./fixture-shell'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n  p.stdin.close()\n",
+        "config.json": "{\"arguments\": [\"-x\", \"fixture-shell\"], \"children\": [{\"argv\": [\"/bin/sh\", \"./fixture-shell\"], \"comm\": \"fixture-shell\", \"label\": \"first\", \"shell\": true}], \"parent_case\": false}\n",
+        "fixture-shell": "#!/bin/sh\nprintf \"ready\\n\" > \"$FIXTURE_READY\"\nread -r stop\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-script-match-x"
+      ],
+      "setup_script": "/usr/bin/chmod 700 fixture-shell",
+      "stdout": "result={\"status\": 0, \"stderr\": \"\", \"stdout\": \"first\\n\"}\n"
+    },
+    {
+      "id": "migration-pidof-script-shebang-disabled",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Executable shebang script excluded without -x",
+      "oracle": "procps-ng pidof from the locked VM, inspecting the same controlled comm/argv configuration. Each live process record is independently verified in procfs before the lookup. The executable script is started through its shebang, giving comm=fixture-shell and argv[1]=./fixture-shell; procps -x requires this comm/argv relationship, as described by its primary source.",
+      "comparison": "Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
+      "files": {
+        "supervisor.py": "import ctypes,json,os,pathlib,re,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren={};observed={};labels={os.getpid():'supervisor'}\nif config.get('parent_case'):\n assert ctypes.CDLL(None).prctl(15,b'pd-parent',0,0,0)==0\ndef invoke(arguments):\n args=[s.format(**{k:p.pid for k,p in children.items()}) for s in arguments]\n script='pidof '+shlex.join(args)+'; rc=$?; exit \"$rc\"'\n side=subprocess.Popen(['pd-parent' if config.get('parent_case') else sys.argv[1],'--noprofile','--norc','-c',script],executable=sys.argv[1],stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n labels[side.pid]='caller'\n try:out,err=side.communicate(timeout=4)\n except BaseException:side.kill();side.wait();raise\n def replace(match):\n  pid=int(match[0]);assert pid in labels,('unowned pid result',pid,out)\n  return labels[pid].encode()\n normalized=re.sub(rb'[0-9]+',replace,out)\n # Diagnostics retain exact text except the known invoking-shell path.\n diagnostic=err.decode().replace(sys.argv[1],'$SHELL')\n return {'status':side.returncode,'stdout':normalized.decode(),'stderr':diagnostic}\ntry:\n for item in config['children']:\n  label=item['label'];env=dict(os.environ,FIXTURE_COMM=item['comm'],FIXTURE_READY='ready-'+label)\n  argv=['./fixture-shell'];executable='./fixture-shell'\n  p=subprocess.Popen(argv,executable=executable,env=env,stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children[label]=p;labels[p.pid]=label\n deadline=time.monotonic()+3\n for item in config['children']:\n  label=item['label'];p=children[label]\n  while not pathlib.Path('ready-'+label).exists():\n   if p.poll() is not None:raise RuntimeError(('holder exited',label,p.returncode,p.stderr.read()))\n   if time.monotonic()>deadline:raise RuntimeError('holder readiness deadline')\n   time.sleep(.01)\n  comm=pathlib.Path('/proc/%d/comm'%p.pid).read_text().rstrip('\\n')\n  argv=pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes().rstrip(b'\\0').split(b'\\0')\n  assert comm==item['comm'] and argv==[s.encode() for s in item['argv']],(comm,argv,item)\n  observed[label]={'comm':comm,'argv':item['argv']}\n if config.get('parent_case'):\n  control=invoke(['pd-parent'])\n  assert 'caller' in control['stdout'],control\n  print('control='+json.dumps(control,sort_keys=True))\n print('result='+json.dumps(invoke(config['arguments']),sort_keys=True))\n pathlib.Path('process-records.json').write_text(json.dumps(observed,sort_keys=True)+'\\n')\nfinally:\n for p in children.values():\n  if p.poll() is None:p.terminate()\n for p in children.values():\n  try:p.wait(timeout=2)\n  except subprocess.TimeoutExpired:p.kill();p.wait()\n  p.stderr.close()\n  p.stdin.close()\n",
+        "config.json": "{\"arguments\": [\"fixture-shell\"], \"children\": [{\"argv\": [\"/bin/sh\", \"./fixture-shell\"], \"comm\": \"fixture-shell\", \"label\": \"first\", \"shell\": true}], \"parent_case\": false}\n",
+        "fixture-shell": "#!/bin/sh\nprintf \"ready\\n\" > \"$FIXTURE_READY\"\nread -r stop\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "pidof"
+      ],
+      "covers": [
+        "pidof/pidof-script-match-x"
+      ],
+      "setup_script": "/usr/bin/chmod 700 fixture-shell",
+      "stdout": "result={\"status\": 1, \"stderr\": \"\", \"stdout\": \"\"}\n"
+    }
+  ]
+}

@@ -45,31 +45,31 @@
       "id": "deferred-rtsp-h264-happy-path",
       "kind": "deferred",
       "purpose": "Exercise the client handshake, SDP track selection, TCP interleaving, one complete IDR access unit, framed stdout, and session teardown.",
-      "reason": "Requires a future disposable VM with a scripted loopback RTSP server that accepts only the fixture connection and emits deterministic OPTIONS/DESCRIBE/SETUP/PLAY responses plus a bounded interleaved RTP stream. Validate the 4-byte big-endian length and Annex-B bytes against an independently assembled expected frame, and record request order/session teardown. No peer or network activity is run by this suite."
+      "reason": "No executed fixture provides an RTSP server."
     },
     {
       "id": "deferred-rtp-assembly-boundaries",
       "kind": "deferred",
       "purpose": "Cover single-NAL, STAP-A and FU-A payloads, marker and timestamp access-unit boundaries, parameter-set insertion, and the requested unit limit.",
-      "reason": "Requires a future disposable VM and deterministic loopback RTSP/RTP mock capable of sending explicitly numbered packet sequences. Construct expected Annex-B access units independently from the fixture NAL bytes; check each record boundary, SPS/PPS insertion before IDR, and exact -n stopping behavior."
+      "reason": "No executed fixture sends numbered RTP sequences."
     },
     {
       "id": "deferred-auth-session-keepalive",
       "kind": "deferred",
       "purpose": "Check Basic and MD5 Digest challenges, session headers, CSeq progression, and GET_PARAMETER keepalive behavior.",
-      "reason": "Requires a future disposable VM with a scripted loopback RTSP peer and synthetic fixture-only credentials. Independently calculate Basic encoding and RFC 1321/RFC Digest response values, then inspect request headers and keepalive exchange. No installed credentials or network targets are used here."
+      "reason": "No executed fixture provides an RTSP server. A per-side python helper on loopback can issue challenges and log headers."
     },
     {
       "id": "deferred-error-and-timeout-paths",
       "kind": "deferred",
       "purpose": "Check malformed RTSP lengths/headers, malformed or incomplete RTP, EOF, timeout, and invalid argument handling, including that incomplete units are not emitted.",
-      "reason": "Requires a future disposable VM with a bounded loopback protocol mock that can emit one controlled fault per run and enforce a short deadline. Expected statuses, empty/partial output rules, and valid recovery frames must be specified from RTSP/RTP framing rules and the documented CLI contract. This case was not executed."
+      "reason": "No executed fixture emits RTSP/RTP faults; argument rejection cases also were never added."
     },
     {
       "id": "deferred-output-fd-lifecycle",
       "kind": "deferred",
       "purpose": "Check -o descriptor output, write failures, closed-pipe handling, and that repeated calls leave the invoking shell usable.",
-      "reason": "Requires a future disposable VM with the loopback RTSP mock plus private fixture files and a controlled pipe reader/closed writer. Compare successful descriptor bytes with the independently assembled frame and verify failure status and shell survival after a closed-pipe write. No external device, host path, or signal is used by this suite."
+      "reason": "No executed fixture; requires the RTSP helper plus shell-level descriptor plumbing that a plain script can do."
     }
   ]
 }

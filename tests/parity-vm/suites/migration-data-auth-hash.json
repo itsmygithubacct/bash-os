@@ -1,0 +1,103 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 60,
+   "loadable": "passwd",
+   "files": {
+    "pristine/passwd": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nalice:x:1000:1000:Alice:/home/alice:/bin/bash\nbob:x:1001:1001:Bob:/home/bob:/bin/bash\ncarol:x:1003:1003:Carol:/home/carol:/bin/bash\n",
+    "pristine/group": "root:x:0:\ndaemon:x:1:\nusers:x:100:\nalice:x:1000:\nbob:x:1001:\ncarol:x:1003:\n",
+    "pristine/shadow": "root:*:19000:0:99999:7:::\ndaemon:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=1024,t=1,p=1$abababababababababababababababab$cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:19000:0:99999:7:::\nbob:!:19000:0:99999:7:::\ncarol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:\n",
+    "phc.py": "# SPDX-License-Identifier: MIT\n# Trusted fixture tooling: parse an $argon2id$ PHC string in either the\n# standard PHC encoding (unpadded B64 salt and hash) or a lowercase-hex\n# layout, and recompute its derived key with the independent argon2 CLI.\n#   info PHC          -> \"format=b64|hex|other\" and \"params=... salt-bytes=N hash-bytes=N\"\n#   oracle PHC FILE   -> \"kdf=match|mismatch|salt-nul|unparsed\" (password = FILE bytes)\n#   salt PHC          -> salt bytes as hex\nimport base64, re, subprocess, sys\n\nHEX = re.compile(r\"^(?:[0-9a-f]{2})+$\")\nB64 = re.compile(r\"^[A-Za-z0-9+/]+$\")\n\n\ndef parse(phc):\n    parts = phc.split(\"$\")\n    if len(parts) != 6 or parts[0] or parts[1] != \"argon2id\" or parts[2] != \"v=19\":\n        return None\n    kv = dict(item.split(\"=\", 1) for item in parts[3].split(\",\") if \"=\" in item)\n    try:\n        m, t, p = int(kv[\"m\"]), int(kv[\"t\"]), int(kv[\"p\"])\n    except (KeyError, ValueError):\n        return None\n    salt, digest = parts[4], parts[5]\n    if HEX.match(salt) and HEX.match(digest):\n        return \"hex\", m, t, p, bytes.fromhex(salt), bytes.fromhex(digest)\n    if B64.match(salt) and B64.match(digest):\n        try:\n            dec = lambda s: base64.b64decode(s + \"=\" * (-len(s) % 4), validate=True)\n            return \"b64\", m, t, p, dec(salt), dec(digest)\n        except ValueError:\n            return None\n    return None\n\n\nmode, phc = sys.argv[1], sys.argv[2]\nr = parse(phc)\nif mode == \"info\":\n    if not r:\n        print(\"format=other\")\n        print(\"params=unparsed\")\n    else:\n        print(\"format=\" + r[0])\n        print(\"params=m=%d,t=%d,p=%d salt-bytes=%d hash-bytes=%d\" % (r[1], r[2], r[3], len(r[4]), len(r[5])))\nelif mode == \"salt\":\n    print(r[4].hex() if r else \"unparsed\")\nelif mode == \"oracle\":\n    if not r:\n        print(\"kdf=unparsed\")\n    elif b\"\\0\" in r[4]:\n        print(\"kdf=salt-nul\")\n    else:\n        pw = open(sys.argv[3], \"rb\").read()\n        out = subprocess.run([\"/usr/bin/argon2\", r[4], \"-id\", \"-t\", str(r[2]), \"-k\", str(r[1]), \"-p\", str(r[3]),\n                              \"-l\", str(len(r[5])), \"-r\"], input=pw, capture_output=True, check=True).stdout\n        print(\"kdf=\" + (\"match\" if out.strip().decode() == r[5].hex() else \"mismatch\"))\nelse:\n    sys.exit(2)\n",
+    "kat.pw": "password",
+    "pw": "synthetic-pass-1\n",
+    "pw.raw": "synthetic-pass-1",
+    "wrong": "wrong-pass-2\n",
+    "empty-pw": ""
+   },
+   "requires": [
+    "awk",
+    "cmp",
+    "cp",
+    "rm",
+    "mkdir",
+    "chmod",
+    "stat",
+    "grep",
+    "python3",
+    "argon2"
+   ],
+   "setup_script": ": > \"$HOME/control.txt\"\nkat=$(printf %s password | /usr/bin/argon2 somesalt -id -t 2 -k 65536 -p 1 -l 32 -r)\n[[ $kat == 09316115d5cf24ed5a15a31a3ba326e5cf32edc24702987c02b6566f61913cf7 ]]\nenc=$(printf %s password | /usr/bin/argon2 somesalt -id -t 2 -k 65536 -p 1 -l 32 -e)\n[[ $enc == '$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQ$CTFhFdXPJO1aFaMaO6Mm5c8y7cJHAph8ArZWb2GRPPc' ]]\nprintf 'argon2: reference vector password/somesalt t=2 m=65536 p=1 raw and encoded match\\n' >> \"$HOME/control.txt\"\n[[ $(/usr/bin/python3 -I phc.py oracle \"$enc\" kat.pw) == kdf=match ]]\n[[ $(/usr/bin/python3 -I phc.py oracle '$argon2id$v=19$m=65536,t=2,p=1$736f6d6573616c74$09316115d5cf24ed5a15a31a3ba326e5cf32edc24702987c02b6566f61913cf7' kat.pw) == kdf=match ]]\nprintf 'phc.py: reference vector recomputed from the B64 and hex layouts\\n' >> \"$HOME/control.txt\"\n",
+   "id": "migration-passwd-set-fd-argon2id-independent-oracle",
+   "covers": [
+    "passwd/password_hash_updates"
+   ],
+   "purpose": "set-fd writes an Argon2id PHC string in the standard encoding with the configured parameters (PHCLIB_M/T/P, and the documented defaults when unset), a 16-byte salt and a 32-byte hash whose value the independent argon2 CLI recomputes from the stored salt and the password; a second set uses a fresh salt; the last-change day becomes today while the other aging fields stay; other rows, the shadow mode and the directory stay clean; the password appears in no database or diagnostic file. Encoding, parameters and the recomputed key are separate lines so an encoding divergence does not hide the key check.",
+   "oracle": "Argon2id per RFC 9106 computed by the independent argon2 CLI (phc-winner-argon2 20190702, /usr/bin/argon2) in the guest; the PHC string format (password-hashing competition 'PHC string format': $argon2id$v=19$m=M,t=T,p=P$<salt>$<hash> with salt and hash in unpadded standard B64, as argon2 -e and libargon2 produce); passwd(1)/shadow(5): changing a password sets the last-change day and keeps the other aging fields, the account must exist, and the database is unchanged on refusal. Parameters: PHCLIB_M/PHCLIB_T/PHCLIB_P and the documented defaults m=19456, t=2, p=1 (passwd.c header; RFC 9106 second recommended set). A trailing newline ends the password read from the descriptor (chpasswd/--stdin convention). setup_script runs the CLI on the reference test vector before anything else.",
+   "comparison": "Exact lines: status, encoding class, parameters and byte lengths, CLI recomputation result, aging fields, other rows, mode, residue, salt freshness and the secret search.",
+   "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_PASSWD=db/passwd PHCLIB_SHADOW=db/shadow PHCLIB_GROUP=db/group PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\nreset_db() { /usr/bin/rm -rf db; /usr/bin/mkdir db; /usr/bin/cp pristine/passwd pristine/group pristine/shadow db/; /usr/bin/chmod 600 db/shadow; }\nsnap() { /usr/bin/rm -rf snap; /usr/bin/cp -a db snap; }\nsame() { /usr/bin/cmp -s db/passwd snap/passwd && /usr/bin/cmp -s db/group snap/group && /usr/bin/cmp -s db/shadow snap/shadow && echo unchanged || echo changed; }\nresidue() { local n=0 f; for f in \"$1\"/* \"$1\"/.[!.]*; do [[ -e $f ]] || continue; case ${f##*/} in passwd|group|shadow) ;; *) n=$((n + 1)) ;; esac; done; echo \"$n\"; }\nrc_class() { (( $1 == 0 )) && echo 0 || echo nonzero; }\ntoday=$(( $(printf '%(%s)T' -1) / 86400 ))\nphc() { /usr/bin/python3 -I phc.py \"$@\"; }\nreset_db\nrow() { /usr/bin/awk -F: -v u=\"$1\" '$1 == u { print $2 }' db/shadow; }\nsetpw() {  # USER LABEL: set-fd from pw; repeat (at most 8 times) while the random salt holds a NUL byte the CLI cannot take\n  local i rc\n  for i in 1 2 3 4 5 6 7 8; do\n    passwd set-fd \"$1\" 3 3< pw 2>> \"$HOME/err.$2\"; rc=$?\n    (( rc == 0 )) || return \"$rc\"\n    [[ $(phc oracle \"$(row \"$1\")\" pw.raw) == kdf=salt-nul ]] || return 0\n  done\n}\nreport() {  # LABEL RC USER\n  local r; r=$(row \"$3\")\n  printf '%s rc=%d\\n' \"$1\" \"$2\"\n  phc info \"$r\"\n  phc oracle \"$r\" pw.raw\n}\nsetpw carol set; report set \"$?\" carol\n/usr/bin/awk -F: -v t=\"$today\" '$1 == \"carol\" { printf \"aging=[%s:%s:%s:%s:%s:%s:%s]\\n\", ($3 == t ? \"today\" : $3), $4, $5, $6, $7, $8, $9 }' db/shadow\n/usr/bin/grep -v '^carol:' db/shadow | /usr/bin/cmp -s - <(/usr/bin/grep -v '^carol:' pristine/shadow) && o=unchanged || o=changed\nprintf 'other-rows=%s shadow-other=%s residue=%s\\n' \"$o\" \"$(( 8#$(/usr/bin/stat -c %a db/shadow) & 7 ))\" \"$(residue db)\"\ns1=$(phc salt \"$(row carol)\")\nsetpw carol again; rc=$?\nprintf 'again rc=%d %s salt-fresh=%s\\n' \"$rc\" \"$(phc oracle \"$(row carol)\" pw.raw)\" \"$([[ $(phc salt \"$(row carol)\") != \"$s1\" ]] && echo yes || echo no)\"\n( export PHCLIB_M=2048 PHCLIB_T=3 PHCLIB_P=2; setpw alice params ); report params \"$?\" alice\n( unset PHCLIB_M PHCLIB_T PHCLIB_P; setpw alice defaults ); report defaults \"$?\" alice\nleak=none\nfor f in db/* \"$HOME\"/err.*; do /usr/bin/grep -qF synthetic-pass-1 \"$f\" && leak=${f##*/}; done\nprintf 'secret-in-files=%s\\n' \"$leak\"\n/usr/bin/rm -rf db snap\n",
+   "expected_status": 0,
+   "stdout": "set rc=0\nformat=b64\nparams=m=1024,t=1,p=1 salt-bytes=16 hash-bytes=32\nkdf=match\naging=[today:1:90:14:30:20000:]\nother-rows=unchanged shadow-other=0 residue=0\nagain rc=0 kdf=match salt-fresh=yes\nparams rc=0\nformat=b64\nparams=m=2048,t=3,p=2 salt-bytes=16 hash-bytes=32\nkdf=match\ndefaults rc=0\nformat=b64\nparams=m=19456,t=2,p=1 salt-bytes=16 hash-bytes=32\nkdf=match\nsecret-in-files=none\n",
+   "diagnostic_files": [
+    "control.txt",
+    "err.set",
+    "err.again",
+    "err.params",
+    "err.defaults"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 60,
+   "loadable": "passwd",
+   "files": {
+    "pristine/passwd": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nalice:x:1000:1000:Alice:/home/alice:/bin/bash\nbob:x:1001:1001:Bob:/home/bob:/bin/bash\ncarol:x:1003:1003:Carol:/home/carol:/bin/bash\n",
+    "pristine/group": "root:x:0:\ndaemon:x:1:\nusers:x:100:\nalice:x:1000:\nbob:x:1001:\ncarol:x:1003:\n",
+    "pristine/shadow": "root:*:19000:0:99999:7:::\ndaemon:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=1024,t=1,p=1$abababababababababababababababab$cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:19000:0:99999:7:::\nbob:!:19000:0:99999:7:::\ncarol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:\n",
+    "phc.py": "# SPDX-License-Identifier: MIT\n# Trusted fixture tooling: parse an $argon2id$ PHC string in either the\n# standard PHC encoding (unpadded B64 salt and hash) or a lowercase-hex\n# layout, and recompute its derived key with the independent argon2 CLI.\n#   info PHC          -> \"format=b64|hex|other\" and \"params=... salt-bytes=N hash-bytes=N\"\n#   oracle PHC FILE   -> \"kdf=match|mismatch|salt-nul|unparsed\" (password = FILE bytes)\n#   salt PHC          -> salt bytes as hex\nimport base64, re, subprocess, sys\n\nHEX = re.compile(r\"^(?:[0-9a-f]{2})+$\")\nB64 = re.compile(r\"^[A-Za-z0-9+/]+$\")\n\n\ndef parse(phc):\n    parts = phc.split(\"$\")\n    if len(parts) != 6 or parts[0] or parts[1] != \"argon2id\" or parts[2] != \"v=19\":\n        return None\n    kv = dict(item.split(\"=\", 1) for item in parts[3].split(\",\") if \"=\" in item)\n    try:\n        m, t, p = int(kv[\"m\"]), int(kv[\"t\"]), int(kv[\"p\"])\n    except (KeyError, ValueError):\n        return None\n    salt, digest = parts[4], parts[5]\n    if HEX.match(salt) and HEX.match(digest):\n        return \"hex\", m, t, p, bytes.fromhex(salt), bytes.fromhex(digest)\n    if B64.match(salt) and B64.match(digest):\n        try:\n            dec = lambda s: base64.b64decode(s + \"=\" * (-len(s) % 4), validate=True)\n            return \"b64\", m, t, p, dec(salt), dec(digest)\n        except ValueError:\n            return None\n    return None\n\n\nmode, phc = sys.argv[1], sys.argv[2]\nr = parse(phc)\nif mode == \"info\":\n    if not r:\n        print(\"format=other\")\n        print(\"params=unparsed\")\n    else:\n        print(\"format=\" + r[0])\n        print(\"params=m=%d,t=%d,p=%d salt-bytes=%d hash-bytes=%d\" % (r[1], r[2], r[3], len(r[4]), len(r[5])))\nelif mode == \"salt\":\n    print(r[4].hex() if r else \"unparsed\")\nelif mode == \"oracle\":\n    if not r:\n        print(\"kdf=unparsed\")\n    elif b\"\\0\" in r[4]:\n        print(\"kdf=salt-nul\")\n    else:\n        pw = open(sys.argv[3], \"rb\").read()\n        out = subprocess.run([\"/usr/bin/argon2\", r[4], \"-id\", \"-t\", str(r[2]), \"-k\", str(r[1]), \"-p\", str(r[3]),\n                              \"-l\", str(len(r[5])), \"-r\"], input=pw, capture_output=True, check=True).stdout\n        print(\"kdf=\" + (\"match\" if out.strip().decode() == r[5].hex() else \"mismatch\"))\nelse:\n    sys.exit(2)\n",
+    "kat.pw": "password",
+    "pw": "synthetic-pass-1\n",
+    "pw.raw": "synthetic-pass-1",
+    "wrong": "wrong-pass-2\n",
+    "empty-pw": ""
+   },
+   "requires": [
+    "awk",
+    "cmp",
+    "cp",
+    "rm",
+    "mkdir",
+    "chmod",
+    "stat",
+    "grep",
+    "python3",
+    "argon2",
+    "env"
+   ],
+   "setup_script": ": > \"$HOME/control.txt\"\nkat=$(printf %s password | /usr/bin/argon2 somesalt -id -t 2 -k 65536 -p 1 -l 32 -r)\n[[ $kat == 09316115d5cf24ed5a15a31a3ba326e5cf32edc24702987c02b6566f61913cf7 ]]\nenc=$(printf %s password | /usr/bin/argon2 somesalt -id -t 2 -k 65536 -p 1 -l 32 -e)\n[[ $enc == '$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQ$CTFhFdXPJO1aFaMaO6Mm5c8y7cJHAph8ArZWb2GRPPc' ]]\nprintf 'argon2: reference vector password/somesalt t=2 m=65536 p=1 raw and encoded match\\n' >> \"$HOME/control.txt\"\n[[ $(/usr/bin/python3 -I phc.py oracle \"$enc\" kat.pw) == kdf=match ]]\n[[ $(/usr/bin/python3 -I phc.py oracle '$argon2id$v=19$m=65536,t=2,p=1$736f6d6573616c74$09316115d5cf24ed5a15a31a3ba326e5cf32edc24702987c02b6566f61913cf7' kat.pw) == kdf=match ]]\nprintf 'phc.py: reference vector recomputed from the B64 and hex layouts\\n' >> \"$HOME/control.txt\"\n[[ ! -e /dev/bashos-auth ]]\n/usr/bin/python3 -I -c 'import errno, os\ntry:\n    os.open(\"/dev/bashos-auth\", os.O_RDWR)\nexcept OSError as exc:\n    raise SystemExit(0 if exc.errno == errno.ENOENT else 1)\nraise SystemExit(1)'\nprintf 'device: /dev/bashos-auth absent (ENOENT); capability gap preserved, only the fail-closed path is observable\\n' >> \"$HOME/control.txt\"\n",
+   "id": "migration-passwd-set-fd-refusals",
+   "covers": [
+    "passwd/password_hash_updates"
+   ],
+   "purpose": "set-fd refuses an empty password, an unreadable descriptor, an account that is not in the passwd database, an invalid name, and BASHPASSWD_REQUIRE_KERNEL_SECRETS=1 while /dev/bashos-auth is absent, each without changing any database file or leaving temporary files; missing operands are usage errors.",
+   "oracle": "Argon2id per RFC 9106 computed by the independent argon2 CLI (phc-winner-argon2 20190702, /usr/bin/argon2) in the guest; the PHC string format (password-hashing competition 'PHC string format': $argon2id$v=19$m=M,t=T,p=P$<salt>$<hash> with salt and hash in unpadded standard B64, as argon2 -e and libargon2 produce); passwd(1)/shadow(5): changing a password sets the last-change day and keeps the other aging fields, the account must exist, and the database is unchanged on refusal. Parameters: PHCLIB_M/PHCLIB_T/PHCLIB_P and the documented defaults m=19456, t=2, p=1 (passwd.c header; RFC 9106 second recommended set). A trailing newline ends the password read from the descriptor (chpasswd/--stdin convention). setup_script runs the CLI on the reference test vector before anything else. The kernel-secret requirement must fail closed when the device is absent (the device-backed path itself stays an open capability gap); setup_script proves the device is absent.",
+   "comparison": "Exact status class, byte comparison of all databases against a pre-call copy and residue per form.",
+   "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_PASSWD=db/passwd PHCLIB_SHADOW=db/shadow PHCLIB_GROUP=db/group PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\nreset_db() { /usr/bin/rm -rf db; /usr/bin/mkdir db; /usr/bin/cp pristine/passwd pristine/group pristine/shadow db/; /usr/bin/chmod 600 db/shadow; }\nsnap() { /usr/bin/rm -rf snap; /usr/bin/cp -a db snap; }\nsame() { /usr/bin/cmp -s db/passwd snap/passwd && /usr/bin/cmp -s db/group snap/group && /usr/bin/cmp -s db/shadow snap/shadow && echo unchanged || echo changed; }\nresidue() { local n=0 f; for f in \"$1\"/* \"$1\"/.[!.]*; do [[ -e $f ]] || continue; case ${f##*/} in passwd|group|shadow) ;; *) n=$((n + 1)) ;; esac; done; echo \"$n\"; }\nrc_class() { (( $1 == 0 )) && echo 0 || echo nonzero; }\ntoday=$(( $(printf '%(%s)T' -1) / 86400 ))\nphc() { /usr/bin/python3 -I phc.py \"$@\"; }\nreset_db\nbad() { local label=$1; shift; reset_db; snap; \"$@\" 2> \"$HOME/err.$label\"; printf '%s rc=%s files=%s residue=%s\\n' \"$label\" \"$(rc_class $?)\" \"$(same)\" \"$(residue db)\"; }\nbad empty-password passwd set-fd alice 3 3< empty-pw\nbad closed-fd passwd set-fd alice 9\nbad no-such-account passwd set-fd nosuch 3 3< pw\nbad invalid-name passwd set-fd 'ha:nk' 3 3< pw\nbad kernel-secrets-required /usr/bin/env -u BASHPASSWD_KERNEL_SECRETS BASHPASSWD_REQUIRE_KERNEL_SECRETS=1 \"$BASH\" --noprofile --norc -c 'passwd set-fd alice 3 3< pw'\npasswd set-fd > /dev/null 2>&1; printf 'no-args rc=%d\\n' \"$?\"\npasswd set-fd alice > /dev/null 2>&1; printf 'no-fd rc=%d\\n' \"$?\"\n/usr/bin/rm -rf db snap\n",
+   "expected_status": 0,
+   "stdout": "empty-password rc=nonzero files=unchanged residue=0\nclosed-fd rc=nonzero files=unchanged residue=0\nno-such-account rc=nonzero files=unchanged residue=0\ninvalid-name rc=nonzero files=unchanged residue=0\nkernel-secrets-required rc=nonzero files=unchanged residue=0\nno-args rc=2\nno-fd rc=2\n",
+   "diagnostic_files": [
+    "control.txt",
+    "err.empty-password",
+    "err.closed-fd",
+    "err.no-such-account",
+    "err.invalid-name",
+    "err.kernel-secrets-required"
+   ]
+  }
+ ]
+}

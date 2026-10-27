@@ -150,9 +150,14 @@
     },
     {
       "id": "special_destination_deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "GNU cp can write regular-file data to special destinations, but this suite is restricted to relative private fixture paths.",
-      "reason": "Requires a future disposable VM with a synthetic writable special-file sink and isolated reader, or a reviewed syscall mock. This runner must not exercise host or raw device paths."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-cp-special-destinations"
+        }
+      ]
     },
     {
       "id": "force-hardlink-mode",

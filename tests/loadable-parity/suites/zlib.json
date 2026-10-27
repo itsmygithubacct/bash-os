@@ -162,9 +162,14 @@
     },
     {
       "id": "short-write-and-eintr-faults",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise byte-exact encoding and decoding across deterministic interrupted reads, short writes and zero writes.",
-      "reason": "Requires a reviewed FD/syscall mock in a future disposable VM to inject EINTR and partial/zero writes deterministically. Ordinary closed-descriptor write failure is covered separately in the private namespace fixture; injected faults are not claimed as passes."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-zlib-short-write-eintr"
+        }
+      ]
     },
     {
       "id": "gzip-crc-output-preserved",

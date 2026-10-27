@@ -36,8 +36,8 @@ def main():
     binary_hash = hashlib.sha256(binary.read_bytes()).hexdigest()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
-    totals = dict.fromkeys(("PASS", "FAIL", "ERROR", "SKIP", "DEFERRED"), 0)
-    by_kind = {kind: totals.copy() for kind in ("parity", "contract", "deferred")}
+    totals = dict.fromkeys(("PASS", "FAIL", "ERROR", "SKIP", "DEFERRED", "MIGRATED"), 0)
+    by_kind = {kind: totals.copy() for kind in ("parity", "contract", "deferred", "migrated")}
     reports = []
     for suite, digest in suites:
         report = run_suite(suite, binary, output / suite["loadable"])

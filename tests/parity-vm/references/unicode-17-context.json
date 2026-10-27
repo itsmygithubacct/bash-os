@@ -1,0 +1,60 @@
+{
+ "schema": 1,
+ "source": "Unicode 17.0 core specification chapter 3, Table 3-17 (Final_Sigma) with SpecialCasing.txt 03A3 Final_Sigma entry. Expected strings are hand-derived; references.py rederives each from the pinned Cased/Case_Ignorable properties and refuses to run on disagreement.",
+ "final_sigma": [
+  {
+   "id": "sigma-alone",
+   "input": "\u03a3",
+   "lower": "\u03c3",
+   "rationale": "no preceding cased letter"
+  },
+  {
+   "id": "sigma-word-final",
+   "input": "\u0391\u03a3",
+   "lower": "\u03b1\u03c2",
+   "rationale": "preceded by cased, end of text"
+  },
+  {
+   "id": "sigma-word-medial",
+   "input": "\u0391\u03a3\u0391",
+   "lower": "\u03b1\u03c3\u03b1",
+   "rationale": "followed by a cased letter"
+  },
+  {
+   "id": "sigma-before-space",
+   "input": "\u0391\u03a3 \u0391",
+   "lower": "\u03b1\u03c2 \u03b1",
+   "rationale": "U+0020 is neither cased nor case-ignorable"
+  },
+  {
+   "id": "sigma-after-ignorable",
+   "input": "\u0391.\u03a3",
+   "lower": "\u03b1.\u03c2",
+   "rationale": "U+002E is Case_Ignorable (MidNumLet) between the cased letter and sigma"
+  },
+  {
+   "id": "sigma-ignorable-then-cased",
+   "input": "\u0391\u03a3.\u0391",
+   "lower": "\u03b1\u03c3.\u03b1",
+   "rationale": "a cased letter follows after a Case_Ignorable"
+  },
+  {
+   "id": "sigma-after-digit",
+   "input": "1\u03a3",
+   "lower": "1\u03c3",
+   "rationale": "a digit is not cased"
+  },
+  {
+   "id": "sigma-combining-mark",
+   "input": "\u0391\u0301\u03a3",
+   "lower": "\u03b1\u0301\u03c2",
+   "rationale": "U+0301 (Mn) is Case_Ignorable"
+  },
+  {
+   "id": "sigma-two-words",
+   "input": "\u039f\u03a3 \u039f\u03a3",
+   "lower": "\u03bf\u03c2 \u03bf\u03c2",
+   "rationale": "Final_Sigma applies per word"
+  }
+ ]
+}

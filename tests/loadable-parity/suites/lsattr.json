@@ -207,7 +207,7 @@
       "id": "nonzero_attribute_bits",
       "kind": "deferred",
       "purpose": "Qualify exact flag-letter mapping and order for enabled inode attributes.",
-      "reason": "Requires a disposable ext4 VM/image with controlled inode-flag setup, or a reviewed ioctl mock that returns deterministic FS_IOC_GETFLAGS values, plus an independent e2fsprogs oracle. Future coverage should exercise every supported bit, unset bits, and the full GNU flag field, with teardown that cannot leave immutable or append-only state behind."
+      "reason": "The zero field is already exercised by parity cases. Nonzero bits are missing: owner-settable bits only need a fixture. Feature bits need a driver-provided ext4 image with features, and i/a need CAP_LINUX_IMMUTABLE. C, x and m are unattainable on any filesystem in the image."
     },
     {
       "id": "invalid-option-status",

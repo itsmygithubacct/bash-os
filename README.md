@@ -196,6 +196,7 @@ loadables/                      the loadable C sources this repo carries
   common/  _jsmn/               shared headers and a vendored JSON tokenizer
 tests/
   run.sh                        full, pure, static, runtime and sanitizer checks
+  parity-vm/                    disposable KVM, PTY/network fixtures and normative data
   bash-gnu-parity.sh DIR MODE  collect shell/GNU fixtures in separate environments
   compare-parity.py GNU BX     compare captured bytes, status and filesystem results
   profiles.py                   selection and dependency contracts
@@ -255,6 +256,11 @@ docs/loadables-status.md       complete inventory, correctness findings and benc
 docs/loadables-status.csv      filterable loadable status and work priorities
 docs/PROVENANCE.md              where the code came from, and its licences
 ```
+
+The [disposable VM harness](docs/parity-vm.md) runs terminal, network and
+independent reference-data checks with recorded isolation and cleanup. The
+[Bash and command parity scope](docs/parity-scope.md) lists the complete
+inventory, required environment combinations and remaining coverage gaps.
 
 For a representative Bash/GNU comparison, run the same fixture collector in
 each environment, then compare the result directories on a host with Python 3:

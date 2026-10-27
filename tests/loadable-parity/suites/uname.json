@@ -135,8 +135,13 @@
     {
       "id": "deferred-syscall-error",
       "purpose": "Exercise the uname(2) error path and verify its failure status and diagnostic without changing host state.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable VM or independently reviewed syscall mock that makes uname(2) fail for this process. The current isolated runner does not provide syscall fault injection, so this case must not be run against the host kernel."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-uname-efault"
+        }
+      ]
     },
     {
       "id": "gnu-help-option",

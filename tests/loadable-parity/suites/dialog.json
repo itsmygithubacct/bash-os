@@ -120,7 +120,7 @@
       "id": "interactive-pty",
       "kind": "deferred",
       "purpose": "Qualify interactive rendering and keyboard behavior against dialog in a controlled terminal.",
-      "reason": "Requires a future disposable VM with a matching dialog executable and a PTY driver that can set a fixed terminal size, inject bounded key sequences (including arrows, Enter, and Esc), and inspect terminal restoration. The current isolated runner has no PTY fixture interface and the GNU reference is absent; do not count this operation as passed."
+      "reason": "There is no interactive dialog fixture, and the dialog reference package is not in the VM image. The PTY driver can now control size, keys, resize, screen and restoration."
     }
   ]
 }

@@ -28,55 +28,55 @@
       "id": "ns-unshare-namespaces",
       "kind": "deferred",
       "purpose": "Compare ns unshare for its supported namespace flags and the special for-children behavior of pid/time namespaces.",
-      "reason": "Requires a disposable Linux VM with namespace creation enabled. A future case should compare util-linux unshare against ns unshare for user, mount, net, ipc, uts, cgroup, pid, and time where supported; inspect namespace IDs from a child and confirm pid/time requests affect future children while the caller stays in its original namespace. Record kernel-dependent EINVAL/EPERM behavior from both sides. No namespace creation was attempted here."
+      "reason": "Not a capability block: Unprivileged user namespaces make every namespace operation here reachable for uid 2000 in the modern plain driver, which has no seccomp filter and no userns restriction. A new user namespace grants CAP_SYS_ADMIN over namespaces, mounts and maps it owns, and the effects stay confined to the disposable side process. The legacy runner cannot host these cases because bwrap --disable-userns makes CLONE_NEWUSER fail. Preflight: record /proc/sys/user/max_user_namespaces and kernel.unprivileged_userns_clone (Debian), and ERROR if creation fails. Reference oracle: util-linux 2.41 unshare/nsenter/mount/findmnt in the guest, plus /proc/self/ns/*, /proc/self/mountinfo, /proc/self/uid_map|gid_map|setgroups and /proc/self/status read by the side's own processes. No fixture exists."
     },
     {
       "id": "ns-spawn-child-exec",
       "kind": "deferred",
       "purpose": "Check clone-based namespace setup, argv/environment forwarding, PID namespace child semantics, --no-new-privs, and propagation of the child exit status.",
-      "reason": "Requires a disposable Linux VM with user and PID namespaces available and a harmless fixture executable. Compare ns spawn with an independently invoked util-linux unshare child; capture exact argv/environment and exit codes, verify the child PID-1 behavior for pid, and inspect no_new_privs in the disposable child. Never run this operation on the host."
+      "reason": "Not a capability block. The child is a fresh process owned by the side, and user+pid namespaces are unprivileged. Unprivileged user namespaces make every namespace operation here reachable for uid 2000 in the modern plain driver, which has no seccomp filter and no userns restriction. A new user namespace grants CAP_SYS_ADMIN over namespaces, mounts and maps it owns, and the effects stay confined to the disposable side process. The legacy runner cannot host these cases because bwrap --disable-userns makes CLONE_NEWUSER fail. Preflight: record /proc/sys/user/max_user_namespaces and kernel.unprivileged_userns_clone (Debian), and ERROR if creation fails. Reference oracle: util-linux 2.41 unshare/nsenter/mount/findmnt in the guest, plus /proc/self/ns/*, /proc/self/mountinfo, /proc/self/uid_map|gid_map|setgroups and /proc/self/status read by the side's own processes. No fixture exists."
     },
     {
       "id": "ns-enter-namespace-fd",
       "kind": "deferred",
       "purpose": "Check setns using a descriptor for a controlled namespace, including ownership, invalid-descriptor, and permission behavior.",
-      "reason": "Requires two controlled processes and namespace descriptors created inside a disposable Linux VM, with the required capability held only in that VM. Compare ns enter FD with util-linux nsenter on the same descriptor and verify the entered namespace from a child; include an invalid FD and a denied-permission case. No namespace descriptor was opened or entered here."
+      "reason": "Not a capability block. A side can create the target namespace itself: a USERNS shell (root in its own user namespace) spawns a helper in nested uts+mount namespaces it owns and opens /proc/HELPER/ns/uts. setns needs CAP_SYS_ADMIN both in the target's owner namespace and in the caller's own user namespace, so the denied case is plain uid 2000 entering a descriptor opened before unsharing. No fixture exists."
     },
     {
       "id": "ns-id-mapping",
       "kind": "deferred",
       "purpose": "Check deny-setgroups ordering and uid_map/gid_map writes for a fresh user namespace.",
-      "reason": "Requires a disposable VM and a fresh user namespace mapped only to synthetic test IDs. Independently inspect the kernel's uid_map, gid_map, and setgroups interfaces after valid writes, then compare invalid ranges and ordering failures. Do not change host identity mappings or accounts."
+      "reason": "Not a capability block. Writing maps for one's own fresh user namespace is unprivileged. Unprivileged user namespaces make every namespace operation here reachable for uid 2000 in the modern plain driver, which has no seccomp filter and no userns restriction. A new user namespace grants CAP_SYS_ADMIN over namespaces, mounts and maps it owns, and the effects stay confined to the disposable side process. The legacy runner cannot host these cases because bwrap --disable-userns makes CLONE_NEWUSER fail. Preflight: record /proc/sys/user/max_user_namespaces and kernel.unprivileged_userns_clone (Debian), and ERROR if creation fails. Reference oracle: util-linux 2.41 unshare/nsenter/mount/findmnt in the guest, plus /proc/self/ns/*, /proc/self/mountinfo, /proc/self/uid_map|gid_map|setgroups and /proc/self/status read by the side's own processes. No fixture exists."
     },
     {
       "id": "ns-mount-operations",
       "kind": "deferred",
       "purpose": "Check private propagation, bind mounts, read-only bind remounts, and remount-readonly effects on fixture paths.",
-      "reason": "Requires CAP_SYS_ADMIN only inside a disposable mount namespace and a temporary filesystem created for that VM. Compare with util-linux mount behavior using relative fixture files/directories; verify propagation isolation, read/write bind behavior, and that a read-only bind rejects a fixture write. No mount operation was invoked here."
+      "reason": "Not a capability block. In a USERNS the mount namespace is owned by the child's user namespace, so bind and remount on fixture paths in the per-side tmpfs are permitted. Unprivileged user namespaces make every namespace operation here reachable for uid 2000 in the modern plain driver, which has no seccomp filter and no userns restriction. A new user namespace grants CAP_SYS_ADMIN over namespaces, mounts and maps it owns, and the effects stay confined to the disposable side process. The legacy runner cannot host these cases because bwrap --disable-userns makes CLONE_NEWUSER fail. Preflight: record /proc/sys/user/max_user_namespaces and kernel.unprivileged_userns_clone (Debian), and ERROR if creation fails. Reference oracle: util-linux 2.41 unshare/nsenter/mount/findmnt in the guest, plus /proc/self/ns/*, /proc/self/mountinfo, /proc/self/uid_map|gid_map|setgroups and /proc/self/status read by the side's own processes. No fixture exists."
     },
     {
       "id": "ns-pivot-root",
       "kind": "deferred",
       "purpose": "Check the pivot-root syscall wrapper and resulting old-root placement using a disposable root tree.",
-      "reason": "Requires a disposable Linux VM, a private mount namespace, and separately mounted new-root/put-old fixture directories satisfying the kernel's pivot_root requirements. Use an independently reviewed syscall helper as the oracle, verify cwd/root and old-root visibility from a child, and include a kernel-rejected layout. No root switch was attempted here."
+      "reason": "Not a capability block. pivot_root needs CAP_SYS_ADMIN over a private mount namespace, which a USERNS has after it mounts its own tmpfs (tmpfs is FS_USERNS_MOUNT). The new root needs a minimal tree, such as a static busybox-free layout with a bind of /usr. No fixture exists."
     },
     {
       "id": "ns-seccomp-filter",
       "kind": "deferred",
       "purpose": "Check loading and applying a binary sock_filter profile, including valid, malformed, and kernel-rejected profiles.",
-      "reason": "Requires a future disposable Linux VM with a dedicated child process and a profile generated independently from the documented Linux struct sock_filter encoding. Apply an allow profile and a narrowly denying profile only to that child, compare observable return/errno behavior with an independent seccomp helper, and test empty, mis-sized, and over-limit profiles. The irreversible filter must never be installed on the test controller."
+      "reason": "Not a capability block. seccomp(SECCOMP_SET_MODE_FILTER) is unprivileged with no_new_privs, the legacy runner already sets that through bwrap and does not deny seccomp(), and the filter is irreversible only for the disposable fixture shell. No fixture exists."
     },
     {
       "id": "ns-lsm-transition",
       "kind": "deferred",
       "purpose": "Check LSM detection and on-exec profile requests for AppArmor and SELinux, including unavailable and invalid-profile paths.",
-      "reason": "Actual transition behavior requires a disposable VM booted with the relevant LSM and a dedicated test policy that affects only a fixture executable. Independently verify the transition at exec, compare the proc/securityfs requests, and cover absent-LSM and invalid-profile errors. A future filesystem-only mock may separately test the documented root overrides; no LSM interface was read or written here."
+      "reason": "The detection and on-exec write paths are file-based and testable unprivileged with the documented root overrides; no fixture exists for them. A real AppArmor transition needs a test profile, and loading one needs CAP_MAC_ADMIN in the initial user namespace with an unload restore, which no driver provides. Missing capability: CAP_MAC_ADMIN in the initial user namespace. Writes to /sys/kernel/security/apparmor/.replace fail with EACCES/EPERM for uid 2000, and USERNS root has no MAC_ADMIN over the global policy. SELinux needs a different boot configuration and policy."
     },
     {
       "id": "ns-cgroup-v2-helpers",
       "kind": "deferred",
       "purpose": "Check cgroup v2 create, controller value, process membership, controller-enable, and remove behavior.",
-      "reason": "Requires a disposable VM with a dedicated writable cgroup v2 subtree owned by the test, plus a harmless child process. Compare file updates with the documented cgroup v2 interface, verify relative-path validation and cleanup, and never write to the controller's cgroup hierarchy. No cgroup operation was invoked here."
+      "reason": "Writing cgroup files needs a writable delegated subtree. As uid 2000, mkdir under root-owned /sys/fs/cgroup returns EACCES; the legacy runner has no /sys. The root controller must create a per-side subtree and chown it to uid 2000 (cgroup delegation: directory, cgroup.procs, cgroup.subtree_control). The candidate hardcodes /sys/fs/cgroup (loadables/ns.c:532), so the fixture must address the subtree by its relative path from the root. Path validation needs no privilege."
     },
     {
       "id": "help-verbs-contract",

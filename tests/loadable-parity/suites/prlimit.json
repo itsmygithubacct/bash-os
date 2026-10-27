@@ -47,26 +47,150 @@
     {
       "id": "query-output-formats",
       "purpose": "Cover current-process and selected-PID reads, including default text, raw columns, JSON, resource selection, and unlimited-value rendering.",
-      "kind": "deferred",
-      "reason": "Own-process text/raw and JSON queries are runnable elsewhere in this suite. Controlled selected-worker and injected-error snapshots require a future disposable VM with controlled worker lifetime/limits or an independently reviewed prlimit syscall mock; no resource limit is changed here."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/prlimit/query-self-core"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/prlimit/query-self-cpu"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/prlimit/query-self-json-contract"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/prlimit/query-self-nofile"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/prlimit/query-self-text"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-json-unlimited-contract"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-output-formats-unlimited"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-query-owned-long"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-query-owned-short"
+        }
+      ]
     },
     {
       "id": "limit-set-and-validation",
       "purpose": "Cover numeric and unlimited limits, SOFT:HARD and partial-range forms, soft-greater-than-hard rejection, invalid values, and preservation of unspecified sides.",
-      "kind": "deferred",
-      "reason": "The task explicitly excludes limit-setting operations. A future fixture needs a disposable process whose limits can be initialized, changed, read back, and discarded, or a controlled prlimit64 syscall mock. It must verify only that expendable target's limits change and that malformed or invalid requests do not alter them."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-prlimit-set-hard-only"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-set-invalid-range"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-set-invalid-suffix"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-set-invalid-word"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-set-negative"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-set-numeric"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-set-pair"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-set-reversed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-set-soft-only"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-set-unlimited"
+        }
+      ]
     },
     {
       "id": "pid-target-and-errors",
       "purpose": "Cover explicit --pid selection, invalid and nonexistent PIDs, and permission errors without touching unrelated processes.",
-      "kind": "deferred",
-      "reason": "Meaningful cross-PID checks require controlled process identities and target lifetimes. A future fixture needs same-UID and restricted disposable workers in a private PID namespace or a syscall mock, so GNU util-linux and the builtin see stable targets and EPERM/ESRCH cases without referencing host PIDs."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-prlimit-owned-supervisor-permission"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-pid-negative"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-pid-overflow"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-pid-reaped"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-pid-word"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-query-owned-long"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-query-owned-short"
+        }
+      ]
     },
     {
       "id": "command-mode-child",
       "purpose": "Cover command-mode limit inheritance, parent-state preservation, child exit/signal propagation, and exec failure status.",
-      "kind": "deferred",
-      "reason": "Command mode forks, changes a child's resource limit, and execs a command. A future fixture needs a disposable VM or controlled syscall/process mock plus a private reporting helper to verify inherited limits, parent preservation, and status mapping without involving host commands or processes."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-prlimit-command-child"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-command-missing"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-command-nonexecutable"
+        },
+        {
+          "group": "shell",
+          "id": "migration-prlimit-command-signal"
+        }
+      ]
     },
     {
       "id": "query-self-nofile",

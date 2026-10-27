@@ -126,15 +126,29 @@
     },
     {
       "id": "interrupt-ignore-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise the documented difference between tee and tee -i when SIGINT arrives during a blocked bounded read.",
-      "reason": "Requires a disposable VM or equivalent isolated process harness with a deterministic signal scheduler. A future fixture should deliver SIGINT only to the tee test process while it reads from a bounded private pipe, then compare tee and tee -i against GNU for exit status, continued bytes on every output and prompt completion. No host or system-wide process signal is appropriate."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-tee-sigint-blocked-read"
+        }
+      ]
     },
     {
       "id": "write-error-recovery-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise recovery when one already-open output fails during write while other output descriptors remain healthy.",
-      "reason": "Requires a disposable VM with a reviewed deterministic write-fault mock that returns EIO for one private output after open, without relying on /dev/full. A future fixture should compare GNU and candidate status, stderr policy, prompt termination, stdout bytes and the complete contents of healthy sinks for a small bounded input."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-tee-eio-stdout-continues"
+        },
+        {
+          "group": "shell",
+          "id": "migration-tee-full-sink-continues"
+        }
+      ]
     },
     {
       "id": "repeated-input-and-open-error-recovery",

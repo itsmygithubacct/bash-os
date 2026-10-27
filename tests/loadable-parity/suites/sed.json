@@ -141,9 +141,18 @@
     },
     {
       "id": "pty-canonical-eof-ordering",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare GNU and candidate last-line handling when a canonical terminal EOF marker precedes already queued bytes.",
-      "reason": "Requires a bounded PTY fixture that can queue a canonical EOF marker followed by data while keeping the terminal open. The supplied runner launches fixtures with stdin connected to /dev/null and has no PTY driver. A future disposable Linux VM/PTY harness should retain the strict GNU comparison; pinned sed documentation records this ordering as a current limitation, but this case was not executed here."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "migration-sed-terminal-last-line-eof-queue"
+        },
+        {
+          "group": "terminal",
+          "id": "sed-terminal-eof-ordering"
+        }
+      ]
     },
     {
       "id": "hold-space-and-transliteration",

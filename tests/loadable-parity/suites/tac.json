@@ -128,9 +128,14 @@
     },
     {
       "id": "terminal_ordering_deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify Bash output ordering and tac's flush behavior when builtin output shares a terminal stream.",
-      "reason": "The runner does not provide a PTY driver. A future isolated PTY fixture should write a Bash prefix, invoke builtin tac on controlled input, capture prefix/tac/suffix byte order and flush boundaries, then confirm the shell remains usable; use only a disposable local PTY, never a host terminal."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "tac-terminal-ordering"
+        }
+      ]
     },
     {
       "id": "literal-overlap-and-long-separator",

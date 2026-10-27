@@ -1,0 +1,89 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "id": "migration-wall-utmp-delivery-escaping",
+   "loadable": "wall",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "A synthetic utmp lists USER_PROCESS records for ttyA (twice, alice and bob), ttyB (mode 600), ttyD (mode 602), the case's own PTY, an empty line and an X ':0' line, plus DEAD_PROCESS and LOGIN_PROCESS records for ttyC. Four broadcasts (control/high bytes in arguments; a two-line stdin message; BASHWALL_NOBANNER=1; -n as non-root) reach ttyA and ttyD exactly once each, never ttyB or ttyC, and appear on the real terminal with CRLF endings.",
+   "script": "t=$(tty); chmod 620 \"$t\" || echo chmod-failed >> rc\nchmod 620 dev/ttyA; chmod 600 dev/ttyB; chmod 620 dev/ttyC; chmod 602 dev/ttyD\n/usr/bin/python3 mkutmp.py utmp 7:alice:ttyA 7:bob:ttyA 8:carol:ttyC 6:dave:ttyC 7:erin: 7:frank:ttyB 7:gina:ttyD 7:xsess::0 \"7:me:$t\"\nexport BASHWALL_UTMP=$PWD/utmp BASHWALL_DEV_DIR=$PWD/dev BASHWALL_USER=op BASHWALL_HOST=vmhost\nwall $'esc\\033[31m tab\\there del\\177 ctl\\001 hi\\351'; echo \"rc1=$?\" >> rc\nprintf 'l1\\nl2\\n' | wall; echo \"rc2=$?\" >> rc\nBASHWALL_NOBANNER=1 wall nb; echo \"rc3=$?\" >> rc\nwall -n kept 2> err-n; echo \"rc4=$?\" >> rc\n[[ $(< err-n) == *'--nobanner is available only for root'* ]] && echo nobanner-warned >> rc\n/usr/bin/python3 norm.py dev/ttyA dev/ttyD\n",
+   "steps": [
+    {
+     "expect": "Broadcast message from op@vmhost \\(pts/[0-9]+\\) \\([^)]*\\):\\x07\\x07\\r+\\nesc\\^\\[\\[31m tab\\there del\\^\\? ctl\\^A hi\\\\351\\r+\\n"
+    },
+    {
+     "expect": "Broadcast message from op@vmhost \\(pts/[0-9]+\\) \\([^)]*\\):\\x07\\x07\\r+\\nl1\\r+\\nl2\\r+\\n"
+    },
+    {
+     "expect": "nb\\r+\\n"
+    },
+    {
+     "expect": "Broadcast message from op@vmhost \\(pts/[0-9]+\\) \\([^)]*\\):\\x07\\x07\\r+\\nkept\\r+\\n"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "wall/broadcast-mock"
+   ],
+   "oracle": "wall.c header and write_doc/wall_doc: write TTY [MSG...] banner '\\r\\n\\a\\a\\aMessage from USER@HOST on SRCTTY at HH:MM ...\\r\\n', message escaped like util-linux fputs_careful (control -> ^X, DEL -> ^?, bytes >= 0x80 -> \\NNN, LF -> CRLF), trailing 'EOF\\r\\n'; refuses when the target lacks S_IWGRP|S_IWOTH ('has messages disabled'); stdin is read to EOF when no MSG; wall walks $BASHWALL_UTMP USER_PROCESS records with a line (':' lines skipped), each line once, banner '\\r\\nBroadcast message from USER@HOST (TTY) (DATE):\\a\\a\\r\\n', BASHWALL_NOBANNER=1 suppresses it, -n as non-root warns and keeps it, -g GROUP via $BASHWALL_GROUP_FILE members or $BASHWALL_PASSWD_FILE primary gid. util-linux term-utils write.c/wall.c are the cited behaviour sources; the candidate's TTY-path and environment interfaces have no util-linux equivalent, so these are contract cases. The banner date/pts are normalized by norm.py (regex stated in the file) before exact comparison.",
+   "comparison": "contract: exact normalized recipient-file bytes, empty skipped recipients, rc lines, and raw PTY regexes",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "timeout": 30,
+   "files": {
+    "mkutmp.py": "import struct, sys\n# glibc x86_64 struct utmp (384 bytes): type, pid, line[32], id[4], user[32], host[256], exit, session, tv, addr_v6, unused\nrec = struct.Struct('<h2xi32s4s32s256shhiii4i20x')\nassert rec.size == 384\nwith open(sys.argv[1], 'wb') as f:\n    for i, spec in enumerate(sys.argv[2:]):\n        typ, user, line = spec.split(':', 2)\n        f.write(rec.pack(int(typ), 1000 + i, line.encode(), b'', user.encode(), b'', 0, 0, 0, 0, 0, 0, 0, 0, 0))\n",
+    "norm.py": "import re, sys\n# Replace the per-run parts of a wall banner: ctime-style date and the sender's pts number.\ndate = re.compile(rb'\\((Mon|Tue|Wed|Thu|Fri|Sat|Sun) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [ 123][0-9] '\n                  rb'[0-2][0-9]:[0-5][0-9]:[0-6][0-9] [0-9]{4}\\)')\nfor name in sys.argv[1:]:\n    data = open(name, 'rb').read()\n    data = re.sub(rb'\\(pts/[0-9]+\\)', b'(TTY)', data)\n    data = date.sub(b'(DATE)', data)\n    open('norm-' + name.replace('/', '-'), 'wb').write(data)\n",
+    "dev/ttyA": "",
+    "dev/ttyB": "",
+    "dev/ttyC": "",
+    "dev/ttyD": ""
+   },
+   "expected_files": {
+    "norm-dev-ttyA": "\r\nBroadcast message from op@vmhost (TTY) (DATE):\u0007\u0007\r\nesc^[[31m tab\there del^? ctl^A hi\\351\r\n\r\nBroadcast message from op@vmhost (TTY) (DATE):\u0007\u0007\r\nl1\r\nl2\r\nnb\r\n\r\nBroadcast message from op@vmhost (TTY) (DATE):\u0007\u0007\r\nkept\r\n",
+    "norm-dev-ttyD": "\r\nBroadcast message from op@vmhost (TTY) (DATE):\u0007\u0007\r\nesc^[[31m tab\there del^? ctl^A hi\\351\r\n\r\nBroadcast message from op@vmhost (TTY) (DATE):\u0007\u0007\r\nl1\r\nl2\r\nnb\r\n\r\nBroadcast message from op@vmhost (TTY) (DATE):\u0007\u0007\r\nkept\r\n",
+    "dev/ttyB": "",
+    "dev/ttyC": "",
+    "rc": "rc1=0\nrc2=0\nrc3=0\nrc4=0\nnobanner-warned\n"
+   }
+  },
+  {
+   "id": "migration-wall-group-filter",
+   "loadable": "wall",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "-g/--group against synthetic group and passwd databases: members listed in the group line (with blanks around names) and users whose primary gid is the group's receive the message; a group with no matching user and an unknown group deliver nothing; -g without an argument fails.",
+   "script": "for f in ttyA ttyD ttyE ttyF; do chmod 620 dev/$f; done\n/usr/bin/python3 mkutmp.py utmp 7:alice:ttyA 7:bob:ttyA 7:frank:ttyE 7:gina:ttyD 7:hal:ttyF\nexport BASHWALL_UTMP=$PWD/utmp BASHWALL_DEV_DIR=$PWD/dev BASHWALL_NOBANNER=1\nexport BASHWALL_GROUP_FILE=$PWD/group BASHWALL_PASSWD_FILE=$PWD/passwd\nwall -g staff s1; echo \"staff=$?\" > rc\nwall --group=ops o1; echo \"ops=$?\" >> rc\nwall -g empty e1; echo \"empty=$?\" >> rc\nwall -g nosuch z1; echo \"nosuch=$?\" >> rc\nwall -g 2> err; echo \"missing=$?\" >> rc\n[[ $(< err) == *'option requires an argument: -g'* ]] && echo missing-diagnosed >> rc\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "wall/broadcast-mock"
+   ],
+   "oracle": "wall.c header and write_doc/wall_doc: write TTY [MSG...] banner '\\r\\n\\a\\a\\aMessage from USER@HOST on SRCTTY at HH:MM ...\\r\\n', message escaped like util-linux fputs_careful (control -> ^X, DEL -> ^?, bytes >= 0x80 -> \\NNN, LF -> CRLF), trailing 'EOF\\r\\n'; refuses when the target lacks S_IWGRP|S_IWOTH ('has messages disabled'); stdin is read to EOF when no MSG; wall walks $BASHWALL_UTMP USER_PROCESS records with a line (':' lines skipped), each line once, banner '\\r\\nBroadcast message from USER@HOST (TTY) (DATE):\\a\\a\\r\\n', BASHWALL_NOBANNER=1 suppresses it, -n as non-root warns and keeps it, -g GROUP via $BASHWALL_GROUP_FILE members or $BASHWALL_PASSWD_FILE primary gid. util-linux term-utils write.c/wall.c are the cited behaviour sources; the candidate's TTY-path and environment interfaces have no util-linux equivalent, so these are contract cases.",
+   "comparison": "contract: exact recipient-file bytes and rc lines",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "files": {
+    "mkutmp.py": "import struct, sys\n# glibc x86_64 struct utmp (384 bytes): type, pid, line[32], id[4], user[32], host[256], exit, session, tv, addr_v6, unused\nrec = struct.Struct('<h2xi32s4s32s256shhiii4i20x')\nassert rec.size == 384\nwith open(sys.argv[1], 'wb') as f:\n    for i, spec in enumerate(sys.argv[2:]):\n        typ, user, line = spec.split(':', 2)\n        f.write(rec.pack(int(typ), 1000 + i, line.encode(), b'', user.encode(), b'', 0, 0, 0, 0, 0, 0, 0, 0, 0))\n",
+    "dev/ttyA": "",
+    "dev/ttyD": "",
+    "dev/ttyE": "",
+    "dev/ttyF": "",
+    "group": "staff:x:500:alice, gina\nops:x:600:\nempty:x:700:\n",
+    "passwd": "frank:x:1001:600::/home/frank:/bin/sh\nhal:x:1002:700::/home/hal:/bin/sh\n"
+   },
+   "expected_files": {
+    "dev/ttyA": "s1\r\n",
+    "dev/ttyD": "s1\r\n",
+    "dev/ttyE": "o1\r\n",
+    "dev/ttyF": "e1\r\n",
+    "rc": "staff=0\nops=0\nempty=0\nnosuch=0\nmissing=1\nmissing-diagnosed\n"
+   }
+  }
+ ]
+}

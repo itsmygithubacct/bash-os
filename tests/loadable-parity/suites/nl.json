@@ -142,9 +142,14 @@
     },
     {
       "id": "pty-streaming",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify that a numbered line reaches a terminal while the input side remains open.",
-      "reason": "Requires a future disposable VM providing the following prerequisite: The current data-only runner has no PTY orchestration. A future isolated PTY driver should start nl in a disposable pseudo-terminal, write one short newline-terminated record while keeping the writer open, require the numbered record to arrive before EOF, then close the writer and verify clean exit. It must use only the disposable PTY and bounded input/output."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "nl-terminal-streaming"
+        }
+      ]
     },
     {
       "id": "fresh-stdin-and-state",

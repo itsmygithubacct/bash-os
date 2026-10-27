@@ -1,0 +1,3178 @@
+{
+ "schema": 1,
+ "lock_sha256": "2dc6ac831f15bbeead90c993ac5e869cf93df9f83bd08bba57a057112537b040",
+ "inputs_directory": "/tmp/parity-reference/inputs/",
+ "cross_checks": [
+  "Python 3.13.5 hashlib/hmac/base64",
+  "cryptography 43.0.0"
+ ],
+ "unchecked_without_cryptography": [],
+ "vectors": [
+  {
+   "id": "rfc4231-testcase1-hmac-sha256",
+   "loadable": "crypto",
+   "rfc": 4231,
+   "section": "Test Case 1",
+   "argv": [
+    "crypto",
+    "hmac-sha256",
+    "-k",
+    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+    "-x"
+   ],
+   "stdin": "cc6d5896d770101e",
+   "expected_stdout_hex": "623033343463363164386462333835333563613861666365616630626631326238383164633230306339383333646137323665393337366332653332636666370a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4231-testcase1-hmac-sha512",
+   "loadable": "crypto",
+   "rfc": 4231,
+   "section": "Test Case 1",
+   "argv": [
+    "crypto",
+    "hmac-sha512",
+    "-k",
+    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+    "-x"
+   ],
+   "stdin": "cc6d5896d770101e",
+   "expected_stdout_hex": "38376161376364656135656636313964346666306234323431613164366362303233373966346532636534656332373837616430623330353435653137636465646161383333623764366238613730323033386232373465616561336634653462653964393134656562363166313730326536393663323033613132363835340a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4231-testcase2-hmac-sha256",
+   "loadable": "crypto",
+   "rfc": 4231,
+   "section": "Test Case 2",
+   "argv": [
+    "crypto",
+    "hmac-sha256",
+    "-k",
+    "4a656665",
+    "-x"
+   ],
+   "stdin": "b381e7fec653fc3a",
+   "expected_stdout_hex": "356264636331343662663630373534653661303432343236303839353735633735613030336630383964323733393833396465633538623936346563333834330a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4231-testcase2-hmac-sha512",
+   "loadable": "crypto",
+   "rfc": 4231,
+   "section": "Test Case 2",
+   "argv": [
+    "crypto",
+    "hmac-sha512",
+    "-k",
+    "4a656665",
+    "-x"
+   ],
+   "stdin": "b381e7fec653fc3a",
+   "expected_stdout_hex": "31363462376137626663663831396532653339356662653733623536653061333837626436343232326538333166643631303237306364376561323530353534393735386266373563303561393934613664303334663635663866306536666463616561623161333464346136623462363336653037306133386263653733370a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4231-testcase3-hmac-sha256",
+   "loadable": "crypto",
+   "rfc": 4231,
+   "section": "Test Case 3",
+   "argv": [
+    "crypto",
+    "hmac-sha256",
+    "-k",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "-x"
+   ],
+   "stdin": "5cf618b5b6d38bd1",
+   "expected_stdout_hex": "373733656139316533363830306534363835346462386562643039313831613732393539303938623365663863313232643936333535313463656435363566650a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4231-testcase3-hmac-sha512",
+   "loadable": "crypto",
+   "rfc": 4231,
+   "section": "Test Case 3",
+   "argv": [
+    "crypto",
+    "hmac-sha512",
+    "-k",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "-x"
+   ],
+   "stdin": "5cf618b5b6d38bd1",
+   "expected_stdout_hex": "66613733623030383964353661323834656662306630373536633839306265396231623564626464386565383161333635356638336533336232323739643339626633653834383237396137323263383036623438356134376536376338303762393436613333376265653839343236373432373838353965313332393266620a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4231-testcase4-hmac-sha256",
+   "loadable": "crypto",
+   "rfc": 4231,
+   "section": "Test Case 4",
+   "argv": [
+    "crypto",
+    "hmac-sha256",
+    "-k",
+    "0102030405060708090a0b0c0d0e0f10111213141516171819",
+    "-x"
+   ],
+   "stdin": "cad29ff89951a3c0",
+   "expected_stdout_hex": "383235353861333839613434336330656134636338313938393966323038336138356630666161336535373866383037376132653366663436373239363635620a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4231-testcase4-hmac-sha512",
+   "loadable": "crypto",
+   "rfc": 4231,
+   "section": "Test Case 4",
+   "argv": [
+    "crypto",
+    "hmac-sha512",
+    "-k",
+    "0102030405060708090a0b0c0d0e0f10111213141516171819",
+    "-x"
+   ],
+   "stdin": "cad29ff89951a3c0",
+   "expected_stdout_hex": "62306261343635363337343538633639393065356138633566363164346166376535373664393766663934623837326465373666383035303336316565336462613931636135633131616132356562346436373932373563633537383830363361356631393734313132306334663264653261646562656231306132393864640a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4231-testcase6-hmac-sha256",
+   "loadable": "crypto",
+   "rfc": 4231,
+   "section": "Test Case 6",
+   "argv": [
+    "crypto",
+    "hmac-sha256",
+    "-k",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "-x"
+   ],
+   "stdin": "96495f0740296c6e",
+   "expected_stdout_hex": "363065343331353931656530623637663064386132366161636266356237376638653062633632313337323863353134303534363034306630656533376635340a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4231-testcase6-hmac-sha512",
+   "loadable": "crypto",
+   "rfc": 4231,
+   "section": "Test Case 6",
+   "argv": [
+    "crypto",
+    "hmac-sha512",
+    "-k",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "-x"
+   ],
+   "stdin": "96495f0740296c6e",
+   "expected_stdout_hex": "38306232343236336337633161336562623731343933633164643762653862343962343664316634316234616565633131323162303133373833663866333532366235366430333765303566323539386264306664323231356436613165353239356536346637336636336630616563386239313561393835643738363539380a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4231-testcase7-hmac-sha256",
+   "loadable": "crypto",
+   "rfc": 4231,
+   "section": "Test Case 7",
+   "argv": [
+    "crypto",
+    "hmac-sha256",
+    "-k",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "-x"
+   ],
+   "stdin": "a5ef369e36e2734f",
+   "expected_stdout_hex": "396230396666613731623934326663623237363335666263643562306539343462666463363336343466303731333933386137663531353335633361333565320a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4231-testcase7-hmac-sha512",
+   "loadable": "crypto",
+   "rfc": 4231,
+   "section": "Test Case 7",
+   "argv": [
+    "crypto",
+    "hmac-sha512",
+    "-k",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "-x"
+   ],
+   "stdin": "a5ef369e36e2734f",
+   "expected_stdout_hex": "65333762366137373564633837646261613464666139663936653565336666646465626437316638383637323839383635646635613332643230636463393434623630323263616333633439383262313064356565623535633365346465313531333436373666623664653034343630363563393734343066613863366135380a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc2202-hmac-md5-tc1",
+   "loadable": "crypto",
+   "rfc": 2202,
+   "section": "md5 case 1",
+   "argv": [
+    "crypto",
+    "hmac-md5",
+    "-k",
+    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+    "-x"
+   ],
+   "stdin": "cc6d5896d770101e",
+   "expected_stdout_hex": "39323934373237613336333862623163313366343865663831353862666339640a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc2202-hmac-md5-tc2",
+   "loadable": "crypto",
+   "rfc": 2202,
+   "section": "md5 case 2",
+   "argv": [
+    "crypto",
+    "hmac-md5",
+    "-k",
+    "4a656665",
+    "-x"
+   ],
+   "stdin": "b381e7fec653fc3a",
+   "expected_stdout_hex": "37353063373833653661623062353033656161383665333130613564623733380a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc2202-hmac-md5-tc3",
+   "loadable": "crypto",
+   "rfc": 2202,
+   "section": "md5 case 3",
+   "argv": [
+    "crypto",
+    "hmac-md5",
+    "-k",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "-x"
+   ],
+   "stdin": "5cf618b5b6d38bd1",
+   "expected_stdout_hex": "35366265333435323164313434633838646262386337333366306538623366360a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc2202-hmac-md5-tc4",
+   "loadable": "crypto",
+   "rfc": 2202,
+   "section": "md5 case 4",
+   "argv": [
+    "crypto",
+    "hmac-md5",
+    "-k",
+    "0102030405060708090a0b0c0d0e0f10111213141516171819",
+    "-x"
+   ],
+   "stdin": "cad29ff89951a3c0",
+   "expected_stdout_hex": "36393765616630616361336133616561336137353136343734366666616137390a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc2202-hmac-md5-tc5",
+   "loadable": "crypto",
+   "rfc": 2202,
+   "section": "md5 case 5",
+   "argv": [
+    "crypto",
+    "hmac-md5",
+    "-k",
+    "0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
+    "-x"
+   ],
+   "stdin": "94e888920c7246b6",
+   "expected_stdout_hex": "35363436316566323334326564633030663962616239393536393065666434630a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc2202-hmac-md5-tc6",
+   "loadable": "crypto",
+   "rfc": 2202,
+   "section": "md5 case 6",
+   "argv": [
+    "crypto",
+    "hmac-md5",
+    "-k",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "-x"
+   ],
+   "stdin": "96495f0740296c6e",
+   "expected_stdout_hex": "36623161623766653462643762663866306236326536636536316239643063640a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc2202-hmac-md5-tc7",
+   "loadable": "crypto",
+   "rfc": 2202,
+   "section": "md5 case 7",
+   "argv": [
+    "crypto",
+    "hmac-md5",
+    "-k",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "-x"
+   ],
+   "stdin": "39603f823057dd02",
+   "expected_stdout_hex": "36663633306661643637636461306565316662316635363264623361613533650a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc2202-hmac-sha1-tc1",
+   "loadable": "crypto",
+   "rfc": 2202,
+   "section": "sha1 case 1",
+   "argv": [
+    "crypto",
+    "hmac-sha1",
+    "-k",
+    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+    "-x"
+   ],
+   "stdin": "cc6d5896d770101e",
+   "expected_stdout_hex": "623631373331383635353035373236346532386263306236666233373863386566313436626530300a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc2202-hmac-sha1-tc2",
+   "loadable": "crypto",
+   "rfc": 2202,
+   "section": "sha1 case 2",
+   "argv": [
+    "crypto",
+    "hmac-sha1",
+    "-k",
+    "4a656665",
+    "-x"
+   ],
+   "stdin": "b381e7fec653fc3a",
+   "expected_stdout_hex": "656666636466366165356562326661326432373431366435663138346466396332353961376337390a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc2202-hmac-sha1-tc3",
+   "loadable": "crypto",
+   "rfc": 2202,
+   "section": "sha1 case 3",
+   "argv": [
+    "crypto",
+    "hmac-sha1",
+    "-k",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "-x"
+   ],
+   "stdin": "5cf618b5b6d38bd1",
+   "expected_stdout_hex": "313235643733343262396163313163643931613339616634386161313762346636336631373564330a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc2202-hmac-sha1-tc4",
+   "loadable": "crypto",
+   "rfc": 2202,
+   "section": "sha1 case 4",
+   "argv": [
+    "crypto",
+    "hmac-sha1",
+    "-k",
+    "0102030405060708090a0b0c0d0e0f10111213141516171819",
+    "-x"
+   ],
+   "stdin": "cad29ff89951a3c0",
+   "expected_stdout_hex": "346339303037663430323632353063366263383431346639626635306338366332643732333564610a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc2202-hmac-sha1-tc5",
+   "loadable": "crypto",
+   "rfc": 2202,
+   "section": "sha1 case 5",
+   "argv": [
+    "crypto",
+    "hmac-sha1",
+    "-k",
+    "0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
+    "-x"
+   ],
+   "stdin": "94e888920c7246b6",
+   "expected_stdout_hex": "346331613033343234623535653037666537663237626531643538626239333234613961356130340a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc2202-hmac-sha1-tc6",
+   "loadable": "crypto",
+   "rfc": 2202,
+   "section": "sha1 case 6",
+   "argv": [
+    "crypto",
+    "hmac-sha1",
+    "-k",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "-x"
+   ],
+   "stdin": "96495f0740296c6e",
+   "expected_stdout_hex": "616134616535653135323732643030653935373035363337636538613362353565643430323131320a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc2202-hmac-sha1-tc7",
+   "loadable": "crypto",
+   "rfc": 2202,
+   "section": "sha1 case 7",
+   "argv": [
+    "crypto",
+    "hmac-sha1",
+    "-k",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "-x"
+   ],
+   "stdin": "39603f823057dd02",
+   "expected_stdout_hex": "653865393964306634353233376437383664366262616137393635633738303862626666316139310a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc5869-a1-hkdf-sha256",
+   "loadable": "crypto",
+   "rfc": 5869,
+   "section": "A.1",
+   "argv": [
+    "crypto",
+    "hkdf-sha256",
+    "-s",
+    "000102030405060708090a0b0c",
+    "-k",
+    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+    "-i",
+    "f0f1f2f3f4f5f6f7f8f9",
+    "-L",
+    "42",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "3363623235663235666161636435376139303433346636346430333632663261326432643061393063663161356134633564623032643536656363346335626633343030373230386435623838373138353836350a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc5869-a1-hkdf",
+   "loadable": "crypto",
+   "rfc": 5869,
+   "section": "A.1",
+   "argv": [
+    "crypto",
+    "hkdf",
+    "-a",
+    "sha256",
+    "-s",
+    "000102030405060708090a0b0c",
+    "-k",
+    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+    "-i",
+    "f0f1f2f3f4f5f6f7f8f9",
+    "-L",
+    "42",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "3363623235663235666161636435376139303433346636346430333632663261326432643061393063663161356134633564623032643536656363346335626633343030373230386435623838373138353836350a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc5869-a2-hkdf-sha256",
+   "loadable": "crypto",
+   "rfc": 5869,
+   "section": "A.2",
+   "argv": [
+    "crypto",
+    "hkdf-sha256",
+    "-s",
+    "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+    "-k",
+    "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f",
+    "-i",
+    "b0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+    "-L",
+    "82",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "62313165333938646338303332376131633865376637386335393661343933343466303132656461326434656661643861303530636334633139616661393763353930343561393963616337383237323731636234316336356535393065303964613332373536303063326630396238333637373933613961636133646237316363333063353831373965633365383763313463303164356331663334333466316438370a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc5869-a2-hkdf",
+   "loadable": "crypto",
+   "rfc": 5869,
+   "section": "A.2",
+   "argv": [
+    "crypto",
+    "hkdf",
+    "-a",
+    "sha256",
+    "-s",
+    "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+    "-k",
+    "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f",
+    "-i",
+    "b0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+    "-L",
+    "82",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "62313165333938646338303332376131633865376637386335393661343933343466303132656461326434656661643861303530636334633139616661393763353930343561393963616337383237323731636234316336356535393065303964613332373536303063326630396238333637373933613961636133646237316363333063353831373965633365383763313463303164356331663334333466316438370a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc5869-a3-hkdf-sha256",
+   "loadable": "crypto",
+   "rfc": 5869,
+   "section": "A.3",
+   "argv": [
+    "crypto",
+    "hkdf-sha256",
+    "-s",
+    "",
+    "-k",
+    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+    "-i",
+    "",
+    "-L",
+    "42",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "3864613465373735613536336331386637313566383032613036336335613331623861313166356335656531383739656333343534653566336337333864326439643230313339356661613462363161393663380a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc5869-a3-hkdf",
+   "loadable": "crypto",
+   "rfc": 5869,
+   "section": "A.3",
+   "argv": [
+    "crypto",
+    "hkdf",
+    "-a",
+    "sha256",
+    "-s",
+    "",
+    "-k",
+    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+    "-i",
+    "",
+    "-L",
+    "42",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "3864613465373735613536336331386637313566383032613036336335613331623861313166356335656531383739656333343534653566336337333864326439643230313339356661613462363161393663380a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6070-pbkdf2-sha1-1",
+   "loadable": "crypto",
+   "rfc": 6070,
+   "section": "2",
+   "argv": [
+    "crypto",
+    "pbkdf2",
+    "-a",
+    "sha1",
+    "-s",
+    "73616c74",
+    "-p",
+    "password",
+    "-i",
+    "1",
+    "-L",
+    "20",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "306336306338306639363166306537316633613962353234616636303132303632666530333761360a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6070-pbkdf2-sha1-2",
+   "loadable": "crypto",
+   "rfc": 6070,
+   "section": "2",
+   "argv": [
+    "crypto",
+    "pbkdf2",
+    "-a",
+    "sha1",
+    "-s",
+    "73616c74",
+    "-p",
+    "password",
+    "-i",
+    "2",
+    "-L",
+    "20",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "656136633031346463373264366638636364316564393261636531643431663064386465383935370a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6070-pbkdf2-sha1-3",
+   "loadable": "crypto",
+   "rfc": 6070,
+   "section": "2",
+   "argv": [
+    "crypto",
+    "pbkdf2",
+    "-a",
+    "sha1",
+    "-s",
+    "73616c74",
+    "-p",
+    "password",
+    "-i",
+    "4096",
+    "-L",
+    "20",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "346230303739303162373635343839616265616434396439323666373231643036356134323963310a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6070-pbkdf2-sha1-5",
+   "loadable": "crypto",
+   "rfc": 6070,
+   "section": "2",
+   "argv": [
+    "crypto",
+    "pbkdf2",
+    "-a",
+    "sha1",
+    "-s",
+    "73616c7453414c5473616c7453414c5473616c7453414c5473616c7453414c5473616c74",
+    "-p",
+    "passwordPASSWORDpassword",
+    "-i",
+    "4096",
+    "-L",
+    "25",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "33643265656334666534316338343962383063386438333636326330653434613862323931613936346366326630373033380a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc7914-pbkdf2-sha256-1",
+   "loadable": "crypto",
+   "rfc": 7914,
+   "section": "11",
+   "argv": [
+    "crypto",
+    "pbkdf2",
+    "-a",
+    "sha256",
+    "-s",
+    "73616c74",
+    "-p",
+    "passwd",
+    "-i",
+    "1",
+    "-L",
+    "64",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "35356163303436653536653330383966656331363931633232353434623630356639343138353231366464653034363565363862396435376332306461636263343963613963636366313739623634353939313636346233396437376566333137633731623834356231653330626435303931313230343164336131393738330a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc7914-pbkdf2-sha256-2",
+   "loadable": "crypto",
+   "rfc": 7914,
+   "section": "11",
+   "argv": [
+    "crypto",
+    "pbkdf2",
+    "-a",
+    "sha256",
+    "-s",
+    "4e61436c",
+    "-p",
+    "Password",
+    "-i",
+    "80000",
+    "-L",
+    "64",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "34646463643866363062393862653231383330636565356566323237303166393634316134343138643034633034313461656666303838373662333461623536613164343235613132323538333335343961646238343162353163396233313736613237326264656262613164303738343738663632623339376633336338640a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc1321-md5-0",
+   "loadable": "crypto",
+   "rfc": 1321,
+   "section": "A.5",
+   "argv": [
+    "crypto",
+    "md5",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "64343164386364393866303062323034653938303039393865636638343237650a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc1321-md5-1",
+   "loadable": "crypto",
+   "rfc": 1321,
+   "section": "A.5",
+   "argv": [
+    "crypto",
+    "md5",
+    "-x"
+   ],
+   "stdin": "ca978112ca1bbdca",
+   "expected_stdout_hex": "30636331373562396330663162366138333163333939653236393737323636310a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc1321-md5-3",
+   "loadable": "crypto",
+   "rfc": 1321,
+   "section": "A.5",
+   "argv": [
+    "crypto",
+    "md5",
+    "-x"
+   ],
+   "stdin": "ba7816bf8f01cfea",
+   "expected_stdout_hex": "39303031353039383363643234666230643639363366376432386531376637320a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc1321-md5-14",
+   "loadable": "crypto",
+   "rfc": 1321,
+   "section": "A.5",
+   "argv": [
+    "crypto",
+    "md5",
+    "-x"
+   ],
+   "stdin": "f7846f55cf23e14e",
+   "expected_stdout_hex": "66393662363937643763623739333864353235613266333161616631363164300a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc1321-md5-26",
+   "loadable": "crypto",
+   "rfc": 1321,
+   "section": "A.5",
+   "argv": [
+    "crypto",
+    "md5",
+    "-x"
+   ],
+   "stdin": "71c480df93d6ae2f",
+   "expected_stdout_hex": "63336663643364373631393265343030376466623439366363613637653133620a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc1321-md5-62",
+   "loadable": "crypto",
+   "rfc": 1321,
+   "section": "A.5",
+   "argv": [
+    "crypto",
+    "md5",
+    "-x"
+   ],
+   "stdin": "db4bfcbd4da0cd85",
+   "expected_stdout_hex": "64313734616239386432373764396635613536313163326339663431396439660a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc1321-md5-80",
+   "loadable": "crypto",
+   "rfc": 1321,
+   "section": "A.5",
+   "argv": [
+    "crypto",
+    "md5",
+    "-x"
+   ],
+   "stdin": "f371bc4a311f2b00",
+   "expected_stdout_hex": "35376564663461323262653363393535616334396461326532313037623637610a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6234-sha1-test1",
+   "loadable": "crypto",
+   "rfc": 6234,
+   "section": "8.4 SHA1",
+   "argv": [
+    "crypto",
+    "sha1",
+    "-x"
+   ],
+   "stdin": "ba7816bf8f01cfea",
+   "expected_stdout_hex": "613939393365333634373036383136616261336532353731373835306332366339636430643839640a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6234-sha1-test2_1",
+   "loadable": "crypto",
+   "rfc": 6234,
+   "section": "8.4 SHA1",
+   "argv": [
+    "crypto",
+    "sha1",
+    "-x"
+   ],
+   "stdin": "248d6a61d20638b8",
+   "expected_stdout_hex": "383439383365343431633362643236656261616534616131663935313239653565353436373066310a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6234-sha1-test3",
+   "loadable": "crypto",
+   "rfc": 6234,
+   "section": "8.4 SHA1",
+   "argv": [
+    "crypto",
+    "sha1",
+    "-x"
+   ],
+   "stdin": "cdc76e5c9914fb92",
+   "expected_stdout_hex": "333461613937336364346334646161346636316565623262646261643237333136353334303136660a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6234-sha1-test4",
+   "loadable": "crypto",
+   "rfc": 6234,
+   "section": "8.4 SHA1",
+   "argv": [
+    "crypto",
+    "sha1",
+    "-x"
+   ],
+   "stdin": "594847328451bdfa",
+   "expected_stdout_hex": "646561333536613263646464393063376137656365646335656262353633393334663436303435320a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6234-sha256-test1",
+   "loadable": "crypto",
+   "rfc": 6234,
+   "section": "8.4 SHA256",
+   "argv": [
+    "crypto",
+    "sha256",
+    "-x"
+   ],
+   "stdin": "ba7816bf8f01cfea",
+   "expected_stdout_hex": "626137383136626638663031636665613431343134306465356461653232323362303033363161333936313737613963623431306666363166323030313561640a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6234-sha256-test2_1",
+   "loadable": "crypto",
+   "rfc": 6234,
+   "section": "8.4 SHA256",
+   "argv": [
+    "crypto",
+    "sha256",
+    "-x"
+   ],
+   "stdin": "248d6a61d20638b8",
+   "expected_stdout_hex": "323438643661363164323036333862386535633032363933306333653630333961333363653435393634666632313637663665636564643431396462303663310a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6234-sha256-test3",
+   "loadable": "crypto",
+   "rfc": 6234,
+   "section": "8.4 SHA256",
+   "argv": [
+    "crypto",
+    "sha256",
+    "-x"
+   ],
+   "stdin": "cdc76e5c9914fb92",
+   "expected_stdout_hex": "636463373665356339393134666239323831613163376532383464373365363766313830396134386134393732303065303436643339636363373131326364300a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6234-sha256-test4",
+   "loadable": "crypto",
+   "rfc": 6234,
+   "section": "8.4 SHA256",
+   "argv": [
+    "crypto",
+    "sha256",
+    "-x"
+   ],
+   "stdin": "594847328451bdfa",
+   "expected_stdout_hex": "353934383437333238343531626466613835303536323235343632636331643836376438373766623338386466306365333566323561623535363262666262350a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6234-sha384-test1",
+   "loadable": "crypto",
+   "rfc": 6234,
+   "section": "8.4 SHA384",
+   "argv": [
+    "crypto",
+    "sha384",
+    "-x"
+   ],
+   "stdin": "ba7816bf8f01cfea",
+   "expected_stdout_hex": "6362303037353366343561333565386262356130336436393961633635303037323732633332616230656465643136333161386236303561343366663562656438303836303732626131653763633233353862616563613133346338323561370a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6234-sha384-test2_2",
+   "loadable": "crypto",
+   "rfc": 6234,
+   "section": "8.4 SHA384",
+   "argv": [
+    "crypto",
+    "sha384",
+    "-x"
+   ],
+   "stdin": "cf5b16a778af8380",
+   "expected_stdout_hex": "3039333330633333663731313437653833643139326663373832636431623437353331313162313733623362303564323266613038303836653362306637313266636337633731613535376532646239363663336539666139313734363033390a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6234-sha384-test3",
+   "loadable": "crypto",
+   "rfc": 6234,
+   "section": "8.4 SHA384",
+   "argv": [
+    "crypto",
+    "sha384",
+    "-x"
+   ],
+   "stdin": "cdc76e5c9914fb92",
+   "expected_stdout_hex": "3964306531383039373136343734636230383665383334653331306134613163656431343965396330306632343835323739373263656335373034633261356230376238623364633338656363346562616539376464643837663364383938350a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6234-sha384-test4",
+   "loadable": "crypto",
+   "rfc": 6234,
+   "section": "8.4 SHA384",
+   "argv": [
+    "crypto",
+    "sha384",
+    "-x"
+   ],
+   "stdin": "594847328451bdfa",
+   "expected_stdout_hex": "3266633634613466353030646462363832386636613334333062386464373261333638656237663361383332326137306263383432373562396330623361623030643237613563633363326432323461613662363161306437396662343539360a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6234-sha512-test1",
+   "loadable": "crypto",
+   "rfc": 6234,
+   "section": "8.4 SHA512",
+   "argv": [
+    "crypto",
+    "sha512",
+    "-x"
+   ],
+   "stdin": "ba7816bf8f01cfea",
+   "expected_stdout_hex": "64646166333561313933363137616261636334313733343961653230343133313132653666613465383961393765613230613965656565363462353564333961323139323939326132373466633161383336626133633233613366656562626434353464343432333634336365383065326139616339346661353463613439660a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6234-sha512-test2_2",
+   "loadable": "crypto",
+   "rfc": 6234,
+   "section": "8.4 SHA512",
+   "argv": [
+    "crypto",
+    "sha512",
+    "-x"
+   ],
+   "stdin": "cf5b16a778af8380",
+   "expected_stdout_hex": "38653935396237356461653331336461386366346637323831346663313433663866373737396336656239663766613137323939616561646236383839303138353031643238396534393030663765343333316239396465633462353433336163376433323965656236646432363534356539366535356238373462653930390a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6234-sha512-test3",
+   "loadable": "crypto",
+   "rfc": 6234,
+   "section": "8.4 SHA512",
+   "argv": [
+    "crypto",
+    "sha512",
+    "-x"
+   ],
+   "stdin": "cdc76e5c9914fb92",
+   "expected_stdout_hex": "65373138343833643063653736393634346532653432633762633135623436333865316639386231336232303434323835363332613830336166613937336562646530666632343438373765613630613463623034333263653537376333316265623030396335633263343961613265346561646232313761643863633039620a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6234-sha512-test4",
+   "loadable": "crypto",
+   "rfc": 6234,
+   "section": "8.4 SHA512",
+   "argv": [
+    "crypto",
+    "sha512",
+    "-x"
+   ],
+   "stdin": "594847328451bdfa",
+   "expected_stdout_hex": "38396430356261363332633639396333313233316465643466666331323764356138393464616434313263306530323464623837326431616264326261383134316130663835303732613962653165326161303463663333633736356362353130383133613339636435613834633461636161363464336633666237626165390a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc7693-blake2b-512-abc",
+   "loadable": "crypto",
+   "rfc": 7693,
+   "section": "Appendix A",
+   "argv": [
+    "crypto",
+    "blake2b",
+    "-x"
+   ],
+   "stdin": "ba7816bf8f01cfea",
+   "expected_stdout_hex": "62613830613533663938316334643064366132373937623639663132663665393463323132663134363835616334623734623132626236666462666661326431376438376335333932616162373932646332353264356465343533336363393531386433386161386462663139323561623932333836656464343030393932330a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4648-base64url-pad-0",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-e",
+    "--pad"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0,
+   "note": "raw encoder output: no trailing newline"
+  },
+  {
+   "id": "rfc4648-base64url-nopad-0",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-e",
+    "--no-pad"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0,
+   "note": "RFC 4648 section 3.2 permits omitting padding when specified"
+  },
+  {
+   "id": "rfc4648-base64url-pad-1",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-e",
+    "--pad"
+   ],
+   "stdin": "252f10c83610ebca",
+   "expected_stdout_hex": "5a673d3d",
+   "expected_status": 0,
+   "note": "raw encoder output: no trailing newline"
+  },
+  {
+   "id": "rfc4648-base64url-nopad-1",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-e",
+    "--no-pad"
+   ],
+   "stdin": "252f10c83610ebca",
+   "expected_stdout_hex": "5a67",
+   "expected_status": 0,
+   "note": "RFC 4648 section 3.2 permits omitting padding when specified"
+  },
+  {
+   "id": "rfc4648-base64url-decode-1",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-d"
+   ],
+   "stdin": "2135a0dffabe75a3",
+   "expected_stdout_hex": "66",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4648-base64url-pad-2",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-e",
+    "--pad"
+   ],
+   "stdin": "9c3aee7110b787f0",
+   "expected_stdout_hex": "5a6d383d",
+   "expected_status": 0,
+   "note": "raw encoder output: no trailing newline"
+  },
+  {
+   "id": "rfc4648-base64url-nopad-2",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-e",
+    "--no-pad"
+   ],
+   "stdin": "9c3aee7110b787f0",
+   "expected_stdout_hex": "5a6d38",
+   "expected_status": 0,
+   "note": "RFC 4648 section 3.2 permits omitting padding when specified"
+  },
+  {
+   "id": "rfc4648-base64url-decode-2",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-d"
+   ],
+   "stdin": "a25495ab37f291bc",
+   "expected_stdout_hex": "666f",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4648-base64url-pad-3",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-e",
+    "--pad"
+   ],
+   "stdin": "2c26b46b68ffc68f",
+   "expected_stdout_hex": "5a6d3976",
+   "expected_status": 0,
+   "note": "raw encoder output: no trailing newline"
+  },
+  {
+   "id": "rfc4648-base64url-nopad-3",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-e",
+    "--no-pad"
+   ],
+   "stdin": "2c26b46b68ffc68f",
+   "expected_stdout_hex": "5a6d3976",
+   "expected_status": 0,
+   "note": "RFC 4648 section 3.2 permits omitting padding when specified"
+  },
+  {
+   "id": "rfc4648-base64url-decode-3",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-d"
+   ],
+   "stdin": "a9348e4afdda1c9e",
+   "expected_stdout_hex": "666f6f",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4648-base64url-pad-4",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-e",
+    "--pad"
+   ],
+   "stdin": "a7452118bfc838ee",
+   "expected_stdout_hex": "5a6d397659673d3d",
+   "expected_status": 0,
+   "note": "raw encoder output: no trailing newline"
+  },
+  {
+   "id": "rfc4648-base64url-nopad-4",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-e",
+    "--no-pad"
+   ],
+   "stdin": "a7452118bfc838ee",
+   "expected_stdout_hex": "5a6d39765967",
+   "expected_status": 0,
+   "note": "RFC 4648 section 3.2 permits omitting padding when specified"
+  },
+  {
+   "id": "rfc4648-base64url-decode-4",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-d"
+   ],
+   "stdin": "a936dc113743c1e0",
+   "expected_stdout_hex": "666f6f62",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4648-base64url-pad-5",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-e",
+    "--pad"
+   ],
+   "stdin": "41cbe1a879814903",
+   "expected_stdout_hex": "5a6d3976596d453d",
+   "expected_status": 0,
+   "note": "raw encoder output: no trailing newline"
+  },
+  {
+   "id": "rfc4648-base64url-nopad-5",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-e",
+    "--no-pad"
+   ],
+   "stdin": "41cbe1a879814903",
+   "expected_stdout_hex": "5a6d3976596d45",
+   "expected_status": 0,
+   "note": "RFC 4648 section 3.2 permits omitting padding when specified"
+  },
+  {
+   "id": "rfc4648-base64url-decode-5",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-d"
+   ],
+   "stdin": "de50cbd7f634e36f",
+   "expected_stdout_hex": "666f6f6261",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc4648-base64url-pad-6",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-e",
+    "--pad"
+   ],
+   "stdin": "c3ab8ff13720e8ad",
+   "expected_stdout_hex": "5a6d3976596d4679",
+   "expected_status": 0,
+   "note": "raw encoder output: no trailing newline"
+  },
+  {
+   "id": "rfc4648-base64url-nopad-6",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-e",
+    "--no-pad"
+   ],
+   "stdin": "c3ab8ff13720e8ad",
+   "expected_stdout_hex": "5a6d3976596d4679",
+   "expected_status": 0,
+   "note": "RFC 4648 section 3.2 permits omitting padding when specified"
+  },
+  {
+   "id": "rfc4648-base64url-decode-6",
+   "loadable": "crypto",
+   "rfc": 4648,
+   "section": "10",
+   "argv": [
+    "crypto",
+    "base64url",
+    "-d"
+   ],
+   "stdin": "d7e924568e9c1fcd",
+   "expected_stdout_hex": "666f6f626172",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha1-59",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+    "-t",
+    "59",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha1"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "39343238373038320a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha1-59",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+    "-c",
+    "94287082",
+    "-w",
+    "0",
+    "-t",
+    "59",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha1"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha256-59",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",
+    "-t",
+    "59",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha256"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "34363131393234360a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha256-59",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",
+    "-c",
+    "46119246",
+    "-w",
+    "0",
+    "-t",
+    "59",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha256"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha512-59",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",
+    "-t",
+    "59",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha512"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "39303639333933360a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha512-59",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",
+    "-c",
+    "90693936",
+    "-w",
+    "0",
+    "-t",
+    "59",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha512"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha1-1111111109",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+    "-t",
+    "1111111109",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha1"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "30373038313830340a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha1-1111111109",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+    "-c",
+    "07081804",
+    "-w",
+    "0",
+    "-t",
+    "1111111109",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha1"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha256-1111111109",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",
+    "-t",
+    "1111111109",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha256"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "36383038343737340a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha256-1111111109",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",
+    "-c",
+    "68084774",
+    "-w",
+    "0",
+    "-t",
+    "1111111109",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha256"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha512-1111111109",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",
+    "-t",
+    "1111111109",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha512"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "32353039313230310a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha512-1111111109",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",
+    "-c",
+    "25091201",
+    "-w",
+    "0",
+    "-t",
+    "1111111109",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha512"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha1-1111111111",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+    "-t",
+    "1111111111",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha1"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "31343035303437310a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha1-1111111111",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+    "-c",
+    "14050471",
+    "-w",
+    "0",
+    "-t",
+    "1111111111",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha1"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha256-1111111111",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",
+    "-t",
+    "1111111111",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha256"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "36373036323637340a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha256-1111111111",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",
+    "-c",
+    "67062674",
+    "-w",
+    "0",
+    "-t",
+    "1111111111",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha256"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha512-1111111111",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",
+    "-t",
+    "1111111111",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha512"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "39393934333332360a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha512-1111111111",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",
+    "-c",
+    "99943326",
+    "-w",
+    "0",
+    "-t",
+    "1111111111",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha512"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha1-1234567890",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+    "-t",
+    "1234567890",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha1"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "38393030353932340a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha1-1234567890",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+    "-c",
+    "89005924",
+    "-w",
+    "0",
+    "-t",
+    "1234567890",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha1"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha256-1234567890",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",
+    "-t",
+    "1234567890",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha256"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "39313831393432340a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha256-1234567890",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",
+    "-c",
+    "91819424",
+    "-w",
+    "0",
+    "-t",
+    "1234567890",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha256"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha512-1234567890",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",
+    "-t",
+    "1234567890",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha512"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "39333434313131360a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha512-1234567890",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",
+    "-c",
+    "93441116",
+    "-w",
+    "0",
+    "-t",
+    "1234567890",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha512"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha1-2000000000",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+    "-t",
+    "2000000000",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha1"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "36393237393033370a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha1-2000000000",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+    "-c",
+    "69279037",
+    "-w",
+    "0",
+    "-t",
+    "2000000000",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha1"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha256-2000000000",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",
+    "-t",
+    "2000000000",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha256"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "39303639383832350a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha256-2000000000",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",
+    "-c",
+    "90698825",
+    "-w",
+    "0",
+    "-t",
+    "2000000000",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha256"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha512-2000000000",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",
+    "-t",
+    "2000000000",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha512"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "33383631383930310a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha512-2000000000",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",
+    "-c",
+    "38618901",
+    "-w",
+    "0",
+    "-t",
+    "2000000000",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha512"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha1-20000000000",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+    "-t",
+    "20000000000",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha1"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "36353335333133300a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha1-20000000000",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+    "-c",
+    "65353130",
+    "-w",
+    "0",
+    "-t",
+    "20000000000",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha1"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha256-20000000000",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",
+    "-t",
+    "20000000000",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha256"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "37373733373730360a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha256-20000000000",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",
+    "-c",
+    "77737706",
+    "-w",
+    "0",
+    "-t",
+    "20000000000",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha256"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc6238-totp-sha512-20000000000",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "generate",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",
+    "-t",
+    "20000000000",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha512"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "34373836333832360a",
+   "expected_status": 0,
+   "note": "Appendix B's prose names a 20-byte seed; the table uses the Appendix A 32/64-byte seeds (RFC 6238 erratum 2866)"
+  },
+  {
+   "id": "rfc6238-totp-verify-sha512-20000000000",
+   "loadable": "totp",
+   "rfc": 6238,
+   "section": "Appendix B",
+   "argv": [
+    "totp",
+    "verify",
+    "-k",
+    "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",
+    "-c",
+    "47863826",
+    "-w",
+    "0",
+    "-t",
+    "20000000000",
+    "-d",
+    "8",
+    "-s",
+    "30",
+    "-a",
+    "sha512"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed25519-pub-1",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST 1",
+   "argv": [
+    "crypto",
+    "ed25519-pub",
+    "-k",
+    "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "643735613938303138326231306162376435346266656433633936343037336130656531373266336461613632333235616630323161363866373037353131610a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed25519-sign-1",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST 1",
+   "argv": [
+    "crypto",
+    "ed25519-sign",
+    "-k",
+    "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "65353536343330306333363061633732393038366532636338303665383238613834383737663165623865356439373464383733653036353232343930313535356662383832313539306133336261636336316533393730316366396234366264323562663566303539356262653234363535313431343338653761313030620a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed25519-verify-1",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST 1",
+   "argv": [
+    "crypto",
+    "ed25519-verify",
+    "-k",
+    "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+    "-s",
+    "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed25519-verify-altered-1",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST 1",
+   "argv": [
+    "crypto",
+    "ed25519-verify",
+    "-k",
+    "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+    "-s",
+    "e4564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 1,
+   "note": "first signature byte flipped; RFC 8032 5.1.7 verification must reject"
+  },
+  {
+   "id": "rfc8032-ed25519-pub-2",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST 2",
+   "argv": [
+    "crypto",
+    "ed25519-pub",
+    "-k",
+    "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "336434303137633365383433383935613932623730616137346431623765626339633938326363663265633439363863633063643535663132616634363630630a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed25519-sign-2",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST 2",
+   "argv": [
+    "crypto",
+    "ed25519-sign",
+    "-k",
+    "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb",
+    "-x"
+   ],
+   "stdin": "454349e422f05297",
+   "expected_stdout_hex": "39326130303961396630643463616238373230653832306235663634323534306132623237623534313635303366386662333736323232336562646236396461303835616331653433653135393936653435386633363133643066313164386333383762326561656234333032616565623030643239313631326262306330300a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed25519-verify-2",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST 2",
+   "argv": [
+    "crypto",
+    "ed25519-verify",
+    "-k",
+    "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
+    "-s",
+    "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00"
+   ],
+   "stdin": "454349e422f05297",
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed25519-verify-altered-2",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST 2",
+   "argv": [
+    "crypto",
+    "ed25519-verify",
+    "-k",
+    "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
+    "-s",
+    "93a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00"
+   ],
+   "stdin": "454349e422f05297",
+   "expected_stdout_hex": "",
+   "expected_status": 1,
+   "note": "first signature byte flipped; RFC 8032 5.1.7 verification must reject"
+  },
+  {
+   "id": "rfc8032-ed25519-pub-3",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST 3",
+   "argv": [
+    "crypto",
+    "ed25519-pub",
+    "-k",
+    "c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "666335316364386536323138613161333864613437656430303233306630353830383136656431336261333330336163356465623931313534383930383032350a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed25519-sign-3",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST 3",
+   "argv": [
+    "crypto",
+    "ed25519-sign",
+    "-k",
+    "c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7",
+    "-x"
+   ],
+   "stdin": "0598c67e908a9766",
+   "expected_stdout_hex": "36323931643635376465656332343032343832376536396333616265303161333063653534386132383437343361343435653336383064376462356163336163313866663962353338643136663239306165363766373630393834646336353934613763313565393731366564323864633032376265636565613165633430610a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed25519-verify-3",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST 3",
+   "argv": [
+    "crypto",
+    "ed25519-verify",
+    "-k",
+    "fc51cd8e6218a1a38da47ed00230f0580816ed13ba3303ac5deb911548908025",
+    "-s",
+    "6291d657deec24024827e69c3abe01a30ce548a284743a445e3680d7db5ac3ac18ff9b538d16f290ae67f760984dc6594a7c15e9716ed28dc027beceea1ec40a"
+   ],
+   "stdin": "0598c67e908a9766",
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed25519-verify-altered-3",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST 3",
+   "argv": [
+    "crypto",
+    "ed25519-verify",
+    "-k",
+    "fc51cd8e6218a1a38da47ed00230f0580816ed13ba3303ac5deb911548908025",
+    "-s",
+    "6391d657deec24024827e69c3abe01a30ce548a284743a445e3680d7db5ac3ac18ff9b538d16f290ae67f760984dc6594a7c15e9716ed28dc027beceea1ec40a"
+   ],
+   "stdin": "0598c67e908a9766",
+   "expected_stdout_hex": "",
+   "expected_status": 1,
+   "note": "first signature byte flipped; RFC 8032 5.1.7 verification must reject"
+  },
+  {
+   "id": "rfc8032-ed25519-pub-1024",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST 1024",
+   "argv": [
+    "crypto",
+    "ed25519-pub",
+    "-k",
+    "f5e5767cf153319517630f226876b86c8160cc583bc013744c6bf255f5cc0ee5",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "323738313137666331343463373233343066363764306632333136653833383663656666626632623234323863396335316665663763353937663164343236650a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed25519-sign-1024",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST 1024",
+   "argv": [
+    "crypto",
+    "ed25519-sign",
+    "-k",
+    "f5e5767cf153319517630f226876b86c8160cc583bc013744c6bf255f5cc0ee5",
+    "-x"
+   ],
+   "stdin": "358c67baee6b3e02",
+   "expected_stdout_hex": "30616162346339303035303162336532346437636466343636333332366133613837646635653438343362326362646236376362663665343630666563333530616135333731623135303866396634353238656365613233633433366439346235653866636434663638316533306136616330306139373034613138386130330a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed25519-verify-1024",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST 1024",
+   "argv": [
+    "crypto",
+    "ed25519-verify",
+    "-k",
+    "278117fc144c72340f67d0f2316e8386ceffbf2b2428c9c51fef7c597f1d426e",
+    "-s",
+    "0aab4c900501b3e24d7cdf4663326a3a87df5e4843b2cbdb67cbf6e460fec350aa5371b1508f9f4528ecea23c436d94b5e8fcd4f681e30a6ac00a9704a188a03"
+   ],
+   "stdin": "358c67baee6b3e02",
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed25519-verify-altered-1024",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST 1024",
+   "argv": [
+    "crypto",
+    "ed25519-verify",
+    "-k",
+    "278117fc144c72340f67d0f2316e8386ceffbf2b2428c9c51fef7c597f1d426e",
+    "-s",
+    "0bab4c900501b3e24d7cdf4663326a3a87df5e4843b2cbdb67cbf6e460fec350aa5371b1508f9f4528ecea23c436d94b5e8fcd4f681e30a6ac00a9704a188a03"
+   ],
+   "stdin": "358c67baee6b3e02",
+   "expected_stdout_hex": "",
+   "expected_status": 1,
+   "note": "first signature byte flipped; RFC 8032 5.1.7 verification must reject"
+  },
+  {
+   "id": "rfc8032-ed25519-pub-shaabc",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST SHA(abc)",
+   "argv": [
+    "crypto",
+    "ed25519-pub",
+    "-k",
+    "833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "656331373262393361643565353633626634393332633730653132343530333463333534363765663265666434643634656266383139363833343637653262660a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed25519-sign-shaabc",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST SHA(abc)",
+   "argv": [
+    "crypto",
+    "ed25519-sign",
+    "-k",
+    "833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42",
+    "-x"
+   ],
+   "stdin": "2b8e2baefea41ddf",
+   "expected_stdout_hex": "64633261343435396537333639363333613532623162663237373833396130303230313030396133656662663365636236396265613231383663323662353839303933353166633961633930623365636664666263376336363433316530333033646361313739633133386163313761643962656631313737333331613730340a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed25519-verify-shaabc",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST SHA(abc)",
+   "argv": [
+    "crypto",
+    "ed25519-verify",
+    "-k",
+    "ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf",
+    "-s",
+    "dc2a4459e7369633a52b1bf277839a00201009a3efbf3ecb69bea2186c26b58909351fc9ac90b3ecfdfbc7c66431e0303dca179c138ac17ad9bef1177331a704"
+   ],
+   "stdin": "2b8e2baefea41ddf",
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed25519-verify-altered-shaabc",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.1 TEST SHA(abc)",
+   "argv": [
+    "crypto",
+    "ed25519-verify",
+    "-k",
+    "ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf",
+    "-s",
+    "dd2a4459e7369633a52b1bf277839a00201009a3efbf3ecb69bea2186c26b58909351fc9ac90b3ecfdfbc7c66431e0303dca179c138ac17ad9bef1177331a704"
+   ],
+   "stdin": "2b8e2baefea41ddf",
+   "expected_stdout_hex": "",
+   "expected_status": 1,
+   "note": "first signature byte flipped; RFC 8032 5.1.7 verification must reject"
+  },
+  {
+   "id": "rfc8032-ed448-verify-blank",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.4 Blank",
+   "argv": [
+    "crypto",
+    "ed448-verify",
+    "-k",
+    "5fd7449b59b461fd2ce787ec616ad46a1da1342485a70e1f8a0ea75d80e96778edf124769b46c7061bd6783df1e50f6cd1fa1abeafe8256180",
+    "-s",
+    "533a37f6bbe457251f023c0d88f976ae2dfb504a843e34d2074fd823d41a591f2b233f034f628281f2fd7a22ddd47d7828c59bd0a21bfd3980ff0d2028d4b18a9df63e006c5d1c2d345b925d8dc00b4104852db99ac5c7cdda8530a113a0f4dbb61149f05a7363268c71d95808ff2e652600"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed448-verify-1",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.4 1 octet",
+   "argv": [
+    "crypto",
+    "ed448-verify",
+    "-k",
+    "43ba28f430cdff456ae531545f7ecd0ac834a55d9358c0372bfa0c6c6798c0866aea01eb00742802b8438ea4cb82169c235160627b4c3a9480",
+    "-s",
+    "26b8f91727bd62897af15e41eb43c377efb9c610d48f2335cb0bd0087810f4352541b143c4b981b7e18f62de8ccdf633fc1bf037ab7cd779805e0dbcc0aae1cbcee1afb2e027df36bc04dcecbf154336c19f0af7e0a6472905e799f1953d2a0ff3348ab21aa4adafd1d234441cf807c03a00"
+   ],
+   "stdin": "084fed08b978af4d",
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed448-verify-11",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.4 11 octets",
+   "argv": [
+    "crypto",
+    "ed448-verify",
+    "-k",
+    "dcea9e78f35a1bf3499a831b10b86c90aac01cd84b67a0109b55a36e9328b1e365fce161d71ce7131a543ea4cb5f7e9f1d8b00696447001400",
+    "-s",
+    "1f0a8888ce25e8d458a21130879b840a9089d999aaba039eaf3e3afa090a09d389dba82c4ff2ae8ac5cdfb7c55e94d5d961a29fe0109941e00b8dbdeea6d3b051068df7254c0cdc129cbe62db2dc957dbb47b51fd3f213fb8698f064774250a5028961c9bf8ffd973fe5d5c206492b140e00"
+   ],
+   "stdin": "eccf29cd1cb2fac1",
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed448-verify-12",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.4 12 octets",
+   "argv": [
+    "crypto",
+    "ed448-verify",
+    "-k",
+    "3ba16da0c6f2cc1f30187740756f5e798d6bc5fc015d7c63cc9510ee3fd44adc24d8e968b6e46e6f94d19b945361726bd75e149ef09817f580",
+    "-s",
+    "7eeeab7c4e50fb799b418ee5e3197ff6bf15d43a14c34389b59dd1a7b1b85b4ae90438aca634bea45e3a2695f1270f07fdcdf7c62b8efeaf00b45c2c96ba457eb1a8bf075a3db28e5c24f6b923ed4ad747c3c9e03c7079efb87cb110d3a99861e72003cbae6d6b8b827e4e6c143064ff3c00"
+   ],
+   "stdin": "d8cdd44e2e55d55f",
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed448-verify-13",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.4 13 octets",
+   "argv": [
+    "crypto",
+    "ed448-verify",
+    "-k",
+    "b3da079b0aa493a5772029f0467baebee5a8112d9d3a22532361da294f7bb3815c5dc59e176b4d9f381ca0938e13c6c07b174be65dfa578e80",
+    "-s",
+    "6a12066f55331b6c22acd5d5bfc5d71228fbda80ae8dec26bdd306743c5027cb4890810c162c027468675ecf645a83176c0d7323a2ccde2d80efe5a1268e8aca1d6fbc194d3f77c44986eb4ab4177919ad8bec33eb47bbb5fc6e28196fd1caf56b4e7e0ba5519234d047155ac727a1053100"
+   ],
+   "stdin": "e7b62534e9b680c8",
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed448-verify-64",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.4 64 octets",
+   "argv": [
+    "crypto",
+    "ed448-verify",
+    "-k",
+    "df9705f58edbab802c7f8363cfe5560ab1c6132c20a9f1dd163483a26f8ac53a39d6808bf4a1dfbd261b099bb03b3fb50906cb28bd8a081f00",
+    "-s",
+    "554bc2480860b49eab8532d2a533b7d578ef473eeb58c98bb2d0e1ce488a98b18dfde9b9b90775e67f47d4a1c3482058efc9f40d2ca033a0801b63d45b3b722ef552bad3b4ccb667da350192b61c508cf7b6b5adadc2c8d9a446ef003fb05cba5f30e88e36ec2703b349ca229c2670833900"
+   ],
+   "stdin": "132fb0060641971f",
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed448-verify-256",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.4 256 octets",
+   "argv": [
+    "crypto",
+    "ed448-verify",
+    "-k",
+    "79756f014dcfe2079f5dd9e718be4171e2ef2486a08f25186f6bff43a9936b9bfe12402b08ae65798a3d81e22e9ec80e7690862ef3d4ed3a00",
+    "-s",
+    "c650ddbb0601c19ca11439e1640dd931f43c518ea5bea70d3dcde5f4191fe53f00cf966546b72bcc7d58be2b9badef28743954e3a44a23f880e8d4f1cfce2d7a61452d26da05896f0a50da66a239a8a188b6d825b3305ad77b73fbac0836ecc60987fd08527c1a8e80d5823e65cafe2a3d00"
+   ],
+   "stdin": "544d5006e2126dff",
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8032-ed448-verify-1023",
+   "loadable": "crypto",
+   "rfc": 8032,
+   "section": "7.4 1023 octets",
+   "argv": [
+    "crypto",
+    "ed448-verify",
+    "-k",
+    "a81b2e8a70a5ac94ffdbcc9badfc3feb0801f258578bb114ad44ece1ec0e799da08effb81c5d685c0c56f64eecaef8cdf11cc38737838cf400",
+    "-s",
+    "e301345a41a39a4d72fff8df69c98075a0cc082b802fc9b2b6bc503f926b65bddf7f4c8f1cb49f6396afc8a70abe6d8aef0db478d4c6b2970076c6a0484fe76d76b3a97625d79f1ce240e7c576750d295528286f719b413de9ada3e8eb78ed573603ce30d8bb761785dc30dbc320869e1a00"
+   ],
+   "stdin": "c590c804b8d1de0b",
+   "expected_stdout_hex": "",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc7748-x25519-1",
+   "loadable": "crypto",
+   "rfc": 7748,
+   "section": "5.2",
+   "argv": [
+    "crypto",
+    "x25519-shared",
+    "-p",
+    "e6db6867583030db3594c1a424b15f7c726624ec26b3353b10a903a6d0ab1c4c",
+    "-k",
+    "a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "633364613535333739646539633639303865393465613464663238643038346633326563636630333439316337316637353462343037353537376132383535320a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc7748-x25519-2",
+   "loadable": "crypto",
+   "rfc": 7748,
+   "section": "5.2",
+   "argv": [
+    "crypto",
+    "x25519-shared",
+    "-p",
+    "e5210f12786811d3f4b7959d0538ae2c31dbe7106fc03c3efc4cd549c715a493",
+    "-k",
+    "4b66e9d4d1b4673c5ad22691957d6af5c11b6421e0ea01d42ca4169e7918ba0d",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "393563626465393437366538393037643761616465343563623462383733663838623539356136383739396661313532653666386637363437616163373935370a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc7748-x25519-alice-public",
+   "loadable": "crypto",
+   "rfc": 7748,
+   "section": "6.1",
+   "argv": [
+    "crypto",
+    "x25519-pub",
+    "-k",
+    "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "383532306630303938393330613735343734386237646463623433656637356130646266336130643236333831616634656261346139386561613962346536610a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc7748-x25519-bob-public",
+   "loadable": "crypto",
+   "rfc": 7748,
+   "section": "6.1",
+   "argv": [
+    "crypto",
+    "x25519-pub",
+    "-k",
+    "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "646539656462376437623764633162346433356236316332656365343335333733663833343363383562373836373464616466633765313436663838326234660a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc7748-x25519-alice-shared",
+   "loadable": "crypto",
+   "rfc": 7748,
+   "section": "6.1",
+   "argv": [
+    "crypto",
+    "x25519-shared",
+    "-p",
+    "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f",
+    "-k",
+    "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "346135643964356261346365326465313732386533626634383033353066323565303765323163393437643139653333373666303962336331653136313734320a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc7748-x25519-bob-shared",
+   "loadable": "crypto",
+   "rfc": 7748,
+   "section": "6.1",
+   "argv": [
+    "crypto",
+    "x25519-shared",
+    "-p",
+    "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a",
+    "-k",
+    "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb",
+    "-x"
+   ],
+   "stdin": null,
+   "expected_stdout_hex": "346135643964356261346365326465313732386533626634383033353066323565303765323163393437643139653333373666303962336331653136313734320a",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8439-chacha20-poly1305-encrypt",
+   "loadable": "crypto",
+   "rfc": 8439,
+   "section": "2.8.2",
+   "argv": [
+    "crypto",
+    "chacha20-poly1305",
+    "-e",
+    "-k",
+    "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
+    "-n",
+    "070000004041424344454647",
+    "-A",
+    "50515253c0c1c2c3c4c5c6c7"
+   ],
+   "stdin": "34dbfcbbe73c5919",
+   "expected_stdout_hex": "d31a8d34648e60db7b86afbc53ef7ec2a4aded51296e08fea9e2b5a736ee62d63dbea45e8ca9671282fafb69da92728b1a71de0a9e060b2905d6a5b67ecd3b3692ddbd7f2d778b8c9803aee328091b58fab324e4fad675945585808b4831d7bc3ff4def08e4b7a9de576d26586cec64b61161ae10b594f09e26a7e902ecbd0600691",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc8439-chacha20-poly1305-decrypt",
+   "loadable": "crypto",
+   "rfc": 8439,
+   "section": "2.8.2",
+   "argv": [
+    "crypto",
+    "chacha20-poly1305",
+    "-d",
+    "-k",
+    "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
+    "-n",
+    "070000004041424344454647",
+    "-A",
+    "50515253c0c1c2c3c4c5c6c7"
+   ],
+   "stdin": "4e54427e462f3beb",
+   "expected_stdout_hex": "4c616469657320616e642047656e746c656d656e206f662074686520636c617373206f66202739393a204966204920636f756c64206f6666657220796f75206f6e6c79206f6e652074697020666f7220746865206675747572652c2073756e73637265656e20776f756c642062652069742e",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc5297-a1-encrypt",
+   "loadable": "crypto",
+   "rfc": 5297,
+   "section": "A1",
+   "argv": [
+    "crypto",
+    "aes-siv-cmac",
+    "-e",
+    "-k",
+    "fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+    "-A",
+    "101112131415161718191a1b1c1d1e1f2021222324252627"
+   ],
+   "stdin": "5a68d9adf4fd31c0",
+   "expected_stdout_hex": "85632d07c6e8f37f950acd320a2ecc9340c02b9690c4dc04daef7f6afe5c",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc5297-a1-decrypt",
+   "loadable": "crypto",
+   "rfc": 5297,
+   "section": "A1",
+   "argv": [
+    "crypto",
+    "aes-siv-cmac",
+    "-d",
+    "-k",
+    "fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+    "-A",
+    "101112131415161718191a1b1c1d1e1f2021222324252627"
+   ],
+   "stdin": "3ae1e7e87218ad76",
+   "expected_stdout_hex": "112233445566778899aabbccddee",
+   "expected_status": 0
+  },
+  {
+   "id": "rfc5297-a2-encrypt",
+   "loadable": "crypto",
+   "rfc": 5297,
+   "section": "A2",
+   "argv": [
+    "crypto",
+    "aes-siv-cmac",
+    "-e",
+    "-k",
+    "7f7e7d7c7b7a79787776757473727170404142434445464748494a4b4c4d4e4f",
+    "-A",
+    "00112233445566778899aabbccddeeffdeaddadadeaddadaffeeddccbbaa99887766554433221100",
+    "-A",
+    "102030405060708090a0",
+    "-A",
+    "09f911029d74e35bd84156c5635688c0"
+   ],
+   "stdin": "8a9265b5df815a1f",
+   "expected_stdout_hex": "7bdb6e3b432667eb06f4d14bff2fbd0fcb900f2fddbe404326601965c889bf17dba77ceb094fa663b7a3f748ba8af829ea64ad544a272e9c485b62a3fd5c0d",
+   "expected_status": 0,
+   "note": "A.2 passes the nonce as the final associated-data component (RFC 5297 section 3)"
+  },
+  {
+   "id": "rfc5297-a2-decrypt",
+   "loadable": "crypto",
+   "rfc": 5297,
+   "section": "A2",
+   "argv": [
+    "crypto",
+    "aes-siv-cmac",
+    "-d",
+    "-k",
+    "7f7e7d7c7b7a79787776757473727170404142434445464748494a4b4c4d4e4f",
+    "-A",
+    "00112233445566778899aabbccddeeffdeaddadadeaddadaffeeddccbbaa99887766554433221100",
+    "-A",
+    "102030405060708090a0",
+    "-A",
+    "09f911029d74e35bd84156c5635688c0"
+   ],
+   "stdin": "7d5b5be21b074693",
+   "expected_stdout_hex": "7468697320697320736f6d6520706c61696e7465787420746f20656e6372797074207573696e67205349562d414553",
+   "expected_status": 0
+  }
+ ],
+ "not_executable": [
+  {
+   "id": "rfc4231-testcase5",
+   "rfc": 4231,
+   "section": "4.6",
+   "reason": "truncated 128-bit outputs; the full HMAC is not published"
+  },
+  {
+   "id": "rfc6070-pbkdf2-sha1-4",
+   "rfc": 6070,
+   "section": "2",
+   "reason": "c=16777216 is a 16M-iteration stress vector; omitted from the bounded VM run"
+  },
+  {
+   "id": "rfc6070-pbkdf2-sha1-6",
+   "rfc": 6070,
+   "section": "2",
+   "reason": "password contains NUL; -p PASSWORD is a C string from Bash argv"
+  }
+ ],
+ "inputs": {
+  "cc6d5896d770101e": {
+   "hex": "4869205468657265",
+   "repeat": 1
+  },
+  "b381e7fec653fc3a": {
+   "hex": "7768617420646f2079612077616e7420666f72206e6f7468696e673f",
+   "repeat": 1
+  },
+  "5cf618b5b6d38bd1": {
+   "hex": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+   "repeat": 1
+  },
+  "cad29ff89951a3c0": {
+   "hex": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+   "repeat": 1
+  },
+  "96495f0740296c6e": {
+   "hex": "54657374205573696e67204c6172676572205468616e20426c6f636b2d53697a65204b6579202d2048617368204b6579204669727374",
+   "repeat": 1
+  },
+  "a5ef369e36e2734f": {
+   "hex": "5468697320697320612074657374207573696e672061206c6172676572207468616e20626c6f636b2d73697a65206b657920616e642061206c6172676572207468616e20626c6f636b2d73697a6520646174612e20546865206b6579206e6565647320746f20626520686173686564206265666f7265206265696e6720757365642062792074686520484d414320616c676f726974686d2e",
+   "repeat": 1
+  },
+  "94e888920c7246b6": {
+   "hex": "546573742057697468205472756e636174696f6e",
+   "repeat": 1
+  },
+  "39603f823057dd02": {
+   "hex": "54657374205573696e67204c6172676572205468616e20426c6f636b2d53697a65204b657920616e64204c6172676572205468616e204f6e6520426c6f636b2d53697a652044617461",
+   "repeat": 1
+  },
+  "ca978112ca1bbdca": {
+   "hex": "61",
+   "repeat": 1
+  },
+  "ba7816bf8f01cfea": {
+   "hex": "616263",
+   "repeat": 1
+  },
+  "f7846f55cf23e14e": {
+   "hex": "6d65737361676520646967657374",
+   "repeat": 1
+  },
+  "71c480df93d6ae2f": {
+   "hex": "6162636465666768696a6b6c6d6e6f707172737475767778797a",
+   "repeat": 1
+  },
+  "db4bfcbd4da0cd85": {
+   "hex": "4142434445464748494a4b4c4d4e4f505152535455565758595a6162636465666768696a6b6c6d6e6f707172737475767778797a30313233343536373839",
+   "repeat": 1
+  },
+  "f371bc4a311f2b00": {
+   "hex": "3132333435363738393031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334353637383930",
+   "repeat": 1
+  },
+  "248d6a61d20638b8": {
+   "hex": "6162636462636465636465666465666765666768666768696768696a68696a6b696a6b6c6a6b6c6d6b6c6d6e6c6d6e6f6d6e6f706e6f7071",
+   "repeat": 1
+  },
+  "cdc76e5c9914fb92": {
+   "hex": "61",
+   "repeat": 1000000
+  },
+  "594847328451bdfa": {
+   "hex": "30313233343536373031323334353637303132333435363730313233343536373031323334353637303132333435363730313233343536373031323334353637",
+   "repeat": 10
+  },
+  "cf5b16a778af8380": {
+   "hex": "61626364656667686263646566676869636465666768696a6465666768696a6b65666768696a6b6c666768696a6b6c6d6768696a6b6c6d6e68696a6b6c6d6e6f696a6b6c6d6e6f706a6b6c6d6e6f70716b6c6d6e6f7071726c6d6e6f707172736d6e6f70717273746e6f707172737475",
+   "repeat": 1
+  },
+  "252f10c83610ebca": {
+   "hex": "66",
+   "repeat": 1
+  },
+  "2135a0dffabe75a3": {
+   "hex": "5a673d3d",
+   "repeat": 1
+  },
+  "9c3aee7110b787f0": {
+   "hex": "666f",
+   "repeat": 1
+  },
+  "a25495ab37f291bc": {
+   "hex": "5a6d383d",
+   "repeat": 1
+  },
+  "2c26b46b68ffc68f": {
+   "hex": "666f6f",
+   "repeat": 1
+  },
+  "a9348e4afdda1c9e": {
+   "hex": "5a6d3976",
+   "repeat": 1
+  },
+  "a7452118bfc838ee": {
+   "hex": "666f6f62",
+   "repeat": 1
+  },
+  "a936dc113743c1e0": {
+   "hex": "5a6d397659673d3d",
+   "repeat": 1
+  },
+  "41cbe1a879814903": {
+   "hex": "666f6f6261",
+   "repeat": 1
+  },
+  "de50cbd7f634e36f": {
+   "hex": "5a6d3976596d453d",
+   "repeat": 1
+  },
+  "c3ab8ff13720e8ad": {
+   "hex": "666f6f626172",
+   "repeat": 1
+  },
+  "d7e924568e9c1fcd": {
+   "hex": "5a6d3976596d4679",
+   "repeat": 1
+  },
+  "454349e422f05297": {
+   "hex": "72",
+   "repeat": 1
+  },
+  "0598c67e908a9766": {
+   "hex": "af82",
+   "repeat": 1
+  },
+  "358c67baee6b3e02": {
+   "hex": "08b8b2b733424243760fe426a4b54908632110a66c2f6591eabd3345e3e4eb98fa6e264bf09efe12ee50f8f54e9f77b1e355f6c50544e23fb1433ddf73be84d879de7c0046dc4996d9e773f4bc9efe5738829adb26c81b37c93a1b270b20329d658675fc6ea534e0810a4432826bf58c941efb65d57a338bbd2e26640f89ffbc1a858efcb8550ee3a5e1998bd177e93a7363c344fe6b199ee5d02e82d522c4feba15452f80288a821a579116ec6dad2b3b310da903401aa62100ab5d1a36553e06203b33890cc9b832f79ef80560ccb9a39ce767967ed628c6ad573cb116dbefefd75499da96bd68a8a97b928a8bbc103b6621fcde2beca1231d206be6cd9ec7aff6f6c94fcd7204ed3455c68c83f4a41da4af2b74ef5c53f1d8ac70bdcb7ed185ce81bd84359d44254d95629e9855a94a7c1958d1f8ada5d0532ed8a5aa3fb2d17ba70eb6248e594e1a2297acbbb39d502f1a8c6eb6f1ce22b3de1a1f40cc24554119a831a9aad6079cad88425de6bde1a9187ebb6092cf67bf2b13fd65f27088d78b7e883c8759d2c4f5c65adb7553878ad575f9fad878e80a0c9ba63bcbcc2732e69485bbc9c90bfbd62481d9089beccf80cfe2df16a2cf65bd92dd597b0707e0917af48bbb75fed413d238f5555a7a569d80c3414a8d0859dc65a46128bab27af87a71314f318c782b23ebfe808b82b0ce26401d2e22f04d83d1255dc51addd3b75a2b1ae0784504df543af8969be3ea7082ff7fc9888c144da2af58429ec96031dbcad3dad9af0dcbaaaf268cb8fcffead94f3c7ca495e056a9b47acdb751fb73e666c6c655ade8297297d07ad1ba5e43f1bca32301651339e22904cc8c42f58c30c04aafdb038dda0847dd988dcda6f3bfd15c4b4c4525004aa06eeff8ca61783aacec57fb3d1f92b0fe2fd1a85f6724517b65e614ad6808d6f6ee34dff7310fdc82aebfd904b01e1dc54b2927094b2db68d6f903b68401adebf5a7e08d78ff4ef5d63653a65040cf9bfd4aca7984a74d37145986780fc0b16ac451649de6188a7dbdf191f64b5fc5e2ab47b57f7f7276cd419c17a3ca8e1b939ae49e488acba6b965610b5480109c8b17b80e1b7b750dfc7598d5d5011fd2dcc5600a32ef5b52a1ecc820e308aa342721aac0943bf6686b64b2579376504ccc493d97e6aed3fb0f9cd71a43dd497f01f17c0e2cb3797aa2a2f256656168e6c496afc5fb93246f6b1116398a346f1a641f3b041e989f7914f90cc2c7fff357876e506b50d334ba77c225bc307ba537152f3f1610e4eafe595f6d9d90d11faa933a15ef1369546868a7f3a45a96768d40fd9d03412c091c6315cf4fde7cb68606937380db2eaaa707b4c4185c32eddcdd306705e4dc1ffc872eeee475a64dfac86aba41c0618983f8741c5ef68d3a101e8a3b8cac60c905c15fc910840b94c00a0b9d0",
+   "repeat": 1
+  },
+  "2b8e2baefea41ddf": {
+   "hex": "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
+   "repeat": 1
+  },
+  "084fed08b978af4d": {
+   "hex": "03",
+   "repeat": 1
+  },
+  "eccf29cd1cb2fac1": {
+   "hex": "0c3e544074ec63b0265e0c",
+   "repeat": 1
+  },
+  "d8cdd44e2e55d55f": {
+   "hex": "64a65f3cdedcdd66811e2915",
+   "repeat": 1
+  },
+  "e7b62534e9b680c8": {
+   "hex": "64a65f3cdedcdd66811e2915e7",
+   "repeat": 1
+  },
+  "132fb0060641971f": {
+   "hex": "bd0f6a3747cd561bdddf4640a332461a4a30a12a434cd0bf40d766d9c6d458e5512204a30c17d1f50b5079631f64eb3112182da3005835461113718d1a5ef944",
+   "repeat": 1
+  },
+  "544d5006e2126dff": {
+   "hex": "15777532b0bdd0d1389f636c5f6b9ba734c90af572877e2d272dd078aa1e567cfa80e12928bb542330e8409f3174504107ecd5efac61ae7504dabe2a602ede89e5cca6257a7c77e27a702b3ae39fc769fc54f2395ae6a1178cab4738e543072fc1c177fe71e92e25bf03e4ecb72f47b64d0465aaea4c7fad372536c8ba516a6039c3c2a39f0e4d832be432dfa9a706a6e5c7e19f397964ca4258002f7c0541b590316dbc5622b6b2a6fe7a4abffd96105eca76ea7b98816af0748c10df048ce012d901015a51f189f3888145c03650aa23ce894c3bd889e030d565071c59f409a9981b51878fd6fc110624dcbcde0bf7a69ccce38fabdf86f3bef6044819de11",
+   "repeat": 1
+  },
+  "c590c804b8d1de0b": {
+   "hex": "6ddf802e1aae4986935f7f981ba3f0351d6273c0a0c22c9c0e8339168e675412a3debfaf435ed651558007db4384b650fcc07e3b586a27a4f7a00ac8a6fec2cd86ae4bf1570c41e6a40c931db27b2faa15a8cedd52cff7362c4e6e23daec0fbc3a79b6806e316efcc7b68119bf46bc76a26067a53f296dafdbdc11c77f7777e972660cf4b6a9b369a6665f02e0cc9b6edfad136b4fabe723d2813db3136cfde9b6d044322fee2947952e031b73ab5c603349b307bdc27bc6cb8b8bbd7bd323219b8033a581b59eadebb09b3c4f3d2277d4f0343624acc817804728b25ab797172b4c5c21a22f9c7839d64300232eb66e53f31c723fa37fe387c7d3e50bdf9813a30e5bb12cf4cd930c40cfb4e1fc622592a49588794494d56d24ea4b40c89fc0596cc9ebb961c8cb10adde976a5d602b1c3f85b9b9a001ed3c6a4d3b1437f52096cd1956d042a597d561a596ecd3d1735a8d570ea0ec27225a2c4aaff26306d1526c1af3ca6d9cf5a2c98f47e1c46db9a33234cfd4d81f2c98538a09ebe76998d0d8fd25997c7d255c6d66ece6fa56f11144950f027795e653008f4bd7ca2dee85d8e90f3dc315130ce2a00375a318c7c3d97be2c8ce5b6db41a6254ff264fa6155baee3b0773c0f497c573f19bb4f4240281f0b1f4f7be857a4e59d416c06b4c50fa09e1810ddc6b1467baeac5a3668d11b6ecaa901440016f389f80acc4db977025e7f5924388c7e340a732e554440e76570f8dd71b7d640b3450d1fd5f0410a18f9a3494f707c717b79b4bf75c98400b096b21653b5d217cf3565c9597456f70703497a078763829bc01bb1cbc8fa04eadc9a6e3f6699587a9e75c94e5bab0036e0b2e711392cff0047d0d6b05bd2a588bc109718954259f1d86678a579a3120f19cfb2963f177aeb70f2d4844826262e51b80271272068ef5b3856fa8535aa2a88b2d41f2a0e2fda7624c2850272ac4a2f561f8f2f7a318bfd5caf9696149e4ac824ad3460538fdc25421beec2cc6818162d06bbed0c40a387192349db67a118bada6cd5ab0140ee273204f628aad1c135f770279a651e24d8c14d75a6059d76b96a6fd857def5e0b354b27ab937a5815d16b5fae407ff18222c6d1ed263be68c95f32d908bd895cd76207ae726487567f9a67dad79abec316f683b17f2d02bf07e0ac8b5bc6162cf94697b3c27cd1fea49b27f23ba2901871962506520c392da8b6ad0d99f7013fbc06c2c17a569500c8a7696481c1cd33e9b14e40b82e79a5f5db82571ba97bae3ad3e0479515bb0e2b0f3bfcd1fd33034efc6245eddd7ee2086ddae2600d8ca73e214e8c2b0bdb2b047c6a464a562ed77b73d2d841c4b34973551257713b753632efba348169abc90a68f42611a40126d7cb21b58695568186f7e569d2ff0f9e745d0487dd2eb997cafc5abf9dd102e62ff66cba87",
+   "repeat": 1
+  },
+  "34dbfcbbe73c5919": {
+   "hex": "4c616469657320616e642047656e746c656d656e206f662074686520636c617373206f66202739393a204966204920636f756c64206f6666657220796f75206f6e6c79206f6e652074697020666f7220746865206675747572652c2073756e73637265656e20776f756c642062652069742e",
+   "repeat": 1
+  },
+  "4e54427e462f3beb": {
+   "hex": "d31a8d34648e60db7b86afbc53ef7ec2a4aded51296e08fea9e2b5a736ee62d63dbea45e8ca9671282fafb69da92728b1a71de0a9e060b2905d6a5b67ecd3b3692ddbd7f2d778b8c9803aee328091b58fab324e4fad675945585808b4831d7bc3ff4def08e4b7a9de576d26586cec64b61161ae10b594f09e26a7e902ecbd0600691",
+   "repeat": 1
+  },
+  "5a68d9adf4fd31c0": {
+   "hex": "112233445566778899aabbccddee",
+   "repeat": 1
+  },
+  "3ae1e7e87218ad76": {
+   "hex": "85632d07c6e8f37f950acd320a2ecc9340c02b9690c4dc04daef7f6afe5c",
+   "repeat": 1
+  },
+  "8a9265b5df815a1f": {
+   "hex": "7468697320697320736f6d6520706c61696e7465787420746f20656e6372797074207573696e67205349562d414553",
+   "repeat": 1
+  },
+  "7d5b5be21b074693": {
+   "hex": "7bdb6e3b432667eb06f4d14bff2fbd0fcb900f2fddbe404326601965c889bf17dba77ceb094fa663b7a3f748ba8af829ea64ad544a272e9c485b62a3fd5c0d",
+   "repeat": 1
+  }
+ }
+}

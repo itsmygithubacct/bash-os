@@ -53,7 +53,7 @@
       "id": "escape-timing",
       "purpose": "Deferred check of lone ESC grace, delayed continuation, ambiguous exact-prefix sequences, and the max(400 ms, ESCDELAY*8) total cap.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM with a timed private PTY or poll/clock mock that can schedule bytes reproducibly, set BASHESCDELAY, and compare ESC/key outcomes against an independent timing model."
+      "reason": "Remaining obligations: r4: Not reachable through the candidate interface: the fixed wgetch.c bw_keys table (no fixture or terminfo loading) contains no exact key that is also a prefix of a longer key (e.g. ESC[20~ and ESC[200~ diverge at byte 5), so the exact-vs-longer resolution path in bw_read_key_fd cannot be triggered by any input. Requires a candidate key-table extension, not a fixture.; r5: Not observable: the longest wgetch key is 6 bytes and the cap timer starts after the second byte, so at most 4 further bytes each within one 50 ms slice arrive in under 200 ms, below the 400 ms minimum cap; any slower trickle ends on the 50 ms slice first. The cap can never be the deciding condition with the fixed table (kgetch's fixture-extensible table is covered by migration-kgetch-total-cap-*)."
     },
     {
       "id": "screen-queue",

@@ -1,0 +1,142 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "id": "migration-tput-padding-builtin-bytes",
+   "loadable": "tput",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "Padding through terminal names the candidate's curated table accepts, so an unknown-terminal refusal cannot hide the padding branch. linux flash has mandatory $<200/> padding and no npc: ncurses writes floor(200*38400/9000) = 853 NUL pad bytes at the PTY's 38400 baud, and 213 after 'stty 9600', so padding follows the output speed. vt100 clear carries non-mandatory $<50> (with xon): no pad bytes and no literal '$<50>'. xterm-256color flash has $<100/> with npc: a delay with no pad bytes (timing in migration-tput-padding-npc-delay). The original modes are restored with stty -g.",
+   "script": "s=$(/usr/bin/stty -g)\ntput -T linux flash; printf 'A\\n'\n/usr/bin/stty 9600\ntput -T linux flash; printf 'B\\n'\n/usr/bin/stty \"$s\"\ntput -T vt100 clear; printf 'C\\n'\ntput -T xterm-256color flash; printf 'D\\n'\n",
+   "steps": [
+    {
+     "expect": "\\x1b\\[\\?5h\\x00{853}\\x1b\\[\\?5lA\\r\\n"
+    },
+    {
+     "expect": "\\x1b\\[\\?5h\\x00{213}\\x1b\\[\\?5lB\\r\\n"
+    },
+    {
+     "expect": "\\x1b\\[H\\x1b\\[JC\\r\\n"
+    },
+    {
+     "expect": "\\x1b\\[\\?5h\\x1b\\[\\?5lD\\r\\n"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tput/compiled-terminfo"
+   ],
+   "oracle": "ncurses-bin 6.5 tput(1) on the reference PATH with the image's system terminfo database. ncurses source 6.5+20250216: tputs applies $<N> padding for tput only when mandatory ('/'), since tput has no SCREEN; delay_output writes floor(ms*baud/9000) pad characters, or, when the entry has npc, flushes and sleeps ms instead; reset_tty_settings replaces each disabled special character with its default and keeps the others; init's set_control_chars restores only erase, intr and kill; an unknown capability exits 4 with 'tput: unknown terminfo capability'.",
+   "comparison": "byte parity vs ncurses tput of the raw PTY output including pad bytes (compare_screen); step patterns state the exact pad counts the ncurses source gives for the VM-calibrated entries",
+   "compare_screen": true,
+   "requires": [
+    "tput",
+    "infocmp",
+    "stty"
+   ],
+   "setup_script": "infocmp -1 linux | grep -qxF $'\\tflash=\\\\E[?5h$<200/>\\\\E[?5l,'\ninfocmp -1 linux | grep -qxF $'\\txon,'\ninfocmp -1 xterm-256color | grep -qxF $'\\tflash=\\\\E[?5h$<100/>\\\\E[?5l,'\ninfocmp -1 xterm-256color | grep -qxF $'\\tnpc,'\ninfocmp -1 vt100 | grep -qxF $'\\tclear=\\\\E[H\\\\E[J$<50>,'\ninfocmp -1 vt100 | grep -qxF $'\\txon,'\nif infocmp -1 linux | grep -q $'^\\tnpc,'; then exit 1; fi\nif infocmp -1 linux | grep -q $'^\\tpad='; then exit 1; fi\nif infocmp -1x vt100 | grep -q $'^\\tE3='; then exit 1; fi\n",
+   "timeout": 15
+  },
+  {
+   "id": "migration-tput-padding-npc-delay",
+   "loadable": "tput",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Padding with npc: xterm-256color flash is \\E[?5h$<100/>\\E[?5l and the entry has npc, so ncurses flushes the first half, sleeps 100 ms and writes the second half with no pad bytes. padgap.py runs the command on a private PTY it owns, timestamps every byte and records the output bytes and whether >= 80 ms passed between the two halves. Both sides run the same helper; '$BASH -c' is the side's own shell (reference tput from PATH, candidate builtin).",
+   "script": "/usr/bin/python3 padgap.py \"$BASH\" 'tput -T xterm-256color flash' 1b5b3f3568 1b5b3f356c > out\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "tput/compiled-terminfo"
+   ],
+   "oracle": "ncurses-bin 6.5 tput(1) on the reference PATH with the image's system terminfo database. ncurses source 6.5+20250216: tputs applies $<N> padding for tput only when mandatory ('/'), since tput has no SCREEN; delay_output writes floor(ms*baud/9000) pad characters, or, when the entry has npc, flushes and sleeps ms instead; reset_tty_settings replaces each disabled special character with its default and keeps the others; init's set_control_chars restores only erase, intr and kill; an unknown capability exits 4 with 'tput: unknown terminfo capability'.",
+   "comparison": "semantic: exact output bytes and a coarse >= 80 ms gap predicate (100 ms documented delay), vs ncurses tput",
+   "files": {
+    "padgap.py": "import os, select, signal, subprocess, sys, time\n# Runs SHELL -c CMD on a private PTY this helper owns (child stays in this session, ignores SIGHUP) and records\n# the output bytes and whether at least 80 ms passed between the end of FIRST and the start of SECOND.\nshell, cmd, first, second = sys.argv[1], sys.argv[2], bytes.fromhex(sys.argv[3]), bytes.fromhex(sys.argv[4])\nmaster, slave = os.openpty()\nchild = subprocess.Popen([shell, '--noprofile', '--norc', '-c', cmd], stdin=slave, stdout=slave, stderr=slave,\n                         close_fds=True, preexec_fn=lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN))\nos.close(slave)\ndata, stamps, deadline = b'', [], time.monotonic() + 8\nwhile time.monotonic() < deadline:\n    if select.select([master], [], [], 0.05)[0]:\n        try:\n            chunk = os.read(master, 4096)\n        except OSError:\n            chunk = b''\n        if not chunk:\n            break\n        now = time.monotonic()\n        data += chunk\n        stamps.extend([now] * len(chunk))\nos.close(master)\ntry:\n    status = child.wait(timeout=3)\nexcept subprocess.TimeoutExpired:\n    child.kill(); status = child.wait()\nprint('bytes ' + data.hex())\na = data.find(first)\nb = data.find(second, a + len(first)) if a >= 0 else -1\nif a < 0 or b < 0:\n    print('markers-missing')\nelse:\n    gap = stamps[b] - stamps[a + len(first) - 1]\n    print('gap>=80ms' if gap >= 0.08 else 'gap<80ms')\nprint('child-exit %d' % status)\n"
+   },
+   "expected_files": {
+    "out": "bytes 1b5b3f35681b5b3f356c\ngap>=80ms\nchild-exit 0\n"
+   },
+   "requires": [
+    "python3",
+    "tput",
+    "infocmp"
+   ],
+   "setup_script": "infocmp -1 xterm-256color | grep -qxF $'\\tflash=\\\\E[?5h$<100/>\\\\E[?5l,'\ninfocmp -1 xterm-256color | grep -qxF $'\\tnpc,'\n",
+   "timeout": 20
+  },
+  {
+   "id": "migration-tput-extended-builtin",
+   "loadable": "tput",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Extended (tic -x user-defined) capabilities read through terminal names the candidate accepts: strings E3, Se, kUP5, parameterized Ss 3, string-parameter Ms c abc, Smulx 3 (tmux-256color), numeric U8 (linux, screen-256color), booleans AX, XT, G0 (exit 0 when present), and AX on vt100, whose entry has no extended names (exit 4, unknown capability). Output, stderr and status per capability.",
+   "script": "while read -r t c a; do\n  tput -T \"$t\" \"$c\" $a > \"out-$t-$c\" 2> \"err-$t-$c\"; echo \"$t $c rc=$?\" >> rc\ndone <<'EOF'\nxterm-256color E3\nxterm-256color Se\nxterm-256color kUP5\nxterm-256color Ss 3\nxterm-256color Ms c abc\ntmux-256color Smulx 3\nlinux U8\nscreen-256color U8\nxterm-256color AX\nxterm-256color XT\nlinux AX\nscreen-256color G0\nvt100 AX\nEOF\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "tput/compiled-terminfo"
+   ],
+   "oracle": "ncurses-bin 6.5 tput(1) on the reference PATH with the image's system terminfo database. ncurses source 6.5+20250216: tputs applies $<N> padding for tput only when mandatory ('/'), since tput has no SCREEN; delay_output writes floor(ms*baud/9000) pad characters, or, when the entry has npc, flushes and sleeps ms instead; reset_tty_settings replaces each disabled special character with its default and keeps the others; init's set_control_chars restores only erase, intr and kill; an unknown capability exits 4 with 'tput: unknown terminfo capability'.",
+   "comparison": "byte parity vs ncurses tput of every out/err/rc file; expected bytes are the VM-calibrated entry values",
+   "expected_files": {
+    "out-xterm-256color-E3": "\u001b[3J",
+    "out-xterm-256color-Se": "\u001b[2 q",
+    "out-xterm-256color-kUP5": "\u001b[1;5A",
+    "out-xterm-256color-Ss": "\u001b[3 q",
+    "out-xterm-256color-Ms": "\u001b]52;c;abc\u0007",
+    "out-tmux-256color-Smulx": "\u001b[4:3m",
+    "out-linux-U8": "1\n",
+    "out-screen-256color-U8": "1\n",
+    "out-xterm-256color-AX": "",
+    "out-xterm-256color-XT": "",
+    "out-linux-AX": "",
+    "out-screen-256color-G0": "",
+    "out-vt100-AX": "",
+    "rc": "xterm-256color E3 rc=0\nxterm-256color Se rc=0\nxterm-256color kUP5 rc=0\nxterm-256color Ss rc=0\nxterm-256color Ms rc=0\ntmux-256color Smulx rc=0\nlinux U8 rc=0\nscreen-256color U8 rc=0\nxterm-256color AX rc=0\nxterm-256color XT rc=0\nlinux AX rc=0\nscreen-256color G0 rc=0\nvt100 AX rc=4\n",
+    "err-vt100-AX": "tput: unknown terminfo capability 'AX'\n",
+    "err-xterm-256color-Ms": ""
+   },
+   "requires": [
+    "tput",
+    "infocmp"
+   ],
+   "setup_script": "infocmp -1x xterm-256color | grep -qxF $'\\tE3=\\\\E[3J,'\ninfocmp -1x xterm-256color | grep -qxF $'\\tSe=\\\\E[2 q,'\ninfocmp -1x xterm-256color | grep -qxF $'\\tkUP5=\\\\E[1;5A,'\ninfocmp -1x xterm-256color | grep -qxF $'\\tSs=\\\\E[%p1%d q,'\ninfocmp -1x xterm-256color | grep -qxF $'\\tMs=\\\\E]52;%p1%s;%p2%s\\\\007,'\ninfocmp -1x tmux-256color | grep -qxF $'\\tSmulx=\\\\E[4:%p1%dm,'\ninfocmp -1x linux | grep -qxF $'\\tU8#1,'\ninfocmp -1x screen-256color | grep -qxF $'\\tU8#1,'\ninfocmp -1x xterm-256color | grep -qxF $'\\tAX,'\ninfocmp -1x xterm-256color | grep -qxF $'\\tXT,'\ninfocmp -1x linux | grep -qxF $'\\tAX,'\ninfocmp -1x screen-256color | grep -qxF $'\\tG0,'\nif infocmp -1x vt100 | grep -q $'^\\tAX,'; then exit 1; fi\n",
+   "timeout": 20
+  },
+  {
+   "id": "migration-tput-reset-special-chars",
+   "loadable": "tput",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "Special characters after tput reset and tput init. With every special character disabled and erase set to ^H, reset must restore each disabled character to its default and keep erase ^H (ncurses reset_tty_settings replaces only disabled characters). With all of them, erase included, disabled, init restores only erase, intr and kill and leaves the rest disabled (set_control_chars). cc.py records the values on the PTY; the original modes are restored with stty -g after each part.",
+   "script": "s=$(/usr/bin/stty -g)\n/usr/bin/stty intr undef quit undef kill undef eof undef start undef stop undef susp undef werase undef lnext undef rprnt undef discard undef erase ^H\ntput reset; /usr/bin/python3 cc.py reset\n/usr/bin/stty \"$s\"\n/usr/bin/stty intr undef quit undef kill undef eof undef start undef stop undef susp undef werase undef lnext undef rprnt undef discard undef erase undef\ntput init; /usr/bin/python3 cc.py init\n/usr/bin/stty \"$s\"\nprintf 'Z-DONE\\n'\n",
+   "steps": [
+    {
+     "expect": "Z-DONE"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tput/hardware-init-reset"
+   ],
+   "oracle": "ncurses-bin 6.5 tput(1) on the reference PATH with the image's system terminfo database. ncurses source 6.5+20250216: tputs applies $<N> padding for tput only when mandatory ('/'), since tput has no SCREEN; delay_output writes floor(ms*baud/9000) pad characters, or, when the entry has npc, flushes and sleeps ms instead; reset_tty_settings replaces each disabled special character with its default and keeps the others; init's set_control_chars restores only erase, intr and kill; an unknown capability exits 4 with 'tput: unknown terminfo capability'.",
+   "comparison": "parity vs ncurses tput of the recorded special-character values (tree); summary files name the disabled characters as the ncurses source specifies",
+   "files": {
+    "cc.py": "import sys, termios\n# Records the special characters of the terminal on stdin: one parity line of values and a summary naming the\n# disabled ones (value 0 or _POSIX_VDISABLE, which is 0 on Linux) plus the erase value.\nnames = [('intr', termios.VINTR), ('quit', termios.VQUIT), ('erase', termios.VERASE), ('kill', termios.VKILL),\n         ('eof', termios.VEOF), ('start', termios.VSTART), ('stop', termios.VSTOP), ('susp', termios.VSUSP),\n         ('werase', termios.VWERASE), ('lnext', termios.VLNEXT), ('rprnt', termios.VREPRINT),\n         ('discard', termios.VDISCARD)]\ncc = termios.tcgetattr(0)[6]\nval = {n: (c[0] if isinstance(c, bytes) else c) for n, c in ((n, cc[i]) for n, i in names)}\ntag = sys.argv[1]\nwith open(tag + '-cc', 'w') as f:\n    f.write(' '.join('%s=%d' % (n, val[n]) for n, _ in names) + '\\n')\noff = [n for n, _ in names if val[n] == 0]\nwith open(tag + '-summary', 'w') as f:\n    f.write('disabled: %s\\n' % (' '.join(off) or 'none'))\n    if tag == 'reset':\n        f.write('erase=%d\\n' % val['erase'])\n"
+   },
+   "expected_files": {
+    "reset-summary": "disabled: none\nerase=8\n",
+    "init-summary": "disabled: quit eof start stop susp werase lnext rprnt discard\n"
+   },
+   "requires": [
+    "tput",
+    "stty",
+    "python3"
+   ],
+   "timeout": 20
+  }
+ ]
+}

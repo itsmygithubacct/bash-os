@@ -1,0 +1,446 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-hostname-set-name",
+      "loadable": "hostname",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set name",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "unshare",
+        "hostname",
+        "uname"
+      ],
+      "covers": [
+        "hostname/set-positional-name"
+      ],
+      "files": {
+        "inside.py": "# SPDX-License-Identifier: MIT\n# Independent UTS observation and Linux sethostname boundary control.\n# https://man7.org/linux/man-pages/man2/sethostname.2.html\nimport ctypes, errno, json, os, pathlib, shlex, subprocess, sys\nlib = ctypes.CDLL(None, use_errno=True)\ndef set_name(value):\n    data = value.encode()\n    result = lib.sethostname(data, len(data))\n    if result:\n        raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))\n    assert os.uname().nodename == value\nif sys.argv[1] == 'control':\n    assert os.geteuid() == 0\n    for size in [63, 64]:\n        set_name('x' * size)\n    try:\n        set_name('x' * 65)\n    except OSError as error:\n        assert error.errno == errno.EINVAL\n    else:\n        raise AssertionError('65-byte hostname was accepted by kernel')\n    assert os.uname().nodename == 'x' * 64\n    set_name('control.fixture')\n    raise SystemExit(0)\nconfig = json.loads(pathlib.Path('config.json').read_text())\nif config['namespace']:\n    assert os.geteuid() == 0\n    set_name('before.fixture')\nelse:\n    assert os.geteuid() == 2000\nbefore = os.uname().nodename\ncommand = 'hostname ' + shlex.join(config['arguments']) + '; rc=$?; exit \"$rc\"'\nresult = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', command], capture_output=True, timeout=4)\nafter = os.uname().nodename\ndiagnostic = result.stderr.decode().replace(sys.argv[2], '$SHELL')\nrecord = dict(status=result.returncode, stdout=result.stdout.decode(), stderr=diagnostic,\n              name=after if config['namespace'] else ('unchanged' if after == before else 'changed'))\nif config.get('contract'):\n    pathlib.Path('observation.json').write_text(json.dumps(record, sort_keys=True) + '\\n')\n    assert result.returncode == config['status'], record\n    assert result.stdout == b'' and config['diagnostic'] in diagnostic, record\n    assert after == before, record\n    print('status=%d name=unchanged stdout=empty diagnostic=verified' % result.returncode)\nelse:\n    query = subprocess.run(['/usr/bin/uname', '-n'], capture_output=True, timeout=2)\n    assert query.returncode == 0 and query.stdout == (after + '\\n').encode()\n    shell_query = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', 'hostname'], capture_output=True, timeout=2)\n    record['query_status'] = shell_query.returncode\n    record['query_stdout'] = shell_query.stdout.decode()\n    record['query_stderr'] = shell_query.stderr.decode().replace(sys.argv[2], '$SHELL')\n    print(json.dumps(record, sort_keys=True))\n",
+        "supervisor.py": "# SPDX-License-Identifier: MIT\nimport json, os, pathlib, subprocess, sys\nconfig = json.loads(pathlib.Path('config.json').read_text())\nbefore = os.uname().nodename\nnamespace = os.readlink('/proc/self/ns/uts')\ncommand = ['/usr/bin/python3', 'inside.py', 'run', sys.argv[1]]\nif config['namespace']:\n    command = ['/usr/bin/unshare', '--user', '--map-root-user', '--uts', '--fork'] + command\nresult = subprocess.run(command, timeout=8)\nassert os.uname().nodename == before and os.readlink('/proc/self/ns/uts') == namespace\nprint('outer-uts=unchanged', flush=True)\nraise SystemExit(result.returncode)\n",
+        "config.json": "{\"arguments\": [\"isolated.fixture\"], \"namespace\": true}\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "comparison": "Exact result status, output and diagnostics plus independent uname read-back; a private user/UTS namespace permits only its own hostname changes, and the surrounding UTS name is checked unchanged.",
+      "features": [
+        "userns"
+      ],
+      "setup_script": "/usr/bin/unshare --user --map-root-user --uts --fork /usr/bin/python3 inside.py control",
+      "oracle": "Locked Debian hostname with independently controlled private UTS name and Linux 63/64/65-byte kernel boundary checks before candidate execution.",
+      "stdout": "{\"name\": \"isolated.fixture\", \"query_status\": 0, \"query_stderr\": \"\", \"query_stdout\": \"isolated.fixture\\n\", \"status\": 0, \"stderr\": \"\", \"stdout\": \"\"}\nouter-uts=unchanged\n"
+    },
+    {
+      "id": "migration-hostname-set-length-63",
+      "loadable": "hostname",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set length 63",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "unshare",
+        "hostname",
+        "uname"
+      ],
+      "covers": [
+        "hostname/set-positional-name"
+      ],
+      "files": {
+        "inside.py": "# SPDX-License-Identifier: MIT\n# Independent UTS observation and Linux sethostname boundary control.\n# https://man7.org/linux/man-pages/man2/sethostname.2.html\nimport ctypes, errno, json, os, pathlib, shlex, subprocess, sys\nlib = ctypes.CDLL(None, use_errno=True)\ndef set_name(value):\n    data = value.encode()\n    result = lib.sethostname(data, len(data))\n    if result:\n        raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))\n    assert os.uname().nodename == value\nif sys.argv[1] == 'control':\n    assert os.geteuid() == 0\n    for size in [63, 64]:\n        set_name('x' * size)\n    try:\n        set_name('x' * 65)\n    except OSError as error:\n        assert error.errno == errno.EINVAL\n    else:\n        raise AssertionError('65-byte hostname was accepted by kernel')\n    assert os.uname().nodename == 'x' * 64\n    set_name('control.fixture')\n    raise SystemExit(0)\nconfig = json.loads(pathlib.Path('config.json').read_text())\nif config['namespace']:\n    assert os.geteuid() == 0\n    set_name('before.fixture')\nelse:\n    assert os.geteuid() == 2000\nbefore = os.uname().nodename\ncommand = 'hostname ' + shlex.join(config['arguments']) + '; rc=$?; exit \"$rc\"'\nresult = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', command], capture_output=True, timeout=4)\nafter = os.uname().nodename\ndiagnostic = result.stderr.decode().replace(sys.argv[2], '$SHELL')\nrecord = dict(status=result.returncode, stdout=result.stdout.decode(), stderr=diagnostic,\n              name=after if config['namespace'] else ('unchanged' if after == before else 'changed'))\nif config.get('contract'):\n    pathlib.Path('observation.json').write_text(json.dumps(record, sort_keys=True) + '\\n')\n    assert result.returncode == config['status'], record\n    assert result.stdout == b'' and config['diagnostic'] in diagnostic, record\n    assert after == before, record\n    print('status=%d name=unchanged stdout=empty diagnostic=verified' % result.returncode)\nelse:\n    query = subprocess.run(['/usr/bin/uname', '-n'], capture_output=True, timeout=2)\n    assert query.returncode == 0 and query.stdout == (after + '\\n').encode()\n    shell_query = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', 'hostname'], capture_output=True, timeout=2)\n    record['query_status'] = shell_query.returncode\n    record['query_stdout'] = shell_query.stdout.decode()\n    record['query_stderr'] = shell_query.stderr.decode().replace(sys.argv[2], '$SHELL')\n    print(json.dumps(record, sort_keys=True))\n",
+        "supervisor.py": "# SPDX-License-Identifier: MIT\nimport json, os, pathlib, subprocess, sys\nconfig = json.loads(pathlib.Path('config.json').read_text())\nbefore = os.uname().nodename\nnamespace = os.readlink('/proc/self/ns/uts')\ncommand = ['/usr/bin/python3', 'inside.py', 'run', sys.argv[1]]\nif config['namespace']:\n    command = ['/usr/bin/unshare', '--user', '--map-root-user', '--uts', '--fork'] + command\nresult = subprocess.run(command, timeout=8)\nassert os.uname().nodename == before and os.readlink('/proc/self/ns/uts') == namespace\nprint('outer-uts=unchanged', flush=True)\nraise SystemExit(result.returncode)\n",
+        "config.json": "{\"arguments\": [\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"], \"namespace\": true}\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "comparison": "Exact result status, output and diagnostics plus independent uname read-back; a private user/UTS namespace permits only its own hostname changes, and the surrounding UTS name is checked unchanged.",
+      "features": [
+        "userns"
+      ],
+      "setup_script": "/usr/bin/unshare --user --map-root-user --uts --fork /usr/bin/python3 inside.py control",
+      "oracle": "Locked Debian hostname with independently controlled private UTS name and Linux 63/64/65-byte kernel boundary checks before candidate execution.",
+      "stdout": "{\"name\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"query_status\": 0, \"query_stderr\": \"\", \"query_stdout\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\n\", \"status\": 0, \"stderr\": \"\", \"stdout\": \"\"}\nouter-uts=unchanged\n"
+    },
+    {
+      "id": "migration-hostname-set-length-64",
+      "loadable": "hostname",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set length 64",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "unshare",
+        "hostname",
+        "uname"
+      ],
+      "covers": [
+        "hostname/set-positional-name"
+      ],
+      "files": {
+        "inside.py": "# SPDX-License-Identifier: MIT\n# Independent UTS observation and Linux sethostname boundary control.\n# https://man7.org/linux/man-pages/man2/sethostname.2.html\nimport ctypes, errno, json, os, pathlib, shlex, subprocess, sys\nlib = ctypes.CDLL(None, use_errno=True)\ndef set_name(value):\n    data = value.encode()\n    result = lib.sethostname(data, len(data))\n    if result:\n        raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))\n    assert os.uname().nodename == value\nif sys.argv[1] == 'control':\n    assert os.geteuid() == 0\n    for size in [63, 64]:\n        set_name('x' * size)\n    try:\n        set_name('x' * 65)\n    except OSError as error:\n        assert error.errno == errno.EINVAL\n    else:\n        raise AssertionError('65-byte hostname was accepted by kernel')\n    assert os.uname().nodename == 'x' * 64\n    set_name('control.fixture')\n    raise SystemExit(0)\nconfig = json.loads(pathlib.Path('config.json').read_text())\nif config['namespace']:\n    assert os.geteuid() == 0\n    set_name('before.fixture')\nelse:\n    assert os.geteuid() == 2000\nbefore = os.uname().nodename\ncommand = 'hostname ' + shlex.join(config['arguments']) + '; rc=$?; exit \"$rc\"'\nresult = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', command], capture_output=True, timeout=4)\nafter = os.uname().nodename\ndiagnostic = result.stderr.decode().replace(sys.argv[2], '$SHELL')\nrecord = dict(status=result.returncode, stdout=result.stdout.decode(), stderr=diagnostic,\n              name=after if config['namespace'] else ('unchanged' if after == before else 'changed'))\nif config.get('contract'):\n    pathlib.Path('observation.json').write_text(json.dumps(record, sort_keys=True) + '\\n')\n    assert result.returncode == config['status'], record\n    assert result.stdout == b'' and config['diagnostic'] in diagnostic, record\n    assert after == before, record\n    print('status=%d name=unchanged stdout=empty diagnostic=verified' % result.returncode)\nelse:\n    query = subprocess.run(['/usr/bin/uname', '-n'], capture_output=True, timeout=2)\n    assert query.returncode == 0 and query.stdout == (after + '\\n').encode()\n    shell_query = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', 'hostname'], capture_output=True, timeout=2)\n    record['query_status'] = shell_query.returncode\n    record['query_stdout'] = shell_query.stdout.decode()\n    record['query_stderr'] = shell_query.stderr.decode().replace(sys.argv[2], '$SHELL')\n    print(json.dumps(record, sort_keys=True))\n",
+        "supervisor.py": "# SPDX-License-Identifier: MIT\nimport json, os, pathlib, subprocess, sys\nconfig = json.loads(pathlib.Path('config.json').read_text())\nbefore = os.uname().nodename\nnamespace = os.readlink('/proc/self/ns/uts')\ncommand = ['/usr/bin/python3', 'inside.py', 'run', sys.argv[1]]\nif config['namespace']:\n    command = ['/usr/bin/unshare', '--user', '--map-root-user', '--uts', '--fork'] + command\nresult = subprocess.run(command, timeout=8)\nassert os.uname().nodename == before and os.readlink('/proc/self/ns/uts') == namespace\nprint('outer-uts=unchanged', flush=True)\nraise SystemExit(result.returncode)\n",
+        "config.json": "{\"arguments\": [\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"], \"namespace\": true}\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "comparison": "Exact result status, output and diagnostics plus independent uname read-back; a private user/UTS namespace permits only its own hostname changes, and the surrounding UTS name is checked unchanged.",
+      "features": [
+        "userns"
+      ],
+      "setup_script": "/usr/bin/unshare --user --map-root-user --uts --fork /usr/bin/python3 inside.py control",
+      "oracle": "Locked Debian hostname with independently controlled private UTS name and Linux 63/64/65-byte kernel boundary checks before candidate execution.",
+      "stdout": "{\"name\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"query_status\": 0, \"query_stderr\": \"\", \"query_stdout\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\n\", \"status\": 0, \"stderr\": \"\", \"stdout\": \"\"}\nouter-uts=unchanged\n"
+    },
+    {
+      "id": "migration-hostname-set-length-65",
+      "loadable": "hostname",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set length 65",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "unshare",
+        "hostname",
+        "uname"
+      ],
+      "covers": [
+        "hostname/set-positional-name"
+      ],
+      "files": {
+        "inside.py": "# SPDX-License-Identifier: MIT\n# Independent UTS observation and Linux sethostname boundary control.\n# https://man7.org/linux/man-pages/man2/sethostname.2.html\nimport ctypes, errno, json, os, pathlib, shlex, subprocess, sys\nlib = ctypes.CDLL(None, use_errno=True)\ndef set_name(value):\n    data = value.encode()\n    result = lib.sethostname(data, len(data))\n    if result:\n        raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))\n    assert os.uname().nodename == value\nif sys.argv[1] == 'control':\n    assert os.geteuid() == 0\n    for size in [63, 64]:\n        set_name('x' * size)\n    try:\n        set_name('x' * 65)\n    except OSError as error:\n        assert error.errno == errno.EINVAL\n    else:\n        raise AssertionError('65-byte hostname was accepted by kernel')\n    assert os.uname().nodename == 'x' * 64\n    set_name('control.fixture')\n    raise SystemExit(0)\nconfig = json.loads(pathlib.Path('config.json').read_text())\nif config['namespace']:\n    assert os.geteuid() == 0\n    set_name('before.fixture')\nelse:\n    assert os.geteuid() == 2000\nbefore = os.uname().nodename\ncommand = 'hostname ' + shlex.join(config['arguments']) + '; rc=$?; exit \"$rc\"'\nresult = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', command], capture_output=True, timeout=4)\nafter = os.uname().nodename\ndiagnostic = result.stderr.decode().replace(sys.argv[2], '$SHELL')\nrecord = dict(status=result.returncode, stdout=result.stdout.decode(), stderr=diagnostic,\n              name=after if config['namespace'] else ('unchanged' if after == before else 'changed'))\nif config.get('contract'):\n    pathlib.Path('observation.json').write_text(json.dumps(record, sort_keys=True) + '\\n')\n    assert result.returncode == config['status'], record\n    assert result.stdout == b'' and config['diagnostic'] in diagnostic, record\n    assert after == before, record\n    print('status=%d name=unchanged stdout=empty diagnostic=verified' % result.returncode)\nelse:\n    assert result.returncode == 1 and after == before and result.stdout == b'', record\n    query = subprocess.run(['/usr/bin/uname', '-n'], capture_output=True, timeout=2)\n    assert query.returncode == 0 and query.stdout == (after + '\\n').encode()\n    shell_query = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', 'hostname'], capture_output=True, timeout=2)\n    record['query_status'] = shell_query.returncode\n    record['query_stdout'] = shell_query.stdout.decode()\n    record['query_stderr'] = shell_query.stderr.decode().replace(sys.argv[2], '$SHELL')\n    print(json.dumps(record, sort_keys=True))\n",
+        "supervisor.py": "# SPDX-License-Identifier: MIT\nimport json, os, pathlib, subprocess, sys\nconfig = json.loads(pathlib.Path('config.json').read_text())\nbefore = os.uname().nodename\nnamespace = os.readlink('/proc/self/ns/uts')\ncommand = ['/usr/bin/python3', 'inside.py', 'run', sys.argv[1]]\nif config['namespace']:\n    command = ['/usr/bin/unshare', '--user', '--map-root-user', '--uts', '--fork'] + command\nresult = subprocess.run(command, timeout=8)\nassert os.uname().nodename == before and os.readlink('/proc/self/ns/uts') == namespace\nprint('outer-uts=unchanged', flush=True)\nraise SystemExit(result.returncode)\n",
+        "config.json": "{\"arguments\": [\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"], \"namespace\": true}\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "comparison": "Exact result status, output and diagnostics plus independent uname read-back; a private user/UTS namespace permits only its own hostname changes, and the surrounding UTS name is checked unchanged.",
+      "features": [
+        "userns"
+      ],
+      "setup_script": "/usr/bin/unshare --user --map-root-user --uts --fork /usr/bin/python3 inside.py control",
+      "oracle": "Locked Debian hostname with independently controlled private UTS name and Linux 63/64/65-byte kernel boundary checks before candidate execution."
+    },
+    {
+      "id": "migration-hostname-set-slash",
+      "loadable": "hostname",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set slash",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "unshare",
+        "hostname",
+        "uname"
+      ],
+      "covers": [
+        "hostname/set-positional-name"
+      ],
+      "files": {
+        "inside.py": "# SPDX-License-Identifier: MIT\n# Independent UTS observation and Linux sethostname boundary control.\n# https://man7.org/linux/man-pages/man2/sethostname.2.html\nimport ctypes, errno, json, os, pathlib, shlex, subprocess, sys\nlib = ctypes.CDLL(None, use_errno=True)\ndef set_name(value):\n    data = value.encode()\n    result = lib.sethostname(data, len(data))\n    if result:\n        raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))\n    assert os.uname().nodename == value\nif sys.argv[1] == 'control':\n    assert os.geteuid() == 0\n    for size in [63, 64]:\n        set_name('x' * size)\n    try:\n        set_name('x' * 65)\n    except OSError as error:\n        assert error.errno == errno.EINVAL\n    else:\n        raise AssertionError('65-byte hostname was accepted by kernel')\n    assert os.uname().nodename == 'x' * 64\n    set_name('control.fixture')\n    raise SystemExit(0)\nconfig = json.loads(pathlib.Path('config.json').read_text())\nif config['namespace']:\n    assert os.geteuid() == 0\n    set_name('before.fixture')\nelse:\n    assert os.geteuid() == 2000\nbefore = os.uname().nodename\ncommand = 'hostname ' + shlex.join(config['arguments']) + '; rc=$?; exit \"$rc\"'\nresult = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', command], capture_output=True, timeout=4)\nafter = os.uname().nodename\ndiagnostic = result.stderr.decode().replace(sys.argv[2], '$SHELL')\nrecord = dict(status=result.returncode, stdout=result.stdout.decode(), stderr=diagnostic,\n              name=after if config['namespace'] else ('unchanged' if after == before else 'changed'))\nif config.get('contract'):\n    pathlib.Path('observation.json').write_text(json.dumps(record, sort_keys=True) + '\\n')\n    assert result.returncode == config['status'], record\n    assert result.stdout == b'' and config['diagnostic'] in diagnostic, record\n    assert after == before, record\n    print('status=%d name=unchanged stdout=empty diagnostic=verified' % result.returncode)\nelse:\n    query = subprocess.run(['/usr/bin/uname', '-n'], capture_output=True, timeout=2)\n    assert query.returncode == 0 and query.stdout == (after + '\\n').encode()\n    shell_query = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', 'hostname'], capture_output=True, timeout=2)\n    record['query_status'] = shell_query.returncode\n    record['query_stdout'] = shell_query.stdout.decode()\n    record['query_stderr'] = shell_query.stderr.decode().replace(sys.argv[2], '$SHELL')\n    print(json.dumps(record, sort_keys=True))\n",
+        "supervisor.py": "# SPDX-License-Identifier: MIT\nimport json, os, pathlib, subprocess, sys\nconfig = json.loads(pathlib.Path('config.json').read_text())\nbefore = os.uname().nodename\nnamespace = os.readlink('/proc/self/ns/uts')\ncommand = ['/usr/bin/python3', 'inside.py', 'run', sys.argv[1]]\nif config['namespace']:\n    command = ['/usr/bin/unshare', '--user', '--map-root-user', '--uts', '--fork'] + command\nresult = subprocess.run(command, timeout=8)\nassert os.uname().nodename == before and os.readlink('/proc/self/ns/uts') == namespace\nprint('outer-uts=unchanged', flush=True)\nraise SystemExit(result.returncode)\n",
+        "config.json": "{\"arguments\": [\"invalid/name\"], \"contract\": true, \"diagnostic\": \"invalid hostname: 'invalid/name'\", \"namespace\": true, \"status\": 1}\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "comparison": "Exact result status, output and diagnostics plus independent uname read-back; a private user/UTS namespace permits only its own hostname changes, and the surrounding UTS name is checked unchanged.",
+      "features": [
+        "userns"
+      ],
+      "setup_script": "/usr/bin/unshare --user --map-root-user --uts --fork /usr/bin/python3 inside.py control",
+      "kind": "contract",
+      "oracle": "Documented hostname argument/error contract, exact status, diagnostic substring, empty stdout and independent unchanged kernel name. Privilege denial and private-UTS setup have independent syscall controls.",
+      "stdout": "status=1 name=unchanged stdout=empty diagnostic=verified\nouter-uts=unchanged\n"
+    },
+    {
+      "id": "migration-hostname-set-unprivileged",
+      "loadable": "hostname",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set unprivileged",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "unshare",
+        "hostname",
+        "uname"
+      ],
+      "covers": [
+        "hostname/set-positional-name"
+      ],
+      "files": {
+        "inside.py": "# SPDX-License-Identifier: MIT\n# Independent UTS observation and Linux sethostname boundary control.\n# https://man7.org/linux/man-pages/man2/sethostname.2.html\nimport ctypes, errno, json, os, pathlib, shlex, subprocess, sys\nlib = ctypes.CDLL(None, use_errno=True)\ndef set_name(value):\n    data = value.encode()\n    result = lib.sethostname(data, len(data))\n    if result:\n        raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))\n    assert os.uname().nodename == value\nif sys.argv[1] == 'control':\n    assert os.geteuid() == 0\n    for size in [63, 64]:\n        set_name('x' * size)\n    try:\n        set_name('x' * 65)\n    except OSError as error:\n        assert error.errno == errno.EINVAL\n    else:\n        raise AssertionError('65-byte hostname was accepted by kernel')\n    assert os.uname().nodename == 'x' * 64\n    set_name('control.fixture')\n    raise SystemExit(0)\nconfig = json.loads(pathlib.Path('config.json').read_text())\nif config['namespace']:\n    assert os.geteuid() == 0\n    set_name('before.fixture')\nelse:\n    assert os.geteuid() == 2000\nbefore = os.uname().nodename\ncommand = 'hostname ' + shlex.join(config['arguments']) + '; rc=$?; exit \"$rc\"'\nresult = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', command], capture_output=True, timeout=4)\nafter = os.uname().nodename\ndiagnostic = result.stderr.decode().replace(sys.argv[2], '$SHELL')\nrecord = dict(status=result.returncode, stdout=result.stdout.decode(), stderr=diagnostic,\n              name=after if config['namespace'] else ('unchanged' if after == before else 'changed'))\nif config.get('contract'):\n    pathlib.Path('observation.json').write_text(json.dumps(record, sort_keys=True) + '\\n')\n    assert result.returncode == config['status'], record\n    assert result.stdout == b'' and config['diagnostic'] in diagnostic, record\n    assert after == before, record\n    print('status=%d name=unchanged stdout=empty diagnostic=verified' % result.returncode)\nelse:\n    query = subprocess.run(['/usr/bin/uname', '-n'], capture_output=True, timeout=2)\n    assert query.returncode == 0 and query.stdout == (after + '\\n').encode()\n    shell_query = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', 'hostname'], capture_output=True, timeout=2)\n    record['query_status'] = shell_query.returncode\n    record['query_stdout'] = shell_query.stdout.decode()\n    record['query_stderr'] = shell_query.stderr.decode().replace(sys.argv[2], '$SHELL')\n    print(json.dumps(record, sort_keys=True))\n",
+        "supervisor.py": "# SPDX-License-Identifier: MIT\nimport json, os, pathlib, subprocess, sys\nconfig = json.loads(pathlib.Path('config.json').read_text())\nbefore = os.uname().nodename\nnamespace = os.readlink('/proc/self/ns/uts')\ncommand = ['/usr/bin/python3', 'inside.py', 'run', sys.argv[1]]\nif config['namespace']:\n    command = ['/usr/bin/unshare', '--user', '--map-root-user', '--uts', '--fork'] + command\nresult = subprocess.run(command, timeout=8)\nassert os.uname().nodename == before and os.readlink('/proc/self/ns/uts') == namespace\nprint('outer-uts=unchanged', flush=True)\nraise SystemExit(result.returncode)\n",
+        "config.json": "{\"arguments\": [\"isolated.fixture\"], \"contract\": true, \"diagnostic\": \"sethostname: Operation not permitted\", \"namespace\": false, \"status\": 1}\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "comparison": "Exact result status, output and diagnostics plus independent uname read-back; a private user/UTS namespace permits only its own hostname changes, and the surrounding UTS name is checked unchanged.",
+      "setup_script": "/usr/bin/python3 - <<'CONTROL'\nimport ctypes,errno,os,pathlib\nassert os.geteuid()==2000\nlib=ctypes.CDLL(None,use_errno=True)\nname=os.uname().nodename.encode()\nassert lib.sethostname(name,len(name))==-1 and ctypes.get_errno()==errno.EPERM\nCONTROL\n",
+      "kind": "contract",
+      "oracle": "Documented hostname argument/error contract, exact status, diagnostic substring, empty stdout and independent unchanged kernel name. Privilege denial and private-UTS setup have independent syscall controls.",
+      "stdout": "status=1 name=unchanged stdout=empty diagnostic=verified\nouter-uts=unchanged\n"
+    },
+    {
+      "id": "migration-hostname-file-lf",
+      "loadable": "hostname",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "file lf",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "unshare",
+        "hostname",
+        "uname"
+      ],
+      "covers": [
+        "hostname/set-from-file"
+      ],
+      "files": {
+        "name": "file.fixture\n",
+        "inside.py": "# SPDX-License-Identifier: MIT\n# Independent UTS observation and Linux sethostname boundary control.\n# https://man7.org/linux/man-pages/man2/sethostname.2.html\nimport ctypes, errno, json, os, pathlib, shlex, subprocess, sys\nlib = ctypes.CDLL(None, use_errno=True)\ndef set_name(value):\n    data = value.encode()\n    result = lib.sethostname(data, len(data))\n    if result:\n        raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))\n    assert os.uname().nodename == value\nif sys.argv[1] == 'control':\n    assert os.geteuid() == 0\n    for size in [63, 64]:\n        set_name('x' * size)\n    try:\n        set_name('x' * 65)\n    except OSError as error:\n        assert error.errno == errno.EINVAL\n    else:\n        raise AssertionError('65-byte hostname was accepted by kernel')\n    assert os.uname().nodename == 'x' * 64\n    set_name('control.fixture')\n    raise SystemExit(0)\nconfig = json.loads(pathlib.Path('config.json').read_text())\nif config['namespace']:\n    assert os.geteuid() == 0\n    set_name('before.fixture')\nelse:\n    assert os.geteuid() == 2000\nbefore = os.uname().nodename\ncommand = 'hostname ' + shlex.join(config['arguments']) + '; rc=$?; exit \"$rc\"'\nresult = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', command], capture_output=True, timeout=4)\nafter = os.uname().nodename\ndiagnostic = result.stderr.decode().replace(sys.argv[2], '$SHELL')\nrecord = dict(status=result.returncode, stdout=result.stdout.decode(), stderr=diagnostic,\n              name=after if config['namespace'] else ('unchanged' if after == before else 'changed'))\nif config.get('contract'):\n    pathlib.Path('observation.json').write_text(json.dumps(record, sort_keys=True) + '\\n')\n    assert result.returncode == config['status'], record\n    assert result.stdout == b'' and config['diagnostic'] in diagnostic, record\n    assert after == before, record\n    print('status=%d name=unchanged stdout=empty diagnostic=verified' % result.returncode)\nelse:\n    query = subprocess.run(['/usr/bin/uname', '-n'], capture_output=True, timeout=2)\n    assert query.returncode == 0 and query.stdout == (after + '\\n').encode()\n    shell_query = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', 'hostname'], capture_output=True, timeout=2)\n    record['query_status'] = shell_query.returncode\n    record['query_stdout'] = shell_query.stdout.decode()\n    record['query_stderr'] = shell_query.stderr.decode().replace(sys.argv[2], '$SHELL')\n    print(json.dumps(record, sort_keys=True))\n",
+        "supervisor.py": "# SPDX-License-Identifier: MIT\nimport json, os, pathlib, subprocess, sys\nconfig = json.loads(pathlib.Path('config.json').read_text())\nbefore = os.uname().nodename\nnamespace = os.readlink('/proc/self/ns/uts')\ncommand = ['/usr/bin/python3', 'inside.py', 'run', sys.argv[1]]\nif config['namespace']:\n    command = ['/usr/bin/unshare', '--user', '--map-root-user', '--uts', '--fork'] + command\nresult = subprocess.run(command, timeout=8)\nassert os.uname().nodename == before and os.readlink('/proc/self/ns/uts') == namespace\nprint('outer-uts=unchanged', flush=True)\nraise SystemExit(result.returncode)\n",
+        "config.json": "{\"arguments\": [\"-F\", \"name\"], \"namespace\": true}\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "comparison": "Exact result status, output and diagnostics plus independent uname read-back; a private user/UTS namespace permits only its own hostname changes, and the surrounding UTS name is checked unchanged.",
+      "features": [
+        "userns"
+      ],
+      "setup_script": "/usr/bin/unshare --user --map-root-user --uts --fork /usr/bin/python3 inside.py control",
+      "oracle": "Locked Debian hostname with independently controlled private UTS name and Linux 63/64/65-byte kernel boundary checks before candidate execution.",
+      "stdout": "{\"name\": \"file.fixture\", \"query_status\": 0, \"query_stderr\": \"\", \"query_stdout\": \"file.fixture\\n\", \"status\": 0, \"stderr\": \"\", \"stdout\": \"\"}\nouter-uts=unchanged\n"
+    },
+    {
+      "id": "migration-hostname-file-crlf",
+      "loadable": "hostname",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "file crlf",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "unshare",
+        "hostname",
+        "uname"
+      ],
+      "covers": [
+        "hostname/set-from-file"
+      ],
+      "files": {
+        "name": "file.fixture\r\n",
+        "inside.py": "# SPDX-License-Identifier: MIT\n# Independent UTS observation and Linux sethostname boundary control.\n# https://man7.org/linux/man-pages/man2/sethostname.2.html\nimport ctypes, errno, json, os, pathlib, shlex, subprocess, sys\nlib = ctypes.CDLL(None, use_errno=True)\ndef set_name(value):\n    data = value.encode()\n    result = lib.sethostname(data, len(data))\n    if result:\n        raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))\n    assert os.uname().nodename == value\nif sys.argv[1] == 'control':\n    assert os.geteuid() == 0\n    for size in [63, 64]:\n        set_name('x' * size)\n    try:\n        set_name('x' * 65)\n    except OSError as error:\n        assert error.errno == errno.EINVAL\n    else:\n        raise AssertionError('65-byte hostname was accepted by kernel')\n    assert os.uname().nodename == 'x' * 64\n    set_name('control.fixture')\n    raise SystemExit(0)\nconfig = json.loads(pathlib.Path('config.json').read_text())\nif config['namespace']:\n    assert os.geteuid() == 0\n    set_name('before.fixture')\nelse:\n    assert os.geteuid() == 2000\nbefore = os.uname().nodename\ncommand = 'hostname ' + shlex.join(config['arguments']) + '; rc=$?; exit \"$rc\"'\nresult = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', command], capture_output=True, timeout=4)\nafter = os.uname().nodename\ndiagnostic = result.stderr.decode().replace(sys.argv[2], '$SHELL')\nrecord = dict(status=result.returncode, stdout=result.stdout.decode(), stderr=diagnostic,\n              name=after if config['namespace'] else ('unchanged' if after == before else 'changed'))\nif config.get('contract'):\n    pathlib.Path('observation.json').write_text(json.dumps(record, sort_keys=True) + '\\n')\n    assert result.returncode == config['status'], record\n    assert result.stdout == b'' and config['diagnostic'] in diagnostic, record\n    assert after == before, record\n    print('status=%d name=unchanged stdout=empty diagnostic=verified' % result.returncode)\nelse:\n    query = subprocess.run(['/usr/bin/uname', '-n'], capture_output=True, timeout=2)\n    assert query.returncode == 0 and query.stdout == (after + '\\n').encode()\n    shell_query = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', 'hostname'], capture_output=True, timeout=2)\n    record['query_status'] = shell_query.returncode\n    record['query_stdout'] = shell_query.stdout.decode()\n    record['query_stderr'] = shell_query.stderr.decode().replace(sys.argv[2], '$SHELL')\n    print(json.dumps(record, sort_keys=True))\n",
+        "supervisor.py": "# SPDX-License-Identifier: MIT\nimport json, os, pathlib, subprocess, sys\nconfig = json.loads(pathlib.Path('config.json').read_text())\nbefore = os.uname().nodename\nnamespace = os.readlink('/proc/self/ns/uts')\ncommand = ['/usr/bin/python3', 'inside.py', 'run', sys.argv[1]]\nif config['namespace']:\n    command = ['/usr/bin/unshare', '--user', '--map-root-user', '--uts', '--fork'] + command\nresult = subprocess.run(command, timeout=8)\nassert os.uname().nodename == before and os.readlink('/proc/self/ns/uts') == namespace\nprint('outer-uts=unchanged', flush=True)\nraise SystemExit(result.returncode)\n",
+        "config.json": "{\"arguments\": [\"-F\", \"name\"], \"namespace\": true}\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "comparison": "Exact result status, output and diagnostics plus independent uname read-back; a private user/UTS namespace permits only its own hostname changes, and the surrounding UTS name is checked unchanged.",
+      "features": [
+        "userns"
+      ],
+      "setup_script": "/usr/bin/unshare --user --map-root-user --uts --fork /usr/bin/python3 inside.py control",
+      "oracle": "Locked Debian hostname with independently controlled private UTS name and Linux 63/64/65-byte kernel boundary checks before candidate execution.",
+      "stdout": "{\"name\": \"file.fixture\", \"query_status\": 0, \"query_stderr\": \"\", \"query_stdout\": \"file.fixture\\n\", \"status\": 0, \"stderr\": \"\", \"stdout\": \"\"}\nouter-uts=unchanged\n"
+    },
+    {
+      "id": "migration-hostname-file-empty",
+      "loadable": "hostname",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "file empty",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "unshare",
+        "hostname",
+        "uname"
+      ],
+      "covers": [
+        "hostname/set-from-file"
+      ],
+      "files": {
+        "name": "",
+        "inside.py": "# SPDX-License-Identifier: MIT\n# Independent UTS observation and Linux sethostname boundary control.\n# https://man7.org/linux/man-pages/man2/sethostname.2.html\nimport ctypes, errno, json, os, pathlib, shlex, subprocess, sys\nlib = ctypes.CDLL(None, use_errno=True)\ndef set_name(value):\n    data = value.encode()\n    result = lib.sethostname(data, len(data))\n    if result:\n        raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))\n    assert os.uname().nodename == value\nif sys.argv[1] == 'control':\n    assert os.geteuid() == 0\n    for size in [63, 64]:\n        set_name('x' * size)\n    try:\n        set_name('x' * 65)\n    except OSError as error:\n        assert error.errno == errno.EINVAL\n    else:\n        raise AssertionError('65-byte hostname was accepted by kernel')\n    assert os.uname().nodename == 'x' * 64\n    set_name('control.fixture')\n    raise SystemExit(0)\nconfig = json.loads(pathlib.Path('config.json').read_text())\nif config['namespace']:\n    assert os.geteuid() == 0\n    set_name('before.fixture')\nelse:\n    assert os.geteuid() == 2000\nbefore = os.uname().nodename\ncommand = 'hostname ' + shlex.join(config['arguments']) + '; rc=$?; exit \"$rc\"'\nresult = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', command], capture_output=True, timeout=4)\nafter = os.uname().nodename\ndiagnostic = result.stderr.decode().replace(sys.argv[2], '$SHELL')\nrecord = dict(status=result.returncode, stdout=result.stdout.decode(), stderr=diagnostic,\n              name=after if config['namespace'] else ('unchanged' if after == before else 'changed'))\nif config.get('contract'):\n    pathlib.Path('observation.json').write_text(json.dumps(record, sort_keys=True) + '\\n')\n    assert result.returncode == config['status'], record\n    assert result.stdout == b'' and config['diagnostic'] in diagnostic, record\n    assert after == before, record\n    print('status=%d name=unchanged stdout=empty diagnostic=verified' % result.returncode)\nelse:\n    query = subprocess.run(['/usr/bin/uname', '-n'], capture_output=True, timeout=2)\n    assert query.returncode == 0 and query.stdout == (after + '\\n').encode()\n    shell_query = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', 'hostname'], capture_output=True, timeout=2)\n    record['query_status'] = shell_query.returncode\n    record['query_stdout'] = shell_query.stdout.decode()\n    record['query_stderr'] = shell_query.stderr.decode().replace(sys.argv[2], '$SHELL')\n    print(json.dumps(record, sort_keys=True))\n",
+        "supervisor.py": "# SPDX-License-Identifier: MIT\nimport json, os, pathlib, subprocess, sys\nconfig = json.loads(pathlib.Path('config.json').read_text())\nbefore = os.uname().nodename\nnamespace = os.readlink('/proc/self/ns/uts')\ncommand = ['/usr/bin/python3', 'inside.py', 'run', sys.argv[1]]\nif config['namespace']:\n    command = ['/usr/bin/unshare', '--user', '--map-root-user', '--uts', '--fork'] + command\nresult = subprocess.run(command, timeout=8)\nassert os.uname().nodename == before and os.readlink('/proc/self/ns/uts') == namespace\nprint('outer-uts=unchanged', flush=True)\nraise SystemExit(result.returncode)\n",
+        "config.json": "{\"arguments\": [\"-F\", \"name\"], \"contract\": true, \"diagnostic\": \"-F: 'name': empty file\", \"namespace\": false, \"status\": 1}\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "comparison": "Exact result status, output and diagnostics plus independent uname read-back; a private user/UTS namespace permits only its own hostname changes, and the surrounding UTS name is checked unchanged.",
+      "setup_script": "/usr/bin/python3 - <<'CONTROL'\nimport ctypes,errno,os,pathlib\nassert os.geteuid()==2000\nlib=ctypes.CDLL(None,use_errno=True)\nname=os.uname().nodename.encode()\nassert lib.sethostname(name,len(name))==-1 and ctypes.get_errno()==errno.EPERM\nCONTROL\n",
+      "kind": "contract",
+      "oracle": "Documented hostname argument/error contract, exact status, diagnostic substring, empty stdout and independent unchanged kernel name. Privilege denial and private-UTS setup have independent syscall controls.",
+      "stdout": "status=1 name=unchanged stdout=empty diagnostic=verified\nouter-uts=unchanged\n"
+    },
+    {
+      "id": "migration-hostname-file-newline",
+      "loadable": "hostname",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "file newline",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "unshare",
+        "hostname",
+        "uname"
+      ],
+      "covers": [
+        "hostname/set-from-file"
+      ],
+      "files": {
+        "name": "\n",
+        "inside.py": "# SPDX-License-Identifier: MIT\n# Independent UTS observation and Linux sethostname boundary control.\n# https://man7.org/linux/man-pages/man2/sethostname.2.html\nimport ctypes, errno, json, os, pathlib, shlex, subprocess, sys\nlib = ctypes.CDLL(None, use_errno=True)\ndef set_name(value):\n    data = value.encode()\n    result = lib.sethostname(data, len(data))\n    if result:\n        raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))\n    assert os.uname().nodename == value\nif sys.argv[1] == 'control':\n    assert os.geteuid() == 0\n    for size in [63, 64]:\n        set_name('x' * size)\n    try:\n        set_name('x' * 65)\n    except OSError as error:\n        assert error.errno == errno.EINVAL\n    else:\n        raise AssertionError('65-byte hostname was accepted by kernel')\n    assert os.uname().nodename == 'x' * 64\n    set_name('control.fixture')\n    raise SystemExit(0)\nconfig = json.loads(pathlib.Path('config.json').read_text())\nif config['namespace']:\n    assert os.geteuid() == 0\n    set_name('before.fixture')\nelse:\n    assert os.geteuid() == 2000\nbefore = os.uname().nodename\ncommand = 'hostname ' + shlex.join(config['arguments']) + '; rc=$?; exit \"$rc\"'\nresult = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', command], capture_output=True, timeout=4)\nafter = os.uname().nodename\ndiagnostic = result.stderr.decode().replace(sys.argv[2], '$SHELL')\nrecord = dict(status=result.returncode, stdout=result.stdout.decode(), stderr=diagnostic,\n              name=after if config['namespace'] else ('unchanged' if after == before else 'changed'))\nif config.get('contract'):\n    pathlib.Path('observation.json').write_text(json.dumps(record, sort_keys=True) + '\\n')\n    assert result.returncode == config['status'], record\n    assert result.stdout == b'' and config['diagnostic'] in diagnostic, record\n    assert after == before, record\n    print('status=%d name=unchanged stdout=empty diagnostic=verified' % result.returncode)\nelse:\n    query = subprocess.run(['/usr/bin/uname', '-n'], capture_output=True, timeout=2)\n    assert query.returncode == 0 and query.stdout == (after + '\\n').encode()\n    shell_query = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', 'hostname'], capture_output=True, timeout=2)\n    record['query_status'] = shell_query.returncode\n    record['query_stdout'] = shell_query.stdout.decode()\n    record['query_stderr'] = shell_query.stderr.decode().replace(sys.argv[2], '$SHELL')\n    print(json.dumps(record, sort_keys=True))\n",
+        "supervisor.py": "# SPDX-License-Identifier: MIT\nimport json, os, pathlib, subprocess, sys\nconfig = json.loads(pathlib.Path('config.json').read_text())\nbefore = os.uname().nodename\nnamespace = os.readlink('/proc/self/ns/uts')\ncommand = ['/usr/bin/python3', 'inside.py', 'run', sys.argv[1]]\nif config['namespace']:\n    command = ['/usr/bin/unshare', '--user', '--map-root-user', '--uts', '--fork'] + command\nresult = subprocess.run(command, timeout=8)\nassert os.uname().nodename == before and os.readlink('/proc/self/ns/uts') == namespace\nprint('outer-uts=unchanged', flush=True)\nraise SystemExit(result.returncode)\n",
+        "config.json": "{\"arguments\": [\"-F\", \"name\"], \"contract\": true, \"diagnostic\": \"-F: 'name': empty hostname\", \"namespace\": false, \"status\": 1}\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "comparison": "Exact result status, output and diagnostics plus independent uname read-back; a private user/UTS namespace permits only its own hostname changes, and the surrounding UTS name is checked unchanged.",
+      "setup_script": "/usr/bin/python3 - <<'CONTROL'\nimport ctypes,errno,os,pathlib\nassert os.geteuid()==2000\nlib=ctypes.CDLL(None,use_errno=True)\nname=os.uname().nodename.encode()\nassert lib.sethostname(name,len(name))==-1 and ctypes.get_errno()==errno.EPERM\nCONTROL\n",
+      "kind": "contract",
+      "oracle": "Documented hostname argument/error contract, exact status, diagnostic substring, empty stdout and independent unchanged kernel name. Privilege denial and private-UTS setup have independent syscall controls.",
+      "stdout": "status=1 name=unchanged stdout=empty diagnostic=verified\nouter-uts=unchanged\n"
+    },
+    {
+      "id": "migration-hostname-file-missing",
+      "loadable": "hostname",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "file missing",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "unshare",
+        "hostname",
+        "uname"
+      ],
+      "covers": [
+        "hostname/set-from-file"
+      ],
+      "files": {
+        "inside.py": "# SPDX-License-Identifier: MIT\n# Independent UTS observation and Linux sethostname boundary control.\n# https://man7.org/linux/man-pages/man2/sethostname.2.html\nimport ctypes, errno, json, os, pathlib, shlex, subprocess, sys\nlib = ctypes.CDLL(None, use_errno=True)\ndef set_name(value):\n    data = value.encode()\n    result = lib.sethostname(data, len(data))\n    if result:\n        raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))\n    assert os.uname().nodename == value\nif sys.argv[1] == 'control':\n    assert os.geteuid() == 0\n    for size in [63, 64]:\n        set_name('x' * size)\n    try:\n        set_name('x' * 65)\n    except OSError as error:\n        assert error.errno == errno.EINVAL\n    else:\n        raise AssertionError('65-byte hostname was accepted by kernel')\n    assert os.uname().nodename == 'x' * 64\n    set_name('control.fixture')\n    raise SystemExit(0)\nconfig = json.loads(pathlib.Path('config.json').read_text())\nif config['namespace']:\n    assert os.geteuid() == 0\n    set_name('before.fixture')\nelse:\n    assert os.geteuid() == 2000\nbefore = os.uname().nodename\ncommand = 'hostname ' + shlex.join(config['arguments']) + '; rc=$?; exit \"$rc\"'\nresult = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', command], capture_output=True, timeout=4)\nafter = os.uname().nodename\ndiagnostic = result.stderr.decode().replace(sys.argv[2], '$SHELL')\nrecord = dict(status=result.returncode, stdout=result.stdout.decode(), stderr=diagnostic,\n              name=after if config['namespace'] else ('unchanged' if after == before else 'changed'))\nif config.get('contract'):\n    pathlib.Path('observation.json').write_text(json.dumps(record, sort_keys=True) + '\\n')\n    assert result.returncode == config['status'], record\n    assert result.stdout == b'' and config['diagnostic'] in diagnostic, record\n    assert after == before, record\n    print('status=%d name=unchanged stdout=empty diagnostic=verified' % result.returncode)\nelse:\n    query = subprocess.run(['/usr/bin/uname', '-n'], capture_output=True, timeout=2)\n    assert query.returncode == 0 and query.stdout == (after + '\\n').encode()\n    shell_query = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', 'hostname'], capture_output=True, timeout=2)\n    record['query_status'] = shell_query.returncode\n    record['query_stdout'] = shell_query.stdout.decode()\n    record['query_stderr'] = shell_query.stderr.decode().replace(sys.argv[2], '$SHELL')\n    print(json.dumps(record, sort_keys=True))\n",
+        "supervisor.py": "# SPDX-License-Identifier: MIT\nimport json, os, pathlib, subprocess, sys\nconfig = json.loads(pathlib.Path('config.json').read_text())\nbefore = os.uname().nodename\nnamespace = os.readlink('/proc/self/ns/uts')\ncommand = ['/usr/bin/python3', 'inside.py', 'run', sys.argv[1]]\nif config['namespace']:\n    command = ['/usr/bin/unshare', '--user', '--map-root-user', '--uts', '--fork'] + command\nresult = subprocess.run(command, timeout=8)\nassert os.uname().nodename == before and os.readlink('/proc/self/ns/uts') == namespace\nprint('outer-uts=unchanged', flush=True)\nraise SystemExit(result.returncode)\n",
+        "config.json": "{\"arguments\": [\"-F\", \"name\"], \"contract\": true, \"diagnostic\": \"-F: cannot read 'name': No such file or directory\", \"namespace\": false, \"status\": 1}\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "comparison": "Exact result status, output and diagnostics plus independent uname read-back; a private user/UTS namespace permits only its own hostname changes, and the surrounding UTS name is checked unchanged.",
+      "setup_script": "/usr/bin/python3 - <<'CONTROL'\nimport ctypes,errno,os,pathlib\nassert os.geteuid()==2000\nlib=ctypes.CDLL(None,use_errno=True)\nname=os.uname().nodename.encode()\nassert lib.sethostname(name,len(name))==-1 and ctypes.get_errno()==errno.EPERM\nCONTROL\n",
+      "kind": "contract",
+      "oracle": "Documented hostname argument/error contract, exact status, diagnostic substring, empty stdout and independent unchanged kernel name. Privilege denial and private-UTS setup have independent syscall controls.",
+      "stdout": "status=1 name=unchanged stdout=empty diagnostic=verified\nouter-uts=unchanged\n"
+    },
+    {
+      "id": "migration-hostname-file-unreadable",
+      "loadable": "hostname",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "file unreadable",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "unshare",
+        "hostname",
+        "uname"
+      ],
+      "covers": [
+        "hostname/set-from-file"
+      ],
+      "files": {
+        "name": "file.fixture\n",
+        "inside.py": "# SPDX-License-Identifier: MIT\n# Independent UTS observation and Linux sethostname boundary control.\n# https://man7.org/linux/man-pages/man2/sethostname.2.html\nimport ctypes, errno, json, os, pathlib, shlex, subprocess, sys\nlib = ctypes.CDLL(None, use_errno=True)\ndef set_name(value):\n    data = value.encode()\n    result = lib.sethostname(data, len(data))\n    if result:\n        raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))\n    assert os.uname().nodename == value\nif sys.argv[1] == 'control':\n    assert os.geteuid() == 0\n    for size in [63, 64]:\n        set_name('x' * size)\n    try:\n        set_name('x' * 65)\n    except OSError as error:\n        assert error.errno == errno.EINVAL\n    else:\n        raise AssertionError('65-byte hostname was accepted by kernel')\n    assert os.uname().nodename == 'x' * 64\n    set_name('control.fixture')\n    raise SystemExit(0)\nconfig = json.loads(pathlib.Path('config.json').read_text())\nif config['namespace']:\n    assert os.geteuid() == 0\n    set_name('before.fixture')\nelse:\n    assert os.geteuid() == 2000\nbefore = os.uname().nodename\ncommand = 'hostname ' + shlex.join(config['arguments']) + '; rc=$?; exit \"$rc\"'\nresult = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', command], capture_output=True, timeout=4)\nafter = os.uname().nodename\ndiagnostic = result.stderr.decode().replace(sys.argv[2], '$SHELL')\nrecord = dict(status=result.returncode, stdout=result.stdout.decode(), stderr=diagnostic,\n              name=after if config['namespace'] else ('unchanged' if after == before else 'changed'))\nif config.get('contract'):\n    pathlib.Path('observation.json').write_text(json.dumps(record, sort_keys=True) + '\\n')\n    assert result.returncode == config['status'], record\n    assert result.stdout == b'' and config['diagnostic'] in diagnostic, record\n    assert after == before, record\n    print('status=%d name=unchanged stdout=empty diagnostic=verified' % result.returncode)\nelse:\n    query = subprocess.run(['/usr/bin/uname', '-n'], capture_output=True, timeout=2)\n    assert query.returncode == 0 and query.stdout == (after + '\\n').encode()\n    shell_query = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', 'hostname'], capture_output=True, timeout=2)\n    record['query_status'] = shell_query.returncode\n    record['query_stdout'] = shell_query.stdout.decode()\n    record['query_stderr'] = shell_query.stderr.decode().replace(sys.argv[2], '$SHELL')\n    print(json.dumps(record, sort_keys=True))\n",
+        "supervisor.py": "# SPDX-License-Identifier: MIT\nimport json, os, pathlib, subprocess, sys\nconfig = json.loads(pathlib.Path('config.json').read_text())\nbefore = os.uname().nodename\nnamespace = os.readlink('/proc/self/ns/uts')\ncommand = ['/usr/bin/python3', 'inside.py', 'run', sys.argv[1]]\nif config['namespace']:\n    command = ['/usr/bin/unshare', '--user', '--map-root-user', '--uts', '--fork'] + command\nresult = subprocess.run(command, timeout=8)\nassert os.uname().nodename == before and os.readlink('/proc/self/ns/uts') == namespace\nprint('outer-uts=unchanged', flush=True)\nraise SystemExit(result.returncode)\n",
+        "config.json": "{\"arguments\": [\"-F\", \"name\"], \"contract\": true, \"diagnostic\": \"-F: cannot read 'name': Permission denied\", \"namespace\": false, \"status\": 1}\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "comparison": "Exact result status, output and diagnostics plus independent uname read-back; a private user/UTS namespace permits only its own hostname changes, and the surrounding UTS name is checked unchanged.",
+      "setup_script": "/usr/bin/python3 - <<'CONTROL'\nimport ctypes,errno,os,pathlib\nassert os.geteuid()==2000\nlib=ctypes.CDLL(None,use_errno=True)\nname=os.uname().nodename.encode()\nassert lib.sethostname(name,len(name))==-1 and ctypes.get_errno()==errno.EPERM\nCONTROL\n/usr/bin/chmod 000 name\n/usr/bin/python3 - <<'CONTROL'\nimport pathlib\ntry:pathlib.Path('name').read_bytes()\nexcept PermissionError:pass\nelse:raise AssertionError('fixture file should be unreadable')\nCONTROL\n",
+      "kind": "contract",
+      "oracle": "Documented hostname argument/error contract, exact status, diagnostic substring, empty stdout and independent unchanged kernel name. Privilege denial and private-UTS setup have independent syscall controls.",
+      "stdout": "status=1 name=unchanged stdout=empty diagnostic=verified\nouter-uts=unchanged\n"
+    },
+    {
+      "id": "migration-hostname-file-name-conflict",
+      "loadable": "hostname",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "file name conflict",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "unshare",
+        "hostname",
+        "uname"
+      ],
+      "covers": [
+        "hostname/set-from-file"
+      ],
+      "files": {
+        "name": "file.fixture\n",
+        "inside.py": "# SPDX-License-Identifier: MIT\n# Independent UTS observation and Linux sethostname boundary control.\n# https://man7.org/linux/man-pages/man2/sethostname.2.html\nimport ctypes, errno, json, os, pathlib, shlex, subprocess, sys\nlib = ctypes.CDLL(None, use_errno=True)\ndef set_name(value):\n    data = value.encode()\n    result = lib.sethostname(data, len(data))\n    if result:\n        raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))\n    assert os.uname().nodename == value\nif sys.argv[1] == 'control':\n    assert os.geteuid() == 0\n    for size in [63, 64]:\n        set_name('x' * size)\n    try:\n        set_name('x' * 65)\n    except OSError as error:\n        assert error.errno == errno.EINVAL\n    else:\n        raise AssertionError('65-byte hostname was accepted by kernel')\n    assert os.uname().nodename == 'x' * 64\n    set_name('control.fixture')\n    raise SystemExit(0)\nconfig = json.loads(pathlib.Path('config.json').read_text())\nif config['namespace']:\n    assert os.geteuid() == 0\n    set_name('before.fixture')\nelse:\n    assert os.geteuid() == 2000\nbefore = os.uname().nodename\ncommand = 'hostname ' + shlex.join(config['arguments']) + '; rc=$?; exit \"$rc\"'\nresult = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', command], capture_output=True, timeout=4)\nafter = os.uname().nodename\ndiagnostic = result.stderr.decode().replace(sys.argv[2], '$SHELL')\nrecord = dict(status=result.returncode, stdout=result.stdout.decode(), stderr=diagnostic,\n              name=after if config['namespace'] else ('unchanged' if after == before else 'changed'))\nif config.get('contract'):\n    pathlib.Path('observation.json').write_text(json.dumps(record, sort_keys=True) + '\\n')\n    assert result.returncode == config['status'], record\n    assert result.stdout == b'' and config['diagnostic'] in diagnostic, record\n    assert after == before, record\n    print('status=%d name=unchanged stdout=empty diagnostic=verified' % result.returncode)\nelse:\n    query = subprocess.run(['/usr/bin/uname', '-n'], capture_output=True, timeout=2)\n    assert query.returncode == 0 and query.stdout == (after + '\\n').encode()\n    shell_query = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', 'hostname'], capture_output=True, timeout=2)\n    record['query_status'] = shell_query.returncode\n    record['query_stdout'] = shell_query.stdout.decode()\n    record['query_stderr'] = shell_query.stderr.decode().replace(sys.argv[2], '$SHELL')\n    print(json.dumps(record, sort_keys=True))\n",
+        "supervisor.py": "# SPDX-License-Identifier: MIT\nimport json, os, pathlib, subprocess, sys\nconfig = json.loads(pathlib.Path('config.json').read_text())\nbefore = os.uname().nodename\nnamespace = os.readlink('/proc/self/ns/uts')\ncommand = ['/usr/bin/python3', 'inside.py', 'run', sys.argv[1]]\nif config['namespace']:\n    command = ['/usr/bin/unshare', '--user', '--map-root-user', '--uts', '--fork'] + command\nresult = subprocess.run(command, timeout=8)\nassert os.uname().nodename == before and os.readlink('/proc/self/ns/uts') == namespace\nprint('outer-uts=unchanged', flush=True)\nraise SystemExit(result.returncode)\n",
+        "config.json": "{\"arguments\": [\"-F\", \"name\", \"other.fixture\"], \"contract\": true, \"diagnostic\": \"cannot combine -F with a NAME argument\", \"namespace\": false, \"status\": 2}\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "comparison": "Exact result status, output and diagnostics plus independent uname read-back; a private user/UTS namespace permits only its own hostname changes, and the surrounding UTS name is checked unchanged.",
+      "setup_script": "/usr/bin/python3 - <<'CONTROL'\nimport ctypes,errno,os,pathlib\nassert os.geteuid()==2000\nlib=ctypes.CDLL(None,use_errno=True)\nname=os.uname().nodename.encode()\nassert lib.sethostname(name,len(name))==-1 and ctypes.get_errno()==errno.EPERM\nCONTROL\n",
+      "kind": "contract",
+      "oracle": "Documented hostname argument/error contract, exact status, diagnostic substring, empty stdout and independent unchanged kernel name. Privilege denial and private-UTS setup have independent syscall controls.",
+      "stdout": "status=2 name=unchanged stdout=empty diagnostic=verified\nouter-uts=unchanged\n"
+    },
+    {
+      "id": "migration-hostname-file-selector-conflict",
+      "loadable": "hostname",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "file selector conflict",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "unshare",
+        "hostname",
+        "uname"
+      ],
+      "covers": [
+        "hostname/set-from-file"
+      ],
+      "files": {
+        "name": "file.fixture\n",
+        "inside.py": "# SPDX-License-Identifier: MIT\n# Independent UTS observation and Linux sethostname boundary control.\n# https://man7.org/linux/man-pages/man2/sethostname.2.html\nimport ctypes, errno, json, os, pathlib, shlex, subprocess, sys\nlib = ctypes.CDLL(None, use_errno=True)\ndef set_name(value):\n    data = value.encode()\n    result = lib.sethostname(data, len(data))\n    if result:\n        raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))\n    assert os.uname().nodename == value\nif sys.argv[1] == 'control':\n    assert os.geteuid() == 0\n    for size in [63, 64]:\n        set_name('x' * size)\n    try:\n        set_name('x' * 65)\n    except OSError as error:\n        assert error.errno == errno.EINVAL\n    else:\n        raise AssertionError('65-byte hostname was accepted by kernel')\n    assert os.uname().nodename == 'x' * 64\n    set_name('control.fixture')\n    raise SystemExit(0)\nconfig = json.loads(pathlib.Path('config.json').read_text())\nif config['namespace']:\n    assert os.geteuid() == 0\n    set_name('before.fixture')\nelse:\n    assert os.geteuid() == 2000\nbefore = os.uname().nodename\ncommand = 'hostname ' + shlex.join(config['arguments']) + '; rc=$?; exit \"$rc\"'\nresult = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', command], capture_output=True, timeout=4)\nafter = os.uname().nodename\ndiagnostic = result.stderr.decode().replace(sys.argv[2], '$SHELL')\nrecord = dict(status=result.returncode, stdout=result.stdout.decode(), stderr=diagnostic,\n              name=after if config['namespace'] else ('unchanged' if after == before else 'changed'))\nif config.get('contract'):\n    pathlib.Path('observation.json').write_text(json.dumps(record, sort_keys=True) + '\\n')\n    assert result.returncode == config['status'], record\n    assert result.stdout == b'' and config['diagnostic'] in diagnostic, record\n    assert after == before, record\n    print('status=%d name=unchanged stdout=empty diagnostic=verified' % result.returncode)\nelse:\n    query = subprocess.run(['/usr/bin/uname', '-n'], capture_output=True, timeout=2)\n    assert query.returncode == 0 and query.stdout == (after + '\\n').encode()\n    shell_query = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', 'hostname'], capture_output=True, timeout=2)\n    record['query_status'] = shell_query.returncode\n    record['query_stdout'] = shell_query.stdout.decode()\n    record['query_stderr'] = shell_query.stderr.decode().replace(sys.argv[2], '$SHELL')\n    print(json.dumps(record, sort_keys=True))\n",
+        "supervisor.py": "# SPDX-License-Identifier: MIT\nimport json, os, pathlib, subprocess, sys\nconfig = json.loads(pathlib.Path('config.json').read_text())\nbefore = os.uname().nodename\nnamespace = os.readlink('/proc/self/ns/uts')\ncommand = ['/usr/bin/python3', 'inside.py', 'run', sys.argv[1]]\nif config['namespace']:\n    command = ['/usr/bin/unshare', '--user', '--map-root-user', '--uts', '--fork'] + command\nresult = subprocess.run(command, timeout=8)\nassert os.uname().nodename == before and os.readlink('/proc/self/ns/uts') == namespace\nprint('outer-uts=unchanged', flush=True)\nraise SystemExit(result.returncode)\n",
+        "config.json": "{\"arguments\": [\"-s\", \"-F\", \"name\"], \"contract\": true, \"diagnostic\": \"-s/-d/-f/-i/-I/-A cannot be combined with a set operation\", \"namespace\": false, \"status\": 2}\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "comparison": "Exact result status, output and diagnostics plus independent uname read-back; a private user/UTS namespace permits only its own hostname changes, and the surrounding UTS name is checked unchanged.",
+      "setup_script": "/usr/bin/python3 - <<'CONTROL'\nimport ctypes,errno,os,pathlib\nassert os.geteuid()==2000\nlib=ctypes.CDLL(None,use_errno=True)\nname=os.uname().nodename.encode()\nassert lib.sethostname(name,len(name))==-1 and ctypes.get_errno()==errno.EPERM\nCONTROL\n",
+      "kind": "contract",
+      "oracle": "Documented hostname argument/error contract, exact status, diagnostic substring, empty stdout and independent unchanged kernel name. Privilege denial and private-UTS setup have independent syscall controls.",
+      "stdout": "status=2 name=unchanged stdout=empty diagnostic=verified\nouter-uts=unchanged\n"
+    }
+  ]
+}

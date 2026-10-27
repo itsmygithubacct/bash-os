@@ -113,9 +113,34 @@
     },
     {
       "id": "owned-child-delivery-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Future integration coverage should pass a looked-up name or number to a signal-delivery path and verify handler, wait status, and disposition behavior.",
-      "reason": "The current suite is limited to pure lookups and must not deliver signals. A future test requires a disposable VM or an independently reviewed syscall mock that creates one directly owned child, records the requested signal and resulting handler/wait status, proves an unrelated sibling is untouched, and prevents any target outside the fixture-owned PID set."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/signal/realtime-roundtrip"
+        },
+        {
+          "group": "shell",
+          "id": "migration-signal-caught-name"
+        },
+        {
+          "group": "shell",
+          "id": "migration-signal-caught-number"
+        },
+        {
+          "group": "shell",
+          "id": "migration-signal-default-name"
+        },
+        {
+          "group": "shell",
+          "id": "migration-signal-inherited-ignore"
+        },
+        {
+          "group": "shell",
+          "id": "migration-signal-realtime-delivery"
+        }
+      ]
     },
     {
       "id": "legacy-signal-aliases",

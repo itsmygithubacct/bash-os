@@ -117,9 +117,38 @@
     },
     {
       "id": "child-libc-locale-integration",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify that variables set by the builtin produce the intended behavior in a locale-sensitive child process, separately from this builtin's environment-plumbing contract.",
-      "reason": "Requires a disposable VM or controlled fixture with known C and C.UTF-8 locale data plus an independently reviewed child probe that calls setlocale(LC_ALL, \"\") and checks a stable libc property such as MB_CUR_MAX. The current harness fixes the inherited locale to C and supplies no such probe. This operation was not executed and is not counted as passed."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/locale/current-lc-all-precedence"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/locale/set-category-visible-to-current"
+        },
+        {
+          "group": "shell",
+          "id": "migration-locale-child-all-precedence"
+        },
+        {
+          "group": "shell",
+          "id": "migration-locale-child-c"
+        },
+        {
+          "group": "shell",
+          "id": "migration-locale-child-ctype"
+        },
+        {
+          "group": "shell",
+          "id": "migration-locale-child-posix"
+        },
+        {
+          "group": "shell",
+          "id": "migration-locale-child-utf8"
+        }
+      ]
     }
   ]
 }

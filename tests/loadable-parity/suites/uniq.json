@@ -143,8 +143,13 @@
     {
       "id": "pty-streaming-before-eof",
       "purpose": "Deferred check of stream delivery while input remains open after complete records.",
-      "kind": "deferred",
-      "reason": "Requires a disposable PTY driver that writes complete records to uniq, keeps stdin open, and observes stdout before EOF; the current runner captures streams but cannot coordinate a live terminal interaction. A future PTY fixture should compare GNU and candidate delivery timing and verify final status after closing input."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "uniq-terminal-streaming"
+        }
+      ]
     },
     {
       "id": "empty-and-missing-input",

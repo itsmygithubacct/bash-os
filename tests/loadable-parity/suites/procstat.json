@@ -111,9 +111,14 @@
     },
     {
       "id": "default-live-procfs-integration",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise the default /proc root and process enumeration against a controlled live Linux kernel ABI.",
-      "reason": "Requires a disposable Linux VM with a controlled procfs snapshot or a procfs mock mounted as the default root, plus a pinned kernel ABI and known process inventory. The current suite deliberately uses only relative synthetic proc roots and does not read live system data; no result is claimed for default-root integration."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-procstat-default-live-proc"
+        }
+      ]
     },
     {
       "id": "nonzero-process-accounting",

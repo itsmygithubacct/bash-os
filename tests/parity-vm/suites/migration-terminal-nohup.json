@@ -1,0 +1,246 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-nohup-hangup-survives",
+      "loadable": "nohup",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "nohup/nohup-terminal-hangup-deferred"
+      ],
+      "purpose": "A nohup child announces readiness with inherited SIGHUP ignored, survives the real terminal hangup, observes EIO on that same terminal, and returns 3 to its waiting parent, which records completion.",
+      "oracle": "parity vs GNU coreutils 9.7 nohup run by the reference shell; POSIX nohup: SIGHUP ignored in the utility, inherited across exec",
+      "comparison": "Exact post-hangup observation and exit-status files against GNU nohup; readiness removes the timing assumption that a short sleep must still be active at hangup.",
+      "requires": [
+        "nohup",
+        "python3"
+      ],
+      "interactive_shell": true,
+      "restore_terminal": false,
+      "timeout": 20,
+      "files": {
+        "job.sh": "/usr/bin/python3 observe-hangup.py\nprintf \"status=%s\\n\" \"$?\" > survived\n",
+        "observe-hangup.py": "import errno,fcntl,os,signal,sys,termios,time\nassert signal.getsignal(signal.SIGHUP)==signal.SIG_IGN\nfd=os.open(\"/dev/tty\",os.O_RDWR|os.O_NOCTTY)\nos.write(fd,b\"NOHUP-READY\\n\")\ndeadline=time.monotonic()+5\nwhile time.monotonic()<deadline:\n try: fcntl.ioctl(fd,termios.TIOCGWINSZ,b\"\\x00\"*8)\n except OSError as e:\n  if e.errno!=errno.EIO: raise\n  open(\"observed-hangup\",\"w\").write(\"EIO-after-hangup\\n\");os.close(fd);sys.exit(3)\n time.sleep(0.01)\nraise RuntimeError(\"terminal did not hang up\")\n"
+      },
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "nohup \"$BASH\" job.sh > out 2>&1 &\r"
+        },
+        {
+          "expect": "NOHUP-READY\\r\\n"
+        },
+        {
+          "hangup": true
+        },
+        {
+          "settle_ms": 500
+        },
+        {
+          "settle_ms": 500
+        },
+        {
+          "settle_ms": 500
+        },
+        {
+          "settle_ms": 300
+        }
+      ],
+      "expected_status": 129,
+      "expected_files": {
+        "survived": "status=3\n",
+        "out": "nohup: ignoring input\n",
+        "observed-hangup": "EIO-after-hangup\n"
+      }
+    },
+    {
+      "id": "migration-nohup-append-existing",
+      "loadable": "nohup",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "nohup/nohup-tty-redirection-deferred"
+      ],
+      "purpose": "Append stdout and stderr after existing nohup.out; terminal stdin becomes unreadable, as with GNU nohup",
+      "oracle": "parity vs GNU coreutils 9.7 nohup run by the reference shell",
+      "comparison": "Exact raw diagnostic and file bytes/mode; the same Python child on both sides independently reports the read errno, avoiding shell-specific diagnostic paths.",
+      "requires": [
+        "nohup",
+        "python3"
+      ],
+      "files": {
+        "nohup.out": "old\n"
+      },
+      "script": "nohup /usr/bin/python3 -c 'import errno,os\ntry:\n data=os.read(0,1); result=\"EOF\" if data==b\"\" else \"DATA\"\nexcept OSError as e:\n result=errno.errorcode[e.errno]\nprint(\"stdin=\"+result,flush=True)\nos.write(2,b\"err\")'",
+      "steps": [
+        {
+          "expect": "\\Anohup: ignoring input and appending output to 'nohup\\.out'\\r\\n\\Z"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "nohup.out": "old\nstdin=EBADF\nerr"
+      }
+    },
+    {
+      "id": "migration-nohup-stdout-tty-only",
+      "loadable": "nohup",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "nohup/nohup-tty-redirection-deferred"
+      ],
+      "purpose": "stdin from /dev/null, stdout and stderr on the terminal: no 'ignoring input', output and stderr go to a new nohup.out",
+      "oracle": "parity vs GNU coreutils 9.7 nohup run by the reference shell",
+      "comparison": "exact raw PTY bytes (only the diagnostic reaches the terminal); file bytes and modes via tree parity",
+      "requires": [
+        "nohup"
+      ],
+      "script": "nohup \"$BASH\" -c 'printf o; printf e >&2' < /dev/null",
+      "steps": [
+        {
+          "expect": "\\Anohup: appending output to 'nohup\\.out'\\r\\n\\Z"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "nohup.out": "oe"
+      }
+    },
+    {
+      "id": "migration-nohup-stderr-tty-stdout-file",
+      "loadable": "nohup",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "nohup/nohup-tty-redirection-deferred"
+      ],
+      "purpose": "stdin and stderr on the terminal, stdout to a file: stderr follows stdout into the file, no nohup.out",
+      "oracle": "parity vs GNU coreutils 9.7 nohup run by the reference shell",
+      "comparison": "exact raw PTY bytes (only the diagnostic reaches the terminal); file bytes and modes via tree parity",
+      "requires": [
+        "nohup"
+      ],
+      "script": "nohup \"$BASH\" -c 'printf o; printf e >&2' > out",
+      "steps": [
+        {
+          "expect": "\\Anohup: ignoring input and redirecting stderr to stdout\\r\\n\\Z"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "out": "oe"
+      }
+    },
+    {
+      "id": "migration-nohup-stdin-tty-only",
+      "loadable": "nohup",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "nohup/nohup-tty-redirection-deferred"
+      ],
+      "purpose": "Only stdin is a terminal: GNU nohup makes it unreadable, and its input diagnostic goes to redirected stderr",
+      "oracle": "parity vs GNU coreutils 9.7 nohup run by the reference shell",
+      "comparison": "The same Python child reports the stdin read errno; exact output and nohup diagnostic compared with GNU, without shell-path text.",
+      "requires": [
+        "nohup",
+        "python3"
+      ],
+      "script": "nohup /usr/bin/python3 -c 'import errno,os\ntry:\n data=os.read(0,1); result=\"EOF\" if data==b\"\" else \"DATA\"\nexcept OSError as e:\n result=errno.errorcode[e.errno]\nprint(\"stdin=\"+result)\n' > out 2> err; printf \"done\\n\"",
+      "steps": [
+        {
+          "expect": "\\Adone\\r\\n\\Z"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "out": "stdin=EBADF\n",
+        "err": "nohup: ignoring input\n"
+      }
+    },
+    {
+      "id": "migration-nohup-stderr-tty-only",
+      "loadable": "nohup",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "nohup/nohup-tty-redirection-deferred"
+      ],
+      "purpose": "stdin from /dev/null, stdout to a file, stderr on the terminal: 'redirecting stderr to stdout' without the input clause",
+      "oracle": "parity vs GNU coreutils 9.7 nohup run by the reference shell",
+      "comparison": "exact raw PTY bytes (only the diagnostic reaches the terminal); file bytes and modes via tree parity",
+      "requires": [
+        "nohup"
+      ],
+      "script": "nohup \"$BASH\" -c 'printf o; printf e >&2' < /dev/null > out",
+      "steps": [
+        {
+          "expect": "\\Anohup: redirecting stderr to stdout\\r\\n\\Z"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "out": "oe"
+      }
+    },
+    {
+      "id": "migration-nohup-home-fallback",
+      "loadable": "nohup",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "nohup/nohup-tty-redirection-deferred"
+      ],
+      "purpose": "When ./nohup.out cannot be created (working directory mode 0555), nohup falls back to $HOME/nohup.out and names that path in the diagnostic",
+      "oracle": "parity vs GNU coreutils 9.7 nohup run by the reference shell; POSIX nohup HOME fallback",
+      "comparison": "exact raw PTY bytes of the diagnostic; copied $HOME/nohup.out bytes via tree parity",
+      "requires": [
+        "cat",
+        "chmod",
+        "mkdir",
+        "nohup"
+      ],
+      "script": "mkdir ro; chmod 555 ro; cd ro || exit 9\nnohup printf y\ncd ..; chmod 755 ro\ncat \"$HOME/nohup.out\" > home.out",
+      "steps": [
+        {
+          "expect": "\\Anohup: ignoring input and appending output to '/tmp/parity-home/nohup\\.out'\\r\\n\\Z"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "home.out": "y"
+      }
+    },
+    {
+      "id": "migration-nohup-stdout-pipe",
+      "loadable": "nohup",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "A real pipe on stdout with stderr still a terminal redirects both child streams through the pipe; stdin is already nonterminal.",
+      "oracle": "GNU coreutils nohup with the same Python child and cat sink; exact diagnostic, file bytes, and status.",
+      "comparison": "Exact terminal diagnostic and pipe sink bytes; pipefail retains a wrapper failure.",
+      "requires": [
+        "nohup",
+        "python3",
+        "cat"
+      ],
+      "script": "set -o pipefail\nnohup /usr/bin/python3 -c 'import os;os.write(1,b\"o\");os.write(2,b\"e\")' </dev/null | /usr/bin/cat > pipeout",
+      "steps": [
+        {
+          "expect": "\\Anohup: redirecting stderr to stdout\\r\\n\\Z"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "pipeout": "oe"
+      },
+      "covers": [
+        "nohup/nohup-tty-redirection-deferred"
+      ]
+    }
+  ]
+}

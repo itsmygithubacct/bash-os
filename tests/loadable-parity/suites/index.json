@@ -98,9 +98,34 @@
     },
     {
       "id": "deferred-atomic-faults",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate rollback and lock/temp cleanup when an atomic index replacement fails at different I/O stages.",
-      "reason": "Requires a separately reviewed disposable syscall fault-injection mock for write, short write, fdatasync, close, and rename failures. The isolated data-only fixture runner does not inject these syscall failures."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-index-fault-close-eio"
+        },
+        {
+          "group": "shell",
+          "id": "migration-index-fault-enospc"
+        },
+        {
+          "group": "shell",
+          "id": "migration-index-fault-fdatasync-eio"
+        },
+        {
+          "group": "shell",
+          "id": "migration-index-fault-rename-eio"
+        },
+        {
+          "group": "shell",
+          "id": "migration-index-fault-rename-onto-nonempty-dir"
+        },
+        {
+          "group": "shell",
+          "id": "migration-index-fault-short-write-efbig"
+        }
+      ]
     },
     {
       "id": "empty-index",

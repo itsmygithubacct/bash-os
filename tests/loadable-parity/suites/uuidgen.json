@@ -107,9 +107,14 @@
     },
     {
       "id": "entropy-failure-injection",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise failure handling for both entropy acquisition paths without relying on host randomness state.",
-      "reason": "Requires a disposable VM or syscall/device mock that can deterministically make the preferred CSPRNG call unavailable and the fallback entropy source fail or return a short read; verify nonzero status and no UUID bytes. The current runner has no deterministic RNG fault injection."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-uuidgen-entropy-fallback-failures"
+        }
+      ]
     }
   ]
 }

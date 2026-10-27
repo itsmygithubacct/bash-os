@@ -30,33 +30,74 @@
     },
     {
       "id": "dry_run_default",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check dry-run reporting and flag order without any sync or reboot syscall.",
-      "reason": "The task prohibits reboot invocations. A future disposable VM with a reviewed non-forwarding sync/reboot syscall mock must verify the dry-run output, status, and absence of both syscall requests for this flag order."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-reboot-dry-run-no-calls"
+        }
+      ]
     },
     {
       "id": "dry_run_force_then_no_sync",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check dry-run reporting and flag order without any sync or reboot syscall.",
-      "reason": "The task prohibits reboot invocations. A future disposable VM with a reviewed non-forwarding sync/reboot syscall mock must verify the dry-run output, status, and absence of both syscall requests for this flag order."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-reboot-dry-run-no-calls"
+        }
+      ]
     },
     {
       "id": "dry_run_no_sync_then_force",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check dry-run reporting and flag order without any sync or reboot syscall.",
-      "reason": "The task prohibits reboot invocations. A future disposable VM with a reviewed non-forwarding sync/reboot syscall mock must verify the dry-run output, status, and absence of both syscall requests for this flag order."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-reboot-dry-run-no-calls"
+        }
+      ]
     },
     {
       "id": "reboot_syscall_default",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate the ordinary reboot path's sync-before-reboot ordering and RB_AUTOBOOT request without restarting a real host.",
-      "reason": "Requires a separately reviewed, fail-closed syscall mock or disposable VM. The mock must intercept sync() and reboot(), never forward reboot(), and record that plain reboot makes exactly one sync() followed by reboot(RB_AUTOBOOT); verify the returned status handling while proving no host restart occurred."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-reboot-dispatch-mocked-errors"
+        },
+        {
+          "group": "shell",
+          "id": "migration-reboot-dispatch-mocked-success"
+        },
+        {
+          "group": "shell",
+          "id": "migration-reboot-unprivileged-real-refusal"
+        }
+      ]
     },
     {
       "id": "reboot_syscall_force",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate that -f skips sync while still requesting RB_AUTOBOOT without restarting a real host.",
-      "reason": "Requires a separately reviewed, fail-closed syscall mock or disposable VM. The mock must intercept sync() and reboot(), never forward reboot(), and record that reboot -f makes no sync() call and exactly one reboot(RB_AUTOBOOT) request; verify returned status handling while proving no host restart occurred."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-reboot-dispatch-mocked-errors"
+        },
+        {
+          "group": "shell",
+          "id": "migration-reboot-dispatch-mocked-success"
+        },
+        {
+          "group": "shell",
+          "id": "migration-reboot-unprivileged-real-refusal"
+        }
+      ]
     }
   ]
 }

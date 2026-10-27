@@ -138,7 +138,7 @@
       "id": "live-clock-now-info",
       "kind": "deferred",
       "purpose": "Compare tz now and DST-sensitive info against GNU date at a controlled current instant.",
-      "reason": "Requires a disposable VM with a frozen wall clock, or a reviewed clock shim that holds CLOCK_REALTIME constant across the reference and candidate runs. Validate tz now -z America/New_York and tz info Europe/Berlin at fixed UTC instants on both sides of their DST transitions; the current runner provides no clock control, so no operation result is claimed."
+      "reason": "Live bracketed comparisons are implementable now; the DST-sided obligation needs a controllable wall clock for the candidate."
     },
     {
       "id": "fixed-zone-info",

@@ -47,25 +47,25 @@
       "id": "pgrep-regex-name-matching",
       "kind": "deferred",
       "purpose": "Compare default comm-field regex matching, -x whole-name matching, alternatives, empty patterns, invalid ERE handling, and self-exclusion with GNU procps-ng pgrep.",
-      "reason": "Requires a disposable VM or independently reviewed read-only procfs mock with a deterministic PID tree and a GNU procps-ng pgrep reference. GNU synthetic parity requires a reviewed procfs path adapter in that disposable VM. Existing synthetic contract cases do not replace independent GNU qualification."
+      "reason": "Only the invalid-ERE parser path has GNU parity. Name-ERE semantics are proven on candidate-only synthetic records; GNU procps cannot read BASHOS_PROC_ROOT and no shared process set exists for both sides."
     },
     {
       "id": "pgrep-cmdline-output",
       "kind": "deferred",
       "purpose": "Compare -f command-line matching, -a/-l listing, -d delimiters, and -c output, including NUL-separated arguments, embedded newlines, long arguments, and empty command lines.",
-      "reason": "Requires a disposable VM or read-only procfs mock containing controlled cmdline records, plus GNU procps-ng pgrep. A reviewed procfs path adapter must expose the same synthetic records to unmodified procps; runnable literal-record contracts cover only the bounded cases listed separately."
+      "reason": "Output formatting is pinned only by candidate-only synthetic literals; -d and long/empty command lines have no executed case."
     },
     {
       "id": "pgrep-selectors-and-age",
       "kind": "deferred",
       "purpose": "Compare effective and real UID, GID, parent, process-group and session selectors; comma alternatives and combined selectors; -v; and newest/oldest selection including start-time ties.",
-      "reason": "Requires deterministic synthetic procfs status/stat records in a disposable VM or reviewed read-only procfs mock, with GNU procps-ng pgrep as the independent oracle. A reviewed procfs path adapter must expose the same synthetic records to unmodified procps; runnable literal-record contracts cover only the bounded cases listed separately."
+      "reason": "Selector semantics are proven only on candidate-only synthetic records. Parent, group, session, GID, comma/AND, -v and live -n/-o are implementable now with per-side helpers. Only two sub-obligations need more: a process with ruid != euid (an unprivileged uid-2000 process cannot acquire distinct real/effective IDs; image has no setuid helper and scratch mounts are nosuid) and forced start-time ties (not producible live; unmodified procps reads only /proc)."
     },
     {
       "id": "pgrep-usage-statuses",
       "kind": "deferred",
       "purpose": "Complete parser option matrix beyond the bounded runnable GNU parser cases.",
-      "reason": "Requires a disposable VM or procfs mock so parser cases that reach process enumeration cannot inspect the host process table; GNU procps-ng pgrep must be available as reference."
+      "reason": "Four parser paths have GNU parity. Selector-argument errors, clustered/attached/long forms, extra positional arguments and help/version are unexercised; the parser cases need no shared process set because they fail before or with an empty enumeration."
     },
     {
       "id": "pgrep-owned-child-integration",

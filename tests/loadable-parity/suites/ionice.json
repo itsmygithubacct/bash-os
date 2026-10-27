@@ -36,33 +36,178 @@
     },
     {
       "id": "query-format",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare own-process and explicit-PID queries for none, realtime, best-effort and idle classes, including priority formatting and get failures.",
-      "reason": "Requires a future disposable VM or deterministic ioprio_get mock supplying packed class/priority values and controlled errors to both the candidate and util-linux ionice(1). No process query was run here."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ionice-query-class-0"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-query-class-2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-query-class-3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-query-multiple-reaped"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-query-realtime-mock"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-query-reaped"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-query-self"
+        }
+      ]
     },
     {
       "id": "class-and-level-set",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare numeric and named class aliases, default best-effort class/priority, explicit levels 0 and 7, and the effective data for none and idle classes.",
-      "reason": "Set operations can mutate process scheduling and realtime class changes may require privilege. A future disposable VM or syscall mock must intercept ioprio_set for candidate and GNU ionice(1), record the requested class/data, and never forward the call to the host kernel."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ionice-rt-mapping-1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-rt-mapping-realtime"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-rt-mapping-rt"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-set-be-alias"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-set-be-name"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-set-be-number"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-set-class-only"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-set-idle-data-ignored"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-set-idle-name"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-set-idle-number"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-set-level-only"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-set-level-seven"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-set-level-zero"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-set-none-data-ignored"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-set-none-name"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-set-none-number"
+        }
+      ]
     },
     {
       "id": "argument-validation",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check missing option operands, unknown classes, priorities outside 0..7, malformed/overflowing PIDs and excessive PID lists, while confirming rejected requests make no syscall.",
-      "reason": "Although these inputs should fail before mutation, they still invoke the loadable. A future syscall-mocked disposable fixture must compare util-linux ionice(1) status/diagnostics and verify the mock recorded no ioprio_get/ioprio_set calls."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ionice-argument-validation-guard"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-invalid-reference-guard"
+        }
+      ]
     },
     {
       "id": "multiple-pids-and-ignore",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check processing of multiple explicit PIDs when one target fails, accumulated status, and -t/--ignore behavior for failed sets.",
-      "reason": "Requires deterministic per-PID success and failure injection for both implementations. A future disposable VM or syscall mock must use only fixture PIDs, record call order and errors, and ensure no mock call reaches the kernel."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ionice-multiple-set-ignore"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-multiple-set-long-ignore"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-multiple-set-ordinary"
+        }
+      ]
     },
     {
       "id": "command-wrapper",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check command form applies the requested policy to a child, honors -- before command arguments, preserves child output and propagates its exit status; also check set failure versus -t continuation.",
-      "reason": "Command form forks and attempts to change the child's I/O priority before exec. A future disposable VM or syscall-mocked runner must intercept ioprio_set for candidate and util-linux ionice(1), execute only a small relative fixture command, and verify child output/status without any real kernel priority change."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ionice-command-missing"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-command-nonexecutable"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-command-ordinary"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-command-rt-denied"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-command-rt-ignore"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-command-separator"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ionice-command-signal"
+        }
+      ]
     }
   ]
 }

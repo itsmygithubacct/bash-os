@@ -110,7 +110,7 @@
       "id": "acme-protocol-lifecycle-deferred",
       "purpose": "Full ACME directory, account, order, challenge, finalize, and certificate issuance behavior is outside this crypto-only loadable and cannot be exercised against a live service in this suite.",
       "kind": "deferred",
-      "reason": "Requires a disposable local ACME mock or VM with deterministic directory/nonce/order/challenge responses and fixture-only test certificates. The current target exposes only local JWK/JWS primitives; a future protocol test must supply and isolate the ACME peer and must not use a real network target or installed credentials."
+      "reason": "The candidate implements only local JWK/JWS/keyAuthorization primitives; the ACME client lifecycle (directory, nonce, account, order, challenge, finalize, certificate) has no candidate implementation. The help text points to rootfs/bash-os/acme.sh, which is not in the repository."
     }
   ]
 }

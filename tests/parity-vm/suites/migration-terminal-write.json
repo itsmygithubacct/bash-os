@@ -1,0 +1,70 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "id": "migration-write-pty-banner-gate-stdin",
+   "loadable": "write",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "The case's own PTY as recipient: write with arguments delivers the banner, the escaped message (ESC -> ^[, 0xE9 -> \\351) and EOF; after chmod 600 on the terminal, write refuses with the messages-disabled diagnostic and delivers nothing; in stdin mode, two lines typed on the canonical terminal and ^D are delivered after the banner, followed by EOF.",
+   "script": "t=$(tty); chmod 620 \"$t\" || echo chmod-failed >> rc\nexport BASHWALL_USER=u BASHWALL_HOST=h\nwrite \"$t\" hi $'a\\033[31mb\\351'; echo \"args=$?\" >> rc\nchmod 600 \"$t\"\nBASHWALL_USER=refused write \"$t\" nope 2> err; echo \"disabled=$?\" >> rc\n[[ $(< err) == *\"$t has messages disabled\"* ]] && echo diagnosed >> rc\nchmod 620 \"$t\"\nprintf 'READY-STDIN\\n'\nBASHWALL_USER=s write \"$t\"; echo \"stdin=$?\" >> rc\n",
+   "steps": [
+    {
+     "expect": "\\r+\\n\\x07\\x07\\x07Message from u@h on pts/[0-9]+ at [0-2][0-9]:[0-5][0-9] \\.\\.\\.\\r+\\nhi a\\^\\[\\[31mb\\\\351\\r+\\nEOF\\r+\\n"
+    },
+    {
+     "expect": "READY-STDIN"
+    },
+    {
+     "send": "line one\r"
+    },
+    {
+     "send": "line two\r"
+    },
+    {
+     "settle_ms": 100
+    },
+    {
+     "send": "\u0004"
+    },
+    {
+     "expect": "Message from s@h on pts/[0-9]+ at [0-2][0-9]:[0-5][0-9] \\.\\.\\.\\r+\\nline one\\r+\\nline two\\r+\\nEOF\\r+\\n"
+    },
+    {
+     "output_lacks": "refused@h"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "write/pty-banner-eof-and-faults"
+   ],
+   "oracle": "wall.c header and write_doc/wall_doc: write TTY [MSG...] banner '\\r\\n\\a\\a\\aMessage from USER@HOST on SRCTTY at HH:MM ...\\r\\n', message escaped like util-linux fputs_careful (control -> ^X, DEL -> ^?, bytes >= 0x80 -> \\NNN, LF -> CRLF), trailing 'EOF\\r\\n'; refuses when the target lacks S_IWGRP|S_IWOTH ('has messages disabled'); stdin is read to EOF when no MSG; wall walks $BASHWALL_UTMP USER_PROCESS records with a line (':' lines skipped), each line once, banner '\\r\\nBroadcast message from USER@HOST (TTY) (DATE):\\a\\a\\r\\n', BASHWALL_NOBANNER=1 suppresses it, -n as non-root warns and keeps it, -g GROUP via $BASHWALL_GROUP_FILE members or $BASHWALL_PASSWD_FILE primary gid. util-linux term-utils write.c/wall.c are the cited behaviour sources; the candidate's TTY-path and environment interfaces have no util-linux equivalent, so these are contract cases.",
+   "comparison": "contract: raw PTY bytes matched by regex (HH:MM and pts number variable; \\r+ allows the terminal's ONLCR on the CRLF the builtin writes); rc lines; absence of the refused banner in the whole output",
+   "kind": "contract",
+   "timeout": 30,
+   "expected_files": {
+    "rc": "args=0\ndisabled=1\ndiagnosed\nstdin=0\n"
+   }
+  },
+  {
+   "id": "migration-write-enospc",
+   "loadable": "write",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Write faults: with /dev/full as the target, the banner write fails with ENOSPC (diagnostic, rc 1); with BASHWALL_NOBANNER=1 the message write fails the same way.",
+   "script": "write /dev/full hi 2> err1; echo \"banner=$?\" > rc\n[[ $(< err1) == *'write /dev/full: No space left on device'* ]] && echo banner-enospc >> rc\nBASHWALL_NOBANNER=1 write /dev/full hi 2> err2; echo \"body=$?\" >> rc\n[[ $(< err2) == *'write /dev/full: No space left on device'* ]] && echo body-enospc >> rc\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "write/pty-banner-eof-and-faults"
+   ],
+   "oracle": "wall.c header and write_doc/wall_doc: write TTY [MSG...] banner '\\r\\n\\a\\a\\aMessage from USER@HOST on SRCTTY at HH:MM ...\\r\\n', message escaped like util-linux fputs_careful (control -> ^X, DEL -> ^?, bytes >= 0x80 -> \\NNN, LF -> CRLF), trailing 'EOF\\r\\n'; refuses when the target lacks S_IWGRP|S_IWOTH ('has messages disabled'); stdin is read to EOF when no MSG; wall walks $BASHWALL_UTMP USER_PROCESS records with a line (':' lines skipped), each line once, banner '\\r\\nBroadcast message from USER@HOST (TTY) (DATE):\\a\\a\\r\\n', BASHWALL_NOBANNER=1 suppresses it, -n as non-root warns and keeps it, -g GROUP via $BASHWALL_GROUP_FILE members or $BASHWALL_PASSWD_FILE primary gid. util-linux term-utils write.c/wall.c are the cited behaviour sources; the candidate's TTY-path and environment interfaces have no util-linux equivalent, so these are contract cases.",
+   "comparison": "contract: rc and diagnostic markers",
+   "kind": "contract",
+   "expected_files": {
+    "rc": "banner=1\nbanner-enospc\nbody=1\nbody-enospc\n"
+   }
+  }
+ ]
+}

@@ -91,13 +91,13 @@
       "id": "interactive-auth-session-deferred",
       "purpose": "Future end-to-end coverage of password verification, retry and lockout state, TTY policy, session accounting, and successful login session setup.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM or reviewed auth-device mock providing /dev/bashos-auth, controlled passwd and shadow databases, isolated lock/accounting files, frozen time, and a bounded PTY. The current fixture environment has no such device or terminal driver, and this operation is not safe to invoke here."
+      "reason": "Nothing executes the login verb. Prompting, verification, retries, lockout and TTY policy are observable by an unprivileged PTY fixture with private account files. Only the successful session (accounting files, credential switch, kernel proof) needs a root-run side and/or the bash-os auth device."
     },
     {
       "id": "credential-transition-deferred",
       "purpose": "Future verification of become's token handling, supplementary groups, uid/gid transition, environment, working directory, and exec arguments.",
       "kind": "deferred",
-      "reason": "Requires a disposable privileged VM with controlled test identities, a reviewed kernel auth-token mock, and a harmless instrumented target shell to observe credential and exec state. This fixture runner intentionally provides neither privilege nor an auth device."
+      "reason": "become is root-only by design and its token path depends on the bash-os kernel auth device. Only the non-root refusal is observable by an ordinary fixture."
     }
   ]
 }

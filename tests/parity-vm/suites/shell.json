@@ -1,0 +1,425 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "shell-quoting",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "printf '<%s>\\n' '' 'a b' '*' $'tab\\tvalue'",
+      "expected_status": 0,
+      "stdout": "<>\n<a b>\n<*>\n<tab\tvalue>\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-parameter-expansion",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "x=abcdef; printf '%s\\n' \"${x:1:3}\" \"${x/bc/XY}\" \"${x^^}\" \"${missing:-fallback}\"",
+      "expected_status": 0,
+      "stdout": "bcd\naXYdef\nABCDEF\nfallback\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-indexed-arrays",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "a=('a b' c); a+=(d); printf '%s\\n' \"${#a[@]}\" \"${a[@]}\"",
+      "expected_status": 0,
+      "stdout": "3\na b\nc\nd\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-associative-arrays",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "declare -A a=([first]=one [second]=two); printf '%s\\n' \"${a[first]}\" \"${a[second]}\"",
+      "expected_status": 0,
+      "stdout": "one\ntwo\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-arithmetic",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "printf '%s\\n' \"$((2**10))\" \"$((16#ff))\" \"$((-7/3))\" \"$((-7%3))\"",
+      "expected_status": 0,
+      "stdout": "1024\n255\n-2\n-1\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-functions-scope",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "x=outer; f() { local x=inner; printf '%s\\n' \"$x\"; }; f; printf '%s\\n' \"$x\"",
+      "expected_status": 0,
+      "stdout": "inner\nouter\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-nameref",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "x=value; declare -n r=x; r=changed; printf '%s\\n' \"$x\"",
+      "expected_status": 0,
+      "stdout": "changed\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-pipefail",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "set -o pipefail; false | true; printf '%s\\n' \"$?\"",
+      "expected_status": 0,
+      "stdout": "1\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-process-substitution",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "read -r x < <(printf 'from child\\n'); printf '%s\\n' \"$x\"",
+      "expected_status": 0,
+      "stdout": "from child\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-mapfile",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "mapfile -t a <<<'one two'; printf '%s\\n' \"${a[0]}\"",
+      "expected_status": 0,
+      "stdout": "one two\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-read-delimiter",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "IFS= read -r -d : x <<<'abc:def'; printf '%s\\n' \"$x\"",
+      "expected_status": 0,
+      "stdout": "abc\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-trap-return",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "f() { trap 'printf \"%s\\n\" returned' RETURN; :; }; f",
+      "expected_status": 0,
+      "stdout": "returned\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-regex",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "x=abc123; [[ $x =~ ([a-z]+)([0-9]+) ]]; printf '%s\\n' \"${BASH_REMATCH[@]}\"",
+      "expected_status": 0,
+      "stdout": "abc123\nabc\n123\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-case-fallthrough",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "case x in x) printf one;;& x) printf two;& z) printf three;; esac; printf '\\n'",
+      "expected_status": 0,
+      "stdout": "onetwothree\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-brace-expansion",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "printf '%s\\n' {02..06..2}",
+      "expected_status": 0,
+      "stdout": "02\n04\n06\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-extglob",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "shopt -s extglob; x=foo; [[ $x == @(foo|bar) ]]; printf '%s\\n' \"$?\"",
+      "expected_status": 0,
+      "stdout": "0\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-subshell-scope",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "x=outer; (x=inner; printf '%s\\n' \"$x\"); printf '%s\\n' \"$x\"",
+      "expected_status": 0,
+      "stdout": "inner\nouter\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-printf-nul",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "printf 'a\\0b\\n'",
+      "expected_status": 0,
+      "stdout": "a\u0000b\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-getopts",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "set -- -a -b val; while getopts ':ab:' c; do printf '%s:%s\\n' \"$c\" \"$OPTARG\"; done",
+      "expected_status": 0,
+      "stdout": "a:\nb:val\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-redirections",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "printf one > file; printf two >> file; read -r x < file || :; printf '%s\\n' \"$x\"",
+      "expected_status": 0,
+      "stdout": "onetwo\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-command-substitution",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "x=$(printf 'one\\n\\n'); printf '<%s>\\n' \"$x\"",
+      "expected_status": 0,
+      "stdout": "<one>\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-word-splitting",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "IFS=:; x='a::b'; set -- $x; printf '<%s>\\n' \"$@\"",
+      "expected_status": 0,
+      "stdout": "<a>\n<>\n<b>\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-quoted-heredoc",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "x=expanded; read -r value <<'END'\n$x literal\nEND\nprintf '%s\\n' \"$value\"",
+      "expected_status": 0,
+      "stdout": "$x literal\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-arithmetic-loop",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "sum=0; for ((i=0;i<4;i++)); do ((sum+=i)); done; printf '%s\\n' \"$sum\"",
+      "expected_status": 0,
+      "stdout": "6\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-while-until",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "n=0; until ((n==3)); do ((n++)); done; while ((n>0)); do printf '%s' \"$n\"; ((n--)); done; printf '\\n'",
+      "expected_status": 0,
+      "stdout": "321\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-nested-break",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "for a in 1 2; do for b in x y; do printf '%s%s\\n' \"$a\" \"$b\"; break 2; done; done",
+      "expected_status": 0,
+      "stdout": "1x\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-positional-shift",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "set -- a 'b c' d; shift; printf '%s\\n' \"$#\" \"$@\"",
+      "expected_status": 0,
+      "stdout": "2\nb c\nd\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-parameter-defaults",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "unset x; printf '<%s><%s>\\n' \"${x-absent}\" \"${x:-empty}\"; x=; printf '<%s><%s>\\n' \"${x-absent}\" \"${x:-empty}\"",
+      "expected_status": 0,
+      "stdout": "<absent><empty>\n<><empty>\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-indirect-expansion",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "target=value; name=target; printf '%s\\n' \"${!name}\"",
+      "expected_status": 0,
+      "stdout": "value\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-readonly-variable",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "readonly x=fixed; (x=changed) 2>/dev/null; printf '%s:%s\\n' \"$?\" \"$x\"",
+      "expected_status": 0,
+      "stdout": "1:fixed\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-function-shadowing",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "printf() { builtin printf 'function:%s\\n' \"$1\"; }; printf hello; builtin printf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "function:hello\nbuiltin\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-eval-arguments",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "x=world; eval 'printf \"hello %s\\n\" \"$x\"'",
+      "expected_status": 0,
+      "stdout": "hello world\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-pipeline-status-array",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "false | true | false; printf '%s\\n' \"${PIPESTATUS[*]}\"",
+      "expected_status": 0,
+      "stdout": "1 0 1\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-wait-status",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "(exit 7) & p=$!; wait \"$p\"; printf '%s\\n' \"$?\"",
+      "expected_status": 0,
+      "stdout": "7\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-trap-exit",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "trap 'printf \"%s\\n\" exit' EXIT; printf 'body\\n'",
+      "expected_status": 0,
+      "stdout": "body\nexit\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-read-array",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "read -r -a a <<<'one two three'; printf '%s:%s\\n' \"${#a[@]}\" \"${a[1]}\"",
+      "expected_status": 0,
+      "stdout": "3:two\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-printf-assign",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "printf -v x '%04d' 7; printf '%s\\n' \"$x\"",
+      "expected_status": 0,
+      "stdout": "0007\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-glob-nullglob",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "shopt -s nullglob; a=(does-not-exist-*); printf '%s\\n' \"${#a[@]}\"",
+      "expected_status": 0,
+      "stdout": "0\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-conditional-file",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "printf x > file; [[ -f file && -s file && ! -d file ]]; printf '%s\\n' \"$?\"",
+      "expected_status": 0,
+      "stdout": "0\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-redirection-fd",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "exec 3>file; printf 'value\\n' >&3; exec 3>&-; IFS= read -r x <file; printf '%s\\n' \"$x\"",
+      "expected_status": 0,
+      "stdout": "value\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-list-short-circuit",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "false && printf bad; true || printf bad; false || printf 'fallback\\n'",
+      "expected_status": 0,
+      "stdout": "fallback\n",
+      "stderr": ""
+    },
+    {
+      "id": "shell-coprocess",
+      "loadable": "bash",
+      "group": "shell",
+      "driver": "plain",
+      "script": "coproc READER { read -r x; printf 'reply:%s\\n' \"$x\"; }; p=$READER_PID; printf 'question\\n' >&\"${READER[1]}\"; read -r answer <&\"${READER[0]}\"; wait \"$p\"; printf '%s\\n' \"$answer\"",
+      "expected_status": 0,
+      "stdout": "reply:question\n",
+      "stderr": ""
+    }
+  ]
+}

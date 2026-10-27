@@ -56,13 +56,13 @@
       "id": "defer-kernel-partx",
       "kind": "deferred",
       "purpose": "Cover --partx-kernel BLKPG add/delete/update and post-write partition reread behavior.",
-      "reason": "Requires a disposable Linux VM with an isolated throwaway block device or a reviewed ioctl mock that records BLKPG and BLKRRPART requests; the current environment must not issue kernel partition-table ioctls."
+      "reason": "BLKPG and BLKRRPART require CAP_SYS_ADMIN on a real block device (block/ioctl.c blkpg_do_ioctl/blkdev_reread_part), and uid 2000 with setgroups([]) cannot open /dev/loop-control or /dev/loopN (root:disk 0660), cannot mknod block nodes (CAP_MKNOD; device nodes are refused inside user namespaces), and the real virtio disk nodes are root:disk 0660, so no block device with known contents is visible to an unprivileged fixture. Loop devices also need LO_FLAGS_PARTSCAN for kernel partitions. r3 argument/uid checks need neither."
     },
     {
       "id": "defer-interactive-editor",
       "kind": "deferred",
       "purpose": "Qualify interactive PTY prompts, key handling and screen restoration; pipe-driven quit has separate runnable coverage.",
-      "reason": "Requires a future disposable VM or reviewed bounded PTY driver with fixed dimensions, a scratch regular-file image, and independently specified terminal transcripts and byte snapshots. Captured pipes cannot establish PTY rendering or terminal restoration."
+      "reason": "No PTY fixture exists for this editor. The VM pty driver (terminal.py, used by 98 terminal cases) already supplies fixed-size PTYs, keystroke scripts, screen decoding and terminal_restored checks, so no new capability is needed; the editor is candidate-specific, so the oracle is an independent transcript/byte decoder, not util-linux fdisk (whose dialog differs)."
     },
     {
       "id": "regular-mbr-inspection",

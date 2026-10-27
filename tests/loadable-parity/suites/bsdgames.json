@@ -119,7 +119,7 @@
       "id": "interactive-tetris-pty-session",
       "kind": "deferred",
       "purpose": "Interactive game controls and terminal redraw behavior need a real bounded terminal session.",
-      "reason": "The declarative runner supplies stdin from /dev/null and has no PTY or terminal driver mode. A future disposable VM test needs a private PTY, fixed TERM and terminal dimensions, scripted key input, deterministic seed, and captured exit/output checks for a short tetris session. This operation was not executed and is not claimed as passed."
+      "reason": "No executed evidence. The headless scripted and --frames paths in legacy cases do not exercise the TTY renderer or input. The existing PTY driver is sufficient: send, screen, termios, terminal_restored, a ^C send, and hangup."
     },
     {
       "id": "rot13-empty-and-repeat",

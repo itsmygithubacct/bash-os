@@ -84,31 +84,31 @@
       "id": "defer_pid_query",
       "kind": "deferred",
       "purpose": "Check query formatting for one task and task enumeration with -a, without changing scheduler state.",
-      "reason": "Future run needs a disposable Linux VM with a controlled owned process and known thread set, plus an independent sched_getattr oracle for each TID. Verify PID 0 handling, comm fallback, output values, and that querying makes no scheduler writes. Do not use a host task."
+      "reason": "Missing fixtures only, subject to the UCLAMP_TASK preflight. Queries of one's own threads are unprivileged."
     },
     {
       "id": "defer_pid_setter",
       "kind": "deferred",
       "purpose": "Check one-sided and paired clamp updates, reset values, -R, and preservation of unrelated scheduler attributes.",
-      "reason": "Future run needs a disposable VM with CONFIG_UCLAMP_TASK or a reviewed sched_getattr/sched_setattr mock that records request bytes and can inject kernel errors. Use an owned test process and an independent syscall oracle; assert policy, nice, priority, and deadline parameters are preserved and rejected requests do not mutate the task."
+      "reason": "The rejection status for a reversed pair is exercised. Everything else is a missing fixture, unprivileged after the preflight. RT/DL preservation can use SECCOMP-NOTIFY in place of CAP_SYS_NICE."
     },
     {
       "id": "defer_all_tasks_preflight",
       "kind": "deferred",
       "purpose": "Check that -a reads and validates every thread before setting any thread, including a later-thread failure.",
-      "reason": "Future run needs a disposable VM or controlled syscall mock with multiple owned threads whose current clamps differ, per-TID get/set logging, and injectable later-thread read/validation failures. Require all gets before the first set and no partial mutation when preflight fails."
+      "reason": "Missing fixtures only. Validation failure is reachable with owned threads, and read-failure injection plus call logging use SECCOMP-NOTIFY in the modern plain driver."
     },
     {
       "id": "defer_system_files",
       "kind": "deferred",
       "purpose": "Qualify live system sysctl semantics and injected write/open failures, ordering and rollback beyond the private regular-file model.",
-      "reason": "Requires a disposable VM for real scheduler sysctls or a reviewed open/write syscall mock recording order and injecting partial-write/open failures. The runnable private regular-file seam covers normal query/update and -1 keep-current, but cannot establish kernel validation, write ordering or rollback after injected failures."
+      "reason": "r1 to r3 are missing fixtures on the existing private-file seam. The short write needs SECCOMP-NOTIFY. Only the live sysctl semantics need root, because the sysctls are global and not namespaced."
     },
     {
       "id": "defer_command_mode",
       "kind": "deferred",
       "purpose": "Check that command mode applies clamps only in a child, preserves literal argv, and propagates exit and lookup status.",
-      "reason": "Future run needs a disposable VM with a reviewed scheduler syscall mock or supported uclamp kernel and a private fixture executable. Verify child-only changes, parent state preservation, literal arguments (including spaces and empty strings), builtin/external dispatch, normal exit status, and command-not-found behavior."
+      "reason": "Missing fixtures only, subject to the UCLAMP_TASK and unprivileged-set preflight."
     },
     {
       "id": "private-system-file-model",

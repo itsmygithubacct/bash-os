@@ -27,19 +27,19 @@
       "id": "deferred-pid-descriptors",
       "kind": "deferred",
       "purpose": "Qualify -p listing of known open descriptor types and paths against GNU lsof.",
-      "reason": "Requires a disposable Linux VM with isolated /proc and a controlled child holding known regular-file, directory, FIFO, and socket descriptors. Compare its -p rows and FD/TYPE/PATH fields against GNU lsof for that same child; this fixture runner is not used to inspect its process table."
+      "reason": "Never executed. An ordinary owned child is enough: each side starts its own fixed-name helper holding known descriptors, and the side verifies the PID it queried is that child."
     },
     {
       "id": "deferred-user-filter",
       "kind": "deferred",
       "purpose": "Qualify -u name and numeric-UID filtering across processes with distinct owners.",
-      "reason": "Requires a disposable Linux VM or reviewed procfs mock with controlled passwd mappings and processes under at least two UIDs. Use GNU lsof as the reference and verify that only matching owners appear; no installed host accounts or credentials are used."
+      "reason": "Never executed. Two distinct owners are already visible in the guest (root controller and uid 2000), and the VM passwd provides names, so no capability is missing."
     },
     {
       "id": "deferred-process-scan",
       "kind": "deferred",
       "purpose": "Qualify default whole-table enumeration and filtering over a deterministic process set.",
-      "reason": "Requires a disposable Linux VM with an isolated, bounded PID namespace and only controlled processes, or a reviewed procfs mock. Compare no-argument and filtered output with GNU lsof there; the current fixture runner must not walk /proc."
+      "reason": "Never executed. A deterministic set is reachable unprivileged with a nested 'unshare -Urpf --mount-proc' (util-linux, absolute path), so only the fixture's own processes are visible. This assumes unprivileged user namespaces are enabled in the guest kernel (check user.max_user_namespaces in the VM)."
     },
     {
       "id": "missing-pid-gnu-status",

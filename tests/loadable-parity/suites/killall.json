@@ -35,37 +35,37 @@
       "id": "exact-comm-and-name-list",
       "purpose": "Check the core matching contract, including exact comm equality, similar-name exclusion, multiple names, duplicate names, the 15-byte comm boundary, self-exclusion, and default SIGTERM.",
       "kind": "deferred",
-      "reason": "Requires a future disposable VM with fixed synthetic /proc comm records and a reviewed signal adapter that logs each kill(2) tuple but never forwards it. Compare the recorded PID/signal set with independently written expectations based on GNU psmisc killall's exact-name semantics and the documented self-exclusion/default TERM contract. Include prefix/suffix lookalikes, repeated and multiple NAME operands, and 15-byte comm boundaries. This runner has no such adapter, and invoking killall is prohibited here."
+      "reason": "No killall run exists. Legacy runner inside the VM: bwrap private PID namespace means only fixture processes are visible, so killall NAME cannot reach anything outside the case. psmisc killall 23.7 is installed in the image as the oracle."
     },
     {
       "id": "full-command-line-exact-mode",
       "purpose": "Exercise -f exact joined-command-line selection, including NUL-separated arguments, empty arguments, long records, and substring nonmatches.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM or reviewed proc mock that supplies controlled /proc/PID/cmdline bytes and records, without forwarding, all attempted signals. Build independent cases for NUL-separated arguments joined by spaces, empty arguments, a long exact line, empty command lines, and substring rejection. The source documents -f as exact joined-line matching; no operation is executed in this suite."
+      "reason": "-f is a candidate extension (psmisc 23.7 killall has no -f option), so there is no GNU oracle; it needs a contract case with owned children."
     },
     {
       "id": "real-uid-filter",
       "purpose": "Check -u numeric and account-name filters against real UID records, including a nonmatching UID and filter interaction with name selection.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM/mock with synthetic complete /proc/PID/status Uid records and a private passwd fixture for name resolution, plus a non-forwarding signal recorder. Expected selections must come from those fixture records and the documented real-UID contract; do not consult or modify host accounts."
+      "reason": "Numeric and name filters with matching/nonmatching UIDs are implementable for uid 2000; real-vs-effective distinction requires root-prepared credentials."
     },
     {
       "id": "signal-and-option-parsing",
       "purpose": "Check default TERM, signal names with optional SIG prefix and case variation, numeric signals, -e/--exact compatibility, and usage errors such as zero or unknown signals/options.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM or reviewed signal syscall mock that records but never forwards requests. Derive expected signal numbers and option acceptance from GNU psmisc killall documentation plus the loadable's published option contract. Include valid aliases and invalid/overflowing signal values, and capture exit status and diagnostics without targeting a real process."
+      "reason": "No parsing case runs. Parser errors can be compared without any target; valid signals need trap-logging children."
     },
     {
       "id": "status-and-proc-failure-paths",
       "purpose": "Check no-match, usage, and fatal-proc status classes along with malformed or missing proc records, bounded PID parsing, delivery ESRCH/EPERM, and partial success.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM or reviewed proc/signal adapter that serves hand-built records and injects ESRCH/EPERM while never forwarding kill(2). Independently assert the documented statuses (1 for no match or unsuccessful delivery, 2 for usage, 3 for fatal proc errors), stderr policy, fail-closed malformed PID/UID/comm handling, and partial success. No such adapter is supplied to the runner."
+      "reason": "No killall status path executed. EPERM and no-match are reproducible in the VM; malformed records and ESRCH require a fixture proc adapter with a non-forwarding kill recorder."
     },
     {
       "id": "controlled-child-delivery",
       "purpose": "Qualify real signal delivery and cleanup only against a uniquely named direct child whose PID, parent, UID, and comm are independently verified immediately before delivery.",
       "kind": "deferred",
-      "reason": "Requires a separately authorized disposable VM test with a dedicated owned child and an independently reviewed delivery guard that rejects every PID except that child, verifies PID/PPid/UID/comm immediately before each syscall, logs every request, and guarantees cleanup. This test must never use broad names or host processes. The current task forbids running killall or signals, so no live delivery is attempted."
+      "reason": "The disposable VM plus bwrap private PID namespace satisfies the isolation the original reason required; no executed fixture exists."
     }
   ]
 }

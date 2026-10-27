@@ -35,31 +35,46 @@
       "id": "status-oracle",
       "kind": "deferred",
       "purpose": "The read-only status verb formats real/effective UID/GID and the supplementary group list. A future fixture should compare the complete line against an independently obtained same-process getuid/getgid/geteuid/getegid/getgroups snapshot, including an empty group list and multiple groups.",
-      "reason": "Deferred by the task's operational-path restriction. A future disposable process fixture needs a same-process syscall oracle for getgroups; GNU id's user-facing group list is not a guaranteed byte-for-byte substitute for getgroups(2)."
+      "reason": "Remaining obligations: r4: Reachable in the legacy runner; unasserted.; r5: No process with several groups exists in any driver; an unprivileged process cannot call setgroups (EPERM without CAP_SETGID)."
     },
     {
       "id": "lookup-synthetic-databases",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise name and numeric-UID resolution, UID/GID variable binding, optional supplementary groups, not-found behavior, and malformed account rows using only synthetic account records.",
-      "reason": "The implementation reads /etc/passwd and /etc/group directly. A future disposable VM or reviewed resolver mock must supply private synthetic databases, including malformed and duplicate records, and use an independent field parser as the oracle. No installed account data is read here."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-cred-lookup"
+        }
+      ]
     },
     {
       "id": "drop-identity-transition",
       "kind": "deferred",
       "purpose": "Verify the ordered setgroups, setresgid, and setresuid transition, primary-group fallback, optional supplementary-group retention, saved-ID verification, and fail-closed diagnostics.",
-      "reason": "This changes the caller's process credentials and can leave a partial transition. It requires a disposable VM with a synthetic target identity or an independently reviewed syscall mock that records call order and injected failures; it must not run against the suite worker."
+      "reason": "Remaining obligations: r1: No case. Missing capability for success paths: CAP_SETUID+CAP_SETGID (+setgroups allowed) over at least two mapped uid/gid pairs. An unprivileged user namespace can map only the caller's own id with setgroups=deny, so setgroups() returns EPERM and setresuid()/setresgid() to any other id return EINVAL; under uid 2000 without capabilities they return EPERM. Driver option: either a controller-written multi-id uid_map/gid_map for a per-side user-namespace child (e.g. '0 100000 65536', root writes it from the init namespace) or PRIV-ROOT with exactly CAP_SETUID,CAP_SETGID; plus SYNTH-IDENT passwd/group bound over /etc in the child's mount namespace.; r2: No case; same capability need.; r6: Needs injected failure inside a privileged child."
     },
     {
       "id": "no-new-privileges",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify PR_SET_NO_NEW_PRIVS success, its observable state, and EPERM/ENOSYS diagnostics.",
-      "reason": "The prctl state is irreversible for the calling process. A future disposable child process or reviewed prctl mock must verify the set value and error paths without changing the suite worker's security state."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-cred-no-new-privs"
+        }
+      ]
     },
     {
       "id": "caps-clear",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify capability-name parsing, keep-list handling, and clearing of bounding, ambient, permitted, effective, and inheritable sets.",
-      "reason": "Capability operations change process security state and may irreversibly reduce the bounding set. A future disposable VM with known capability sets or a reviewed prctl/capset mock must provide independent readback and injected error cases."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-cred-caps-clear"
+        }
+      ]
     }
   ]
 }

@@ -117,9 +117,22 @@
     },
     {
       "id": "write-error-recovery-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify cat's stdout write-error status and the shell's ability to continue after the error.",
-      "reason": "Requires a future disposable VM with a private sink that reliably fails a bounded write or an independently reviewed write/close syscall mock. The current suite must not access host devices or paths, so this operation is not executed here. The future case should assert cat's nonzero status, a diagnostic, and a subsequent same-shell marker."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/cat/closed-output-and-recovery"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cat-full-device-recovery"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cat-partial-pipe-recovery"
+        }
+      ]
     },
     {
       "id": "input-is-output-file",

@@ -85,19 +85,19 @@
       "id": "deferred-plain-search",
       "purpose": "Exercise an LDAPv3 search round trip, entry decoding, and SearchResultDone status against a deterministic server response.",
       "kind": "deferred",
-      "reason": "Requires a disposable LDAPv3 peer in a future isolated VM or reviewed local mock that accepts one bounded search request and returns fixed SearchResultEntry and SearchResultDone BER. No network fixture was run here."
+      "reason": "No LDAP peer exists; offline encoders/decoders are covered but no round trip."
     },
     {
       "id": "deferred-bind-whoami",
       "purpose": "Exercise simple bind sequencing and the WhoAmI extended request/response using fixture-only credentials.",
       "kind": "deferred",
-      "reason": "Requires a future disposable VM providing the following prerequisite: Requires a disposable LDAP peer that records bind and WhoAmI request BER and returns fixed result messages, plus credentials created only for that fixture. No authentication or network operation was run here."
+      "reason": "No LDAP peer exists; ldap-utils (ldapwhoami) is not in the VM image, so the oracle is hand-encoded RFC 4511/4532 BER."
     },
     {
       "id": "deferred-tls-starttls",
       "purpose": "Exercise implicit LDAPS and both optional and required StartTLS paths, certificate verification, and SNI behavior.",
       "kind": "deferred",
-      "reason": "Requires a disposable LDAP/TLS peer, fixture CA and server certificate, and a reviewed TLS handshake mock or isolated VM. No TLS, certificate, or network operation was run here."
+      "reason": "No TLS-capable LDAP peer exists; python3 ssl/python3-cryptography and openssl in the VM can provide one with a throwaway CA."
     },
     {
       "id": "or-and-not-filter-vectors",

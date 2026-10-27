@@ -71,13 +71,13 @@
       "id": "piece-table-operations",
       "kind": "deferred",
       "purpose": "Exercise load, insert, delete, line/column mapping, range flattening, binary NUL handling, and multi-step undo/redo against an independent reference model.",
-      "reason": "Deferred: nano2 exposes no operation arguments or fixture input beyond its built-in selftest, and GNU nano does not expose the same piece-table API. A future disposable VM needs a test-only adapter for deterministic operation sequences plus an independent byte-array reference model; compare return status and flattened bytes for each sequence. The selftest's internal assertions are not independent parity evidence."
+      "reason": "The piece-table engine is reachable only through a fixed internal selftest. There is no argument interface, so no fixture can drive deterministic operation sequences, and the selftest's assertions are not independent evidence."
     },
     {
       "id": "piece-table-file-save",
       "kind": "deferred",
       "purpose": "Exercise file load/save byte preservation, relative-path save, replacement, and temporary-file cleanup through the actual nano2 engine.",
-      "reason": "Deferred: the only public operation is a fixed selftest that creates its own /tmp paths and cannot accept relative fixture paths; the save API is internal and has no matching GNU command. A future disposable VM needs an adapter that routes the real engine through relative files in a private fixture tree, a file/error-injection mock for atomic-save failure paths, and an independent byte/mode/tree oracle."
+      "reason": "Save is internal to the selftest, which uses fixed paths of its own. No callable save interface accepts fixture paths."
     }
   ]
 }

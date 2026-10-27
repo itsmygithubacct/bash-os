@@ -137,7 +137,7 @@
       "id": "remote-protocols",
       "kind": "deferred",
       "purpose": "Remote upload, download, recursive and remote-to-remote behavior.",
-      "reason": "Requires a reviewed protocol mock or disposable endpoint. No remote command, peer, credential, helper transport or network operation executes in this suite. Existing remote option semantics remain private and are not claimed as OpenSSH parity."
+      "reason": "No executed case uses a remote endpoint. Both the BASHSSH1 command-stream transport (bashssh peer) and the --openssh path (backgrounded sshd) are reachable inside the VM."
     },
     {
       "id": "metadata-type",
@@ -194,13 +194,13 @@
       "id": "remote-single-file",
       "kind": "deferred",
       "purpose": "Single-file upload and download, including destination naming and transfer option forwarding.",
-      "reason": "Requires a disposable SSH endpoint or protocol-aware mock confined to the fixture tree. The future fixture should return a known small file, accept an upload, record the requested host/port/user/key arguments, and compare bytes, status, and resulting file effects against OpenSSH scp. No real network target or installed credential may be used."
+      "reason": "No executed case. Needs a remote endpoint."
     },
     {
       "id": "remote-recursive-copy",
       "kind": "deferred",
       "purpose": "Recursive (-r) upload and download of a small directory tree, including nested files and spaces in relative paths.",
-      "reason": "Requires an isolated remote-command mock or disposable VM with a bounded shell and tar endpoint. The future fixture should exercise both directions and compare the complete relative tree, file contents, and modes against OpenSSH scp while recording the tar/transport requests. No host path or real network target may be used."
+      "reason": "No executed case. Needs a remote endpoint (sshd peer or bashssh canned peer)."
     }
   ]
 }

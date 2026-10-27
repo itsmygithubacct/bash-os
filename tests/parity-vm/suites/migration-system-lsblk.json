@@ -1,0 +1,143 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "id": "migration-lsblk-sysfs-attributes",
+   "loadable": "lsblk",
+   "group": "shell",
+   "driver": "plain",
+   "kind": "parity",
+   "purpose": "on a fixture sysfs seen at /sys, NAME, MAJ:MIN, RM (partitions inherit the disk flag), SIZE (512 B, 1.5 KiB, 3.5 KiB, 4 KiB, 7.5 KiB, 1 MiB, 1 GiB), RO and TYPE in pairs, raw and list forms, with and without partitions, plus the empty FSTYPE/MOUNTPOINT of unmounted devices without nodes",
+   "oracle": "util-linux 2.41 lsblk(8) on the reference side, same guest, same sysfs view (fixture tree bound over /sys in an identically built private namespace, or the real read-only guest /sys).",
+   "comparison": "Byte parity of status, stdout, stderr and tree: every invocation is bracketed by \"[label]\" markers on both streams and followed by its exit status; no normalisation. The fixture sysfs (7 devices: three disks, four partitions, removable and read-only flags, sizes of 512 B to 1 GiB) is bound over /sys only inside a private user+mount namespace by the trusted ns_build.py; setup proves in an identical construction that /sys/class/block lists exactly the fixture and that util-linux lsblk enumerates exactly those devices. The candidate reads its default /sys/class/block, /dev and /proc/mounts paths (no BASHLSBLK_* variables), so both sides run identical argv.",
+   "covers": [
+    "lsblk/gnu-sysfs-parity-deferred"
+   ],
+   "requires": [
+    "lsblk",
+    "python3",
+    "sort",
+    "tr",
+    "unshare"
+   ],
+   "files": {
+    "spec.json": "[[\"bind\", \"fixture/sys\", \"/sys\"]]\n",
+    "ns_build.py": "# SPDX-License-Identifier: MIT\n# Trusted mount-namespace builder for table-driven fixtures (pane 214). Runs\n# as uid 0 of a fresh user+mount namespace (unshare --user --map-root-user\n# --mount), applies SPEC in order with mount(2), then executes PROGRAM. The\n# \"check\" form applies nothing: it verifies, inside an identically built\n# namespace, that every step took effect (setup control).\n# SPEC is a JSON list of steps:\n#   [\"tmpfs\", PATH, READONLY]   private tmpfs (size=1m) at PATH, optionally MS_RDONLY\n#   [\"bind\", SOURCE, TARGET]    bind SOURCE over TARGET (file or directory)\n#   [\"symlink\", TARGET, LINK]   create LINK -> TARGET (inside a mounted tmpfs)\n#   [\"mkdir\", PATH]             create a directory (inside a mounted tmpfs)\n#   [\"shadow\", DIR, NAME]       bind DIR to ./shadow-stash, mount a tmpfs over DIR and\n#                               relink every entry except NAME (symlinks copied as-is,\n#                               others point into the stash), so DIR/NAME is absent\n# Usage: ns_build.py SPEC PROGRAM [ARG...] | ns_build.py check SPEC\nimport ctypes, json, os, sys\n\nMS_RDONLY, MS_REMOUNT, MS_BIND = 1, 32, 4096\nlib = ctypes.CDLL(None, use_errno=True)\nSTASH = os.path.abspath('shadow-stash')\n\n\ndef mount(source, target, fstype, flags, data):\n    if lib.mount(source.encode(), target.encode(), fstype.encode() if fstype else None, ctypes.c_ulong(flags),\n                 data.encode() if data else None) != 0:\n        print('SETUP-INVALID mount %s on %r: %s' % (fstype or 'bind', target, os.strerror(ctypes.get_errno())))\n        sys.exit(97)\n\n\ndef apply(spec):\n    for step in spec:\n        kind = step[0]\n        if kind == 'tmpfs':\n            mount('parity-ns', step[1], 'tmpfs', MS_RDONLY if step[2] else 0, 'size=1m,mode=0755')\n        elif kind == 'bind':\n            mount(step[1], step[2], None, MS_BIND, None)\n        elif kind == 'symlink':\n            os.symlink(step[1], step[2])\n        elif kind == 'mkdir':\n            os.mkdir(step[1])\n        elif kind == 'shadow':\n            os.makedirs(STASH, exist_ok=True)\n            mount(step[1], STASH, None, MS_BIND, None)\n            names = os.listdir(STASH)\n            mount('parity-ns', step[1], 'tmpfs', 0, 'size=1m,mode=0755')\n            for name in names:\n                if name == step[2]:\n                    continue\n                held = os.path.join(STASH, name)\n                os.symlink(os.readlink(held) if os.path.islink(held) else held, os.path.join(step[1], name))\n        else:\n            raise AssertionError(kind)\n\n\ndef check(spec):\n    for step in spec:\n        kind = step[0]\n        if kind == 'tmpfs':\n            parent = os.path.dirname(os.path.abspath(step[1]))\n            ok = os.stat(step[1]).st_dev != os.stat(parent).st_dev\n            ok = ok and bool(os.statvfs(step[1]).f_flag & os.ST_RDONLY) == bool(step[2])\n        elif kind == 'bind':\n            with open(step[1], 'rb') as a, open(step[2], 'rb') as b:\n                ok = a.read() == b.read()\n        elif kind == 'symlink':\n            ok = os.readlink(step[2]) == step[1]\n        elif kind == 'shadow':\n            ok = (not os.path.lexists(os.path.join(step[1], step[2]))\n                  and set(os.listdir(step[1])) == set(os.listdir(STASH)) - {step[2]})\n        else:\n            ok = os.path.isdir(step[1])\n        if not ok:\n            print('CONTROL-FAILED namespace step %r did not take effect' % (step,))\n            sys.exit(98)\n    print('namespace control ok')\n\n\ndef main():\n    if os.geteuid() != 0:\n        print('SETUP-INVALID ns_build.py must run as user-namespace root')\n        sys.exit(97)\n    if sys.argv[1] == 'check':\n        with open(sys.argv[2]) as handle:\n            check(json.load(handle))\n        return\n    with open(sys.argv[1]) as handle:\n        apply(json.load(handle))\n    os.execv(sys.argv[2], sys.argv[2:])\n\n\nif __name__ == '__main__':\n    main()\n",
+    "inner.sh": "r() { local label=$1; shift; echo \"[$label]\"; echo \"[$label]\" >&2; \"$@\"; echo \"[$label] status=$?\"; }\nr pairs lsblk -P -n -o NAME,MAJ:MIN,RM,SIZE,RO,TYPE\nr pairs-head lsblk -P -o NAME,TYPE\nr nodeps lsblk -d -P -n -o NAME,SIZE,RM,RO\nr list lsblk -l -n -o NAME,TYPE\nr raw lsblk -r -n -o NAME,MAJ:MIN,SIZE\nr fs-cols lsblk -P -n -o NAME,FSTYPE,MOUNTPOINT\n"
+   },
+   "setup_script": "export PYTHONDONTWRITEBYTECODE=1\nB=fixture/sys\nmkdir -p \"$B/block\" \"$B/class/block\" \"$B/dev/block\" \"$B/devices/virtual/block\"\nput() { printf \"%s\\n\" \"$2\" >\"$1\"; }\nd=\"$B/devices/virtual/block/fxa\"; mkdir -p \"$d/holders\" \"$d/slaves\"\nput \"$d/dev\" 240:0; put \"$d/size\" 2097152; put \"$d/ro\" 0\nput \"$d/removable\" 0; mkdir \"$d/queue\"\nfor q in logical_block_size physical_block_size hw_sector_size; do put \"$d/queue/$q\" 512; done\nput \"$d/queue/rotational\" 0\nprintf 'MAJOR=240\\nMINOR=0\\nDEVNAME=fxa\\nDEVTYPE=disk\\n' >\"$d/uevent\"\nln -s ../devices/virtual/block/fxa \"$B/block/fxa\"\nln -s ../../devices/virtual/block/fxa \"$B/class/block/fxa\"\nln -s ../../devices/virtual/block/fxa \"$B/dev/block/240:0\"\nd=\"$B/devices/virtual/block/fxa/fxa1\"; mkdir -p \"$d/holders\" \"$d/slaves\"\nput \"$d/dev\" 240:1; put \"$d/size\" 2048; put \"$d/ro\" 0\nput \"$d/partition\" 1; put \"$d/start\" 2048\nprintf 'MAJOR=240\\nMINOR=1\\nDEVNAME=fxa1\\nDEVTYPE=partition\\nPARTN=1\\n' >\"$d/uevent\"\nln -s ../../devices/virtual/block/fxa/fxa1 \"$B/class/block/fxa1\"\nln -s ../../devices/virtual/block/fxa/fxa1 \"$B/dev/block/240:1\"\nd=\"$B/devices/virtual/block/fxa/fxa2\"; mkdir -p \"$d/holders\" \"$d/slaves\"\nput \"$d/dev\" 240:2; put \"$d/size\" 3; put \"$d/ro\" 1\nput \"$d/partition\" 2; put \"$d/start\" 4096\nprintf 'MAJOR=240\\nMINOR=2\\nDEVNAME=fxa2\\nDEVTYPE=partition\\nPARTN=2\\n' >\"$d/uevent\"\nln -s ../../devices/virtual/block/fxa/fxa2 \"$B/class/block/fxa2\"\nln -s ../../devices/virtual/block/fxa/fxa2 \"$B/dev/block/240:2\"\nd=\"$B/devices/virtual/block/fxa/fxa3\"; mkdir -p \"$d/holders\" \"$d/slaves\"\nput \"$d/dev\" 240:3; put \"$d/size\" 1; put \"$d/ro\" 0\nput \"$d/partition\" 3; put \"$d/start\" 8192\nprintf 'MAJOR=240\\nMINOR=3\\nDEVNAME=fxa3\\nDEVTYPE=partition\\nPARTN=3\\n' >\"$d/uevent\"\nln -s ../../devices/virtual/block/fxa/fxa3 \"$B/class/block/fxa3\"\nln -s ../../devices/virtual/block/fxa/fxa3 \"$B/dev/block/240:3\"\nd=\"$B/devices/virtual/block/fxb\"; mkdir -p \"$d/holders\" \"$d/slaves\"\nput \"$d/dev\" 240:16; put \"$d/size\" 8; put \"$d/ro\" 1\nput \"$d/removable\" 1; mkdir \"$d/queue\"\nfor q in logical_block_size physical_block_size hw_sector_size; do put \"$d/queue/$q\" 512; done\nput \"$d/queue/rotational\" 0\nprintf 'MAJOR=240\\nMINOR=16\\nDEVNAME=fxb\\nDEVTYPE=disk\\n' >\"$d/uevent\"\nln -s ../devices/virtual/block/fxb \"$B/block/fxb\"\nln -s ../../devices/virtual/block/fxb \"$B/class/block/fxb\"\nln -s ../../devices/virtual/block/fxb \"$B/dev/block/240:16\"\nd=\"$B/devices/virtual/block/fxb/fxb1\"; mkdir -p \"$d/holders\" \"$d/slaves\"\nput \"$d/dev\" 240:17; put \"$d/size\" 7; put \"$d/ro\" 1\nput \"$d/partition\" 1; put \"$d/start\" 1\nprintf 'MAJOR=240\\nMINOR=17\\nDEVNAME=fxb1\\nDEVTYPE=partition\\nPARTN=1\\n' >\"$d/uevent\"\nln -s ../../devices/virtual/block/fxb/fxb1 \"$B/class/block/fxb1\"\nln -s ../../devices/virtual/block/fxb/fxb1 \"$B/dev/block/240:17\"\nd=\"$B/devices/virtual/block/fxc\"; mkdir -p \"$d/holders\" \"$d/slaves\"\nput \"$d/dev\" 241:0; put \"$d/size\" 15; put \"$d/ro\" 0\nput \"$d/removable\" 0; mkdir \"$d/queue\"\nfor q in logical_block_size physical_block_size hw_sector_size; do put \"$d/queue/$q\" 512; done\nput \"$d/queue/rotational\" 0\nprintf 'MAJOR=241\\nMINOR=0\\nDEVNAME=fxc\\nDEVTYPE=disk\\n' >\"$d/uevent\"\nln -s ../devices/virtual/block/fxc \"$B/block/fxc\"\nln -s ../../devices/virtual/block/fxc \"$B/class/block/fxc\"\nln -s ../../devices/virtual/block/fxc \"$B/dev/block/241:0\"\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 ns_build.py spec.json /usr/bin/python3 -c \"import os, sys; sys.exit(0 if sorted(os.listdir('/sys/class/block')) == ['fxa', 'fxa1', 'fxa2', 'fxa3', 'fxb', 'fxb1', 'fxc'] else 98)\" || { echo \"CONTROL-FAILED fixture /sys not visible\"; exit 98; }\ngot=$(/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 ns_build.py spec.json /usr/bin/lsblk -l -n -o NAME | /usr/bin/sort | /usr/bin/tr \"\\n\" \" \")\n[[ $got == \"fxa fxa1 fxa2 fxa3 fxb fxb1 fxc \" ]] || { echo \"CONTROL-FAILED util-linux lsblk saw: $got\"; exit 98; }\n",
+   "setup_timeout": 60,
+   "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 ns_build.py spec.json \"$BASH\" --noprofile --norc inner.sh\necho \"inner status=$?\"\n",
+   "expected_status": 0,
+   "timeout": 60,
+   "features": [
+    "userns"
+   ]
+  },
+  {
+   "id": "migration-lsblk-sysfs-formatting",
+   "loadable": "lsblk",
+   "group": "shell",
+   "driver": "plain",
+   "kind": "parity",
+   "purpose": "on the same fixture: default columns and tree drawing, the tree with a custom column, aligned list columns, device operands by /dev path and by bare name, an absent operand, an unknown column, an unknown option and a missing -o argument",
+   "oracle": "util-linux 2.41 lsblk(8) on the reference side, same guest, same sysfs view (fixture tree bound over /sys in an identically built private namespace, or the real read-only guest /sys).",
+   "comparison": "Byte parity of status, stdout, stderr and tree: every invocation is bracketed by \"[label]\" markers on both streams and followed by its exit status; no normalisation. The fixture sysfs (7 devices: three disks, four partitions, removable and read-only flags, sizes of 512 B to 1 GiB) is bound over /sys only inside a private user+mount namespace by the trusted ns_build.py; setup proves in an identical construction that /sys/class/block lists exactly the fixture and that util-linux lsblk enumerates exactly those devices. The candidate reads its default /sys/class/block, /dev and /proc/mounts paths (no BASHLSBLK_* variables), so both sides run identical argv. Source-predicted differences, kept as real results: util-linux default output adds a MOUNTPOINTS column (loadables/lsblk.c default header stops at TYPE), draws the tree with UTF-8 branches under LC_ALL=C.UTF-8 where the candidate prints ASCII \"|-\" and \"`-\", resolves operands as device paths (the candidate matches bare names and partitions of a named disk), and reports bad columns/options with its own wording and statuses.",
+   "covers": [
+    "lsblk/gnu-sysfs-parity-deferred"
+   ],
+   "requires": [
+    "lsblk",
+    "python3",
+    "sort",
+    "tr",
+    "unshare"
+   ],
+   "files": {
+    "spec.json": "[[\"bind\", \"fixture/sys\", \"/sys\"]]\n",
+    "ns_build.py": "# SPDX-License-Identifier: MIT\n# Trusted mount-namespace builder for table-driven fixtures (pane 214). Runs\n# as uid 0 of a fresh user+mount namespace (unshare --user --map-root-user\n# --mount), applies SPEC in order with mount(2), then executes PROGRAM. The\n# \"check\" form applies nothing: it verifies, inside an identically built\n# namespace, that every step took effect (setup control).\n# SPEC is a JSON list of steps:\n#   [\"tmpfs\", PATH, READONLY]   private tmpfs (size=1m) at PATH, optionally MS_RDONLY\n#   [\"bind\", SOURCE, TARGET]    bind SOURCE over TARGET (file or directory)\n#   [\"symlink\", TARGET, LINK]   create LINK -> TARGET (inside a mounted tmpfs)\n#   [\"mkdir\", PATH]             create a directory (inside a mounted tmpfs)\n#   [\"shadow\", DIR, NAME]       bind DIR to ./shadow-stash, mount a tmpfs over DIR and\n#                               relink every entry except NAME (symlinks copied as-is,\n#                               others point into the stash), so DIR/NAME is absent\n# Usage: ns_build.py SPEC PROGRAM [ARG...] | ns_build.py check SPEC\nimport ctypes, json, os, sys\n\nMS_RDONLY, MS_REMOUNT, MS_BIND = 1, 32, 4096\nlib = ctypes.CDLL(None, use_errno=True)\nSTASH = os.path.abspath('shadow-stash')\n\n\ndef mount(source, target, fstype, flags, data):\n    if lib.mount(source.encode(), target.encode(), fstype.encode() if fstype else None, ctypes.c_ulong(flags),\n                 data.encode() if data else None) != 0:\n        print('SETUP-INVALID mount %s on %r: %s' % (fstype or 'bind', target, os.strerror(ctypes.get_errno())))\n        sys.exit(97)\n\n\ndef apply(spec):\n    for step in spec:\n        kind = step[0]\n        if kind == 'tmpfs':\n            mount('parity-ns', step[1], 'tmpfs', MS_RDONLY if step[2] else 0, 'size=1m,mode=0755')\n        elif kind == 'bind':\n            mount(step[1], step[2], None, MS_BIND, None)\n        elif kind == 'symlink':\n            os.symlink(step[1], step[2])\n        elif kind == 'mkdir':\n            os.mkdir(step[1])\n        elif kind == 'shadow':\n            os.makedirs(STASH, exist_ok=True)\n            mount(step[1], STASH, None, MS_BIND, None)\n            names = os.listdir(STASH)\n            mount('parity-ns', step[1], 'tmpfs', 0, 'size=1m,mode=0755')\n            for name in names:\n                if name == step[2]:\n                    continue\n                held = os.path.join(STASH, name)\n                os.symlink(os.readlink(held) if os.path.islink(held) else held, os.path.join(step[1], name))\n        else:\n            raise AssertionError(kind)\n\n\ndef check(spec):\n    for step in spec:\n        kind = step[0]\n        if kind == 'tmpfs':\n            parent = os.path.dirname(os.path.abspath(step[1]))\n            ok = os.stat(step[1]).st_dev != os.stat(parent).st_dev\n            ok = ok and bool(os.statvfs(step[1]).f_flag & os.ST_RDONLY) == bool(step[2])\n        elif kind == 'bind':\n            with open(step[1], 'rb') as a, open(step[2], 'rb') as b:\n                ok = a.read() == b.read()\n        elif kind == 'symlink':\n            ok = os.readlink(step[2]) == step[1]\n        elif kind == 'shadow':\n            ok = (not os.path.lexists(os.path.join(step[1], step[2]))\n                  and set(os.listdir(step[1])) == set(os.listdir(STASH)) - {step[2]})\n        else:\n            ok = os.path.isdir(step[1])\n        if not ok:\n            print('CONTROL-FAILED namespace step %r did not take effect' % (step,))\n            sys.exit(98)\n    print('namespace control ok')\n\n\ndef main():\n    if os.geteuid() != 0:\n        print('SETUP-INVALID ns_build.py must run as user-namespace root')\n        sys.exit(97)\n    if sys.argv[1] == 'check':\n        with open(sys.argv[2]) as handle:\n            check(json.load(handle))\n        return\n    with open(sys.argv[1]) as handle:\n        apply(json.load(handle))\n    os.execv(sys.argv[2], sys.argv[2:])\n\n\nif __name__ == '__main__':\n    main()\n",
+    "inner.sh": "r() { local label=$1; shift; echo \"[$label]\"; echo \"[$label]\" >&2; \"$@\"; echo \"[$label] status=$?\"; }\nr default lsblk\nr tree-name lsblk -o NAME\nr aligned lsblk -l -o NAME,SIZE,TYPE\nr operand-path lsblk -P -o NAME /dev/fxa\nr operand-name lsblk -P -o NAME fxa\nr absent lsblk -P -o NAME /dev/nosuch\nr bad-column lsblk -o NAME,BOGUS\nr bad-option lsblk -Z\nr missing-arg lsblk -o\n"
+   },
+   "setup_script": "export PYTHONDONTWRITEBYTECODE=1\nB=fixture/sys\nmkdir -p \"$B/block\" \"$B/class/block\" \"$B/dev/block\" \"$B/devices/virtual/block\"\nput() { printf \"%s\\n\" \"$2\" >\"$1\"; }\nd=\"$B/devices/virtual/block/fxa\"; mkdir -p \"$d/holders\" \"$d/slaves\"\nput \"$d/dev\" 240:0; put \"$d/size\" 2097152; put \"$d/ro\" 0\nput \"$d/removable\" 0; mkdir \"$d/queue\"\nfor q in logical_block_size physical_block_size hw_sector_size; do put \"$d/queue/$q\" 512; done\nput \"$d/queue/rotational\" 0\nprintf 'MAJOR=240\\nMINOR=0\\nDEVNAME=fxa\\nDEVTYPE=disk\\n' >\"$d/uevent\"\nln -s ../devices/virtual/block/fxa \"$B/block/fxa\"\nln -s ../../devices/virtual/block/fxa \"$B/class/block/fxa\"\nln -s ../../devices/virtual/block/fxa \"$B/dev/block/240:0\"\nd=\"$B/devices/virtual/block/fxa/fxa1\"; mkdir -p \"$d/holders\" \"$d/slaves\"\nput \"$d/dev\" 240:1; put \"$d/size\" 2048; put \"$d/ro\" 0\nput \"$d/partition\" 1; put \"$d/start\" 2048\nprintf 'MAJOR=240\\nMINOR=1\\nDEVNAME=fxa1\\nDEVTYPE=partition\\nPARTN=1\\n' >\"$d/uevent\"\nln -s ../../devices/virtual/block/fxa/fxa1 \"$B/class/block/fxa1\"\nln -s ../../devices/virtual/block/fxa/fxa1 \"$B/dev/block/240:1\"\nd=\"$B/devices/virtual/block/fxa/fxa2\"; mkdir -p \"$d/holders\" \"$d/slaves\"\nput \"$d/dev\" 240:2; put \"$d/size\" 3; put \"$d/ro\" 1\nput \"$d/partition\" 2; put \"$d/start\" 4096\nprintf 'MAJOR=240\\nMINOR=2\\nDEVNAME=fxa2\\nDEVTYPE=partition\\nPARTN=2\\n' >\"$d/uevent\"\nln -s ../../devices/virtual/block/fxa/fxa2 \"$B/class/block/fxa2\"\nln -s ../../devices/virtual/block/fxa/fxa2 \"$B/dev/block/240:2\"\nd=\"$B/devices/virtual/block/fxa/fxa3\"; mkdir -p \"$d/holders\" \"$d/slaves\"\nput \"$d/dev\" 240:3; put \"$d/size\" 1; put \"$d/ro\" 0\nput \"$d/partition\" 3; put \"$d/start\" 8192\nprintf 'MAJOR=240\\nMINOR=3\\nDEVNAME=fxa3\\nDEVTYPE=partition\\nPARTN=3\\n' >\"$d/uevent\"\nln -s ../../devices/virtual/block/fxa/fxa3 \"$B/class/block/fxa3\"\nln -s ../../devices/virtual/block/fxa/fxa3 \"$B/dev/block/240:3\"\nd=\"$B/devices/virtual/block/fxb\"; mkdir -p \"$d/holders\" \"$d/slaves\"\nput \"$d/dev\" 240:16; put \"$d/size\" 8; put \"$d/ro\" 1\nput \"$d/removable\" 1; mkdir \"$d/queue\"\nfor q in logical_block_size physical_block_size hw_sector_size; do put \"$d/queue/$q\" 512; done\nput \"$d/queue/rotational\" 0\nprintf 'MAJOR=240\\nMINOR=16\\nDEVNAME=fxb\\nDEVTYPE=disk\\n' >\"$d/uevent\"\nln -s ../devices/virtual/block/fxb \"$B/block/fxb\"\nln -s ../../devices/virtual/block/fxb \"$B/class/block/fxb\"\nln -s ../../devices/virtual/block/fxb \"$B/dev/block/240:16\"\nd=\"$B/devices/virtual/block/fxb/fxb1\"; mkdir -p \"$d/holders\" \"$d/slaves\"\nput \"$d/dev\" 240:17; put \"$d/size\" 7; put \"$d/ro\" 1\nput \"$d/partition\" 1; put \"$d/start\" 1\nprintf 'MAJOR=240\\nMINOR=17\\nDEVNAME=fxb1\\nDEVTYPE=partition\\nPARTN=1\\n' >\"$d/uevent\"\nln -s ../../devices/virtual/block/fxb/fxb1 \"$B/class/block/fxb1\"\nln -s ../../devices/virtual/block/fxb/fxb1 \"$B/dev/block/240:17\"\nd=\"$B/devices/virtual/block/fxc\"; mkdir -p \"$d/holders\" \"$d/slaves\"\nput \"$d/dev\" 241:0; put \"$d/size\" 15; put \"$d/ro\" 0\nput \"$d/removable\" 0; mkdir \"$d/queue\"\nfor q in logical_block_size physical_block_size hw_sector_size; do put \"$d/queue/$q\" 512; done\nput \"$d/queue/rotational\" 0\nprintf 'MAJOR=241\\nMINOR=0\\nDEVNAME=fxc\\nDEVTYPE=disk\\n' >\"$d/uevent\"\nln -s ../devices/virtual/block/fxc \"$B/block/fxc\"\nln -s ../../devices/virtual/block/fxc \"$B/class/block/fxc\"\nln -s ../../devices/virtual/block/fxc \"$B/dev/block/241:0\"\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 ns_build.py spec.json /usr/bin/python3 -c \"import os, sys; sys.exit(0 if sorted(os.listdir('/sys/class/block')) == ['fxa', 'fxa1', 'fxa2', 'fxa3', 'fxb', 'fxb1', 'fxc'] else 98)\" || { echo \"CONTROL-FAILED fixture /sys not visible\"; exit 98; }\ngot=$(/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 ns_build.py spec.json /usr/bin/lsblk -l -n -o NAME | /usr/bin/sort | /usr/bin/tr \"\\n\" \" \")\n[[ $got == \"fxa fxa1 fxa2 fxa3 fxb fxb1 fxc \" ]] || { echo \"CONTROL-FAILED util-linux lsblk saw: $got\"; exit 98; }\n",
+   "setup_timeout": 60,
+   "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 ns_build.py spec.json \"$BASH\" --noprofile --norc inner.sh\necho \"inner status=$?\"\n",
+   "expected_status": 0,
+   "timeout": 60,
+   "features": [
+    "userns"
+   ]
+  },
+  {
+   "id": "migration-lsblk-live-inventory",
+   "loadable": "lsblk",
+   "group": "shell",
+   "driver": "plain",
+   "kind": "parity",
+   "purpose": "the guest's real block devices (virtio disk, its partitions and any other kernel block devices) in pairs, list, raw and nodeps forms, an operand by /dev path, a character device operand and an absent operand",
+   "oracle": "util-linux 2.41 lsblk(8) on the reference side, same guest, same sysfs view (fixture tree bound over /sys in an identically built private namespace, or the real read-only guest /sys).",
+   "comparison": "Byte parity of status, stdout, stderr and tree: every invocation is bracketed by \"[label]\" markers on both streams and followed by its exit status; no normalisation. Read-only view of the real guest: /sys/block, /dev nodes (stat only; uid 2000 cannot open root:disk nodes) and the mount table are the same VM state for both sides. Nothing is opened for writing. Risk recorded, not normalised: util-linux hides zero-size devices (unbound loops) unless -a, which the candidate does not implement; if the guest has such devices the rows differ.",
+   "covers": [
+    "lsblk/live-device-inventory-deferred"
+   ],
+   "requires": [
+    "grep",
+    "lsblk",
+    "python3"
+   ],
+   "files": {},
+   "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n[[ -e /sys/block/vda && -b /dev/vda ]] || { echo \"SETUP-INVALID guest has no /sys/block/vda\"; exit 97; }\n/usr/bin/grep -q \" / \" /proc/self/mounts || { echo \"SETUP-INVALID no root mount entry\"; exit 97; }\n",
+   "setup_timeout": 60,
+   "script": "export PYTHONDONTWRITEBYTECODE=1\nr() { local label=$1; shift; echo \"[$label]\"; echo \"[$label]\" >&2; \"$@\"; echo \"[$label] status=$?\"; }\nr pairs lsblk -P -n -o NAME,MAJ:MIN,RM,SIZE,RO,TYPE\nr list lsblk -l -n -o NAME,TYPE\nr nodeps lsblk -d -P -n -o NAME,SIZE,RO\nr raw lsblk -r -n -o NAME,MAJ:MIN,RM\nr operand lsblk -P -n -o NAME,TYPE /dev/vda\nr chardev lsblk -P -o NAME /dev/null\nr absent lsblk -P -o NAME /dev/nosuch\n",
+   "expected_status": 0,
+   "timeout": 60
+  },
+  {
+   "id": "migration-lsblk-live-mountpoints",
+   "loadable": "lsblk",
+   "group": "shell",
+   "driver": "plain",
+   "kind": "parity",
+   "purpose": "MOUNTPOINT and MOUNTPOINTS of the real guest devices (root filesystem partition and any other mounted block device) taken from the mount table",
+   "oracle": "util-linux 2.41 lsblk(8) on the reference side, same guest, same sysfs view (fixture tree bound over /sys in an identically built private namespace, or the real read-only guest /sys).",
+   "comparison": "Byte parity of status, stdout, stderr and tree: every invocation is bracketed by \"[label]\" markers on both streams and followed by its exit status; no normalisation. Read-only view of the real guest: /sys/block, /dev nodes (stat only; uid 2000 cannot open root:disk nodes) and the mount table are the same VM state for both sides. Nothing is opened for writing. util-linux matches /proc/self/mountinfo by device number, the candidate matches /proc/mounts sources by /dev/NAME; for the guest root mounted from its partition node both should name the same mountpoint.",
+   "covers": [
+    "lsblk/live-device-inventory-deferred"
+   ],
+   "requires": [
+    "grep",
+    "lsblk",
+    "python3"
+   ],
+   "files": {},
+   "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n[[ -e /sys/block/vda && -b /dev/vda ]] || { echo \"SETUP-INVALID guest has no /sys/block/vda\"; exit 97; }\n/usr/bin/grep -q \" / \" /proc/self/mounts || { echo \"SETUP-INVALID no root mount entry\"; exit 97; }\n",
+   "setup_timeout": 60,
+   "script": "export PYTHONDONTWRITEBYTECODE=1\nr() { local label=$1; shift; echo \"[$label]\"; echo \"[$label]\" >&2; \"$@\"; echo \"[$label] status=$?\"; }\nr mountpoint lsblk -P -n -o NAME,MOUNTPOINT\nr mountpoints lsblk -P -n -o NAME,MOUNTPOINTS\nr list lsblk -l -n -o NAME,MOUNTPOINT\n",
+   "expected_status": 0,
+   "timeout": 60
+  },
+  {
+   "id": "migration-lsblk-live-fstype",
+   "loadable": "lsblk",
+   "group": "shell",
+   "driver": "plain",
+   "kind": "parity",
+   "purpose": "FSTYPE of the real guest partitions as uid 2000, alone and in the -f column set",
+   "oracle": "util-linux 2.41 lsblk(8) on the reference side, same guest, same sysfs view (fixture tree bound over /sys in an identically built private namespace, or the real read-only guest /sys).",
+   "comparison": "Byte parity of status, stdout, stderr and tree: every invocation is bracketed by \"[label]\" markers on both streams and followed by its exit status; no normalisation. Read-only view of the real guest: /sys/block, /dev nodes (stat only; uid 2000 cannot open root:disk nodes) and the mount table are the same VM state for both sides. Nothing is opened for writing. Source-predicted difference, kept as a real result: util-linux reads FSTYPE from the udev database (/run/udev/data, world-readable) when the node is unreadable, while the candidate only probes the node, which uid 2000 cannot open (root:disk 0660), so its FSTYPE is empty.",
+   "covers": [
+    "lsblk/live-device-inventory-deferred"
+   ],
+   "requires": [
+    "grep",
+    "lsblk",
+    "python3"
+   ],
+   "files": {},
+   "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n[[ -e /sys/block/vda && -b /dev/vda ]] || { echo \"SETUP-INVALID guest has no /sys/block/vda\"; exit 97; }\n/usr/bin/grep -q \" / \" /proc/self/mounts || { echo \"SETUP-INVALID no root mount entry\"; exit 97; }\n",
+   "setup_timeout": 60,
+   "script": "export PYTHONDONTWRITEBYTECODE=1\nr() { local label=$1; shift; echo \"[$label]\"; echo \"[$label]\" >&2; \"$@\"; echo \"[$label] status=$?\"; }\nr fstype lsblk -P -n -o NAME,FSTYPE\nr fs lsblk -f -l -n\n",
+   "expected_status": 0,
+   "timeout": 60
+  }
+ ]
+}

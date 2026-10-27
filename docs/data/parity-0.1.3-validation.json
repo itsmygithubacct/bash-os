@@ -1,0 +1,4534 @@
+{
+  "version": "0.1.3",
+  "release_status": "unreleased",
+  "architecture": "Linux x86-64",
+  "claim": "Executed scope only; known mismatches, exclusions and deferred work remain.",
+  "base_commit": "8381e8136626d18083d470ac26ba079ad0b2f602",
+  "reference_shells": {
+    "modern": "GNU Bash 5.3.15, independently built from verified source and patches",
+    "legacy": "Debian GNU Bash 5.2.37; exact package versions below"
+  },
+  "host_data_checks": {
+    "checks": 8,
+    "result": "PASS",
+    "commands": [
+      "python3 tests/parity-vm/schema.py",
+      "python3 tests/parity-vm/selfcheck.py"
+    ]
+  },
+  "revalidation": {
+    "changed_fixture_ids": [
+      "bash-exit-stopped-jobs",
+      "bash-job-foreground",
+      "bash-job-stop-and-list",
+      "bash-kill-stopped-job"
+    ],
+    "repeated_fixture_ids": [
+      "bash-job-stop-and-list",
+      "bash-kill-stopped-job",
+      "bash-job-foreground",
+      "bash-exit-stopped-jobs",
+      "bash-ctrl-c-foreground",
+      "bash-hangup-ends-jobs"
+    ],
+    "attempts_per_fixture_per_build": 3,
+    "cause": "Stopped-job completion raced SIGCHLD; token matching consumed the following prompt boundary.",
+    "fix": "Observe foreground ownership and signal masks; retry the stopped-job wait status in a bounded builtin loop until it reports termination; preserve the next prompt boundary after a completion token.",
+    "counting": "Replace the six canonical case records with their revalidated results. Repeats add confidence, not unique case coverage. Other 193 modern cases are byte-identical fixture definitions."
+  },
+  "builds": {
+    "static": {
+      "binary_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+      "binary_bytes": 14977832,
+      "injected_builtins": 286,
+      "modern_unique_cases": 199,
+      "modern_by_group": {
+        "network": {
+          "PASS": 58,
+          "FAIL": 1,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 0,
+          "COLLECTED": 0
+        },
+        "shell": {
+          "PASS": 42,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 0,
+          "COLLECTED": 0
+        },
+        "terminal": {
+          "PASS": 72,
+          "FAIL": 26,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 0,
+          "COLLECTED": 0
+        }
+      },
+      "legacy_cases": 3818,
+      "legacy_summary": {
+        "PASS": 3171,
+        "FAIL": 24,
+        "ERROR": 0,
+        "SKIP": 23,
+        "DEFERRED": 600,
+        "COLLECTED": 0
+      },
+      "legacy_identity": {
+        "uid": 2000,
+        "euid": 2000,
+        "gid": 2000,
+        "groups": [
+          2001
+        ],
+        "audit_login_uid": "2000",
+        "unmapped_supplementary_group": 2001
+      },
+      "legacy_accounting": {
+        "expected_cases": 3818,
+        "backfilled_cases": 0,
+        "invalid_suite_files": 0
+      },
+      "behavioral_by_kind": {
+        "parity": {
+          "PASS": 1905,
+          "FAIL": 51,
+          "ERROR": 0,
+          "SKIP": 16,
+          "DEFERRED": 0,
+          "COLLECTED": 0
+        },
+        "contract": {
+          "PASS": 1438,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 7,
+          "DEFERRED": 0,
+          "COLLECTED": 0
+        },
+        "deferred": {
+          "PASS": 0,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 600,
+          "COLLECTED": 0
+        }
+      },
+      "harness_selfchecks": {
+        "PASS": 8,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0,
+        "COLLECTED": 0
+      },
+      "inventory": {
+        "PASS": 0,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0,
+        "COLLECTED": 1
+      },
+      "reference": {
+        "corpus_record_summary": {
+          "PASS": 33,
+          "FAIL": 1,
+          "ERROR": 0,
+          "SKIP": 4,
+          "DEFERRED": 0,
+          "COLLECTED": 0
+        },
+        "assertions": {
+          "planned": 9331283,
+          "executed": 9331283,
+          "passed": 9331243,
+          "failed": 40,
+          "unexecuted": 0
+        },
+        "batch_manifest": {
+          "provenance": {
+            "unicode_version": "17.0.0",
+            "lock_sha256": "130558a965353c07b2863b2dd464558bbb7fc9ecaff5f12c9d7f24728de53b87",
+            "verified_sha256": {
+              "GraphemeBreakTest.txt": "e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec",
+              "NormalizationTest.txt": "5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db",
+              "CaseFolding.txt": "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183",
+              "UnicodeData.txt": "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c",
+              "SpecialCasing.txt": "efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588",
+              "DerivedCoreProperties.txt": "24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08",
+              "LICENSE.txt": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+            },
+            "malformed_sha256": "f004cfa8a44b0db1d94c30eb42d5f2afce6e84a3c95d2dfeb427dfebe272082b",
+            "context_sha256": "3968fa6daf51502df8bc65ae1fb4c1bf4382a5b736611732bef17efaab1b06dd",
+            "rfc_lock_sha256": "2dc6ac831f15bbeead90c993ac5e869cf93df9f83bd08bba57a057112537b040",
+            "rfc_vectors_sha256": "926d411707a4a3a87356481b6f1c2be7317ddde2edf952c1b8e2cf6459be1d83"
+          },
+          "jobs": [
+            {
+              "job": "grapheme-counts",
+              "seconds": 0.062
+            },
+            {
+              "job": "grapheme-slices",
+              "seconds": 0.065
+            },
+            {
+              "job": "normalization-Part0",
+              "seconds": 0.038
+            },
+            {
+              "job": "normalization-Part1",
+              "seconds": 6.17
+            },
+            {
+              "job": "normalization-Part2",
+              "seconds": 0.985
+            },
+            {
+              "job": "normalization-Part3",
+              "seconds": 0.142
+            },
+            {
+              "job": "normalization-Part4",
+              "seconds": 0.546
+            },
+            {
+              "job": "normalization-Part5",
+              "seconds": 0.031
+            },
+            {
+              "job": "normalization-cmp",
+              "seconds": 2.212
+            },
+            {
+              "job": "sweep-outside-part1",
+              "seconds": 157.36
+            },
+            {
+              "job": "sweep-part1-casing",
+              "seconds": 2.2
+            },
+            {
+              "job": "casefold-cmp",
+              "seconds": 0.13
+            },
+            {
+              "job": "final-sigma",
+              "seconds": 0.016
+            },
+            {
+              "job": "utf8-malformed",
+              "seconds": 0.685
+            },
+            {
+              "job": "rfc-argv3",
+              "seconds": 0.304
+            },
+            {
+              "job": "rfc-argv4",
+              "seconds": 0.129
+            },
+            {
+              "job": "rfc-argv5",
+              "seconds": 0.299
+            },
+            {
+              "job": "rfc-argv6",
+              "seconds": 0.525
+            },
+            {
+              "job": "rfc-argv7",
+              "seconds": 0.068
+            },
+            {
+              "job": "rfc-argv9",
+              "seconds": 0.033
+            },
+            {
+              "job": "rfc-argv11",
+              "seconds": 0.049
+            },
+            {
+              "job": "rfc-argv12",
+              "seconds": 0.236
+            },
+            {
+              "job": "rfc-argv13",
+              "seconds": 0.423
+            },
+            {
+              "job": "rfc-argv16",
+              "seconds": 0.204
+            }
+          ],
+          "processes": 487,
+          "attribution_splits": 0,
+          "archived_output_bytes": 50327893,
+          "argv_probes": [
+            {
+              "job": "grapheme-counts",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 692,
+              "result": "ok",
+              "stdout_sha256": "b1f76eb78fd29431b06c44b669bcff68f1c3391f02e9906b8a2e805fcd4a66fe",
+              "expected_sha256": "b1f76eb78fd29431b06c44b669bcff68f1c3391f02e9906b8a2e805fcd4a66fe",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "grapheme-slices",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 1227,
+              "result": "ok",
+              "stdout_sha256": "ad7acea8d89431072d37ad2ee69f9afc7cde29e9db1168f67fcd09ca164e7f94",
+              "expected_sha256": "ad7acea8d89431072d37ad2ee69f9afc7cde29e9db1168f67fcd09ca164e7f94",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "normalization-Part0",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 225,
+              "result": "ok",
+              "stdout_sha256": "3edfba66c7955a230f9f02dd1a9c0424af7b2a3620c31d9c59001741c9441dca",
+              "expected_sha256": "3edfba66c7955a230f9f02dd1a9c0424af7b2a3620c31d9c59001741c9441dca",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "normalization-Part1",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 4096,
+              "result": "ok",
+              "stdout_sha256": "30726875d57675d5c656d1e2a27603ca534d2a18b621a09207af8e94f255cb02",
+              "expected_sha256": "30726875d57675d5c656d1e2a27603ca534d2a18b621a09207af8e94f255cb02",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "normalization-Part2",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 4096,
+              "result": "ok",
+              "stdout_sha256": "f8b3462a6cf87e10d46faaa23fdce4212be19ee4de5a121eadd0c79327314729",
+              "expected_sha256": "f8b3462a6cf87e10d46faaa23fdce4212be19ee4de5a121eadd0c79327314729",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "normalization-Part3",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 970,
+              "result": "ok",
+              "stdout_sha256": "4d0bef12c3ea1cbd1a001a33a38fb0f3642b7eb970022c8a16cec132643f847f",
+              "expected_sha256": "4d0bef12c3ea1cbd1a001a33a38fb0f3642b7eb970022c8a16cec132643f847f",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "normalization-Part4",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 3675,
+              "result": "ok",
+              "stdout_sha256": "e287a37cc10741275b30a7fd60e69877c98adf2f57033aa2dd965c1549177447",
+              "expected_sha256": "e287a37cc10741275b30a7fd60e69877c98adf2f57033aa2dd965c1549177447",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "normalization-Part5",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 190,
+              "result": "ok",
+              "stdout_sha256": "559ab36f873790134d9f566b18d85266346f1b69d95b9ed9ac385ee96bb288aa",
+              "expected_sha256": "559ab36f873790134d9f566b18d85266346f1b69d95b9ed9ac385ee96bb288aa",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "normalization-cmp",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 4096,
+              "result": "ok",
+              "stdout_sha256": "33e86c8023b7710129101ce50a4ccde9c0b33c74fa02888172504cac562d38c3",
+              "expected_sha256": "33e86c8023b7710129101ce50a4ccde9c0b33c74fa02888172504cac562d38c3",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "sweep-outside-part1",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 4096,
+              "result": "ok",
+              "stdout_sha256": "38e16879caaea624e3468b09ccc1d99ce4c2087d9735e653d4dd02fa55796a36",
+              "expected_sha256": "38e16879caaea624e3468b09ccc1d99ce4c2087d9735e653d4dd02fa55796a36",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "sweep-part1-casing",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 4096,
+              "result": "ok",
+              "stdout_sha256": "5c5dbc41e3641fccaa797ca6336d7e698c4b9180c7a42247d3a84d6c807e7c43",
+              "expected_sha256": "5c5dbc41e3641fccaa797ca6336d7e698c4b9180c7a42247d3a84d6c807e7c43",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "casefold-cmp",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 1585,
+              "result": "ok",
+              "stdout_sha256": "bf56a408876e52184842a3244e92bf6db727f5775bb14a231bc5a11581e5a90b",
+              "expected_sha256": "bf56a408876e52184842a3244e92bf6db727f5775bb14a231bc5a11581e5a90b",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "final-sigma",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 9,
+              "result": "ok",
+              "stdout_sha256": "12fb07d7be1423d443a3e01eda84203db8329b161ce36b5e38242748310d00a0",
+              "expected_sha256": "12fb07d7be1423d443a3e01eda84203db8329b161ce36b5e38242748310d00a0",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "utf8-malformed",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 4096,
+              "result": "ok",
+              "stdout_sha256": "fefd64c4e887a0bcb50d79f44f14c78cec3e9f24026b4118741c4b559c357377",
+              "expected_sha256": "fefd64c4e887a0bcb50d79f44f14c78cec3e9f24026b4118741c4b559c357377",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv3",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 30,
+              "result": "ok",
+              "stdout_sha256": "c9afd69f8b4d3645605e35a82e93d227db524b4cd627f292d338a84bb557cb5f",
+              "expected_sha256": "c9afd69f8b4d3645605e35a82e93d227db524b4cd627f292d338a84bb557cb5f",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv4",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 14,
+              "result": "ok",
+              "stdout_sha256": "0404853ec6de1e5cc4b65d2523f8f1158b93410761c4e3f16c252bb1a8340fe2",
+              "expected_sha256": "0404853ec6de1e5cc4b65d2523f8f1158b93410761c4e3f16c252bb1a8340fe2",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv5",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 38,
+              "result": "ok",
+              "stdout_sha256": "cd7f01542e92deb1d25d9fa532cbc094fdf7c9d394bd15f632e91aa6d801432c",
+              "expected_sha256": "cd7f01542e92deb1d25d9fa532cbc094fdf7c9d394bd15f632e91aa6d801432c",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv6",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 18,
+              "result": "ok",
+              "stdout_sha256": "50dec9ce26bbc12b74e05064e88479b52856601762aa2bab2179618ae5374669",
+              "expected_sha256": "50dec9ce26bbc12b74e05064e88479b52856601762aa2bab2179618ae5374669",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv7",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 6,
+              "result": "ok",
+              "stdout_sha256": "0c2c2c1d7a5d4a62566d82a74ab811e098494e5b41dc87d8ba2c6d9e3ae0ab13",
+              "expected_sha256": "0c2c2c1d7a5d4a62566d82a74ab811e098494e5b41dc87d8ba2c6d9e3ae0ab13",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv9",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 2,
+              "result": "ok",
+              "stdout_sha256": "12d5d5b358ea3047cd047aa99761c9c9a735ff23e0b08d7d537e4fd1f4434289",
+              "expected_sha256": "12d5d5b358ea3047cd047aa99761c9c9a735ff23e0b08d7d537e4fd1f4434289",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv11",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 5,
+              "result": "ok",
+              "stdout_sha256": "fe020ba77f82fb273e75819caecbe64e4d957c192244c683d2e7aeac19ad31b5",
+              "expected_sha256": "fe020ba77f82fb273e75819caecbe64e4d957c192244c683d2e7aeac19ad31b5",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv12",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 18,
+              "result": "ok",
+              "stdout_sha256": "5365a8122e247bea4f5c627f986acf1c495850e3c98c4f492dc35e67ae30d4d3",
+              "expected_sha256": "5365a8122e247bea4f5c627f986acf1c495850e3c98c4f492dc35e67ae30d4d3",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv13",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 9,
+              "result": "ok",
+              "stdout_sha256": "647acda14961e28510a5dd9c38719eae6eb7963cbfb88ca70e3449b42e693659",
+              "expected_sha256": "647acda14961e28510a5dd9c38719eae6eb7963cbfb88ca70e3449b42e693659",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv16",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 18,
+              "result": "ok",
+              "stdout_sha256": "66e24a90b9aa7e635d8ddca4f9fc000383db0bcd5ff067c15ed3b4aa42e9f43e",
+              "expected_sha256": "66e24a90b9aa7e635d8ddca4f9fc000383db0bcd5ff067c15ed3b4aa42e9f43e",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            }
+          ],
+          "seconds": 173.397,
+          "python": "3.13.5 (main, Aug 10 2026, 12:06:59) [GCC 14.2.0]",
+          "summary": {
+            "reference-unicode17-casing-not-exposed": "SKIP",
+            "reference-unicode17-nul-unrepresentable": "SKIP",
+            "reference-unicode17-grapheme-nul-unrepresentable": "SKIP",
+            "reference-unicode17-grapheme-length": "PASS",
+            "reference-unicode17-grapheme-codepoint-length": "PASS",
+            "reference-unicode17-grapheme-byte-length": "PASS",
+            "reference-unicode17-grapheme-slice": "PASS",
+            "reference-unicode17-normalization-part0": "PASS",
+            "reference-unicode17-normalization-part1": "FAIL",
+            "reference-unicode17-normalization-part2": "PASS",
+            "reference-unicode17-normalization-part3": "PASS",
+            "reference-unicode17-normalization-part4": "PASS",
+            "reference-unicode17-normalization-part5": "PASS",
+            "reference-unicode17-normalization-cmp": "PASS",
+            "reference-unicode17-normalization-invariance": "PASS",
+            "reference-unicode17-casefold-full": "PASS",
+            "reference-unicode17-lower-full": "PASS",
+            "reference-unicode17-upper-full": "PASS",
+            "reference-unicode17-title-full": "PASS",
+            "reference-unicode17-casefold-cmp": "PASS",
+            "reference-unicode17-final-sigma": "PASS",
+            "reference-utf8-malformed-codepoint-length": "PASS",
+            "reference-utf8-malformed-casefold": "PASS",
+            "reference-rfc4231-crypto": "PASS",
+            "reference-rfc2202-crypto": "PASS",
+            "reference-rfc5869-crypto": "PASS",
+            "reference-rfc6070-crypto": "PASS",
+            "reference-rfc7914-crypto": "PASS",
+            "reference-rfc1321-crypto": "PASS",
+            "reference-rfc6234-crypto": "PASS",
+            "reference-rfc7693-crypto": "PASS",
+            "reference-rfc4648-crypto": "PASS",
+            "reference-rfc6238-totp": "PASS",
+            "reference-rfc8032-crypto": "PASS",
+            "reference-rfc7748-crypto": "PASS",
+            "reference-rfc8439-crypto": "PASS",
+            "reference-rfc5297-crypto": "PASS",
+            "reference-rfc-not-executable": "SKIP"
+          }
+        },
+        "failed_records": [
+          {
+            "id": "reference-unicode17-normalization-part1",
+            "loadable": "utf8",
+            "group": "reference",
+            "corpus": "NormalizationTest.txt",
+            "part": "Part1",
+            "lines_total": 17086,
+            "lines_used": 17086,
+            "lines_excluded_nul": 0,
+            "operation": "utf8 normalize NFC|NFD|NFKC|NFKD; all 20 column conditions per line",
+            "planned": 341720,
+            "executed": 341720,
+            "passed": 341680,
+            "failed": 40,
+            "unexecuted": 0,
+            "failures_logged": 40,
+            "first_failures": [
+              {
+                "id": "line400:NFC(c1)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cd84"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFKC(c1)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cd84"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFC(c2)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cc88cc81"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFKC(c2)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cc88cc81"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFC(c3)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cc88cc81"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFKC(c3)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cc88cc81"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFC(c4)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cc88cc81"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFKC(c4)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cc88cc81"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFC(c5)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cc88cc81"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFKC(c5)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cc88cc81"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFC(c1)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb3"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFKC(c1)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb3"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFC(c2)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb1e0bdb2"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFKC(c2)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb1e0bdb2"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFC(c3)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb1e0bdb2"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFKC(c3)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb1e0bdb2"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFC(c4)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb1e0bdb2"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFKC(c4)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb1e0bdb2"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFC(c5)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb1e0bdb2"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFKC(c5)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb1e0bdb2"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              }
+            ],
+            "validation_complete": true,
+            "status": "FAIL",
+            "failures_file": "reference-data/unicode17-normalization-part1.failures.jsonl",
+            "provenance": {
+              "unicode_version": "17.0.0",
+              "lock_sha256": "130558a965353c07b2863b2dd464558bbb7fc9ecaff5f12c9d7f24728de53b87",
+              "verified_sha256": {
+                "GraphemeBreakTest.txt": "e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec",
+                "NormalizationTest.txt": "5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db",
+                "CaseFolding.txt": "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183",
+                "UnicodeData.txt": "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c",
+                "SpecialCasing.txt": "efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588",
+                "DerivedCoreProperties.txt": "24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08",
+                "LICENSE.txt": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+              },
+              "malformed_sha256": "f004cfa8a44b0db1d94c30eb42d5f2afce6e84a3c95d2dfeb427dfebe272082b",
+              "context_sha256": "3968fa6daf51502df8bc65ae1fb4c1bf4382a5b736611732bef17efaab1b06dd",
+              "rfc_lock_sha256": "2dc6ac831f15bbeead90c993ac5e869cf93df9f83bd08bba57a057112537b040",
+              "rfc_vectors_sha256": "926d411707a4a3a87356481b6f1c2be7317ddde2edf952c1b8e2cf6459be1d83"
+            },
+            "kind": "normative"
+          }
+        ],
+        "exclusions": [
+          {
+            "id": "reference-unicode17-casing-not-exposed",
+            "loadable": "utf8",
+            "group": "reference",
+            "status": "SKIP",
+            "corpus": "CaseFolding.txt+SpecialCasing.txt",
+            "detail": "utf8 exposes only full default case folding and default case mappings. Simple (S) and Turkic (T) folds, and language-conditional SpecialCasing entries, have no candidate interface; Final_Sigma is covered by unicode17-final-sigma.",
+            "casefold_status_counts": {
+              "C": 1481,
+              "T": 2,
+              "F": 104,
+              "S": 31
+            },
+            "conditional_special_casing": [
+              {
+                "line": 215,
+                "code_point": "03A3",
+                "condition": "Final_Sigma"
+              },
+              {
+                "line": 241,
+                "code_point": "0307",
+                "condition": "lt After_Soft_Dotted"
+              },
+              {
+                "line": 247,
+                "code_point": "0049",
+                "condition": "lt More_Above"
+              },
+              {
+                "line": 248,
+                "code_point": "004A",
+                "condition": "lt More_Above"
+              },
+              {
+                "line": 249,
+                "code_point": "012E",
+                "condition": "lt More_Above"
+              },
+              {
+                "line": 250,
+                "code_point": "00CC",
+                "condition": "lt"
+              },
+              {
+                "line": 251,
+                "code_point": "00CD",
+                "condition": "lt"
+              },
+              {
+                "line": 252,
+                "code_point": "0128",
+                "condition": "lt"
+              },
+              {
+                "line": 261,
+                "code_point": "0130",
+                "condition": "tr"
+              },
+              {
+                "line": 262,
+                "code_point": "0130",
+                "condition": "az"
+              },
+              {
+                "line": 267,
+                "code_point": "0307",
+                "condition": "tr After_I"
+              },
+              {
+                "line": 268,
+                "code_point": "0307",
+                "condition": "az After_I"
+              },
+              {
+                "line": 272,
+                "code_point": "0049",
+                "condition": "tr Not_Before_Dot"
+              },
+              {
+                "line": 273,
+                "code_point": "0049",
+                "condition": "az Not_Before_Dot"
+              },
+              {
+                "line": 277,
+                "code_point": "0069",
+                "condition": "tr"
+              },
+              {
+                "line": 278,
+                "code_point": "0069",
+                "condition": "az"
+              }
+            ],
+            "provenance": {
+              "unicode_version": "17.0.0",
+              "lock_sha256": "130558a965353c07b2863b2dd464558bbb7fc9ecaff5f12c9d7f24728de53b87",
+              "verified_sha256": {
+                "GraphemeBreakTest.txt": "e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec",
+                "NormalizationTest.txt": "5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db",
+                "CaseFolding.txt": "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183",
+                "UnicodeData.txt": "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c",
+                "SpecialCasing.txt": "efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588",
+                "DerivedCoreProperties.txt": "24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08",
+                "LICENSE.txt": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+              },
+              "malformed_sha256": "f004cfa8a44b0db1d94c30eb42d5f2afce6e84a3c95d2dfeb427dfebe272082b",
+              "context_sha256": "3968fa6daf51502df8bc65ae1fb4c1bf4382a5b736611732bef17efaab1b06dd",
+              "rfc_lock_sha256": "2dc6ac831f15bbeead90c993ac5e869cf93df9f83bd08bba57a057112537b040",
+              "rfc_vectors_sha256": "926d411707a4a3a87356481b6f1c2be7317ddde2edf952c1b8e2cf6459be1d83"
+            },
+            "kind": "normative"
+          },
+          {
+            "id": "reference-unicode17-nul-unrepresentable",
+            "loadable": "utf8",
+            "group": "reference",
+            "status": "SKIP",
+            "detail": "U+0000 is a scalar value but cannot appear in a Bash argument (C strings end at NUL). Its 8 sweep assertions (NFC, NFD, NFKC, NFKD invariance, casefold, lower, upper, title) are not executed; GraphemeBreakTest exclusions are in unicode17-grapheme-nul-unrepresentable. NormalizationTest, CaseFolding and the malformed vectors contain no U+0000.",
+            "assertions_not_executed": 8,
+            "provenance": {
+              "unicode_version": "17.0.0",
+              "lock_sha256": "130558a965353c07b2863b2dd464558bbb7fc9ecaff5f12c9d7f24728de53b87",
+              "verified_sha256": {
+                "GraphemeBreakTest.txt": "e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec",
+                "NormalizationTest.txt": "5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db",
+                "CaseFolding.txt": "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183",
+                "UnicodeData.txt": "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c",
+                "SpecialCasing.txt": "efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588",
+                "DerivedCoreProperties.txt": "24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08",
+                "LICENSE.txt": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+              },
+              "malformed_sha256": "f004cfa8a44b0db1d94c30eb42d5f2afce6e84a3c95d2dfeb427dfebe272082b",
+              "context_sha256": "3968fa6daf51502df8bc65ae1fb4c1bf4382a5b736611732bef17efaab1b06dd",
+              "rfc_lock_sha256": "2dc6ac831f15bbeead90c993ac5e869cf93df9f83bd08bba57a057112537b040",
+              "rfc_vectors_sha256": "926d411707a4a3a87356481b6f1c2be7317ddde2edf952c1b8e2cf6459be1d83"
+            },
+            "kind": "normative"
+          },
+          {
+            "id": "reference-unicode17-grapheme-nul-unrepresentable",
+            "loadable": "utf8",
+            "group": "reference",
+            "status": "SKIP",
+            "corpus": "GraphemeBreakTest.txt",
+            "detail": "GraphemeBreakTest lines containing U+0000 cannot be passed through Bash argv (C strings end at NUL); they are excluded from every grapheme assertion, not passed.",
+            "lines_total": 766,
+            "lines_excluded": 74,
+            "excluded_lines": [
+              31,
+              32,
+              69,
+              70,
+              103,
+              104,
+              105,
+              106,
+              107,
+              108,
+              109,
+              110,
+              111,
+              112,
+              113,
+              114,
+              115,
+              116,
+              117,
+              118,
+              119,
+              120,
+              121,
+              122,
+              123,
+              124,
+              125,
+              126,
+              127,
+              128,
+              129,
+              130,
+              131,
+              132,
+              133,
+              134,
+              135,
+              136,
+              137,
+              138,
+              139,
+              140,
+              145,
+              146,
+              183,
+              184,
+              221,
+              222,
+              259,
+              260,
+              297,
+              298,
+              335,
+              336,
+              373,
+              374,
+              411,
+              412,
+              449,
+              450,
+              487,
+              488,
+              525,
+              526,
+              563,
+              564,
+              601,
+              602,
+              639,
+              640,
+              677,
+              678,
+              715,
+              716
+            ],
+            "provenance": {
+              "unicode_version": "17.0.0",
+              "lock_sha256": "130558a965353c07b2863b2dd464558bbb7fc9ecaff5f12c9d7f24728de53b87",
+              "verified_sha256": {
+                "GraphemeBreakTest.txt": "e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec",
+                "NormalizationTest.txt": "5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db",
+                "CaseFolding.txt": "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183",
+                "UnicodeData.txt": "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c",
+                "SpecialCasing.txt": "efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588",
+                "DerivedCoreProperties.txt": "24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08",
+                "LICENSE.txt": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+              },
+              "malformed_sha256": "f004cfa8a44b0db1d94c30eb42d5f2afce6e84a3c95d2dfeb427dfebe272082b",
+              "context_sha256": "3968fa6daf51502df8bc65ae1fb4c1bf4382a5b736611732bef17efaab1b06dd",
+              "rfc_lock_sha256": "2dc6ac831f15bbeead90c993ac5e869cf93df9f83bd08bba57a057112537b040",
+              "rfc_vectors_sha256": "926d411707a4a3a87356481b6f1c2be7317ddde2edf952c1b8e2cf6459be1d83"
+            },
+            "kind": "normative"
+          },
+          {
+            "id": "reference-rfc-not-executable",
+            "loadable": "crypto",
+            "group": "reference",
+            "status": "SKIP",
+            "corpus": "rfc-vectors.json",
+            "detail": "published vectors that cannot run through this interface",
+            "vectors": [
+              {
+                "id": "rfc4231-testcase5",
+                "rfc": 4231,
+                "section": "4.6",
+                "reason": "truncated 128-bit outputs; the full HMAC is not published"
+              },
+              {
+                "id": "rfc6070-pbkdf2-sha1-4",
+                "rfc": 6070,
+                "section": "2",
+                "reason": "c=16777216 is a 16M-iteration stress vector; omitted from the bounded VM run"
+              },
+              {
+                "id": "rfc6070-pbkdf2-sha1-6",
+                "rfc": 6070,
+                "section": "2",
+                "reason": "password contains NUL; -p PASSWORD is a C string from Bash argv"
+              }
+            ],
+            "provenance": {
+              "unicode_version": "17.0.0",
+              "lock_sha256": "130558a965353c07b2863b2dd464558bbb7fc9ecaff5f12c9d7f24728de53b87",
+              "verified_sha256": {
+                "GraphemeBreakTest.txt": "e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec",
+                "NormalizationTest.txt": "5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db",
+                "CaseFolding.txt": "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183",
+                "UnicodeData.txt": "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c",
+                "SpecialCasing.txt": "efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588",
+                "DerivedCoreProperties.txt": "24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08",
+                "LICENSE.txt": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+              },
+              "malformed_sha256": "f004cfa8a44b0db1d94c30eb42d5f2afce6e84a3c95d2dfeb427dfebe272082b",
+              "context_sha256": "3968fa6daf51502df8bc65ae1fb4c1bf4382a5b736611732bef17efaab1b06dd",
+              "rfc_lock_sha256": "2dc6ac831f15bbeead90c993ac5e869cf93df9f83bd08bba57a057112537b040",
+              "rfc_vectors_sha256": "926d411707a4a3a87356481b6f1c2be7317ddde2edf952c1b8e2cf6459be1d83"
+            },
+            "kind": "normative"
+          }
+        ]
+      },
+      "retained_behavioral_failures": [
+        {
+          "id": "curl-cookie-jar-roundtrip",
+          "loadable": "curl",
+          "group": "network",
+          "kind": "parity",
+          "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112 and curl(1); the jar file itself is compared with the reference tree",
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "reference tree"
+          ],
+          "covers": [
+            "curl/request-wire-shape",
+            "curl/response-file-effects"
+          ],
+          "comparison": "exact bytes, status and file effects"
+        },
+        {
+          "id": "clear-vt100",
+          "loadable": "clear",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "reference screen_base64"
+          ],
+          "covers": [
+            "clear/pty-terminal-attributes"
+          ],
+          "comparison": "exact bytes, status and file effects"
+        },
+        {
+          "id": "timeout-background-group",
+          "loadable": "timeout",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit"
+          ],
+          "covers": [
+            "timeout/deferred-foreground-process-group"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "xargs-prompt-format",
+          "loadable": "xargs",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit waiting for step 0 expect 'one\\\\?\\\\.\\\\.\\\\.': not seen",
+            "exit status",
+            "expected file: one",
+            "reference status",
+            "reference tree"
+          ],
+          "covers": [
+            "xargs/prompt-requires-pty"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-edit-save",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "expected file: note",
+            "reference tree"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-delete-undo",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "reference tree"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-yank-put",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "reference tree"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-count-delete",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "reference tree"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-substitute",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "exit status",
+            "expected file: note",
+            "reference status",
+            "reference tree"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-search-change",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "expected file: note",
+            "reference tree"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-dot-repeat",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "reference tree"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-join",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "expected file: note",
+            "reference tree"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-arrow-keys",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "reference tree"
+          ],
+          "covers": [
+            "vi/terminal-keys-resize"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-resize-redraw",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit waiting for step 2 screen: row 0 does not match '^line-01$'",
+            "exit status",
+            "terminal modes were not restored",
+            "reference status"
+          ],
+          "covers": [
+            "vi/terminal-keys-resize"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-quit-modified-refused",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "exit status",
+            "reference status"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "nano-edit-save",
+          "loadable": "nano",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "expected file: note",
+            "reference tree"
+          ],
+          "covers": [
+            "nano/deferred_edit_save"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "nano-cut-paste",
+          "loadable": "nano",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "expected file: note",
+            "reference tree"
+          ],
+          "covers": [
+            "nano/deferred_edit_save"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "nano-exit-save-prompt",
+          "loadable": "nano",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "process exited before step 6 screen: no row matches 'Write to File: note'"
+          ],
+          "covers": [
+            "nano/deferred_edit_save"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "nano-utf8-input",
+          "loadable": "nano",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "expected file: note",
+            "reference tree"
+          ],
+          "covers": [
+            "nano/deferred_selection_completion_utf8"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "less-line-numbers",
+          "loadable": "less",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit waiting for step 0 screen: row 0 does not match '^\\\\s*1 line-001$'",
+            "exit status",
+            "terminal modes were not restored",
+            "reference status"
+          ],
+          "covers": [
+            "less/pty-options-and-resize"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "less-resize-redraw",
+          "loadable": "less",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit waiting for step 2 screen: row 0 does not match '^line-001$'",
+            "exit status",
+            "terminal modes were not restored",
+            "reference status"
+          ],
+          "covers": [
+            "less/pty-options-and-resize"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "ed-modified-quit-prompt",
+          "loadable": "ed",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "exit status",
+            "reference status"
+          ],
+          "covers": [
+            "ed/modified_quit_prompt_pty"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "ed-open-reports-size",
+          "loadable": "ed",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit waiting for step 0 expect '\\\\A4\\\\r\\\\n': not seen",
+            "exit status",
+            "reference status"
+          ],
+          "covers": [],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "bc-terminal-expression",
+          "loadable": "bc",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit waiting for step 1 expect '42': not seen",
+            "exit status",
+            "reference status"
+          ],
+          "covers": [
+            "bc/interactive_terminal_editing"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "bc-readline-edit",
+          "loadable": "bc",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit waiting for step 0 termios: ICANON is set",
+            "exit status",
+            "reference status"
+          ],
+          "covers": [
+            "bc/interactive_terminal_editing"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "bc-interrupt-continues",
+          "loadable": "bc",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "process exited before step 4 expect '42': not seen",
+            "exit status",
+            "reference status"
+          ],
+          "covers": [
+            "bc/interactive_terminal_editing"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "grep-terminal-streaming",
+          "loadable": "grep",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit waiting for step 1 expect 'x1\\\\r\\\\nx1\\\\r\\\\n': not seen",
+            "exit status",
+            "reference status"
+          ],
+          "covers": [],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "legacy/apropos/version-cli",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "apropos",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/bc/syntax_error_recovery_status",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "bc",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/binhex/decode-odd-nibble-xxd-compatibility",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "candidate status 1, expected 0",
+            "candidate stderr policy"
+          ],
+          "loadable": "binhex",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/binhex/decode-nonhex-characters-xxd-compatibility",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "candidate status 1, expected 0",
+            "candidate stderr policy",
+            "stdout bytes"
+          ],
+          "loadable": "binhex",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/getconf/all-variables-relative-path",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "getconf",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/logname/gnu-help-option",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "logname",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/logname/gnu-version-option",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "logname",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/logname/option-after-operand",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "logname",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/logname/help-extra",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "logname",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/logname/abbreviated-help",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "logname",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/logname/version-extra",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "logname",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/logname/version-prefix",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "logname",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/nano/gnu_help_option",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "nano",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/nano/gnu_options_without_terminal",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "nano",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/sftp/openssh-help-flag",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "candidate status 0, expected 1",
+            "candidate stderr policy",
+            "stdout bytes"
+          ],
+          "loadable": "sftp",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/strings/invalid-radix-diagnostic-exact-bytes",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stderr bytes"
+          ],
+          "loadable": "strings",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/whatis/prefix-compatibility",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "whatis",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/whoami/gnu-help-option",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "whoami",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/whoami/gnu-version-option",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "whoami",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/whoami/option-after-operand",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "whoami",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/whoami/help-extra",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "whoami",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/whoami/abbreviated-help",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "whoami",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/whoami/version-extra",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "whoami",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/whoami/version-prefix",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "whoami",
+          "group": "legacy"
+        }
+      ],
+      "repeated_terminal_attempts": {
+        "PASS": 18,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0,
+        "COLLECTED": 0
+      },
+      "source_runs": [
+        {
+          "run": "final-static",
+          "original_summary": {
+            "PASS": 3350,
+            "FAIL": 52,
+            "ERROR": 0,
+            "SKIP": 23,
+            "DEFERRED": 600,
+            "COLLECTED": 1
+          },
+          "payload_sha256": "ab4d7bfad7c57524031b9e9c453def2dbe6c116071389bdd1a61e307c2c7542f",
+          "artifacts_sha256": {
+            "summary.json": "69e0464ca4805cb24848e0f39d280e220b25feec49f652b2f163c3dd74b24930",
+            "provenance.json": "0fda0b7da30beaf803a6b1a655b71060d8489fdd9ff56c3767a636cfe74444a3",
+            "evidence.tar": "fa63772804b0349a2d2b5b0f55ef6d1cbc6241f6c0c52cbfcffe62399257a0dc"
+          },
+          "runtime_host": {
+            "kernel": "6.12.113+deb13-amd64",
+            "architecture": "x86_64",
+            "qemu": "QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)",
+            "limits": [
+              "CPUQuota=150%",
+              "MemoryMax=3G",
+              "MemorySwapMax=0",
+              "TasksMax=128"
+            ]
+          },
+          "prepared_sha256": "d82f53cb23b3abb4d22cff5f02956115941938f389e29e7813370504ea4077f4",
+          "image_lock_sha256": "80f37c0fb08ae4cd4b7ddae52316adce592c9fb0e82100e54ce94fff7cd3480b",
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793062906.010351
+          },
+          "candidate_matches_guest": true,
+          "candidate_unchanged": true,
+          "prepared_unchanged": true,
+          "overlay_discarded": true,
+          "guest_links": [
+            "lo"
+          ],
+          "host_shared_mounts": [],
+          "outbound_checks": {
+            "dns": "blocked: Temporary failure in name resolution",
+            "host_canary": "blocked: Connection refused",
+            "public_tcp": "blocked: Network is unreachable",
+            "canary_accepted": 0
+          },
+          "groups_used": [
+            "legacy",
+            "shell",
+            "network",
+            "terminal",
+            "selfcheck",
+            "inventory"
+          ],
+          "terminal_cases_replaced": [
+            "bash-job-stop-and-list",
+            "bash-kill-stopped-job",
+            "bash-job-foreground",
+            "bash-exit-stopped-jobs",
+            "bash-ctrl-c-foreground",
+            "bash-hangup-ends-jobs"
+          ]
+        },
+        {
+          "run": "final-static-reference-repeats",
+          "original_summary": {
+            "PASS": 45,
+            "FAIL": 1,
+            "ERROR": 6,
+            "SKIP": 4,
+            "DEFERRED": 0,
+            "COLLECTED": 0
+          },
+          "payload_sha256": "fbcb73803968428fc24974339c773487d999d50a243db11f3ab04a7ff9a97ff1",
+          "artifacts_sha256": {
+            "summary.json": "a901d3b763870164de43c7eb35105106ff54c99e82f3a75e546b7a3d21cf3abb",
+            "provenance.json": "eb81e06a8269a2e6135fc37880d71799709a8e4beabc8a9e39b69d463fa55944",
+            "evidence.tar": "929396b188832c1fb7657626b35c2bff4a48e15c1f790c49cc07a1da9cfa34c2"
+          },
+          "runtime_host": {
+            "kernel": "6.12.113+deb13-amd64",
+            "architecture": "x86_64",
+            "qemu": "QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)",
+            "limits": [
+              "CPUQuota=150%",
+              "MemoryMax=3G",
+              "MemorySwapMax=0",
+              "TasksMax=128"
+            ]
+          },
+          "prepared_sha256": "d82f53cb23b3abb4d22cff5f02956115941938f389e29e7813370504ea4077f4",
+          "image_lock_sha256": "80f37c0fb08ae4cd4b7ddae52316adce592c9fb0e82100e54ce94fff7cd3480b",
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793063675.8982704
+          },
+          "candidate_matches_guest": true,
+          "candidate_unchanged": true,
+          "prepared_unchanged": true,
+          "overlay_discarded": true,
+          "guest_links": [
+            "lo"
+          ],
+          "host_shared_mounts": [],
+          "outbound_checks": {
+            "dns": "blocked: Temporary failure in name resolution",
+            "host_canary": "blocked: Connection refused",
+            "public_tcp": "blocked: Network is unreachable",
+            "canary_accepted": 0
+          },
+          "groups_used": [
+            "reference"
+          ],
+          "excluded_group_reason": "The six terminal ERRORs belong to an intermediate fixture revision, superseded by the later repeated run; they are not candidate failures."
+        },
+        {
+          "run": "final-static-job-repeat-4",
+          "original_summary": {
+            "PASS": 18,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 0,
+            "COLLECTED": 0
+          },
+          "payload_sha256": "279f88a85cadcd0ef6bfdba3d7bc76714f9df7e2d71e0dc2eff1546ea909715c",
+          "artifacts_sha256": {
+            "summary.json": "5d78b91886c5c819fc179b0ee8f005e65560f2a1bc0748782d30c04992fd5009",
+            "provenance.json": "07da75bf5f4d8eaf78b14674b0a3fb5f6002542023e8f97d58510510b67dfc49",
+            "evidence.tar": "3be884675fb73f7fbf6bf3ea01184defe5cdffa29f0cdf749c896617a01193fc"
+          },
+          "runtime_host": {
+            "kernel": "6.12.113+deb13-amd64",
+            "architecture": "x86_64",
+            "qemu": "QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)",
+            "limits": [
+              "CPUQuota=150%",
+              "MemoryMax=3G",
+              "MemorySwapMax=0",
+              "TasksMax=128"
+            ]
+          },
+          "prepared_sha256": "d82f53cb23b3abb4d22cff5f02956115941938f389e29e7813370504ea4077f4",
+          "image_lock_sha256": "80f37c0fb08ae4cd4b7ddae52316adce592c9fb0e82100e54ce94fff7cd3480b",
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793064622.8954127
+          },
+          "candidate_matches_guest": true,
+          "candidate_unchanged": true,
+          "prepared_unchanged": true,
+          "overlay_discarded": true,
+          "guest_links": [
+            "lo"
+          ],
+          "host_shared_mounts": [],
+          "outbound_checks": {
+            "dns": "blocked: Temporary failure in name resolution",
+            "host_canary": "blocked: Connection refused",
+            "public_tcp": "blocked: Network is unreachable",
+            "canary_accepted": 0
+          },
+          "groups_used": [
+            "terminal"
+          ]
+        }
+      ]
+    },
+    "dynamic": {
+      "binary_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+      "binary_bytes": 12517320,
+      "injected_builtins": 286,
+      "modern_unique_cases": 199,
+      "modern_by_group": {
+        "network": {
+          "PASS": 58,
+          "FAIL": 1,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 0,
+          "COLLECTED": 0
+        },
+        "shell": {
+          "PASS": 42,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 0,
+          "COLLECTED": 0
+        },
+        "terminal": {
+          "PASS": 72,
+          "FAIL": 26,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 0,
+          "COLLECTED": 0
+        }
+      },
+      "legacy_cases": 3818,
+      "legacy_summary": {
+        "PASS": 3171,
+        "FAIL": 24,
+        "ERROR": 0,
+        "SKIP": 23,
+        "DEFERRED": 600,
+        "COLLECTED": 0
+      },
+      "legacy_identity": {
+        "uid": 2000,
+        "euid": 2000,
+        "gid": 2000,
+        "groups": [
+          2001
+        ],
+        "audit_login_uid": "2000",
+        "unmapped_supplementary_group": 2001
+      },
+      "legacy_accounting": {
+        "expected_cases": 3818,
+        "backfilled_cases": 0,
+        "invalid_suite_files": 0
+      },
+      "behavioral_by_kind": {
+        "parity": {
+          "PASS": 1905,
+          "FAIL": 51,
+          "ERROR": 0,
+          "SKIP": 16,
+          "DEFERRED": 0,
+          "COLLECTED": 0
+        },
+        "contract": {
+          "PASS": 1438,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 7,
+          "DEFERRED": 0,
+          "COLLECTED": 0
+        },
+        "deferred": {
+          "PASS": 0,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 600,
+          "COLLECTED": 0
+        }
+      },
+      "harness_selfchecks": {
+        "PASS": 8,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0,
+        "COLLECTED": 0
+      },
+      "inventory": {
+        "PASS": 0,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0,
+        "COLLECTED": 1
+      },
+      "reference": {
+        "corpus_record_summary": {
+          "PASS": 33,
+          "FAIL": 1,
+          "ERROR": 0,
+          "SKIP": 4,
+          "DEFERRED": 0,
+          "COLLECTED": 0
+        },
+        "assertions": {
+          "planned": 9331283,
+          "executed": 9331283,
+          "passed": 9331243,
+          "failed": 40,
+          "unexecuted": 0
+        },
+        "batch_manifest": {
+          "provenance": {
+            "unicode_version": "17.0.0",
+            "lock_sha256": "130558a965353c07b2863b2dd464558bbb7fc9ecaff5f12c9d7f24728de53b87",
+            "verified_sha256": {
+              "GraphemeBreakTest.txt": "e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec",
+              "NormalizationTest.txt": "5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db",
+              "CaseFolding.txt": "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183",
+              "UnicodeData.txt": "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c",
+              "SpecialCasing.txt": "efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588",
+              "DerivedCoreProperties.txt": "24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08",
+              "LICENSE.txt": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+            },
+            "malformed_sha256": "f004cfa8a44b0db1d94c30eb42d5f2afce6e84a3c95d2dfeb427dfebe272082b",
+            "context_sha256": "3968fa6daf51502df8bc65ae1fb4c1bf4382a5b736611732bef17efaab1b06dd",
+            "rfc_lock_sha256": "2dc6ac831f15bbeead90c993ac5e869cf93df9f83bd08bba57a057112537b040",
+            "rfc_vectors_sha256": "926d411707a4a3a87356481b6f1c2be7317ddde2edf952c1b8e2cf6459be1d83"
+          },
+          "jobs": [
+            {
+              "job": "grapheme-counts",
+              "seconds": 0.048
+            },
+            {
+              "job": "grapheme-slices",
+              "seconds": 0.047
+            },
+            {
+              "job": "normalization-Part0",
+              "seconds": 0.025
+            },
+            {
+              "job": "normalization-Part1",
+              "seconds": 4.015
+            },
+            {
+              "job": "normalization-Part2",
+              "seconds": 0.748
+            },
+            {
+              "job": "normalization-Part3",
+              "seconds": 0.101
+            },
+            {
+              "job": "normalization-Part4",
+              "seconds": 0.397
+            },
+            {
+              "job": "normalization-Part5",
+              "seconds": 0.026
+            },
+            {
+              "job": "normalization-cmp",
+              "seconds": 1.525
+            },
+            {
+              "job": "sweep-outside-part1",
+              "seconds": 99.732
+            },
+            {
+              "job": "sweep-part1-casing",
+              "seconds": 0.997
+            },
+            {
+              "job": "casefold-cmp",
+              "seconds": 0.051
+            },
+            {
+              "job": "final-sigma",
+              "seconds": 0.006
+            },
+            {
+              "job": "utf8-malformed",
+              "seconds": 0.228
+            },
+            {
+              "job": "rfc-argv3",
+              "seconds": 0.109
+            },
+            {
+              "job": "rfc-argv4",
+              "seconds": 0.049
+            },
+            {
+              "job": "rfc-argv5",
+              "seconds": 0.138
+            },
+            {
+              "job": "rfc-argv6",
+              "seconds": 0.275
+            },
+            {
+              "job": "rfc-argv7",
+              "seconds": 0.023
+            },
+            {
+              "job": "rfc-argv9",
+              "seconds": 0.01
+            },
+            {
+              "job": "rfc-argv11",
+              "seconds": 0.019
+            },
+            {
+              "job": "rfc-argv12",
+              "seconds": 0.086
+            },
+            {
+              "job": "rfc-argv13",
+              "seconds": 0.189
+            },
+            {
+              "job": "rfc-argv16",
+              "seconds": 0.085
+            }
+          ],
+          "processes": 487,
+          "attribution_splits": 0,
+          "archived_output_bytes": 50327893,
+          "argv_probes": [
+            {
+              "job": "grapheme-counts",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 692,
+              "result": "ok",
+              "stdout_sha256": "b1f76eb78fd29431b06c44b669bcff68f1c3391f02e9906b8a2e805fcd4a66fe",
+              "expected_sha256": "b1f76eb78fd29431b06c44b669bcff68f1c3391f02e9906b8a2e805fcd4a66fe",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "grapheme-slices",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 1227,
+              "result": "ok",
+              "stdout_sha256": "ad7acea8d89431072d37ad2ee69f9afc7cde29e9db1168f67fcd09ca164e7f94",
+              "expected_sha256": "ad7acea8d89431072d37ad2ee69f9afc7cde29e9db1168f67fcd09ca164e7f94",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "normalization-Part0",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 225,
+              "result": "ok",
+              "stdout_sha256": "3edfba66c7955a230f9f02dd1a9c0424af7b2a3620c31d9c59001741c9441dca",
+              "expected_sha256": "3edfba66c7955a230f9f02dd1a9c0424af7b2a3620c31d9c59001741c9441dca",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "normalization-Part1",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 4096,
+              "result": "ok",
+              "stdout_sha256": "30726875d57675d5c656d1e2a27603ca534d2a18b621a09207af8e94f255cb02",
+              "expected_sha256": "30726875d57675d5c656d1e2a27603ca534d2a18b621a09207af8e94f255cb02",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "normalization-Part2",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 4096,
+              "result": "ok",
+              "stdout_sha256": "f8b3462a6cf87e10d46faaa23fdce4212be19ee4de5a121eadd0c79327314729",
+              "expected_sha256": "f8b3462a6cf87e10d46faaa23fdce4212be19ee4de5a121eadd0c79327314729",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "normalization-Part3",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 970,
+              "result": "ok",
+              "stdout_sha256": "4d0bef12c3ea1cbd1a001a33a38fb0f3642b7eb970022c8a16cec132643f847f",
+              "expected_sha256": "4d0bef12c3ea1cbd1a001a33a38fb0f3642b7eb970022c8a16cec132643f847f",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "normalization-Part4",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 3675,
+              "result": "ok",
+              "stdout_sha256": "e287a37cc10741275b30a7fd60e69877c98adf2f57033aa2dd965c1549177447",
+              "expected_sha256": "e287a37cc10741275b30a7fd60e69877c98adf2f57033aa2dd965c1549177447",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "normalization-Part5",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 190,
+              "result": "ok",
+              "stdout_sha256": "559ab36f873790134d9f566b18d85266346f1b69d95b9ed9ac385ee96bb288aa",
+              "expected_sha256": "559ab36f873790134d9f566b18d85266346f1b69d95b9ed9ac385ee96bb288aa",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "normalization-cmp",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 4096,
+              "result": "ok",
+              "stdout_sha256": "33e86c8023b7710129101ce50a4ccde9c0b33c74fa02888172504cac562d38c3",
+              "expected_sha256": "33e86c8023b7710129101ce50a4ccde9c0b33c74fa02888172504cac562d38c3",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "sweep-outside-part1",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 4096,
+              "result": "ok",
+              "stdout_sha256": "38e16879caaea624e3468b09ccc1d99ce4c2087d9735e653d4dd02fa55796a36",
+              "expected_sha256": "38e16879caaea624e3468b09ccc1d99ce4c2087d9735e653d4dd02fa55796a36",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "sweep-part1-casing",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 4096,
+              "result": "ok",
+              "stdout_sha256": "5c5dbc41e3641fccaa797ca6336d7e698c4b9180c7a42247d3a84d6c807e7c43",
+              "expected_sha256": "5c5dbc41e3641fccaa797ca6336d7e698c4b9180c7a42247d3a84d6c807e7c43",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "casefold-cmp",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 1585,
+              "result": "ok",
+              "stdout_sha256": "bf56a408876e52184842a3244e92bf6db727f5775bb14a231bc5a11581e5a90b",
+              "expected_sha256": "bf56a408876e52184842a3244e92bf6db727f5775bb14a231bc5a11581e5a90b",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "final-sigma",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 9,
+              "result": "ok",
+              "stdout_sha256": "12fb07d7be1423d443a3e01eda84203db8329b161ce36b5e38242748310d00a0",
+              "expected_sha256": "12fb07d7be1423d443a3e01eda84203db8329b161ce36b5e38242748310d00a0",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "utf8-malformed",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 4096,
+              "result": "ok",
+              "stdout_sha256": "fefd64c4e887a0bcb50d79f44f14c78cec3e9f24026b4118741c4b559c357377",
+              "expected_sha256": "fefd64c4e887a0bcb50d79f44f14c78cec3e9f24026b4118741c4b559c357377",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv3",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 30,
+              "result": "ok",
+              "stdout_sha256": "c9afd69f8b4d3645605e35a82e93d227db524b4cd627f292d338a84bb557cb5f",
+              "expected_sha256": "c9afd69f8b4d3645605e35a82e93d227db524b4cd627f292d338a84bb557cb5f",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv4",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 14,
+              "result": "ok",
+              "stdout_sha256": "0404853ec6de1e5cc4b65d2523f8f1158b93410761c4e3f16c252bb1a8340fe2",
+              "expected_sha256": "0404853ec6de1e5cc4b65d2523f8f1158b93410761c4e3f16c252bb1a8340fe2",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv5",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 38,
+              "result": "ok",
+              "stdout_sha256": "cd7f01542e92deb1d25d9fa532cbc094fdf7c9d394bd15f632e91aa6d801432c",
+              "expected_sha256": "cd7f01542e92deb1d25d9fa532cbc094fdf7c9d394bd15f632e91aa6d801432c",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv6",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 18,
+              "result": "ok",
+              "stdout_sha256": "50dec9ce26bbc12b74e05064e88479b52856601762aa2bab2179618ae5374669",
+              "expected_sha256": "50dec9ce26bbc12b74e05064e88479b52856601762aa2bab2179618ae5374669",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv7",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 6,
+              "result": "ok",
+              "stdout_sha256": "0c2c2c1d7a5d4a62566d82a74ab811e098494e5b41dc87d8ba2c6d9e3ae0ab13",
+              "expected_sha256": "0c2c2c1d7a5d4a62566d82a74ab811e098494e5b41dc87d8ba2c6d9e3ae0ab13",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv9",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 2,
+              "result": "ok",
+              "stdout_sha256": "12d5d5b358ea3047cd047aa99761c9c9a735ff23e0b08d7d537e4fd1f4434289",
+              "expected_sha256": "12d5d5b358ea3047cd047aa99761c9c9a735ff23e0b08d7d537e4fd1f4434289",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv11",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 5,
+              "result": "ok",
+              "stdout_sha256": "fe020ba77f82fb273e75819caecbe64e4d957c192244c683d2e7aeac19ad31b5",
+              "expected_sha256": "fe020ba77f82fb273e75819caecbe64e4d957c192244c683d2e7aeac19ad31b5",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv12",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 18,
+              "result": "ok",
+              "stdout_sha256": "5365a8122e247bea4f5c627f986acf1c495850e3c98c4f492dc35e67ae30d4d3",
+              "expected_sha256": "5365a8122e247bea4f5c627f986acf1c495850e3c98c4f492dc35e67ae30d4d3",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv13",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 9,
+              "result": "ok",
+              "stdout_sha256": "647acda14961e28510a5dd9c38719eae6eb7963cbfb88ca70e3449b42e693659",
+              "expected_sha256": "647acda14961e28510a5dd9c38719eae6eb7963cbfb88ca70e3449b42e693659",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            },
+            {
+              "job": "rfc-argv16",
+              "shell": "/opt/bash-5.3.15/bin/bash",
+              "tuples": 18,
+              "result": "ok",
+              "stdout_sha256": "66e24a90b9aa7e635d8ddca4f9fc000383db0bcd5ff067c15ed3b4aa42e9f43e",
+              "expected_sha256": "66e24a90b9aa7e635d8ddca4f9fc000383db0bcd5ff067c15ed3b4aa42e9f43e",
+              "status": 0,
+              "error": null,
+              "stderr": ""
+            }
+          ],
+          "seconds": 109.242,
+          "python": "3.13.5 (main, Aug 10 2026, 12:06:59) [GCC 14.2.0]",
+          "summary": {
+            "reference-unicode17-casing-not-exposed": "SKIP",
+            "reference-unicode17-nul-unrepresentable": "SKIP",
+            "reference-unicode17-grapheme-nul-unrepresentable": "SKIP",
+            "reference-unicode17-grapheme-length": "PASS",
+            "reference-unicode17-grapheme-codepoint-length": "PASS",
+            "reference-unicode17-grapheme-byte-length": "PASS",
+            "reference-unicode17-grapheme-slice": "PASS",
+            "reference-unicode17-normalization-part0": "PASS",
+            "reference-unicode17-normalization-part1": "FAIL",
+            "reference-unicode17-normalization-part2": "PASS",
+            "reference-unicode17-normalization-part3": "PASS",
+            "reference-unicode17-normalization-part4": "PASS",
+            "reference-unicode17-normalization-part5": "PASS",
+            "reference-unicode17-normalization-cmp": "PASS",
+            "reference-unicode17-normalization-invariance": "PASS",
+            "reference-unicode17-casefold-full": "PASS",
+            "reference-unicode17-lower-full": "PASS",
+            "reference-unicode17-upper-full": "PASS",
+            "reference-unicode17-title-full": "PASS",
+            "reference-unicode17-casefold-cmp": "PASS",
+            "reference-unicode17-final-sigma": "PASS",
+            "reference-utf8-malformed-codepoint-length": "PASS",
+            "reference-utf8-malformed-casefold": "PASS",
+            "reference-rfc4231-crypto": "PASS",
+            "reference-rfc2202-crypto": "PASS",
+            "reference-rfc5869-crypto": "PASS",
+            "reference-rfc6070-crypto": "PASS",
+            "reference-rfc7914-crypto": "PASS",
+            "reference-rfc1321-crypto": "PASS",
+            "reference-rfc6234-crypto": "PASS",
+            "reference-rfc7693-crypto": "PASS",
+            "reference-rfc4648-crypto": "PASS",
+            "reference-rfc6238-totp": "PASS",
+            "reference-rfc8032-crypto": "PASS",
+            "reference-rfc7748-crypto": "PASS",
+            "reference-rfc8439-crypto": "PASS",
+            "reference-rfc5297-crypto": "PASS",
+            "reference-rfc-not-executable": "SKIP"
+          }
+        },
+        "failed_records": [
+          {
+            "id": "reference-unicode17-normalization-part1",
+            "loadable": "utf8",
+            "group": "reference",
+            "corpus": "NormalizationTest.txt",
+            "part": "Part1",
+            "lines_total": 17086,
+            "lines_used": 17086,
+            "lines_excluded_nul": 0,
+            "operation": "utf8 normalize NFC|NFD|NFKC|NFKD; all 20 column conditions per line",
+            "planned": 341720,
+            "executed": 341720,
+            "passed": 341680,
+            "failed": 40,
+            "unexecuted": 0,
+            "failures_logged": 40,
+            "first_failures": [
+              {
+                "id": "line400:NFC(c1)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cd84"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFKC(c1)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cd84"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFC(c2)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cc88cc81"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFKC(c2)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cc88cc81"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFC(c3)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cc88cc81"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFKC(c3)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cc88cc81"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFC(c4)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cc88cc81"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFKC(c4)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cc88cc81"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFC(c5)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cc88cc81"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line400:NFKC(c5)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "cc88cc81"
+                ],
+                "expected_hex": "cc88cc810a",
+                "expected_status": 0,
+                "actual_hex": "cd840a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFC(c1)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb3"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFKC(c1)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb3"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFC(c2)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb1e0bdb2"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFKC(c2)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb1e0bdb2"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFC(c3)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb1e0bdb2"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFKC(c3)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb1e0bdb2"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFC(c4)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb1e0bdb2"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFKC(c4)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb1e0bdb2"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFC(c5)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb1e0bdb2"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              },
+              {
+                "id": "line560:NFKC(c5)",
+                "reason": "stdout or status mismatch",
+                "args_hex": [
+                  "e0bdb1e0bdb2"
+                ],
+                "expected_hex": "e0bdb1e0bdb20a",
+                "expected_status": 0,
+                "actual_hex": "e0bdb30a",
+                "actual_status": 0
+              }
+            ],
+            "validation_complete": true,
+            "status": "FAIL",
+            "failures_file": "reference-data/unicode17-normalization-part1.failures.jsonl",
+            "provenance": {
+              "unicode_version": "17.0.0",
+              "lock_sha256": "130558a965353c07b2863b2dd464558bbb7fc9ecaff5f12c9d7f24728de53b87",
+              "verified_sha256": {
+                "GraphemeBreakTest.txt": "e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec",
+                "NormalizationTest.txt": "5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db",
+                "CaseFolding.txt": "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183",
+                "UnicodeData.txt": "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c",
+                "SpecialCasing.txt": "efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588",
+                "DerivedCoreProperties.txt": "24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08",
+                "LICENSE.txt": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+              },
+              "malformed_sha256": "f004cfa8a44b0db1d94c30eb42d5f2afce6e84a3c95d2dfeb427dfebe272082b",
+              "context_sha256": "3968fa6daf51502df8bc65ae1fb4c1bf4382a5b736611732bef17efaab1b06dd",
+              "rfc_lock_sha256": "2dc6ac831f15bbeead90c993ac5e869cf93df9f83bd08bba57a057112537b040",
+              "rfc_vectors_sha256": "926d411707a4a3a87356481b6f1c2be7317ddde2edf952c1b8e2cf6459be1d83"
+            },
+            "kind": "normative"
+          }
+        ],
+        "exclusions": [
+          {
+            "id": "reference-unicode17-casing-not-exposed",
+            "loadable": "utf8",
+            "group": "reference",
+            "status": "SKIP",
+            "corpus": "CaseFolding.txt+SpecialCasing.txt",
+            "detail": "utf8 exposes only full default case folding and default case mappings. Simple (S) and Turkic (T) folds, and language-conditional SpecialCasing entries, have no candidate interface; Final_Sigma is covered by unicode17-final-sigma.",
+            "casefold_status_counts": {
+              "C": 1481,
+              "T": 2,
+              "F": 104,
+              "S": 31
+            },
+            "conditional_special_casing": [
+              {
+                "line": 215,
+                "code_point": "03A3",
+                "condition": "Final_Sigma"
+              },
+              {
+                "line": 241,
+                "code_point": "0307",
+                "condition": "lt After_Soft_Dotted"
+              },
+              {
+                "line": 247,
+                "code_point": "0049",
+                "condition": "lt More_Above"
+              },
+              {
+                "line": 248,
+                "code_point": "004A",
+                "condition": "lt More_Above"
+              },
+              {
+                "line": 249,
+                "code_point": "012E",
+                "condition": "lt More_Above"
+              },
+              {
+                "line": 250,
+                "code_point": "00CC",
+                "condition": "lt"
+              },
+              {
+                "line": 251,
+                "code_point": "00CD",
+                "condition": "lt"
+              },
+              {
+                "line": 252,
+                "code_point": "0128",
+                "condition": "lt"
+              },
+              {
+                "line": 261,
+                "code_point": "0130",
+                "condition": "tr"
+              },
+              {
+                "line": 262,
+                "code_point": "0130",
+                "condition": "az"
+              },
+              {
+                "line": 267,
+                "code_point": "0307",
+                "condition": "tr After_I"
+              },
+              {
+                "line": 268,
+                "code_point": "0307",
+                "condition": "az After_I"
+              },
+              {
+                "line": 272,
+                "code_point": "0049",
+                "condition": "tr Not_Before_Dot"
+              },
+              {
+                "line": 273,
+                "code_point": "0049",
+                "condition": "az Not_Before_Dot"
+              },
+              {
+                "line": 277,
+                "code_point": "0069",
+                "condition": "tr"
+              },
+              {
+                "line": 278,
+                "code_point": "0069",
+                "condition": "az"
+              }
+            ],
+            "provenance": {
+              "unicode_version": "17.0.0",
+              "lock_sha256": "130558a965353c07b2863b2dd464558bbb7fc9ecaff5f12c9d7f24728de53b87",
+              "verified_sha256": {
+                "GraphemeBreakTest.txt": "e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec",
+                "NormalizationTest.txt": "5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db",
+                "CaseFolding.txt": "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183",
+                "UnicodeData.txt": "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c",
+                "SpecialCasing.txt": "efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588",
+                "DerivedCoreProperties.txt": "24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08",
+                "LICENSE.txt": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+              },
+              "malformed_sha256": "f004cfa8a44b0db1d94c30eb42d5f2afce6e84a3c95d2dfeb427dfebe272082b",
+              "context_sha256": "3968fa6daf51502df8bc65ae1fb4c1bf4382a5b736611732bef17efaab1b06dd",
+              "rfc_lock_sha256": "2dc6ac831f15bbeead90c993ac5e869cf93df9f83bd08bba57a057112537b040",
+              "rfc_vectors_sha256": "926d411707a4a3a87356481b6f1c2be7317ddde2edf952c1b8e2cf6459be1d83"
+            },
+            "kind": "normative"
+          },
+          {
+            "id": "reference-unicode17-nul-unrepresentable",
+            "loadable": "utf8",
+            "group": "reference",
+            "status": "SKIP",
+            "detail": "U+0000 is a scalar value but cannot appear in a Bash argument (C strings end at NUL). Its 8 sweep assertions (NFC, NFD, NFKC, NFKD invariance, casefold, lower, upper, title) are not executed; GraphemeBreakTest exclusions are in unicode17-grapheme-nul-unrepresentable. NormalizationTest, CaseFolding and the malformed vectors contain no U+0000.",
+            "assertions_not_executed": 8,
+            "provenance": {
+              "unicode_version": "17.0.0",
+              "lock_sha256": "130558a965353c07b2863b2dd464558bbb7fc9ecaff5f12c9d7f24728de53b87",
+              "verified_sha256": {
+                "GraphemeBreakTest.txt": "e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec",
+                "NormalizationTest.txt": "5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db",
+                "CaseFolding.txt": "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183",
+                "UnicodeData.txt": "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c",
+                "SpecialCasing.txt": "efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588",
+                "DerivedCoreProperties.txt": "24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08",
+                "LICENSE.txt": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+              },
+              "malformed_sha256": "f004cfa8a44b0db1d94c30eb42d5f2afce6e84a3c95d2dfeb427dfebe272082b",
+              "context_sha256": "3968fa6daf51502df8bc65ae1fb4c1bf4382a5b736611732bef17efaab1b06dd",
+              "rfc_lock_sha256": "2dc6ac831f15bbeead90c993ac5e869cf93df9f83bd08bba57a057112537b040",
+              "rfc_vectors_sha256": "926d411707a4a3a87356481b6f1c2be7317ddde2edf952c1b8e2cf6459be1d83"
+            },
+            "kind": "normative"
+          },
+          {
+            "id": "reference-unicode17-grapheme-nul-unrepresentable",
+            "loadable": "utf8",
+            "group": "reference",
+            "status": "SKIP",
+            "corpus": "GraphemeBreakTest.txt",
+            "detail": "GraphemeBreakTest lines containing U+0000 cannot be passed through Bash argv (C strings end at NUL); they are excluded from every grapheme assertion, not passed.",
+            "lines_total": 766,
+            "lines_excluded": 74,
+            "excluded_lines": [
+              31,
+              32,
+              69,
+              70,
+              103,
+              104,
+              105,
+              106,
+              107,
+              108,
+              109,
+              110,
+              111,
+              112,
+              113,
+              114,
+              115,
+              116,
+              117,
+              118,
+              119,
+              120,
+              121,
+              122,
+              123,
+              124,
+              125,
+              126,
+              127,
+              128,
+              129,
+              130,
+              131,
+              132,
+              133,
+              134,
+              135,
+              136,
+              137,
+              138,
+              139,
+              140,
+              145,
+              146,
+              183,
+              184,
+              221,
+              222,
+              259,
+              260,
+              297,
+              298,
+              335,
+              336,
+              373,
+              374,
+              411,
+              412,
+              449,
+              450,
+              487,
+              488,
+              525,
+              526,
+              563,
+              564,
+              601,
+              602,
+              639,
+              640,
+              677,
+              678,
+              715,
+              716
+            ],
+            "provenance": {
+              "unicode_version": "17.0.0",
+              "lock_sha256": "130558a965353c07b2863b2dd464558bbb7fc9ecaff5f12c9d7f24728de53b87",
+              "verified_sha256": {
+                "GraphemeBreakTest.txt": "e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec",
+                "NormalizationTest.txt": "5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db",
+                "CaseFolding.txt": "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183",
+                "UnicodeData.txt": "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c",
+                "SpecialCasing.txt": "efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588",
+                "DerivedCoreProperties.txt": "24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08",
+                "LICENSE.txt": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+              },
+              "malformed_sha256": "f004cfa8a44b0db1d94c30eb42d5f2afce6e84a3c95d2dfeb427dfebe272082b",
+              "context_sha256": "3968fa6daf51502df8bc65ae1fb4c1bf4382a5b736611732bef17efaab1b06dd",
+              "rfc_lock_sha256": "2dc6ac831f15bbeead90c993ac5e869cf93df9f83bd08bba57a057112537b040",
+              "rfc_vectors_sha256": "926d411707a4a3a87356481b6f1c2be7317ddde2edf952c1b8e2cf6459be1d83"
+            },
+            "kind": "normative"
+          },
+          {
+            "id": "reference-rfc-not-executable",
+            "loadable": "crypto",
+            "group": "reference",
+            "status": "SKIP",
+            "corpus": "rfc-vectors.json",
+            "detail": "published vectors that cannot run through this interface",
+            "vectors": [
+              {
+                "id": "rfc4231-testcase5",
+                "rfc": 4231,
+                "section": "4.6",
+                "reason": "truncated 128-bit outputs; the full HMAC is not published"
+              },
+              {
+                "id": "rfc6070-pbkdf2-sha1-4",
+                "rfc": 6070,
+                "section": "2",
+                "reason": "c=16777216 is a 16M-iteration stress vector; omitted from the bounded VM run"
+              },
+              {
+                "id": "rfc6070-pbkdf2-sha1-6",
+                "rfc": 6070,
+                "section": "2",
+                "reason": "password contains NUL; -p PASSWORD is a C string from Bash argv"
+              }
+            ],
+            "provenance": {
+              "unicode_version": "17.0.0",
+              "lock_sha256": "130558a965353c07b2863b2dd464558bbb7fc9ecaff5f12c9d7f24728de53b87",
+              "verified_sha256": {
+                "GraphemeBreakTest.txt": "e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec",
+                "NormalizationTest.txt": "5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db",
+                "CaseFolding.txt": "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183",
+                "UnicodeData.txt": "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c",
+                "SpecialCasing.txt": "efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588",
+                "DerivedCoreProperties.txt": "24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08",
+                "LICENSE.txt": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+              },
+              "malformed_sha256": "f004cfa8a44b0db1d94c30eb42d5f2afce6e84a3c95d2dfeb427dfebe272082b",
+              "context_sha256": "3968fa6daf51502df8bc65ae1fb4c1bf4382a5b736611732bef17efaab1b06dd",
+              "rfc_lock_sha256": "2dc6ac831f15bbeead90c993ac5e869cf93df9f83bd08bba57a057112537b040",
+              "rfc_vectors_sha256": "926d411707a4a3a87356481b6f1c2be7317ddde2edf952c1b8e2cf6459be1d83"
+            },
+            "kind": "normative"
+          }
+        ]
+      },
+      "retained_behavioral_failures": [
+        {
+          "id": "curl-cookie-jar-roundtrip",
+          "loadable": "curl",
+          "group": "network",
+          "kind": "parity",
+          "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112 and curl(1); the jar file itself is compared with the reference tree",
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "reference tree"
+          ],
+          "covers": [
+            "curl/request-wire-shape",
+            "curl/response-file-effects"
+          ],
+          "comparison": "exact bytes, status and file effects"
+        },
+        {
+          "id": "clear-vt100",
+          "loadable": "clear",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "reference screen_base64"
+          ],
+          "covers": [
+            "clear/pty-terminal-attributes"
+          ],
+          "comparison": "exact bytes, status and file effects"
+        },
+        {
+          "id": "timeout-background-group",
+          "loadable": "timeout",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit"
+          ],
+          "covers": [
+            "timeout/deferred-foreground-process-group"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "xargs-prompt-format",
+          "loadable": "xargs",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit waiting for step 0 expect 'one\\\\?\\\\.\\\\.\\\\.': not seen",
+            "exit status",
+            "expected file: one",
+            "reference status",
+            "reference tree"
+          ],
+          "covers": [
+            "xargs/prompt-requires-pty"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-edit-save",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "expected file: note",
+            "reference tree"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-delete-undo",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "reference tree"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-yank-put",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "reference tree"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-count-delete",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "reference tree"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-substitute",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "exit status",
+            "expected file: note",
+            "reference status",
+            "reference tree"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-search-change",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "expected file: note",
+            "reference tree"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-dot-repeat",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "reference tree"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-join",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "expected file: note",
+            "reference tree"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-arrow-keys",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "reference tree"
+          ],
+          "covers": [
+            "vi/terminal-keys-resize"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-resize-redraw",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit waiting for step 2 screen: row 0 does not match '^line-01$'",
+            "exit status",
+            "terminal modes were not restored",
+            "reference status"
+          ],
+          "covers": [
+            "vi/terminal-keys-resize"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "vi-quit-modified-refused",
+          "loadable": "vi",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "exit status",
+            "reference status"
+          ],
+          "covers": [
+            "vi/interactive-pty-edit"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "nano-edit-save",
+          "loadable": "nano",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "expected file: note",
+            "reference tree"
+          ],
+          "covers": [
+            "nano/deferred_edit_save"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "nano-cut-paste",
+          "loadable": "nano",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "expected file: note",
+            "reference tree"
+          ],
+          "covers": [
+            "nano/deferred_edit_save"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "nano-exit-save-prompt",
+          "loadable": "nano",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "process exited before step 6 screen: no row matches 'Write to File: note'"
+          ],
+          "covers": [
+            "nano/deferred_edit_save"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "nano-utf8-input",
+          "loadable": "nano",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "expected file: note",
+            "reference tree"
+          ],
+          "covers": [
+            "nano/deferred_selection_completion_utf8"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "less-line-numbers",
+          "loadable": "less",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit waiting for step 0 screen: row 0 does not match '^\\\\s*1 line-001$'",
+            "exit status",
+            "terminal modes were not restored",
+            "reference status"
+          ],
+          "covers": [
+            "less/pty-options-and-resize"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "less-resize-redraw",
+          "loadable": "less",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit waiting for step 2 screen: row 0 does not match '^line-001$'",
+            "exit status",
+            "terminal modes were not restored",
+            "reference status"
+          ],
+          "covers": [
+            "less/pty-options-and-resize"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "ed-modified-quit-prompt",
+          "loadable": "ed",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "exit status",
+            "reference status"
+          ],
+          "covers": [
+            "ed/modified_quit_prompt_pty"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "ed-open-reports-size",
+          "loadable": "ed",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit waiting for step 0 expect '\\\\A4\\\\r\\\\n': not seen",
+            "exit status",
+            "reference status"
+          ],
+          "covers": [],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "bc-terminal-expression",
+          "loadable": "bc",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit waiting for step 1 expect '42': not seen",
+            "exit status",
+            "reference status"
+          ],
+          "covers": [
+            "bc/interactive_terminal_editing"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "bc-readline-edit",
+          "loadable": "bc",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit waiting for step 0 termios: ICANON is set",
+            "exit status",
+            "reference status"
+          ],
+          "covers": [
+            "bc/interactive_terminal_editing"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "bc-interrupt-continues",
+          "loadable": "bc",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "process exited before step 4 expect '42': not seen",
+            "exit status",
+            "reference status"
+          ],
+          "covers": [
+            "bc/interactive_terminal_editing"
+          ],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "grep-terminal-streaming",
+          "loadable": "grep",
+          "group": "terminal",
+          "kind": "parity",
+          "oracle": null,
+          "status": "FAIL",
+          "harness_errors": {},
+          "reference_problems": [],
+          "differences": [
+            "PTY wall-clock limit waiting for step 1 expect 'x1\\\\r\\\\nx1\\\\r\\\\n': not seen",
+            "exit status",
+            "reference status"
+          ],
+          "covers": [],
+          "comparison": "terminal semantics and file effects"
+        },
+        {
+          "id": "legacy/apropos/version-cli",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "apropos",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/bc/syntax_error_recovery_status",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "bc",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/binhex/decode-odd-nibble-xxd-compatibility",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "candidate status 1, expected 0",
+            "candidate stderr policy"
+          ],
+          "loadable": "binhex",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/binhex/decode-nonhex-characters-xxd-compatibility",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "candidate status 1, expected 0",
+            "candidate stderr policy",
+            "stdout bytes"
+          ],
+          "loadable": "binhex",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/getconf/all-variables-relative-path",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "getconf",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/logname/gnu-help-option",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "logname",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/logname/gnu-version-option",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "logname",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/logname/option-after-operand",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "logname",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/logname/help-extra",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "logname",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/logname/abbreviated-help",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "logname",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/logname/version-extra",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "logname",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/logname/version-prefix",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "logname",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/nano/gnu_help_option",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "nano",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/nano/gnu_options_without_terminal",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "nano",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/sftp/openssh-help-flag",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "candidate status 0, expected 1",
+            "candidate stderr policy",
+            "stdout bytes"
+          ],
+          "loadable": "sftp",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/strings/invalid-radix-diagnostic-exact-bytes",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stderr bytes"
+          ],
+          "loadable": "strings",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/whatis/prefix-compatibility",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "whatis",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/whoami/gnu-help-option",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "whoami",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/whoami/gnu-version-option",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "whoami",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/whoami/option-after-operand",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "whoami",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/whoami/help-extra",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "whoami",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/whoami/abbreviated-help",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "whoami",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/whoami/version-extra",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "whoami",
+          "group": "legacy"
+        },
+        {
+          "id": "legacy/whoami/version-prefix",
+          "kind": "parity",
+          "status": "FAIL",
+          "differences": [
+            "stdout bytes"
+          ],
+          "loadable": "whoami",
+          "group": "legacy"
+        }
+      ],
+      "repeated_terminal_attempts": {
+        "PASS": 18,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0,
+        "COLLECTED": 0
+      },
+      "source_runs": [
+        {
+          "run": "final-dynamic",
+          "original_summary": {
+            "PASS": 3350,
+            "FAIL": 51,
+            "ERROR": 1,
+            "SKIP": 23,
+            "DEFERRED": 600,
+            "COLLECTED": 1
+          },
+          "payload_sha256": "8a372f1825093657f703da2337871e2283a177905432595ed34efcb2f4304a3b",
+          "artifacts_sha256": {
+            "summary.json": "ca6ab9a72b2aa5b676b999dbde918d52c8c65a125f0b7eeff1518f7434032ec8",
+            "provenance.json": "a4fcaff390a4417a0ce00eaefc1d5a5522943007440063434ef77e6faf90ffef",
+            "evidence.tar": "728352d10f6ed0461bc41838bdc27b12b520429f65b51a955ff2449af7e5beed"
+          },
+          "runtime_host": {
+            "kernel": "6.12.113+deb13-amd64",
+            "architecture": "x86_64",
+            "qemu": "QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)",
+            "limits": [
+              "CPUQuota=150%",
+              "MemoryMax=3G",
+              "MemorySwapMax=0",
+              "TasksMax=128"
+            ]
+          },
+          "prepared_sha256": "d82f53cb23b3abb4d22cff5f02956115941938f389e29e7813370504ea4077f4",
+          "image_lock_sha256": "80f37c0fb08ae4cd4b7ddae52316adce592c9fb0e82100e54ce94fff7cd3480b",
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793062864.0166612
+          },
+          "candidate_matches_guest": true,
+          "candidate_unchanged": true,
+          "prepared_unchanged": true,
+          "overlay_discarded": true,
+          "guest_links": [
+            "lo"
+          ],
+          "host_shared_mounts": [],
+          "outbound_checks": {
+            "dns": "blocked: Temporary failure in name resolution",
+            "host_canary": "blocked: Connection refused",
+            "public_tcp": "blocked: Network is unreachable",
+            "canary_accepted": 0
+          },
+          "groups_used": [
+            "legacy",
+            "shell",
+            "network",
+            "terminal",
+            "selfcheck",
+            "inventory"
+          ],
+          "terminal_cases_replaced": [
+            "bash-job-stop-and-list",
+            "bash-kill-stopped-job",
+            "bash-job-foreground",
+            "bash-exit-stopped-jobs",
+            "bash-ctrl-c-foreground",
+            "bash-hangup-ends-jobs"
+          ]
+        },
+        {
+          "run": "final-dynamic-reference-repeats",
+          "original_summary": {
+            "PASS": 45,
+            "FAIL": 1,
+            "ERROR": 6,
+            "SKIP": 4,
+            "DEFERRED": 0,
+            "COLLECTED": 0
+          },
+          "payload_sha256": "08eaccc02c4b0d1139444b85aa3f90b4b089401626000ed621f8db573c4f853c",
+          "artifacts_sha256": {
+            "summary.json": "331920c1fc322067a0445500fa1e8b8539f33f53e5ccfa1d1d9692580523359e",
+            "provenance.json": "7df0eab63d335945fd69f1bb67bd6bb2c3aaf3b91d7ac29723075a817ba8d649",
+            "evidence.tar": "03146ea0d8fdd9c5eab2a24985ee3b1d02ce2fa6c8840d32be8666e9dcac404a"
+          },
+          "runtime_host": {
+            "kernel": "6.12.113+deb13-amd64",
+            "architecture": "x86_64",
+            "qemu": "QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)",
+            "limits": [
+              "CPUQuota=150%",
+              "MemoryMax=3G",
+              "MemorySwapMax=0",
+              "TasksMax=128"
+            ]
+          },
+          "prepared_sha256": "d82f53cb23b3abb4d22cff5f02956115941938f389e29e7813370504ea4077f4",
+          "image_lock_sha256": "80f37c0fb08ae4cd4b7ddae52316adce592c9fb0e82100e54ce94fff7cd3480b",
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793063608.506471
+          },
+          "candidate_matches_guest": true,
+          "candidate_unchanged": true,
+          "prepared_unchanged": true,
+          "overlay_discarded": true,
+          "guest_links": [
+            "lo"
+          ],
+          "host_shared_mounts": [],
+          "outbound_checks": {
+            "dns": "blocked: Temporary failure in name resolution",
+            "host_canary": "blocked: Connection refused",
+            "public_tcp": "blocked: Network is unreachable",
+            "canary_accepted": 0
+          },
+          "groups_used": [
+            "reference"
+          ],
+          "excluded_group_reason": "The six terminal ERRORs belong to an intermediate fixture revision, superseded by the later repeated run; they are not candidate failures."
+        },
+        {
+          "run": "final-dynamic-job-repeat-4",
+          "original_summary": {
+            "PASS": 18,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 0,
+            "COLLECTED": 0
+          },
+          "payload_sha256": "ca38e934d22008e8e97a2b868ff7a26d46b8f973c6f5e990b2d392d177ce12b3",
+          "artifacts_sha256": {
+            "summary.json": "9d717805abc45764c890f06fa422a86a278c79e2bcf165316a34732092fb3b35",
+            "provenance.json": "1c7426601e83b70e514a7b8f956f6d1163e6c116d8d929530cf96472a527589e",
+            "evidence.tar": "6e885f6281690400ac444ff922422fa5cc78b580545c1f29bb78e258f372fa56"
+          },
+          "runtime_host": {
+            "kernel": "6.12.113+deb13-amd64",
+            "architecture": "x86_64",
+            "qemu": "QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)",
+            "limits": [
+              "CPUQuota=150%",
+              "MemoryMax=3G",
+              "MemorySwapMax=0",
+              "TasksMax=128"
+            ]
+          },
+          "prepared_sha256": "d82f53cb23b3abb4d22cff5f02956115941938f389e29e7813370504ea4077f4",
+          "image_lock_sha256": "80f37c0fb08ae4cd4b7ddae52316adce592c9fb0e82100e54ce94fff7cd3480b",
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793064620.835901
+          },
+          "candidate_matches_guest": true,
+          "candidate_unchanged": true,
+          "prepared_unchanged": true,
+          "overlay_discarded": true,
+          "guest_links": [
+            "lo"
+          ],
+          "host_shared_mounts": [],
+          "outbound_checks": {
+            "dns": "blocked: Temporary failure in name resolution",
+            "host_canary": "blocked: Connection refused",
+            "public_tcp": "blocked: Network is unreachable",
+            "canary_accepted": 0
+          },
+          "groups_used": [
+            "terminal"
+          ]
+        }
+      ]
+    }
+  },
+  "reference_packages": {
+    "acl": "2.3.2-2+b1",
+    "adduser": "3.152",
+    "apparmor": "4.1.0-1",
+    "apt": "3.0.3",
+    "apt-listchanges": "4.8",
+    "apt-utils": "3.0.3",
+    "attr": "1:2.5.2-3",
+    "base-files": "13.8+deb13u7",
+    "base-passwd": "3.6.7",
+    "bash": "5.2.37-2+b10",
+    "bash-completion": "1:2.16.0-7",
+    "bc": "1.07.1-4",
+    "bind9-dnsutils": "1:9.20.30-1~deb13u1",
+    "bind9-host": "1:9.20.30-1~deb13u1",
+    "bind9-libs": "1:9.20.30-1~deb13u1",
+    "binutils": "2.44-3",
+    "binutils-common": "2.44-3",
+    "binutils-x86-64-linux-gnu": "2.44-3",
+    "bsdextrautils": "2.41.5-0+deb13u1",
+    "bsdutils": "1:2.41.5-0+deb13u1",
+    "bubblewrap": "0.12.0-1~deb13u1",
+    "build-essential": "12.12",
+    "bzip2": "1.0.8-6",
+    "ca-certificates": "20250419+deb13u1",
+    "cloud-guest-utils": "0.33-1",
+    "cloud-image-utils": "0.33-1",
+    "cloud-init": "25.1.4-1+deb13u1",
+    "cloud-initramfs-growroot": "0.18.debian14",
+    "cloud-utils": "0.33-1",
+    "coreutils": "9.7-3",
+    "cpio": "2.15+dfsg-2",
+    "cpp": "4:14.2.0-1",
+    "cpp-14": "14.2.0-19",
+    "cpp-14-x86-64-linux-gnu": "14.2.0-19",
+    "cpp-x86-64-linux-gnu": "4:14.2.0-1",
+    "cron": "3.0pl1-197",
+    "cron-daemon-common": "3.0pl1-197",
+    "curl": "8.14.1-2+deb13u7",
+    "dash": "0.5.12-12",
+    "dbus": "1.16.2-2",
+    "dbus-bin": "1.16.2-2",
+    "dbus-daemon": "1.16.2-2",
+    "dbus-session-bus-common": "1.16.2-2",
+    "dbus-system-bus-common": "1.16.2-2",
+    "debconf": "1.5.91",
+    "debian-archive-keyring": "2025.1",
+    "debianutils": "5.23.2",
+    "dhcpcd-base": "1:10.1.0-11+deb13u4",
+    "diffutils": "1:3.10-4",
+    "distro-info-data": "0.66+deb13u2",
+    "dmsetup": "2:1.02.205-2",
+    "dosfstools": "4.2-1.2",
+    "dpkg": "1.22.22",
+    "dpkg-dev": "1.22.22",
+    "dracut-install": "106-6",
+    "e2fsprogs": "1.47.2-3+b12",
+    "ed": "1.21.1-1",
+    "eject": "2.41.5-0+deb13u1",
+    "ethtool": "1:6.14.2-1",
+    "fdisk": "2.41.5-0+deb13u1",
+    "file": "1:5.46-5",
+    "findutils": "4.10.0-3",
+    "g++": "4:14.2.0-1",
+    "g++-14": "14.2.0-19",
+    "g++-14-x86-64-linux-gnu": "14.2.0-19",
+    "g++-x86-64-linux-gnu": "4:14.2.0-1",
+    "gawk": "1:5.2.1-2+b1",
+    "gcc": "4:14.2.0-1",
+    "gcc-14": "14.2.0-19",
+    "gcc-14-base": "14.2.0-19",
+    "gcc-14-x86-64-linux-gnu": "14.2.0-19",
+    "gcc-x86-64-linux-gnu": "4:14.2.0-1",
+    "gdisk": "1.0.10-2",
+    "genisoimage": "9:1.1.11-4",
+    "gettext-base": "0.23.1-2",
+    "git": "1:2.47.3-0+deb13u1",
+    "git-man": "1:2.47.3-0+deb13u1",
+    "grep": "3.11-4",
+    "groff-base": "1.23.0-9",
+    "grub-cloud-amd64": "0.1.1",
+    "grub-common": "2.12-9+deb13u2",
+    "grub-efi-amd64-bin": "2.12-9+deb13u2",
+    "grub-efi-amd64-signed": "1+2.12+9+deb13u2",
+    "grub-efi-amd64-unsigned": "2.12-9+deb13u2",
+    "grub-pc-bin": "2.12-9+deb13u2",
+    "grub2-common": "2.12-9+deb13u2",
+    "gzip": "1.13-1+deb13u1",
+    "hostname": "3.25",
+    "init": "1.69~deb13u1",
+    "init-system-helpers": "1.69~deb13u1",
+    "initramfs-tools": "0.148.4",
+    "initramfs-tools-bin": "0.148.4",
+    "initramfs-tools-core": "0.148.4",
+    "iproute2": "6.15.0-1",
+    "iptables": "1.8.11-2",
+    "iputils-ping": "3:20240905-3",
+    "jq": "1.7.1-6+deb13u4",
+    "klibc-utils": "2.0.14-1",
+    "kmod": "34.2-2",
+    "less": "668-1",
+    "libacl1": "2.3.2-2+b1",
+    "libaio1t64": "0.3.113-8+b1",
+    "libapparmor1": "4.1.0-1",
+    "libapt-pkg7.0": "3.0.3",
+    "libasan8": "14.2.0-19",
+    "libatomic1": "14.2.0-19",
+    "libattr1": "1:2.5.2-3",
+    "libaudit-common": "1:4.0.2-2+deb13u1",
+    "libaudit1": "1:4.0.2-2+deb13u1",
+    "libbinutils": "2.44-3",
+    "libblkid1": "2.41.5-0+deb13u1",
+    "libbpf1": "1:1.5.0-3",
+    "libbrotli1": "1.1.0-2+deb13u1",
+    "libbsd0": "0.12.2-2",
+    "libbz2-1.0": "1.0.8-6",
+    "libc-bin": "2.41-12+deb13u4",
+    "libc-dev-bin": "2.41-12+deb13u4",
+    "libc-l10n": "2.41-12+deb13u4",
+    "libc6": "2.41-12+deb13u4",
+    "libc6-dev": "2.41-12+deb13u4",
+    "libcap-ng0": "0.8.5-4+b1",
+    "libcap2": "1:2.75-10+deb13u1+b3",
+    "libcap2-bin": "1:2.75-10+deb13u1+b3",
+    "libcbor0.10": "0.10.2-2",
+    "libcc1-0": "14.2.0-19",
+    "libcom-err2": "1.47.2-3+b12",
+    "libcrypt-dev": "1:4.4.38-1",
+    "libcrypt1": "1:4.4.38-1",
+    "libctf-nobfd0": "2.44-3",
+    "libctf0": "2.44-3",
+    "libcurl3t64-gnutls": "8.14.1-2+deb13u7",
+    "libcurl4t64": "8.14.1-2+deb13u7",
+    "libdb5.3t64": "5.3.28+dfsg2-9",
+    "libdbus-1-3": "1.16.2-2",
+    "libdebconfclient0": "0.280",
+    "libdevmapper1.02.1": "2:1.02.205-2",
+    "libdpkg-perl": "1.22.22",
+    "libduktape207": "2.7.0-2+b2",
+    "libedit2": "3.1-20250104-1",
+    "libefiboot1t64": "38-3.1+b1",
+    "libefivar1t64": "38-3.1+b1",
+    "libelf1t64": "0.192-4",
+    "liberror-perl": "0.17030-1",
+    "libexpat1": "2.9.0-1~deb13u1",
+    "libext2fs2t64": "1.47.2-3+b12",
+    "libfdisk1": "2.41.5-0+deb13u1",
+    "libffi8": "3.4.8-2",
+    "libfido2-1": "1.15.0-1+b1",
+    "libfreetype6": "2.13.3+dfsg-1+deb13u1",
+    "libfstrm0": "0.6.1-1+b3",
+    "libfuse3-4": "3.17.2-3",
+    "libgcc-14-dev": "14.2.0-19",
+    "libgcc-s1": "14.2.0-19",
+    "libgdbm-compat4t64": "1.24-2",
+    "libgdbm6t64": "1.24-2",
+    "libglib2.0-0t64": "2.84.4-3~deb13u5",
+    "libgmp10": "2:6.3.0+dfsg-3",
+    "libgnutls30t64": "3.8.9-3+deb13u4",
+    "libgomp1": "14.2.0-19",
+    "libgpm2": "1.20.7-11+b2",
+    "libgprofng0": "2.44-3",
+    "libgssapi-krb5-2": "1.21.3-5+deb13u1",
+    "libhogweed6t64": "3.10.1-1",
+    "libhwasan0": "14.2.0-19",
+    "libidn2-0": "2.3.8-2",
+    "libip4tc2": "1.8.11-2",
+    "libip6tc2": "1.8.11-2",
+    "libisl23": "0.27-1",
+    "libitm1": "14.2.0-19",
+    "libjansson4": "2.14-2+b3",
+    "libjemalloc2": "5.3.0-3",
+    "libjq1": "1.7.1-6+deb13u4",
+    "libjson-c5": "0.18+ds-1",
+    "libk5crypto3": "1.21.3-5+deb13u1",
+    "libkeyutils1": "1.6.3-6",
+    "libklibc": "2.0.14-1",
+    "libkmod2": "34.2-2",
+    "libkrb5-3": "1.21.3-5+deb13u1",
+    "libkrb5support0": "1.21.3-5+deb13u1",
+    "liblastlog2-2": "2.41.5-0+deb13u1",
+    "libldap2": "2.6.10+dfsg-1",
+    "liblmdb0": "0.9.31-1+b2",
+    "liblsan0": "14.2.0-19",
+    "liblsof0": "4.99.4+dfsg-2",
+    "libluajit-5.1-2": "2.1.0+openresty20250117-2",
+    "libluajit-5.1-common": "2.1.0+openresty20250117-2",
+    "liblz4-1": "1.10.0-4",
+    "liblzma5": "5.8.1-1+deb13u2",
+    "libmagic-mgc": "1:5.46-5",
+    "libmagic1t64": "1:5.46-5",
+    "libmaxminddb0": "1.12.2-1",
+    "libmd0": "1.1.0-2+b1",
+    "libmnl0": "1.0.5-3",
+    "libmount1": "2.41.5-0+deb13u1",
+    "libmpc3": "1.3.1-1+b3",
+    "libmpfr6": "4.2.2-1",
+    "libmsgpack-c2": "6.0.1-3+b1",
+    "libncursesw6": "6.5+20250216-2",
+    "libnetfilter-conntrack3": "1.1.0-1",
+    "libnetplan1": "1.1.2-7",
+    "libnettle8t64": "3.10.1-1",
+    "libnewt0.52": "0.52.25-1",
+    "libnfnetlink0": "1.0.2-3",
+    "libnftnl11": "1.2.9-1",
+    "libnghttp2-14": "1.64.0-1.1+deb13u1",
+    "libnghttp3-9": "1.8.0-1",
+    "libngtcp2-16": "1.11.0-1+deb13u1",
+    "libngtcp2-crypto-gnutls8": "1.11.0-1+deb13u1",
+    "libnss-myhostname": "257.13-1~deb13u1",
+    "libnss-resolve": "257.13-1~deb13u1",
+    "libnuma1": "2.0.19-1",
+    "libonig5": "6.9.9-1+b1",
+    "libp11-kit0": "0.25.5-3",
+    "libpam-modules": "1.7.0-5",
+    "libpam-modules-bin": "1.7.0-5",
+    "libpam-runtime": "1.7.0-5",
+    "libpam-systemd": "257.13-1~deb13u1",
+    "libpam0g": "1.7.0-5",
+    "libpcap0.8t64": "1.10.5-2",
+    "libpci3": "1:3.13.0-2",
+    "libpcre2-8-0": "10.46-1~deb13u3",
+    "libperl5.40": "5.40.1-6+deb13u1",
+    "libpipeline1": "1.5.8-1",
+    "libpng16-16t64": "1.6.48-1+deb13u6",
+    "libpolkit-agent-1-0": "126-2",
+    "libpolkit-gobject-1-0": "126-2",
+    "libpopt0": "1.19+dfsg-2",
+    "libproc2-0": "2:4.0.4-9",
+    "libprotobuf-c1": "1.5.1-1",
+    "libpsl5t64": "0.21.2-1.1+b1",
+    "libpython3-stdlib": "3.13.5-1",
+    "libpython3.13-minimal": "3.13.5-2+deb13u5",
+    "libpython3.13-stdlib": "3.13.5-2+deb13u5",
+    "libquadmath0": "14.2.0-19",
+    "libreadline8t64": "8.2-6",
+    "librtmp1": "2.4+20151223.gitfa8646d.1-2+b5",
+    "libsasl2-2": "2.1.28+dfsg1-9",
+    "libsasl2-modules-db": "2.1.28+dfsg1-9",
+    "libseccomp2": "2.6.0-2",
+    "libselinux1": "3.8.1-1",
+    "libsemanage-common": "3.8.1-1",
+    "libsemanage2": "3.8.1-1",
+    "libsepol2": "3.8.1-1",
+    "libsframe1": "2.44-3",
+    "libsigsegv2": "2.14-1+b2",
+    "libslang2": "2.3.3-5+b2",
+    "libsmartcols1": "2.41.5-0+deb13u1",
+    "libsodium23": "1.0.18-1+deb13u1",
+    "libsqlite3-0": "3.46.1-7+deb13u2",
+    "libss2": "1.47.2-3+b12",
+    "libssh2-1t64": "1.11.1-1+deb13u2",
+    "libssl3t64": "3.5.7-1~deb13u3",
+    "libstdc++-14-dev": "14.2.0-19",
+    "libstdc++6": "14.2.0-19",
+    "libsystemd-shared": "257.13-1~deb13u1",
+    "libsystemd0": "257.13-1~deb13u1",
+    "libtasn1-6": "4.20.0-2+deb13u1",
+    "libtext-charwidth-perl": "0.04-11+b4",
+    "libtext-wrapi18n-perl": "0.06-10",
+    "libtinfo6": "6.5+20250216-2",
+    "libtirpc-common": "1.3.6+ds-1",
+    "libtirpc3t64": "1.3.6+ds-1",
+    "libtree-sitter0.22": "0.22.6-6+b1",
+    "libtsan2": "14.2.0-19",
+    "libubsan1": "14.2.0-19",
+    "libuchardet0": "0.0.8-1+b2",
+    "libudev1": "257.13-1~deb13u1",
+    "libunibilium4": "2.1.1-2+b1",
+    "libunistring5": "1.3-2",
+    "liburcu8t64": "0.15.2-2",
+    "liburing2": "2.9-1",
+    "libuuid1": "2.41.5-0+deb13u1",
+    "libuv1t64": "1.50.0-2",
+    "libvterm0": "0.3.3-3+b1",
+    "libwrap0": "7.6.q-36",
+    "libwtmpdb0": "0.73.0-3+deb13u1",
+    "libxml2": "2.12.7+dfsg+really2.9.14-2.1+deb13u3",
+    "libxtables12": "1.8.11-2",
+    "libxxhash0": "0.8.3-2",
+    "libyaml-0-2": "0.2.5-2",
+    "libzstd1": "1.5.7+dfsg-1",
+    "linux-base": "4.12.1",
+    "linux-image-6.12.113+deb13-cloud-amd64": "6.12.113-1",
+    "linux-image-cloud-amd64": "6.12.113-1",
+    "linux-libc-dev": "6.12.113-1",
+    "linux-sysctl-defaults": "4.12.1",
+    "locales": "2.41-12+deb13u4",
+    "login": "1:4.16.0-2+really2.41.5-0+deb13u1",
+    "login.defs": "1:4.17.4-2",
+    "logsave": "1.47.2-3+b12",
+    "lsb-release": "12.1-1",
+    "lsof": "4.99.4+dfsg-2",
+    "lua-lpeg": "1.1.0-2",
+    "lua-luv": "1.48.0-2-3",
+    "make": "4.4.1-2",
+    "man-db": "2.13.1-1",
+    "manpages": "6.9.1-1",
+    "mawk": "1.3.4.20250131-1",
+    "media-types": "13.0.0",
+    "mokutil": "0.7.2-1",
+    "mount": "2.41.5-0+deb13u1",
+    "nano": "8.4-1+deb13u1",
+    "ncurses-base": "6.5+20250216-2",
+    "ncurses-bin": "6.5+20250216-2",
+    "neovim": "0.10.4-8",
+    "neovim-runtime": "0.10.4-8",
+    "netbase": "6.5",
+    "netcat-openbsd": "1.229-1",
+    "netplan-generator": "1.1.2-7",
+    "netplan.io": "1.1.2-7",
+    "openssh-client": "1:10.0p1-7+deb13u4",
+    "openssh-server": "1:10.0p1-7+deb13u4",
+    "openssh-sftp-server": "1:10.0p1-7+deb13u4",
+    "openssl": "3.5.7-1~deb13u3",
+    "openssl-provider-legacy": "3.5.7-1~deb13u3",
+    "passwd": "1:4.17.4-2",
+    "patch": "2.8-2",
+    "pci.ids": "0.0~2025.06.09-1",
+    "pciutils": "1:3.13.0-2",
+    "perl": "5.40.1-6+deb13u1",
+    "perl-base": "5.40.1-6+deb13u1",
+    "perl-modules-5.40": "5.40.1-6+deb13u1",
+    "polkitd": "126-2",
+    "procps": "2:4.0.4-9",
+    "psmisc": "23.7-2",
+    "python-apt-common": "3.0.0",
+    "python3": "3.13.5-1",
+    "python3-apt": "3.0.0",
+    "python3-attr": "25.3.0-1",
+    "python3-bcrypt": "4.2.0-2.1+b1",
+    "python3-blinker": "1.9.0-1",
+    "python3-certifi": "2025.1.31+ds-1",
+    "python3-cffi-backend": "1.17.1-3",
+    "python3-chardet": "5.2.0+dfsg-2",
+    "python3-charset-normalizer": "3.4.2-1",
+    "python3-configobj": "5.0.9-1",
+    "python3-cryptography": "43.0.0-3+deb13u1",
+    "python3-dbus": "1.4.0-1",
+    "python3-debconf": "1.5.91",
+    "python3-debian": "1.0.1",
+    "python3-debianbts": "4.1.1",
+    "python3-distro": "1.9.0-1",
+    "python3-distro-info": "1.13",
+    "python3-idna": "3.10-1+deb13u1",
+    "python3-jinja2": "3.1.6-1",
+    "python3-json-pointer": "2.4-3",
+    "python3-jsonpatch": "1.32-5",
+    "python3-jsonschema": "4.19.2-6",
+    "python3-jsonschema-specifications": "2023.12.1-2",
+    "python3-jwt": "2.10.1-2+deb13u1",
+    "python3-markupsafe": "2.1.5-1+b3",
+    "python3-minimal": "3.13.5-1",
+    "python3-netplan": "1.1.2-7",
+    "python3-oauthlib": "3.2.2-3",
+    "python3-pip-whl": "25.1.1+dfsg-1",
+    "python3-pyte": "0.8.0-3",
+    "python3-referencing": "0.36.2-1",
+    "python3-regex": "0.1.20241106-1+b1",
+    "python3-reportbug": "13.2.0",
+    "python3-requests": "2.32.3+dfsg-5+deb13u1",
+    "python3-rpds-py": "0.21.0-2+b1",
+    "python3-setuptools-whl": "78.1.1-0.1",
+    "python3-urllib3": "2.3.0-3+deb13u2",
+    "python3-venv": "3.13.5-1",
+    "python3-wcwidth": "0.2.13+dfsg1-1",
+    "python3-yaml": "6.0.2-1+b2",
+    "python3.13": "3.13.5-2+deb13u5",
+    "python3.13-minimal": "3.13.5-2+deb13u5",
+    "python3.13-venv": "3.13.5-2+deb13u5",
+    "qemu-utils": "1:10.0.13+ds-0+deb13u1",
+    "readline-common": "8.2-6",
+    "reportbug": "13.2.0",
+    "rpcsvc-proto": "1.4.3-1",
+    "rsync": "3.5.0+ds1-0+deb13u1",
+    "runit-helper": "2.16.4",
+    "screen": "4.9.1-3",
+    "sed": "4.9-2+deb13u1",
+    "sensible-utils": "0.0.25",
+    "sgml-base": "1.31+nmu1",
+    "shim-helpers-amd64-signed": "1+16.1+2~deb13u1",
+    "shim-signed": "1.51~1+deb13u1+16.1-2~deb13u1",
+    "shim-signed-common": "1.51~1+deb13u1+16.1-2~deb13u1",
+    "shim-unsigned": "16.1-2~deb13u1",
+    "socat": "1.8.0.3-1+deb13u1",
+    "sqv": "1.3.0-3+b2",
+    "ssh-import-id": "5.10-3",
+    "sudo": "1.9.16p2-3+deb13u2",
+    "systemd": "257.13-1~deb13u1",
+    "systemd-resolved": "257.13-1~deb13u1",
+    "systemd-sysv": "257.13-1~deb13u1",
+    "systemd-timesyncd": "257.13-1~deb13u1",
+    "sysvinit-utils": "3.14-4",
+    "tar": "1.35+dfsg-3.1",
+    "tcpdump": "4.99.5-2",
+    "traceroute": "1:2.1.6-1",
+    "tzdata": "2026e-0+deb13u1",
+    "ucf": "3.0052",
+    "udev": "257.13-1~deb13u1",
+    "unattended-upgrades": "2.12",
+    "util-linux": "2.41.5-0+deb13u1",
+    "util-linux-extra": "2.41.5-0+deb13u1",
+    "uuid-runtime": "2.41.5-0+deb13u1",
+    "vim": "2:9.1.1230-2",
+    "vim-common": "2:9.1.1230-2",
+    "vim-runtime": "2:9.1.1230-2",
+    "vim-tiny": "2:9.1.1230-2",
+    "wget": "1.25.0-2",
+    "whiptail": "0.52.25-1",
+    "xml-core": "0.19",
+    "xxd": "2:9.1.1230-2",
+    "xz-utils": "5.8.1-1+deb13u2",
+    "zlib1g": "1:1.3.dfsg+really1.3.1-1+b1",
+    "zstd": "1.5.7+dfsg-1"
+  },
+  "harness_source_sha256": {
+    "tests/parity-vm/guest.py": "e04b4e3fa47824115ec943fd1196de3602ac462eadbe4a22f793ffd40f7aa039",
+    "tests/parity-vm/image.lock.json": "80f37c0fb08ae4cd4b7ddae52316adce592c9fb0e82100e54ce94fff7cd3480b",
+    "tests/parity-vm/inventory.py": "94a8db0606a3638416cffe62421d16468a6a3496f838484b01ae1524e4eccae3",
+    "tests/parity-vm/network.py": "260dc63b30730574c2ad6b34d99d712171a3f64dbfea0937b9884f9bc3a94e4d",
+    "tests/parity-vm/references/rfc-vectors.json": "926d411707a4a3a87356481b6f1c2be7317ddde2edf952c1b8e2cf6459be1d83",
+    "tests/parity-vm/references/rfc.lock.json": "2dc6ac831f15bbeead90c993ac5e869cf93df9f83bd08bba57a057112537b040",
+    "tests/parity-vm/references/rfc_vectors.py": "458fa429b6fc6f700cd218d16273d4178e028b9dd0a2dda6195d748ef4659f28",
+    "tests/parity-vm/references/unicode-17-context.json": "3968fa6daf51502df8bc65ae1fb4c1bf4382a5b736611732bef17efaab1b06dd",
+    "tests/parity-vm/references/unicode-17.lock.json": "130558a965353c07b2863b2dd464558bbb7fc9ecaff5f12c9d7f24728de53b87",
+    "tests/parity-vm/references/upstream-corpora.lock.json": "b26ea166550395f871921ebae6b540b8d04f21c01ee6a7e8f44fdfc49aa97a4b",
+    "tests/parity-vm/references/utf8-malformed.json": "f004cfa8a44b0db1d94c30eb42d5f2afce6e84a3c95d2dfeb427dfebe272082b",
+    "tests/parity-vm/references.py": "372e914c3a6bf0fe1fd506cb2e217f2317ca738fc053186baea31bfbd8195d83",
+    "tests/parity-vm/schema.py": "bdd3ec2f09376d483436422e197bc6e2b1dba059af4bb9c47a36567becf0278d",
+    "tests/parity-vm/scope.py": "e9e51cac689903f8c10b690b56b5091823385465cce83a9241d3161c40c4fc2d",
+    "tests/parity-vm/selfcheck.py": "b0f379a7cc9ee76932b11639c298a2fa743dad63fdcafcdcfaa3abc7f11ed26b",
+    "tests/parity-vm/suites/network.json": "a9e563b4186bde7f998a4d451c707941f38edbf8632c7b6ae84220a84b7bef90",
+    "tests/parity-vm/suites/shell.json": "03980c5f978e9264ff50b2ab2711b81a2d76e2ee75d6bb7138b3324da6a54226",
+    "tests/parity-vm/suites/terminal.json": "24ae35be367db387b08a191a69f4efa47d815f1b2f5d716ec61de02efaf14eb6",
+    "tests/parity-vm/terminal.py": "3c7dd06360bf2fd0d827d96e792fb6029b0bb93b547bfbb9a48755c77aa2ed9f",
+    "tests/parity-vm/vm.py": "fb7e6f3da4bfe10e9382e831c07fa255207a31a01ea6b793ae8989b88035d154"
+  },
+  "scope_inventory": {
+    "file": "docs/data/parity-0.1.3-scope.json",
+    "sha256": "9b02823bb7761747d0f3bf78b9f60b8f033f31f711e235883f4189cc013ff73d"
+  },
+  "limitations": [
+    "600 broad historical deferrals remain; topic links from new fixtures are partial evidence.",
+    "32 reference GNU Coreutils commands have no matching candidate builtin; per-option mapping and environment combinations remain open.",
+    "40 NFC/NFKC assertions fail for four excluded non-starter composition pairs (U+0344, U+0F73, U+0F75, U+0F81).",
+    "Unicode NUL inputs, unexposed casing interfaces and unsupported RFC vectors are explicit exclusions.",
+    "26 terminal mismatches and the curl cookie-jar attribution comment difference remain visible.",
+    "PTY screen decoding does not emulate xterm alternate-screen switching; no current assertion depends on it.",
+    "Raw reference batch output has a 48 MiB cap and failure logs have a recorded cap; archived flags and hashes show the available evidence.",
+    "Debian package installation uses live signed repositories; the sealed image and exact installed package versions identify these runs.",
+    "SIGKILL lifecycle checks show QEMU terminates but an interrupted controller may leave an overlay and no final provenance.",
+    "Upstream Bash/Coreutils regression suites are pinned proposals, not executed coverage."
+  ]
+}

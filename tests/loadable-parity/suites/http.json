@@ -82,9 +82,22 @@
     },
     {
       "id": "loopback-transaction",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise an end-to-end request and response transaction through the surrounding socket/TLS integration.",
-      "reason": "Requires a future disposable VM or reviewed mock providing a deterministic loopback HTTP/1.1 peer that captures the raw request and returns fixed success/error responses. A transaction would perform network I/O, which is outside this run's allowed scope."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "http-request-nc-transaction"
+        },
+        {
+          "group": "network",
+          "id": "migration-http-tls-transaction"
+        },
+        {
+          "group": "network",
+          "id": "migration-http-transaction-error-status"
+        }
+      ]
     },
     {
       "id": "get-default-and-bind",

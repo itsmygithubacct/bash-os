@@ -129,9 +129,22 @@
     },
     {
       "id": "live_terminal_page_delivery",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify complete page/row delivery while input remains open on an attached terminal.",
-      "reason": "The harness supplies closed stdin fixtures and no PTY driver. A future bounded private-PTY fixture should keep stdin open, feed enough records for a full page or across-column row, and compare candidate delivery timing and bytes with GNU pr without using a host terminal."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-pr-terminal-across-row"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pr-terminal-lines-t"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pr-terminal-page"
+        }
+      ]
     },
     {
       "id": "repeated-input-redirection",

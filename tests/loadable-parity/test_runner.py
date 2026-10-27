@@ -46,10 +46,12 @@ class RunnerTests(unittest.TestCase):
                       script="false", requires=["nonexistent-parity-oracle-47"], expected_status=0,
                       stderr="empty"),
                  dict(id="deferred", kind="deferred", purpose="do not execute a deferred fixture",
-                      script="exit 99", reason="requires separate hardware")]
+                      script="exit 99", reason="requires separate hardware"),
+                 dict(id="migrated", kind="migrated", purpose="index an independently executed fixture",
+                      script="exit 99", replacement_cases=[{"group": "terminal", "id": "example"}])]
         suite = runner.validate(dict(version=1, loadable="cat", cases=cases))
         result = runner.run_suite(suite, self.binary, self.root / "results")
-        self.assertEqual(result["summary"], dict(PASS=1, FAIL=1, ERROR=1, SKIP=1, DEFERRED=1))
+        self.assertEqual(result["summary"], dict(PASS=1, FAIL=1, ERROR=1, SKIP=1, DEFERRED=1, MIGRATED=1))
 
     def test_isolation_has_private_network_processes_and_no_host_paths(self):
         # These are read-only observations, not attempts at privileged operations.

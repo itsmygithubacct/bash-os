@@ -1,0 +1,439 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-bashtermraw-clear-options",
+      "loadable": "bashtermraw",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "bashtermraw/deferred-ansi-output"
+      ],
+      "purpose": "clear and clear -x write CSI 3J CSI H CSI 2J, --no-scrollback omits CSI 3J, and an unsupported option fails with status 1, a diagnostic, and no terminal bytes",
+      "oracle": "contract: bashtermraw_doc help text in loadables/bashtermraw.c (sequences, key names, stty-g/stty-set, reset [-q], clear [-x|--no-scrollback]) and ECMA-48/xterm ctlseqs for the bytes; diagnostic text from btr_clear",
+      "comparison": "exact raw PTY bytes for the whole session; exit status and diagnostic substring recorded by the script",
+      "script": "bashtermraw clear; bashtermraw clear -x; bashtermraw clear --no-scrollback\nbashtermraw clear -y 2> err; printf '%s\\n' \"$?\" > status\nif [[ $(<err) == *'clear: unsupported option: -y'* ]]; then printf 'diag\\n' > marker; else printf 'other\\n' > marker; fi; rm -f err",
+      "steps": [
+        {
+          "expect": "\\A\\x1b\\[3J\\x1b\\[H\\x1b\\[2J\\x1b\\[3J\\x1b\\[H\\x1b\\[2J\\x1b\\[H\\x1b\\[2J\\Z"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "status": "1\n",
+        "marker": "diag\n"
+      }
+    },
+    {
+      "id": "migration-bashtermraw-redirected-routing",
+      "loadable": "bashtermraw",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "bashtermraw/deferred-ansi-output"
+      ],
+      "purpose": "With stdout redirected to files, clr-screen, clr-eol, show, paste and clear still write to the controlling terminal and the redirected files stay empty",
+      "oracle": "contract: bashtermraw_doc help text in loadables/bashtermraw.c (sequences, key names, stty-g/stty-set, reset [-q], clear [-x|--no-scrollback]) and ECMA-48/xterm ctlseqs for the bytes; help text: 'Terminal I/O goes to /dev/tty ... so cup > /dev/null still moves the cursor'",
+      "comparison": "exact raw PTY bytes for the session plus exact (empty) contents of each redirected stdout file",
+      "script": "bashtermraw clr-screen > o1; bashtermraw clr-eol > o2; bashtermraw show off > o3; bashtermraw show on > o4; bashtermraw paste on > o5; bashtermraw paste off > o6; bashtermraw clear > o7; bashtermraw clear --no-scrollback > o8",
+      "steps": [
+        {
+          "expect": "\\A\\x1b\\[2J\\x1b\\[H\\x1b\\[K\\x1b\\[\\?25l\\x1b\\[\\?25h\\x1b\\[\\?2004h\\x1b\\[\\?2004l\\x1b\\[3J\\x1b\\[H\\x1b\\[2J\\x1b\\[H\\x1b\\[2J\\Z"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "o1": "",
+        "o2": "",
+        "o3": "",
+        "o4": "",
+        "o5": "",
+        "o6": "",
+        "o7": "",
+        "o8": ""
+      }
+    },
+    {
+      "id": "migration-bashtermraw-navigation-keys",
+      "loadable": "bashtermraw",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "bashtermraw/deferred-key-decoder"
+      ],
+      "purpose": "keypress decodes CSI cursor and editing keys: DOWN/RIGHT/LEFT, HOME/END in CSI H/F and 1~/4~ forms, INS/DEL/PGUP/PGDN, S-TAB, and BS for both 0x7f and 0x08",
+      "oracle": "contract: bashtermraw_doc help text in loadables/bashtermraw.c (sequences, key names, stty-g/stty-set, reset [-q], clear [-x|--no-scrollback]) and ECMA-48/xterm ctlseqs for the bytes",
+      "comparison": "decoded key names written by keypress to a file, compared exactly",
+      "timeout": 20,
+      "script": "bashtermraw raw; for ((i = 0; i < 15; i++)); do bashtermraw keypress; done > answer; bashtermraw cooked",
+      "steps": [
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ],
+            "cc": {
+              "VMIN": 1,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send": "\u001b[B"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[C"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[D"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[H"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[F"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[1~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[4~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[2~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[3~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[5~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[6~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[Z"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u007f"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\b"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\n"
+        },
+        {
+          "settle_ms": 150
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "DOWN\nRIGHT\nLEFT\nHOME\nEND\nHOME\nEND\nINS\nDEL\nPGUP\nPGDN\nS-TAB\nBS\nBS\nRET\n"
+      }
+    },
+    {
+      "id": "migration-bashtermraw-function-keys",
+      "loadable": "bashtermraw",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "bashtermraw/deferred-key-decoder"
+      ],
+      "purpose": "keypress decodes SS3 F2-F4 and the CSI-tilde forms of F1-F12 (11~-15~, 17~-21~, 23~, 24~)",
+      "oracle": "contract: bashtermraw_doc help text in loadables/bashtermraw.c (sequences, key names, stty-g/stty-set, reset [-q], clear [-x|--no-scrollback]) and ECMA-48/xterm ctlseqs for the bytes",
+      "comparison": "decoded key names written by keypress to a file, compared exactly",
+      "timeout": 20,
+      "script": "bashtermraw raw; for ((i = 0; i < 15; i++)); do bashtermraw keypress; done > answer; bashtermraw cooked",
+      "steps": [
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ],
+            "cc": {
+              "VMIN": 1,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send": "\u001bOQ"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001bOR"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001bOS"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[11~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[12~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[13~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[14~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[15~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[17~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[18~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[19~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[20~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[21~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[23~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[24~"
+        },
+        {
+          "settle_ms": 150
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "F2\nF3\nF4\nF1\nF2\nF3\nF4\nF5\nF6\nF7\nF8\nF9\nF10\nF11\nF12\n"
+      }
+    },
+    {
+      "id": "migration-bashtermraw-control-letters",
+      "loadable": "bashtermraw",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "bashtermraw/deferred-key-decoder"
+      ],
+      "purpose": "keypress names control letters 0x01, 0x18 and 0x1a with the documented C-<letter> names (help text lists 'C-x'; the decoder comment lists 'C-a..C-z')",
+      "oracle": "contract: bashtermraw_doc help text in loadables/bashtermraw.c (sequences, key names, stty-g/stty-set, reset [-q], clear [-x|--no-scrollback]) and ECMA-48/xterm ctlseqs for the bytes; the documented spelling is lower-case (help text 'C-x', decoder comment '0x01..0x1a -> C-a..C-z'). The code's printf uses b + '@' (upper case), so a candidate FAIL here is the documented-contract ambiguity recorded in phase 1, not a harness defect",
+      "comparison": "decoded key names written by keypress to a file, compared exactly",
+      "timeout": 20,
+      "script": "bashtermraw raw; for ((i = 0; i < 3; i++)); do bashtermraw keypress; done > answer; bashtermraw cooked",
+      "steps": [
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ],
+            "cc": {
+              "VMIN": 1,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send": "\u0001"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0018"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001a"
+        },
+        {
+          "settle_ms": 150
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "C-a\nC-x\nC-z\n"
+      }
+    },
+    {
+      "id": "migration-bashtermraw-reset-sequence",
+      "loadable": "bashtermraw",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "bashtermraw/deferred-reset-recovery"
+      ],
+      "purpose": "reset writes exactly ESC c, ESC ( B, CSI m, CSI J, CSI ?25h, CSI ?7h and returns a raw terminal to canonical modes",
+      "oracle": "contract: bashtermraw_doc help text in loadables/bashtermraw.c (sequences, key names, stty-g/stty-set, reset [-q], clear [-x|--no-scrollback]) and ECMA-48/xterm ctlseqs for the bytes; btr_reset recovery sequence comment (RIS, G0 US-ASCII, SGR reset, ED, DECTCEM, DECAWM)",
+      "comparison": "exact raw PTY bytes of the whole session, then termios flags from tcgetattr",
+      "restore_terminal": false,
+      "script": "bashtermraw raw; bashtermraw reset",
+      "steps": [
+        {
+          "expect": "\\A\\x1bc\\x1b\\(B\\x1b\\[m\\x1b\\[J\\x1b\\[\\?25h\\x1b\\[\\?7h\\Z"
+        },
+        {
+          "termios": {
+            "set": [
+              "ICANON",
+              "ECHO",
+              "ISIG",
+              "ICRNL",
+              "OPOST",
+              "ONLCR"
+            ]
+          }
+        }
+      ],
+      "expected_status": 0
+    },
+    {
+      "id": "migration-bashtermraw-reset-no-terminal",
+      "loadable": "bashtermraw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashtermraw/deferred-reset-recovery"
+      ],
+      "purpose": "Without a controlling terminal (plain driver: new session, pipe stdin) reset fails with status 1 and 'not connected to a terminal', reset -q fails with status 1 and no diagnostic, and reset -z is rejected as an unsupported option",
+      "oracle": "contract: bashtermraw_doc help text in loadables/bashtermraw.c (sequences, key names, stty-g/stty-set, reset [-q], clear [-x|--no-scrollback]) and ECMA-48/xterm ctlseqs for the bytes; btr_open_tty_quiet ('not connected to a terminal', suppressed by -q) and btr_reset option check",
+      "comparison": "exact stdout of status and diagnostic-class markers written by the script; stderr bytes are not compared because the builtin_error prefix is the shell's",
+      "script": "bashtermraw reset 2> e1; s1=$?\nbashtermraw reset -q 2> e2; s2=$?\nbashtermraw reset -z 2> e3; s3=$?\nprintf 's1=%s s2=%s s3=%s\\n' \"$s1\" \"$s2\" \"$s3\"\n[[ $(<e1) == *'not connected to a terminal'* ]] && echo e1=diag || echo e1=other\n[[ -s e2 ]] && echo e2=nonempty || echo e2=empty\n[[ $(<e3) == *'reset: unsupported option: -z'* ]] && echo e3=diag || echo e3=other\nrm -f e1 e2 e3",
+      "expected_status": 0,
+      "stdout": "s1=1 s2=1 s3=1\ne1=diag\ne2=empty\ne3=diag\n"
+    },
+    {
+      "id": "migration-bashtermraw-stty-roundtrip",
+      "loadable": "bashtermraw",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "bashtermraw/deferred-size-state-restore"
+      ],
+      "purpose": "stty-g emits a bashtermraw2 state whose flag and control-character fields agree with GNU stty -g; stty-set of that state restores flags, VMIN/VTIME and the window size after stty perturbs them, including a change to 9600-baud speeds; malformed, incomplete or missing states are rejected with their diagnostics and leave the terminal unchanged",
+      "oracle": "contract: bashtermraw_doc help text in loadables/bashtermraw.c (sequences, key names, stty-g/stty-set, reset [-q], clear [-x|--no-scrollback]) and ECMA-48/xterm ctlseqs for the bytes; GNU coreutils stty -g/size in the guest as the independent reader of termios and TIOCGWINSZ",
+      "comparison": "semantic: stty -g flag/cc fields compared numerically with stty-g fields; stty -g and stty size before/after compared in-script; statuses and diagnostic-class markers compared exactly; full tcgetattr restoration checked by the driver",
+      "requires": [
+        "stty"
+      ],
+      "timeout": 20,
+      "script": "s=$(bashtermraw stty-g); printf '%s\\n' \"$?\" > g-status\nre='^bashtermraw2:[0-9a-f]+:[0-9a-f]+:[0-9a-f]+:[0-9a-f]+:([0-9]+,){31}[0-9]+:[0-9]+:[0-9]+:24:80$'\n[[ $s =~ $re ]] && echo format-ok > format || echo format-bad > format\n/usr/bin/stty -g > before\nIFS=: read -r -a g <<< \"$(<before)\"\nIFS=: read -r -a b <<< \"$s\"\nsame=1\nfor i in 0 1 2 3; do (( 16#${g[i]} == 16#${b[i+1]} )) || same=0; done\nIFS=, read -r -a cc <<< \"${b[5]}\"\nfor i in 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do (( 16#${g[i]} == cc[i-4] )) || same=0; done\necho \"fields-match=$same\" > fields\n/usr/bin/stty -echo -icanon min 3 time 2 ispeed 9600 ospeed 9600 cols 50 rows 7\n/usr/bin/stty size > perturbed\nbashtermraw stty-set \"$s\"; printf '%s\\n' \"$?\" > set-status\n[[ $(/usr/bin/stty -g) == \"$(<before)\" ]] && echo restored > modes || echo differs > modes\n/usr/bin/stty size > restored\ncheck() {\n  local want=$1; shift\n  bashtermraw stty-set \"$@\" 2> e; local st=$? d=nodiag u=changed\n  [[ $(<e) == *\"$want\"* ]] && d=diag\n  [[ $(/usr/bin/stty -g) == \"$(<before)\" && $(/usr/bin/stty size) == '24 80' ]] && u=unchanged\n  printf '%s|%s|%s|%s\\n' \"$want\" \"$st\" \"$d\" \"$u\" >> bad\n}\nIFS=: read -r -a f <<< \"$s\"\ncheck 'unsupported state string' garbage\ncheck 'malformed flag field' \"bashtermraw2:zz:${f[2]}:${f[3]}:${f[4]}:${f[5]}:${f[6]}:${f[7]}:${f[8]}:${f[9]}\"\ncheck 'incomplete state string' \"bashtermraw2:${f[1]}:${f[2]}:${f[3]}:${f[4]}\"\ncheck 'malformed cc field' \"bashtermraw2:${f[1]}:${f[2]}:${f[3]}:${f[4]}:300,${f[5]#*,}:${f[6]}:${f[7]}:${f[8]}:${f[9]}\"\ncheck 'malformed speed/size field' \"bashtermraw2:${f[1]}:${f[2]}:${f[3]}:${f[4]}:${f[5]}:${f[6]}:${f[7]}:x:${f[9]}\"\ncheck 'STATE argument required'\nrm -f e before",
+      "steps": [
+        {
+          "settle_ms": 100
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "g-status": "0\n",
+        "format": "format-ok\n",
+        "fields": "fields-match=1\n",
+        "perturbed": "7 50\n",
+        "set-status": "0\n",
+        "modes": "restored\n",
+        "restored": "24 80\n",
+        "bad": "unsupported state string|1|diag|unchanged\nmalformed flag field|1|diag|unchanged\nincomplete state string|1|diag|unchanged\nmalformed cc field|1|diag|unchanged\nmalformed speed/size field|1|diag|unchanged\nSTATE argument required|2|diag|unchanged\n"
+      }
+    }
+  ]
+}

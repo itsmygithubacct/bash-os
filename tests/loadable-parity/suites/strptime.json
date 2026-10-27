@@ -137,7 +137,7 @@
       "id": "localized-month-names",
       "kind": "deferred",
       "purpose": "Localized %b and %B parsing outside the C locale.",
-      "reason": "Requires a future disposable image with a pinned non-C locale and its locale database installed on both reference and candidate sides. The runner forces LC_ALL=C, so this fixture cannot make a stable localized-name assertion here."
+      "reason": "The image installs the `locales` package (i18n sources under /usr/share/i18n) but generates no non-C locale. A fixture can run `localedef -i de_DE -f UTF-8 ./loc/de_DE.UTF-8` as uid 2000 into its own directory and point LOCPATH at it; whether the static candidate's setlocale honours LOCPATH must be recorded (a refusal is a visible FAIL, not a skip)."
     },
     {
       "id": "iso-week-consumption",

@@ -154,9 +154,14 @@
     },
     {
       "id": "xdev-mount-boundary",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise -xdev/-mount on a directory tree containing a second filesystem.",
-      "reason": "Requires a disposable Linux VM that can create or mount a second filesystem beneath a relative fixture path, then run GNU find and the candidate against it. The provided runner forbids mount operations and offers only a single-filesystem fixture; no mount was attempted here."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-find-xdev-mount-boundary"
+        }
+      ]
     },
     {
       "id": "missing-path-continuation",

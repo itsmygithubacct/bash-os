@@ -165,7 +165,7 @@
       "id": "device-node-archive",
       "kind": "deferred",
       "purpose": "Character and block device tar entries are outside the private regular-file fixture contract.",
-      "reason": "GNU parity for device-node headers needs a future disposable VM with an isolated synthetic mknod/stat fixture or reviewed syscall mock. Host device paths and raw-device access are explicitly out of scope; this case executes no command."
+      "reason": "The candidate does not implement device entries: creation rejects them (pax.c:628-629) and extraction rejects them (pax.c:400-402). Unprivileged fixtures can still record the mismatch: archive /dev/null, and list or extract independent typeflag-3 archives. Successful extraction would additionally need CAP_MKNOD (DEV-NODES)."
     },
     {
       "id": "independent-gzip-ustar",

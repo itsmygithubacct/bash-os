@@ -145,9 +145,42 @@
     },
     {
       "id": "pty-terminal-attributes",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify output to an attached terminal leaves terminal modes and attributes unchanged while producing the selected clear sequence.",
-      "reason": "The provided fixture runner always captures stdout through a file and has no PTY attachment or termios observation fields. A future isolated PTY fixture should capture bashclear and ncurses clear output, snapshot the PTY attributes before and after each invocation, and compare the captured bytes without connecting to a host terminal."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "clear-default"
+        },
+        {
+          "group": "terminal",
+          "id": "clear-keep-scrollback"
+        },
+        {
+          "group": "terminal",
+          "id": "clear-linux"
+        },
+        {
+          "group": "terminal",
+          "id": "clear-vt100"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-bashclear-default"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-bashclear-keep-scrollback"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-bashclear-linux"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-bashclear-vt100"
+        }
+      ]
     }
   ]
 }

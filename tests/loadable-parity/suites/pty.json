@@ -43,25 +43,25 @@
       "id": "pty-session-control-deferred",
       "kind": "deferred",
       "purpose": "Exercise setsid, open-tty, and foreground against a controlled session and controlling terminal.",
-      "reason": "Requires a future disposable Linux VM with a private PTY/TTY fixture and session support. That fixture must verify setsid, TIOCSCTTY acquisition, FDVAR versus stdio behavior, and foreground process-group assignment without opening a host console. No controlling-terminal or session operation is run by this suite."
+      "reason": "Never executed. Everything is observable with the existing PTY driver plus a trusted python3 helper (allowed in the VM) that creates an unattached PTY pair for the open-tty acquisition path. No new driver capability is required."
     },
     {
       "id": "pty-terminal-io-deferred",
       "kind": "deferred",
       "purpose": "Exercise isatty, tty-name, close, echo, and resize on a private PTY pair.",
-      "reason": "Requires a future disposable VM or reviewed PTY mock that provides a private master/slave pair, stable tty-name, and observable termios and winsize state. It must verify terminal classification, descriptor closure, echo toggling, geometry updates, and any SIGWINCH effect without using a host terminal. No terminal state mutation is invoked."
+      "reason": "Only regular-file descriptor cases ran. The PTY driver can exercise every remaining obligation; no capability is missing."
     },
     {
       "id": "pty-spawn-waitpid-deferred",
       "kind": "deferred",
       "purpose": "Exercise spawn and waitpid with bounded child output, exit status, and descriptor cleanup.",
-      "reason": "Requires a future disposable VM with a private PTY driver and process namespace, or a reviewed syscall mock for PTY allocation and child handoff. A bounded fixture should run only a fixed harmless child, check master/slave wiring, captured output, exit-status propagation, repeated waits, and cleanup. This suite must not start pty spawn or waitpid operations here."
+      "reason": "Never executed. Fully implementable with existing drivers: pty spawn creates its own PTY in the VM, and the candidate itself ($BASH -c ...) can be the fixed harmless child."
     },
     {
       "id": "pty-serial-ldisc-deferred",
       "kind": "deferred",
       "purpose": "Exercise set-ldisc validation and line-discipline changes against an isolated serial endpoint.",
-      "reason": "Requires a reviewed ioctl mock or a disposable VM with a dedicated virtual serial endpoint and narrowly scoped capability support. The future fixture must validate termios options and TIOCSETD on that virtual endpoint only; no real device or privileged operation is suitable for this runner."
+      "reason": "Never executed. r1-r3 are ordinary unprivileged fixtures. r4-r5 sit behind the candidate's CAP_SYS_ADMIN check (pty.c 902-908) and need a real serial endpoint, because changing a PTY's line discipline away from N_TTY is not a meaningful serial test."
     },
     {
       "id": "regular-file-is-not-terminal",

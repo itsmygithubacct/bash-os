@@ -118,9 +118,18 @@
     },
     {
       "id": "partial-write-error-injection",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise the documented output-write failure and early-stop behavior.",
-      "reason": "Requires a reviewed writer/syscall mock in a future disposable VM or isolated mock harness that injects EIO after a bounded partial stdout write. The common /dev/full technique requires an absolute device path and is outside this relative-fixture suite. The future case should assert nonzero status, a write diagnostic, and that a later operand is not opened after the output failure."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-unexpand-later-operand-not-opened"
+        },
+        {
+          "group": "shell",
+          "id": "migration-unexpand-output-failure-stops"
+        }
+      ]
     },
     {
       "id": "empty-input",

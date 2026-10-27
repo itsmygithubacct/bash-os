@@ -1,0 +1,298 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "id": "migration-tput-pty-size",
+   "loadable": "tput",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "On a 20x70 PTY with LINES and COLUMNS unset, tput lines and tput cols written to the terminal report 20 and 70.",
+   "script": "unset LINES COLUMNS\nprintf 'L='; tput lines; printf 'C='; tput cols; printf 'S-DONE\\n'\n",
+   "steps": [
+    {
+     "expect": "L=20\\r\\nC=70\\r\\nS-DONE"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tput/private-pty-terminal-integration"
+   ],
+   "oracle": "ncurses-bin 6.5 tput(1) on the reference PATH (TIOCGWINSZ for lines/cols when LINES/COLUMNS are unset; init/reset strings and reset's sane termios; compiled terminfo via TERMINFO, TERMINFO_DIRS, ~/.terminfo; padding per baud rate); screen effects decoded independently by pyte.",
+   "comparison": "parity: reference must show the window size; raw PTY regex",
+   "requires": [
+    "tput"
+   ],
+   "size": [
+    20,
+    70
+   ],
+   "timeout": 15
+  },
+  {
+   "id": "migration-tput-pty-resize",
+   "loadable": "tput",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "After the PTY is resized from 20x70 to 30x100, a new tput lines/cols query reports 30 and 100.",
+   "script": "unset LINES COLUMNS\nprintf 'R0\\n'; IFS= read -r _\nprintf 'L='; tput lines; printf 'C='; tput cols; printf 'R-DONE\\n'\n",
+   "steps": [
+    {
+     "expect": "R0"
+    },
+    {
+     "resize": [
+      30,
+      100
+     ]
+    },
+    {
+     "settle_ms": 100
+    },
+    {
+     "send": "\r"
+    },
+    {
+     "expect": "L=30\\r\\nC=100\\r\\nR-DONE"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tput/private-pty-terminal-integration"
+   ],
+   "oracle": "ncurses-bin 6.5 tput(1) on the reference PATH (TIOCGWINSZ for lines/cols when LINES/COLUMNS are unset; init/reset strings and reset's sane termios; compiled terminfo via TERMINFO, TERMINFO_DIRS, ~/.terminfo; padding per baud rate); screen effects decoded independently by pyte.",
+   "comparison": "parity: reference must show the new size; raw PTY regex",
+   "requires": [
+    "tput"
+   ],
+   "size": [
+    20,
+    70
+   ],
+   "timeout": 15
+  },
+  {
+   "id": "migration-tput-visible-effects",
+   "loadable": "tput",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "Visible effect of emitted strings: text written before tput clear is gone; after tput cup 5 10, X lands at (5,10); tput bold makes the following B bold and tput sgr0 makes N plain.",
+   "script": "printf 'junk-before-clear'; tput clear; tput cup 5 10; printf X; tput bold; printf B; tput sgr0; printf N\ntput cup 8 0; printf END\n",
+   "steps": [
+    {
+     "screen": {
+      "rows": {
+       "5": "^          XBN$",
+       "8": "^END$"
+      },
+      "lacks": [
+       "junk-before-clear"
+      ],
+      "cursor": [
+       8,
+       3
+      ],
+      "cells": [
+       {
+        "row": 5,
+        "col": 10,
+        "data": "X",
+        "bold": false
+       },
+       {
+        "row": 5,
+        "col": 11,
+        "data": "B",
+        "bold": true
+       },
+       {
+        "row": 5,
+        "col": 12,
+        "data": "N",
+        "bold": false
+       }
+      ]
+     }
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tput/private-pty-terminal-integration"
+   ],
+   "oracle": "ncurses-bin 6.5 tput(1) on the reference PATH (TIOCGWINSZ for lines/cols when LINES/COLUMNS are unset; init/reset strings and reset's sane termios; compiled terminfo via TERMINFO, TERMINFO_DIRS, ~/.terminfo; padding per baud rate); screen effects decoded independently by pyte.",
+   "comparison": "parity with semantic screen assertions (pyte rows, cursor and cells) satisfied by the reference first",
+   "requires": [
+    "tput"
+   ],
+   "timeout": 15
+  },
+  {
+   "id": "migration-tput-terminal-byte-parity",
+   "loadable": "tput",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "Byte parity of strings emitted to a terminal: clear, cup, bold, sgr0, smso, rmso, civis, cnorm for xterm-256color.",
+   "script": "tput clear; tput cup 2 3; tput bold; tput sgr0; tput smso; tput rmso; tput civis; tput cnorm; printf 'B-DONE\\n'\n",
+   "steps": [
+    {
+     "expect": "B-DONE"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tput/private-pty-terminal-integration"
+   ],
+   "oracle": "ncurses-bin 6.5 tput(1) on the reference PATH (TIOCGWINSZ for lines/cols when LINES/COLUMNS are unset; init/reset strings and reset's sane termios; compiled terminfo via TERMINFO, TERMINFO_DIRS, ~/.terminfo; padding per baud rate); screen effects decoded independently by pyte.",
+   "comparison": "byte parity vs ncurses tput of the raw PTY output (compare_screen)",
+   "requires": [
+    "tput"
+   ],
+   "compare_screen": true,
+   "timeout": 15
+  },
+  {
+   "id": "migration-tput-init-bytes",
+   "loadable": "tput",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "tput init on the terminal emits the terminal's initialization strings as ncurses does (raw bytes compared); modes are restored afterwards.",
+   "script": "s=$(/usr/bin/stty -g)\ntput init; printf 'I-DONE\\n'\n/usr/bin/stty \"$s\"\n",
+   "steps": [
+    {
+     "expect": "I-DONE"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tput/hardware-init-reset"
+   ],
+   "oracle": "ncurses-bin 6.5 tput(1) on the reference PATH (TIOCGWINSZ for lines/cols when LINES/COLUMNS are unset; init/reset strings and reset's sane termios; compiled terminfo via TERMINFO, TERMINFO_DIRS, ~/.terminfo; padding per baud rate); screen effects decoded independently by pyte.",
+   "comparison": "byte parity vs ncurses tput init of the raw PTY output (compare_screen)",
+   "requires": [
+    "tput",
+    "stty"
+   ],
+   "compare_screen": true,
+   "timeout": 15
+  },
+  {
+   "id": "migration-tput-reset-modes",
+   "loadable": "tput",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "With echo, icanon and onlcr turned off, tput reset emits the reset strings and restores sane terminal-driver modes (echo, icanon, onlcr on); raw output bytes are compared and the original modes restored afterwards.",
+   "script": "s=$(/usr/bin/stty -g)\n/usr/bin/stty -echo -icanon -onlcr\ntput reset; echo \"rc=$?\" > rc\n/usr/bin/python3 modes.py > modes-after\nprintf 'X-DONE\\n'\n/usr/bin/stty \"$s\"\n",
+   "steps": [
+    {
+     "expect": "X-DONE"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tput/hardware-init-reset"
+   ],
+   "oracle": "ncurses-bin 6.5 tput(1) on the reference PATH (TIOCGWINSZ for lines/cols when LINES/COLUMNS are unset; init/reset strings and reset's sane termios; compiled terminfo via TERMINFO, TERMINFO_DIRS, ~/.terminfo; padding per baud rate); screen effects decoded independently by pyte.",
+   "comparison": "parity: reference must restore the modes (modes-after exact); byte parity of the raw PTY output (compare_screen)",
+   "requires": [
+    "tput",
+    "stty",
+    "python3"
+   ],
+   "compare_screen": true,
+   "timeout": 20,
+   "files": {
+    "modes.py": "import termios\na = termios.tcgetattr(0)\nprint('echo=%d icanon=%d onlcr=%d' % (bool(a[3] & termios.ECHO), bool(a[3] & termios.ICANON), bool(a[1] & termios.ONLCR)))\n"
+   },
+   "expected_files": {
+    "modes-after": "echo=1 icanon=1 onlcr=1\n",
+    "rc": "rc=0\n"
+   }
+  },
+  {
+   "id": "migration-tput-init-reset-no-terminal",
+   "loadable": "tput",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "tput init and tput reset with no terminal on stdin, stdout or stderr (all files or pipes): status, stdout and stderr bytes match ncurses.",
+   "script": "tput init < /dev/null > init-out 2> init-err; echo \"init=$?\" > rc\ntput reset < /dev/null > reset-out 2> reset-err; echo \"reset=$?\" >> rc\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "tput/hardware-init-reset"
+   ],
+   "oracle": "ncurses-bin 6.5 tput(1) on the reference PATH (TIOCGWINSZ for lines/cols when LINES/COLUMNS are unset; init/reset strings and reset's sane termios; compiled terminfo via TERMINFO, TERMINFO_DIRS, ~/.terminfo; padding per baud rate); screen effects decoded independently by pyte.",
+   "comparison": "byte parity vs ncurses tput of status lines and captured output files",
+   "requires": [
+    "tput"
+   ]
+  },
+  {
+   "id": "migration-tput-compiled-terminfo",
+   "loadable": "tput",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Capabilities from compiled terminfo built by trusted tic in setup: an entry in $TERMINFO (string, parameterized cup, alias name, extended Xfx capability), a user vt100 entry overriding the system one, the same entry through TERMINFO_DIRS, an entry in ~/.terminfo, and the system vt100 entry once TERMINFO is unset.",
+   "script": "export TERMINFO=$PWD/ti\ntput -T fx215 bold > r1-bold; echo \"bold=$?\" > rc\ntput -T fx215 cup 3 4 > r1-cup; echo \"cup=$?\" >> rc\ntput -T fixture-alias bold > r3-alias; echo \"alias=$?\" >> rc\ntput -T fx215 Xfx > r4-ext; echo \"ext=$?\" >> rc\ntput -T vt100 bold > r2-override; echo \"override=$?\" >> rc\nunset TERMINFO\nTERMINFO_DIRS=$PWD/ti tput -T fx215 sgr0 > r1-dirs; echo \"dirs=$?\" >> rc\ntput -T fxhome bold > r1-home; echo \"home=$?\" >> rc\ntput -T vt100 bold > system-vt100-bold; echo \"system=$?\" >> rc\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "tput/compiled-terminfo"
+   ],
+   "oracle": "ncurses-bin 6.5 tput(1) on the reference PATH (TIOCGWINSZ for lines/cols when LINES/COLUMNS are unset; init/reset strings and reset's sane termios; compiled terminfo via TERMINFO, TERMINFO_DIRS, ~/.terminfo; padding per baud rate); screen effects decoded independently by pyte.",
+   "comparison": "byte parity vs ncurses tput; exact expectations for the fixture entries (the system vt100 bold bytes are compared by parity only)",
+   "requires": [
+    "tput",
+    "tic"
+   ],
+   "setup_script": "mkdir -p ti \"$HOME/.terminfo\"\ntic -x -o \"$PWD/ti\" fx.src\ntic -x -o \"$HOME/.terminfo\" home.src\n",
+   "files": {
+    "fx.src": "fx215|fixture-alias|worker 215 fixture terminal,\n\tam, cols#123, lines#45,\n\tbold=BOLD215, clear=CLR215, cup=CUP%p1%d;%p2%dX, sgr0=SGR0215,\n\tXfx=XFX215,\nvt100|fixture override of the system vt100 entry,\n\tbold=OVERRIDE-BOLD, cols#80, lines#24,\nfxpad|fixture with mandatory padding,\n\tcols#80, lines#24, clear=CLR$<10/>,\n",
+    "home.src": "fxhome|home terminfo fixture,\n\tbold=HOMEBOLD,\n"
+   },
+   "expected_files": {
+    "r1-bold": "BOLD215",
+    "r1-cup": "CUP3;4X",
+    "r3-alias": "BOLD215",
+    "r4-ext": "XFX215",
+    "r2-override": "OVERRIDE-BOLD",
+    "r1-dirs": "SGR0215",
+    "r1-home": "HOMEBOLD",
+    "rc": "bold=0\ncup=0\nalias=0\next=0\noverride=0\ndirs=0\nhome=0\nsystem=0\n"
+   }
+  },
+  {
+   "id": "migration-tput-padding-pty",
+   "loadable": "tput",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "Mandatory padding: an entry with clear=CLR$<10/> (compiled by trusted tic in setup) emits CLR plus the padding ncurses computes for the PTY's 38400 baud output speed.",
+   "script": "export TERMINFO=$PWD/ti\ntput -T fxpad clear; printf 'P-DONE\\n'\n",
+   "steps": [
+    {
+     "expect": "CLR"
+    },
+    {
+     "expect": "P-DONE"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tput/compiled-terminfo"
+   ],
+   "oracle": "ncurses-bin 6.5 tput(1) on the reference PATH (TIOCGWINSZ for lines/cols when LINES/COLUMNS are unset; init/reset strings and reset's sane termios; compiled terminfo via TERMINFO, TERMINFO_DIRS, ~/.terminfo; padding per baud rate); screen effects decoded independently by pyte.",
+   "comparison": "byte parity vs ncurses tput of the raw PTY output including pad bytes (compare_screen)",
+   "requires": [
+    "tput",
+    "tic"
+   ],
+   "compare_screen": true,
+   "setup_script": "mkdir -p ti \"$HOME/.terminfo\"\ntic -x -o \"$PWD/ti\" fx.src\ntic -x -o \"$HOME/.terminfo\" home.src\n",
+   "files": {
+    "fx.src": "fx215|fixture-alias|worker 215 fixture terminal,\n\tam, cols#123, lines#45,\n\tbold=BOLD215, clear=CLR215, cup=CUP%p1%d;%p2%dX, sgr0=SGR0215,\n\tXfx=XFX215,\nvt100|fixture override of the system vt100 entry,\n\tbold=OVERRIDE-BOLD, cols#80, lines#24,\nfxpad|fixture with mandatory padding,\n\tcols#80, lines#24, clear=CLR$<10/>,\n",
+    "home.src": "fxhome|home terminfo fixture,\n\tbold=HOMEBOLD,\n"
+   },
+   "timeout": 15
+  }
+ ]
+}

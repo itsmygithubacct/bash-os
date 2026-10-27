@@ -123,9 +123,14 @@
     },
     {
       "id": "sleep_signal_interruption",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify interrupted sleep behavior against GNU sleep.",
-      "reason": "Requires a future disposable VM or reviewed mock with a child-only SIGINT driver. That fixture must prove the signal targets only the sleeping child and compare GNU and candidate status and interruption behavior; no signal injection is available in the runner contract."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-sleep-sigint-group-r2"
+        }
+      ]
     },
     {
       "id": "terminator-missing-operand",

@@ -1,0 +1,3325 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "clear-default",
+      "loadable": "clear",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "clear with TERM=xterm-256color emits the terminfo clear and E3 sequences",
+      "script": "clear",
+      "steps": [],
+      "expected_status": 0,
+      "covers": [
+        "clear/pty-terminal-attributes"
+      ],
+      "compare_screen": true
+    },
+    {
+      "id": "clear-keep-scrollback",
+      "loadable": "clear",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "clear -x omits the scrollback-erase (E3) sequence",
+      "script": "clear -x",
+      "steps": [],
+      "expected_status": 0,
+      "covers": [
+        "clear/pty-terminal-attributes"
+      ],
+      "compare_screen": true
+    },
+    {
+      "id": "clear-vt100",
+      "loadable": "clear",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "clear -T selects the vt100 terminfo entry",
+      "script": "clear -T vt100",
+      "steps": [],
+      "expected_status": 0,
+      "covers": [
+        "clear/pty-terminal-attributes"
+      ],
+      "compare_screen": true
+    },
+    {
+      "id": "clear-linux",
+      "loadable": "clear",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "clear -T selects the linux console terminfo entry",
+      "script": "clear -T linux",
+      "steps": [],
+      "expected_status": 0,
+      "covers": [
+        "clear/pty-terminal-attributes"
+      ],
+      "compare_screen": true
+    },
+    {
+      "id": "bash-readline-edit",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Ctrl-A then Ctrl-K kills the typed line; the replacement runs",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "printf wrong > answer\u0001\u000bprintf '%s\\n' right > answer\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "right\n"
+      }
+    },
+    {
+      "id": "bash-readline-history",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Up arrow recalls the previous command",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "printf '%s\\n' row >> answer\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "key": "up"
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "row\nrow\n"
+      }
+    },
+    {
+      "id": "bash-readline-interrupt",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Ctrl-C discards the partial line and returns a fresh prompt",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "printf unwanted > answer\u0003"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "printf '%s\\n' survived > answer\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "survived\n"
+      }
+    },
+    {
+      "id": "bash-terminal-resize",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "SIGWINCH at the prompt updates LINES and COLUMNS",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "resize": [
+            31,
+            91
+          ]
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": "printf '%s %s\\n' \"$LINES\" \"$COLUMNS\" > answer\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "31 91\n"
+      }
+    },
+    {
+      "id": "bash-checkwinsize-after-command",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "A resize during a foreground command is visible afterwards (checkwinsize)",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "sleep 1\r"
+        },
+        {
+          "settle_ms": 300
+        },
+        {
+          "resize": [
+            30,
+            100
+          ]
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "printf '%s %s\\n' \"$LINES\" \"$COLUMNS\" > answer\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "30 100\n"
+      }
+    },
+    {
+      "id": "bash-readline-word-rubout-yank",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Ctrl-W kills the previous word and Ctrl-Y yanks it back",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "printf '%s\\n' wrong\u0017right \u0019 > answer\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "right\nwrong\n"
+      }
+    },
+    {
+      "id": "bash-readline-line-discard",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Ctrl-U discards everything before the cursor",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "garbage text\u0015printf '%s\\n' ok > answer\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "ok\n"
+      }
+    },
+    {
+      "id": "bash-completion-unique",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Tab completes a unique filename and appends a space",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "printf '%s\\n' alp\t"
+        },
+        {
+          "send": "> answer\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "files": {
+        "alpha-file": "",
+        "beta": ""
+      },
+      "expected_files": {
+        "answer": "alpha-file\n"
+      }
+    },
+    {
+      "id": "bash-completion-list",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "A second Tab lists ambiguous completions; more input then completes",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "printf '%s\\n' ap\t"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": "\t"
+        },
+        {
+          "screen": {
+            "contains": [
+              "apple\\s+apricot"
+            ]
+          }
+        },
+        {
+          "send": "r\t"
+        },
+        {
+          "send": "> answer\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "files": {
+        "apple": "",
+        "apricot": ""
+      },
+      "expected_files": {
+        "answer": "apricot\n"
+      }
+    },
+    {
+      "id": "bash-completion-directory",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Completing a directory appends a slash, then the file inside completes",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "printf '%s\\n' su\t"
+        },
+        {
+          "send": "inn\t"
+        },
+        {
+          "send": "> answer\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "files": {
+        "sub/inner": ""
+      },
+      "expected_files": {
+        "answer": "sub/inner\n"
+      }
+    },
+    {
+      "id": "bash-reverse-search",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Ctrl-R finds an earlier command and Enter runs it",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "printf '%s\\n' first >> answer\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "printf '%s\\n' second >> answer\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "\u0012first"
+        },
+        {
+          "expect": "reverse-i-search"
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "first\nsecond\nfirst\n"
+      }
+    },
+    {
+      "id": "bash-history-expansion",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "!! repeats the last command and !$ is its last word",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "printf '%s\\n' hist >> answer\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "!!\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "printf '%s\\n' alpha beta\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "printf '%s\\n' !$ >> answer\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "hist\nhist\nbeta\n"
+      }
+    },
+    {
+      "id": "bash-vi-editing-mode",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "set -o vi: Esc enters command mode and x deletes the character under the cursor",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "set -o vi\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "printf '%s\\n' right > answerX\u001bx\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "right\n"
+      }
+    },
+    {
+      "id": "bash-continuation-prompt",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "An incomplete compound command shows PS2 and completes on the next line",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "if true\r"
+        },
+        {
+          "expect": "MORE> "
+        },
+        {
+          "send": "then printf '%s\\n' ok > answer; fi\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "ok\n"
+      }
+    },
+    {
+      "id": "bash-bracketed-paste",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Bracketed-paste mode is enabled and pasted text is inserted literally",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "\u001b[200~printf '%s\\n' pasted > answer\u001b[201~"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "pasted\n"
+      }
+    },
+    {
+      "id": "bash-ctrl-c-foreground",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Ctrl-C interrupts a running foreground command; $? is 130",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "sleep 20\r"
+        },
+        {
+          "settle_ms": 300
+        },
+        {
+          "send": "\u0003"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "printf '%s\\n' \"$?\" > answer\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "130\n"
+      }
+    },
+    {
+      "id": "bash-job-stop-and-list",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Ctrl-Z stops a foreground job; jobs lists it; SIGKILL then ends it with wait status 137",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "(sleep 30)\r"
+        },
+        {
+          "foreground_job": [
+            "SIGTSTP"
+          ]
+        },
+        {
+          "send": "\u001a"
+        },
+        {
+          "expect": "Stopped"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "jobs > answer\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "s= n=0; kill -KILL %1 && until wait %1 2>/dev/null || [ \"$((s=$?))\" -ne 148 ] || [ \"$((n+=1))\" -gt 100000 ]; do :; done; printf '%s\\n' \"$s\" > status; printf '%s-%s\\n' kill done\r"
+        },
+        {
+          "expect": "kill-done\\r\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "[1]+  Stopped                    ( sleep 30 )\n",
+        "status": "137\n"
+      },
+      "oracle": "Pinned Bash 5.3.15 and Bash signal exit status 128+signal (137 for SIGKILL, 143 for SIGTERM). A bounded builtin loop retries wait while it reports stopped status 148, allowing SIGCHLD processing without a foreground helper deleting the job."
+    },
+    {
+      "id": "bash-kill-stopped-job",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "SIGTERM ends a stopped job, because Bash also continues it, with wait status 143",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "(sleep 30)\r"
+        },
+        {
+          "foreground_job": [
+            "SIGTSTP"
+          ]
+        },
+        {
+          "send": "\u001a"
+        },
+        {
+          "expect": "Stopped"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "s= n=0; kill %1 && until wait %1 2>/dev/null || [ \"$((s=$?))\" -ne 148 ] || [ \"$((n+=1))\" -gt 100000 ]; do :; done; printf '%s\\n' \"$s\" > answer; printf '%s-%s\\n' kill done\r"
+        },
+        {
+          "expect": "kill-done\\r\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "143\n"
+      },
+      "oracle": "Pinned Bash 5.3.15 and Bash signal exit status 128+signal (137 for SIGKILL, 143 for SIGTERM). A bounded builtin loop retries wait while it reports stopped status 148, allowing SIGCHLD processing without a foreground helper deleting the job."
+    },
+    {
+      "id": "bash-job-foreground",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "fg resumes a stopped job in the foreground and it completes",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "(sleep 1; printf '%s\\n' done > answer)\r"
+        },
+        {
+          "foreground_job": [
+            "SIGTSTP"
+          ]
+        },
+        {
+          "send": "\u001a"
+        },
+        {
+          "expect": "Stopped"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "fg\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "done\n"
+      }
+    },
+    {
+      "id": "bash-exit-stopped-jobs",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "exit with a stopped job warns once; a second exit leaves and ends the job",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "(sleep 30)\r"
+        },
+        {
+          "foreground_job": [
+            "SIGTSTP"
+          ]
+        },
+        {
+          "send": "\u001a"
+        },
+        {
+          "expect": "Stopped"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit 7\r"
+        },
+        {
+          "expect": "There are stopped jobs"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "exit 7\r"
+        }
+      ],
+      "expected_status": 7
+    },
+    {
+      "id": "bash-eof-exit",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Ctrl-D on an empty line exits with the last command's status",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "false\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "send": "\u0004"
+        }
+      ],
+      "expected_status": 1
+    },
+    {
+      "id": "bash-hangup-ends-jobs",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Closing the terminal hangs up the shell, which also ends its background job",
+      "script": null,
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "(sleep 30) &\r"
+        },
+        {
+          "expect": "\\n(?:\\x1b\\[[0-9;?]*[A-Za-z]|\\r)*PARITY> "
+        },
+        {
+          "hangup": true
+        }
+      ],
+      "expected_status": 129
+    },
+    {
+      "id": "bash-select-menu",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "select prints a numbered menu and PS3, then reads the choice from the terminal",
+      "script": "PS3='pick: '; select x in alpha beta; do printf '%s\\n' \"$x\" > answer; break; done",
+      "steps": [
+        {
+          "expect": "pick: "
+        },
+        {
+          "screen": {
+            "contains": [
+              "^1\\) alpha$",
+              "^2\\) beta$"
+            ]
+          }
+        },
+        {
+          "send": "2\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "beta\n"
+      }
+    },
+    {
+      "id": "bash-read-silent",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "read -s turns off echo while reading and restores the terminal",
+      "script": "read -r -s -p 'Secret: ' v; printf '%s\\n' \"$v\" > answer",
+      "steps": [
+        {
+          "expect": "Secret: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "send": "hunter2\r"
+        },
+        {
+          "quiet_ms": 200
+        },
+        {
+          "output_lacks": "hunter2"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "hunter2\n"
+      }
+    },
+    {
+      "id": "bash-read-single-char",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "read -n 1 switches to noncanonical input and returns after one key",
+      "script": "read -r -n 1 k; printf '%s\\n' \"$k\" > answer",
+      "steps": [
+        {
+          "termios": {
+            "clear": [
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "send": "x"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "x\n"
+      }
+    },
+    {
+      "id": "bash-read-readline",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "read -e edits the line with readline (Ctrl-B moves left)",
+      "script": "read -e -r -p 'Line: ' v; printf '%s\\n' \"$v\" > answer",
+      "steps": [
+        {
+          "expect": "Line: "
+        },
+        {
+          "send": "abc\u0002\u0002X\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "aXbc\n"
+      }
+    },
+    {
+      "id": "bash-read-readline-initial",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "read -e -i preloads editable text",
+      "script": "read -e -r -i pre -p 'Line: ' v; printf '%s\\n' \"$v\" > answer",
+      "steps": [
+        {
+          "expect": "Line: "
+        },
+        {
+          "send": "fix\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "prefix\n"
+      }
+    },
+    {
+      "id": "bash-read-timeout",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "read -t on a silent terminal times out with status greater than 128",
+      "script": "read -r -t 1 v; printf '%s\\n' \"$?\" > answer",
+      "steps": [],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "142\n"
+      }
+    },
+    {
+      "id": "bash-read-canonical-erase",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Plain read gets the line after the terminal's erase and word-erase editing",
+      "script": "read -r v; printf '%s\\n' \"$v\" > answer",
+      "steps": [
+        {
+          "send": "abx\u007fc two\u0017three\r"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "abc three\n"
+      }
+    },
+    {
+      "id": "bash-read-eof",
+      "loadable": "bash",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Ctrl-D on an empty terminal line is end of file for read",
+      "script": "read -r v; printf '%s\\n' \"$?\" > answer",
+      "steps": [
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": "\u0004"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "1\n"
+      }
+    },
+    {
+      "id": "tty-pty-name",
+      "loadable": "tty",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "tty prints the controlling PTY's name",
+      "script": "tty",
+      "steps": [
+        {
+          "expect": "\\A/dev/pts/[0-9]+\\r\\n"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "tty/terminal_name_pty"
+      ]
+    },
+    {
+      "id": "tty-silent-status",
+      "loadable": "tty",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "tty -s succeeds silently on a terminal",
+      "script": "tty -s; printf '%s\\n' \"$?\" > answer",
+      "steps": [],
+      "expected_status": 0,
+      "covers": [
+        "tty/terminal_name_pty"
+      ],
+      "expected_files": {
+        "answer": "0\n"
+      }
+    },
+    {
+      "id": "nohup-terminal-output",
+      "loadable": "nohup",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "With terminal stdin and stdout, nohup ignores input and appends to nohup.out",
+      "script": "nohup printf '%s\\n' kept",
+      "steps": [
+        {
+          "expect": "ignoring input and appending output to .nohup\\.out."
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nohup/nohup-tty-redirection-deferred"
+      ],
+      "expected_files": {
+        "nohup.out": "kept\n"
+      }
+    },
+    {
+      "id": "timeout-foreground-reads-terminal",
+      "loadable": "timeout",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "timeout --foreground leaves the command in the foreground group so it can read the terminal",
+      "script": "timeout --foreground 10 cat > out; printf '%s\\n' \"$?\" > answer",
+      "steps": [
+        {
+          "settle_ms": 300
+        },
+        {
+          "send": "hello\r"
+        },
+        {
+          "send": "\u0004"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "timeout/deferred-foreground-process-group"
+      ],
+      "expected_files": {
+        "out": "hello\n",
+        "answer": "0\n"
+      }
+    },
+    {
+      "id": "timeout-background-group",
+      "loadable": "timeout",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Without --foreground the command runs in another process group, so a terminal read stops it until timeout ends it",
+      "script": "timeout 2 cat > out; printf '%s\\n' \"$?\" > answer",
+      "steps": [
+        {
+          "settle_ms": 300
+        },
+        {
+          "send": "ignored\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "timeout/deferred-foreground-process-group"
+      ],
+      "expected_files": {
+        "out": "",
+        "answer": "124\n"
+      }
+    },
+    {
+      "id": "xargs-prompt-terminal",
+      "loadable": "xargs",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "xargs -p asks on the terminal; only confirmed commands run",
+      "script": "printf '%s\\n' one two | xargs -p -n 1 touch",
+      "steps": [
+        {
+          "expect": "touch one ?\\?\\.\\.\\."
+        },
+        {
+          "send": "y\r"
+        },
+        {
+          "expect": "touch two ?\\?\\.\\.\\."
+        },
+        {
+          "send": "n\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "xargs/prompt-requires-pty"
+      ],
+      "expected_files": {
+        "one": ""
+      }
+    },
+    {
+      "id": "xargs-prompt-format",
+      "loadable": "xargs",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "The -p prompt is the command line followed by ?... and nothing else is traced",
+      "script": "printf '%s\\n' one two | xargs -p -n 1 touch",
+      "steps": [
+        {
+          "expect": "one\\?\\.\\.\\."
+        },
+        {
+          "send": "y\r"
+        },
+        {
+          "expect": "two\\?\\.\\.\\."
+        },
+        {
+          "send": "n\r"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^touch one\\?\\.\\.\\.y$",
+              "1": "^touch two\\?\\.\\.\\.n$"
+            }
+          }
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "xargs/prompt-requires-pty"
+      ],
+      "expected_files": {
+        "one": ""
+      }
+    },
+    {
+      "id": "vi-edit-save",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Insert text and write with :wq",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "ihello\u001b"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": ""
+      },
+      "expected_files": {
+        "note": "hello\n"
+      }
+    },
+    {
+      "id": "vi-delete-undo",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "dd then u restores the line",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "ddu"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": "one\ntwo\nthree\n"
+      },
+      "expected_files": {
+        "note": "one\ntwo\nthree\n"
+      }
+    },
+    {
+      "id": "vi-yank-put",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "yy then p duplicates the line below",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "yyp"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": "one\ntwo\n"
+      },
+      "expected_files": {
+        "note": "one\none\ntwo\n"
+      }
+    },
+    {
+      "id": "vi-count-delete",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "A count before dd deletes several lines",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "2dd"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": "a\nb\nc\n"
+      },
+      "expected_files": {
+        "note": "c\n"
+      }
+    },
+    {
+      "id": "vi-substitute",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": ":%s with g replaces every match",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": ":%s/o/0/g\r"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": "foo\nboo\n"
+      },
+      "expected_files": {
+        "note": "f00\nb00\n"
+      }
+    },
+    {
+      "id": "vi-search-change",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "/ moves to a match and cw changes the word",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "/two\rcwTWO\u001b"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": "one\ntwo\nthree\n"
+      },
+      "expected_files": {
+        "note": "one\nTWO\nthree\n"
+      }
+    },
+    {
+      "id": "vi-dot-repeat",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": ". repeats the last change",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "x.."
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": "abcdef\n"
+      },
+      "expected_files": {
+        "note": "def\n"
+      }
+    },
+    {
+      "id": "vi-join",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "J joins the next line with a space",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "J"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": "one\ntwo\n"
+      },
+      "expected_files": {
+        "note": "one two\n"
+      }
+    },
+    {
+      "id": "vi-arrow-keys",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Cursor keys (in the mode vi selected) move down before dd",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "key": "down"
+        },
+        {
+          "key": "down"
+        },
+        {
+          "send": "dd"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/terminal-keys-resize"
+      ],
+      "files": {
+        "note": "one\ntwo\nthree\nfour\n"
+      },
+      "expected_files": {
+        "note": "one\ntwo\nfour\n"
+      }
+    },
+    {
+      "id": "vi-resize-redraw",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "vi redraws to the new window size after SIGWINCH",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-01$",
+              "22": "^line-23$"
+            }
+          }
+        },
+        {
+          "resize": [
+            12,
+            60
+          ]
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-01$",
+              "10": "^line-11$"
+            }
+          }
+        },
+        {
+          "send": ":q\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/terminal-keys-resize"
+      ],
+      "files": {
+        "note": "line-01\nline-02\nline-03\nline-04\nline-05\nline-06\nline-07\nline-08\nline-09\nline-10\nline-11\nline-12\nline-13\nline-14\nline-15\nline-16\nline-17\nline-18\nline-19\nline-20\nline-21\nline-22\nline-23\nline-24\nline-25\nline-26\nline-27\nline-28\nline-29\nline-30\n"
+      },
+      "expected_files": {
+        "note": "line-01\nline-02\nline-03\nline-04\nline-05\nline-06\nline-07\nline-08\nline-09\nline-10\nline-11\nline-12\nline-13\nline-14\nline-15\nline-16\nline-17\nline-18\nline-19\nline-20\nline-21\nline-22\nline-23\nline-24\nline-25\nline-26\nline-27\nline-28\nline-29\nline-30\n"
+      }
+    },
+    {
+      "id": "vi-quit-modified-refused",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": ":q refuses to discard changes; :q! quits without writing",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "x"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": ":q\r"
+        },
+        {
+          "screen": {
+            "contains": [
+              "No write since last change"
+            ]
+          }
+        },
+        {
+          "send": ":q!\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": "abc\n"
+      },
+      "expected_files": {
+        "note": "abc\n"
+      }
+    },
+    {
+      "id": "nano-edit-save",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Type two lines, ^S saves, ^X exits",
+      "script": "nano note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "hello\rworld"
+        },
+        {
+          "send": "\u0013"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0018"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_edit_save"
+      ],
+      "files": {
+        "note": ""
+      },
+      "expected_files": {
+        "note": "hello\nworld\n"
+      }
+    },
+    {
+      "id": "nano-justify",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "M-J justifies the file to the -r fill width (trailing blanks kept)",
+      "script": "nano -r 16 note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "\u001bj"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0013"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0018"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_justify_undo"
+      ],
+      "files": {
+        "note": "one two three four five six seven eight\n"
+      },
+      "expected_files": {
+        "note": "one two three \nfour five six \nseven eight\n"
+      }
+    },
+    {
+      "id": "nano-justify-undo",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "M-U undoes a justification",
+      "script": "nano -r 16 note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "\u001bj"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001bu"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0013"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0018"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_justify_undo"
+      ],
+      "files": {
+        "note": "one two three four five six seven eight\n"
+      },
+      "expected_files": {
+        "note": "one two three four five six seven eight\n"
+      }
+    },
+    {
+      "id": "nano-cut-paste",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "^K cuts a line and ^U pastes it elsewhere",
+      "script": "nano note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "\u000b"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "key": "down"
+        },
+        {
+          "send": "\u0015"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": "\u0013"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0018"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_edit_save"
+      ],
+      "files": {
+        "note": "one\ntwo\nthree\n"
+      },
+      "expected_files": {
+        "note": "two\none\nthree\n"
+      }
+    },
+    {
+      "id": "nano-exit-save-prompt",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "^X on a modified buffer asks to save; Y and Enter write the file",
+      "script": "nano note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "x"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": "\u0018"
+        },
+        {
+          "screen": {
+            "contains": [
+              "Save modified buffer"
+            ]
+          }
+        },
+        {
+          "send": "y"
+        },
+        {
+          "screen": {
+            "contains": [
+              "Write to File: note"
+            ]
+          }
+        },
+        {
+          "send": "\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_edit_save"
+      ],
+      "files": {
+        "note": "one\n"
+      },
+      "expected_files": {
+        "note": "xone\n"
+      }
+    },
+    {
+      "id": "nano-exit-discard",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "^X on a modified buffer then N discards the change",
+      "script": "nano note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "x"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": "\u0018"
+        },
+        {
+          "screen": {
+            "contains": [
+              "Save modified buffer"
+            ]
+          }
+        },
+        {
+          "send": "n"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_edit_save"
+      ],
+      "files": {
+        "note": "one\n"
+      },
+      "expected_files": {
+        "note": "one\n"
+      }
+    },
+    {
+      "id": "nano-search",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "^W searches and leaves the cursor on the match",
+      "script": "nano note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "\u0017"
+        },
+        {
+          "screen": {
+            "contains": [
+              "Search"
+            ]
+          }
+        },
+        {
+          "send": "two\r"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": "X"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": "\u0013"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0018"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_edit_save"
+      ],
+      "files": {
+        "note": "one\ntwo\n"
+      },
+      "expected_files": {
+        "note": "one\nXtwo\n"
+      }
+    },
+    {
+      "id": "nano-utf8-input",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Multibyte UTF-8 keyboard input is stored as UTF-8",
+      "script": "nano note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "\u00e9\u4e2dx"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": "\u0013"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0018"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_selection_completion_utf8"
+      ],
+      "files": {
+        "note": ""
+      },
+      "expected_files": {
+        "note": "\u00e9\u4e2dx\n"
+      }
+    },
+    {
+      "id": "nano-resize-edit",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Editing continues correctly after the window shrinks",
+      "script": "nano note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "resize": [
+            15,
+            50
+          ]
+        },
+        {
+          "settle_ms": 200
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "note"
+            }
+          }
+        },
+        {
+          "send": "x"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": "\u0013"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0018"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_edit_save"
+      ],
+      "files": {
+        "note": "one\n"
+      },
+      "expected_files": {
+        "note": "xone\n"
+      }
+    },
+    {
+      "id": "less-navigation",
+      "loadable": "less",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "The first page shows 23 lines; G shows the end; g returns to the top",
+      "script": "less note",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$",
+              "22": "^line-023$"
+            }
+          }
+        },
+        {
+          "send": "G"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-058$",
+              "22": "^line-080$"
+            }
+          }
+        },
+        {
+          "send": "g"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "less/pty-navigation-and-quit"
+      ],
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\n"
+      }
+    },
+    {
+      "id": "less-page-and-line-keys",
+      "loadable": "less",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Space and b move by a window; j and k move by a line",
+      "script": "less note",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$"
+            }
+          }
+        },
+        {
+          "send": " "
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-024$"
+            }
+          }
+        },
+        {
+          "send": "b"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$"
+            }
+          }
+        },
+        {
+          "send": "j"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-002$"
+            }
+          }
+        },
+        {
+          "send": "k"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "less/pty-navigation-and-quit"
+      ],
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\n"
+      }
+    },
+    {
+      "id": "less-search-repeat",
+      "loadable": "less",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "/ with an erase-edited pattern, then n and N, put each match on the top line",
+      "script": "less note",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$"
+            }
+          }
+        },
+        {
+          "send": "/alpx\u007fha\r"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-030 alpha$"
+            }
+          }
+        },
+        {
+          "send": "n"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-090 alpha$"
+            }
+          }
+        },
+        {
+          "send": "N"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-030 alpha$"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "less/pty-search-and-repeat"
+      ],
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030 alpha\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\nline-081\nline-082\nline-083\nline-084\nline-085\nline-086\nline-087\nline-088\nline-089\nline-090 alpha\nline-091\nline-092\nline-093\nline-094\nline-095\nline-096\nline-097\nline-098\nline-099\nline-100\nline-101\nline-102\nline-103\nline-104\nline-105\nline-106\nline-107\nline-108\nline-109\nline-110\nline-111\nline-112\nline-113\nline-114\nline-115\nline-116\nline-117\nline-118\nline-119\nline-120\nline-121\nline-122\nline-123\nline-124\nline-125\nline-126\nline-127\nline-128\nline-129\nline-130\nline-131\nline-132\nline-133\nline-134\nline-135\nline-136\nline-137\nline-138\nline-139\nline-140\nline-141\nline-142\nline-143\nline-144\nline-145\nline-146\nline-147\nline-148\nline-149\nline-150 alpha\nline-151\nline-152\nline-153\nline-154\nline-155\nline-156\nline-157\nline-158\nline-159\nline-160\nline-161\nline-162\nline-163\nline-164\nline-165\nline-166\nline-167\nline-168\nline-169\nline-170\nline-171\nline-172\nline-173\nline-174\nline-175\nline-176\nline-177\nline-178\nline-179\nline-180\nline-181\nline-182\nline-183\nline-184\nline-185\nline-186\nline-187\nline-188\nline-189\nline-190\nline-191\nline-192\nline-193\nline-194\nline-195\nline-196\nline-197\nline-198\nline-199\nline-200\n"
+      }
+    },
+    {
+      "id": "less-backward-search",
+      "loadable": "less",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "? searches backwards from the end",
+      "script": "less note",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$"
+            }
+          }
+        },
+        {
+          "send": "G"
+        },
+        {
+          "screen": {
+            "rows": {
+              "22": "^line-200$"
+            }
+          }
+        },
+        {
+          "send": "?alpha\r"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-150 alpha$"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "less/pty-search-and-repeat"
+      ],
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030 alpha\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\nline-081\nline-082\nline-083\nline-084\nline-085\nline-086\nline-087\nline-088\nline-089\nline-090 alpha\nline-091\nline-092\nline-093\nline-094\nline-095\nline-096\nline-097\nline-098\nline-099\nline-100\nline-101\nline-102\nline-103\nline-104\nline-105\nline-106\nline-107\nline-108\nline-109\nline-110\nline-111\nline-112\nline-113\nline-114\nline-115\nline-116\nline-117\nline-118\nline-119\nline-120\nline-121\nline-122\nline-123\nline-124\nline-125\nline-126\nline-127\nline-128\nline-129\nline-130\nline-131\nline-132\nline-133\nline-134\nline-135\nline-136\nline-137\nline-138\nline-139\nline-140\nline-141\nline-142\nline-143\nline-144\nline-145\nline-146\nline-147\nline-148\nline-149\nline-150 alpha\nline-151\nline-152\nline-153\nline-154\nline-155\nline-156\nline-157\nline-158\nline-159\nline-160\nline-161\nline-162\nline-163\nline-164\nline-165\nline-166\nline-167\nline-168\nline-169\nline-170\nline-171\nline-172\nline-173\nline-174\nline-175\nline-176\nline-177\nline-178\nline-179\nline-180\nline-181\nline-182\nline-183\nline-184\nline-185\nline-186\nline-187\nline-188\nline-189\nline-190\nline-191\nline-192\nline-193\nline-194\nline-195\nline-196\nline-197\nline-198\nline-199\nline-200\n"
+      }
+    },
+    {
+      "id": "less-line-numbers",
+      "loadable": "less",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "-N numbers the displayed lines",
+      "script": "less -N note",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^\\s*1 line-001$",
+              "1": "^\\s*2 line-002$"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "less/pty-options-and-resize"
+      ],
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\n"
+      }
+    },
+    {
+      "id": "less-chop-long-lines",
+      "loadable": "less",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "-S truncates a long line instead of wrapping it",
+      "script": "less -S note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "^x{70}",
+              "^end$"
+            ],
+            "lacks": [
+              "^x{1,60}$"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "less/pty-options-and-resize"
+      ],
+      "files": {
+        "note": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\nend\n"
+      }
+    },
+    {
+      "id": "less-quit-if-one-screen",
+      "loadable": "less",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "-F exits at once when the file fits on one screen",
+      "script": "less -F note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "^one$",
+              "^three$"
+            ]
+          }
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "less/pty-options-and-resize"
+      ],
+      "files": {
+        "note": "one\ntwo\nthree\n"
+      }
+    },
+    {
+      "id": "less-resize-redraw",
+      "loadable": "less",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "After the window shrinks, less redraws a shorter page",
+      "script": "less note",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "22": "^line-023$"
+            }
+          }
+        },
+        {
+          "resize": [
+            10,
+            80
+          ]
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$",
+              "8": "^line-009$"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "less/pty-options-and-resize"
+      ],
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\n"
+      }
+    },
+    {
+      "id": "more-page",
+      "loadable": "more",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "more shows a page and a --More-- prompt; space shows the next 23 lines",
+      "script": "more note",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$",
+              "22": "^line-023$"
+            },
+            "contains": [
+              "--More--"
+            ]
+          }
+        },
+        {
+          "send": " "
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-024$",
+              "22": "^line-046$"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "more/interactive_pty_navigation"
+      ],
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\n"
+      }
+    },
+    {
+      "id": "more-enter-line",
+      "loadable": "more",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Enter at the --More-- prompt advances one line",
+      "script": "more note",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "22": "^line-023$"
+            },
+            "contains": [
+              "--More--"
+            ]
+          }
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "screen": {
+            "rows": {
+              "22": "^line-024$"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "more/interactive_pty_navigation"
+      ],
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\n"
+      }
+    },
+    {
+      "id": "more-short-file",
+      "loadable": "more",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "A file shorter than the screen is printed without a prompt",
+      "script": "more note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "^three$"
+            ]
+          }
+        },
+        {
+          "quiet_ms": 200
+        },
+        {
+          "output_lacks": "More"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "more/interactive_pty_navigation"
+      ],
+      "files": {
+        "note": "one\ntwo\nthree\n"
+      }
+    },
+    {
+      "id": "ed-modified-quit-prompt",
+      "loadable": "ed",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "q on a modified buffer answers ?; a second q quits without writing",
+      "script": "ed note",
+      "steps": [
+        {
+          "settle_ms": 300
+        },
+        {
+          "send": "a\rtwo\r.\r"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": "q\r"
+        },
+        {
+          "expect": "q\\r\\n\\?\\r\\n"
+        },
+        {
+          "send": "q\r"
+        }
+      ],
+      "expected_status": 1,
+      "covers": [
+        "ed/modified_quit_prompt_pty"
+      ],
+      "files": {
+        "note": "one\n"
+      },
+      "expected_files": {
+        "note": "one\n"
+      }
+    },
+    {
+      "id": "ed-append-write",
+      "loadable": "ed",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Append through the terminal, then w reports the byte count",
+      "script": "ed note",
+      "steps": [
+        {
+          "settle_ms": 300
+        },
+        {
+          "send": "a\rtwo\r.\r"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": "w\r"
+        },
+        {
+          "expect": "w\\r\\n8\\r\\n"
+        },
+        {
+          "send": "q\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "ed/modified_quit_prompt_pty"
+      ],
+      "files": {
+        "note": "one\n"
+      },
+      "expected_files": {
+        "note": "one\ntwo\n"
+      }
+    },
+    {
+      "id": "ed-open-reports-size",
+      "loadable": "ed",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Opening a file prints its size in bytes",
+      "script": "ed note",
+      "steps": [
+        {
+          "expect": "\\A4\\r\\n"
+        },
+        {
+          "send": "q\r"
+        }
+      ],
+      "expected_status": 0,
+      "files": {
+        "note": "one\n"
+      },
+      "expected_files": {
+        "note": "one\n"
+      }
+    },
+    {
+      "id": "bc-terminal-expression",
+      "loadable": "bc",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "An expression typed on the terminal is evaluated",
+      "script": "bc -q",
+      "steps": [
+        {
+          "send": "20+22\r"
+        },
+        {
+          "expect": "42"
+        },
+        {
+          "send": "quit\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "bc/interactive_terminal_editing"
+      ]
+    },
+    {
+      "id": "bc-readline-edit",
+      "loadable": "bc",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Ctrl-B and Ctrl-D edit the input line before evaluation",
+      "script": "bc -q",
+      "steps": [
+        {
+          "termios": {
+            "clear": [
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "send": "20+21\u0002\u00042\r"
+        },
+        {
+          "expect": "42"
+        },
+        {
+          "send": "quit\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "bc/interactive_terminal_editing"
+      ]
+    },
+    {
+      "id": "bc-interrupt-continues",
+      "loadable": "bc",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Ctrl-C in interactive bc does not end the session",
+      "script": "bc -q",
+      "steps": [
+        {
+          "settle_ms": 200
+        },
+        {
+          "send": "\u0003"
+        },
+        {
+          "settle_ms": 200
+        },
+        {
+          "send": "6*7\r"
+        },
+        {
+          "expect": "42"
+        },
+        {
+          "send": "quit\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "bc/interactive_terminal_editing"
+      ]
+    },
+    {
+      "id": "nl-terminal-streaming",
+      "loadable": "nl",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "A numbered record arrives before EOF; Ctrl-D then ends nl cleanly",
+      "script": "nl",
+      "steps": [
+        {
+          "send": "alpha\r"
+        },
+        {
+          "expect": "1\\talpha\\r\\n"
+        },
+        {
+          "send": "\u0004"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nl/pty-streaming"
+      ]
+    },
+    {
+      "id": "uniq-terminal-streaming",
+      "loadable": "uniq",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "uniq emits a finished run as soon as a different record arrives",
+      "script": "uniq",
+      "steps": [
+        {
+          "send": "a\ra\rb\r"
+        },
+        {
+          "expect": "b\\r\\na\\r\\n"
+        },
+        {
+          "send": "\u0004"
+        },
+        {
+          "expect": "b\\r\\n"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "uniq/pty-streaming-before-eof"
+      ]
+    },
+    {
+      "id": "fold-terminal-partial-line",
+      "loadable": "fold",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "A width-overflowing prefix delivered without newline (Ctrl-D flush) is folded before EOF",
+      "script": "fold -w 5",
+      "steps": [
+        {
+          "send": "abcdefgh\u0004"
+        },
+        {
+          "expect": "abcde\\r\\n"
+        },
+        {
+          "send": "\u0004"
+        },
+        {
+          "expect": "fgh"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "fold/incremental_open_producer"
+      ]
+    },
+    {
+      "id": "expand-terminal-line",
+      "loadable": "expand",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Each expanded line is written before EOF",
+      "script": "expand",
+      "steps": [
+        {
+          "send": "a\tb\r"
+        },
+        {
+          "expect": "a {7}b\\r\\n"
+        },
+        {
+          "send": "\u0004"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "expand/terminal-newline-flush"
+      ]
+    },
+    {
+      "id": "tac-terminal-ordering",
+      "loadable": "tac",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Shell prefix, reversed terminal input and shell suffix appear in order",
+      "script": "printf pre; tac; printf post",
+      "steps": [
+        {
+          "expect": "\\Apre"
+        },
+        {
+          "send": "1\r2\r"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": "\u0004"
+        },
+        {
+          "expect": "2\\r\\n1\\r\\npost"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "tac/terminal_ordering_deferred"
+      ]
+    },
+    {
+      "id": "sed-terminal-eof-ordering",
+      "loadable": "sed",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Ctrl-D ends sed's input; the line queued after it stays for the next reader",
+      "script": "sed 's/^/S:/'; IFS= read -r rest; printf '%s\\n' \"$rest\" > answer",
+      "steps": [
+        {
+          "send": "a\r\u0004b\r"
+        },
+        {
+          "expect": "S:a\\r\\n"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "sed/pty-canonical-eof-ordering"
+      ],
+      "expected_files": {
+        "answer": "b\n"
+      }
+    },
+    {
+      "id": "cat-terminal-streaming",
+      "loadable": "cat",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "cat copies each terminal line as it is entered",
+      "script": "cat",
+      "steps": [
+        {
+          "send": "hello\r"
+        },
+        {
+          "expect": "hello\\r\\nhello\\r\\n"
+        },
+        {
+          "send": "\u0004"
+        }
+      ],
+      "expected_status": 0
+    },
+    {
+      "id": "grep-terminal-streaming",
+      "loadable": "grep",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "grep writes a matching terminal line before EOF",
+      "script": "grep x",
+      "steps": [
+        {
+          "send": "x1\r"
+        },
+        {
+          "expect": "x1\\r\\nx1\\r\\n"
+        },
+        {
+          "send": "\u0004"
+        }
+      ],
+      "expected_status": 0
+    },
+    {
+      "id": "bashtermraw-raw-cooked",
+      "loadable": "bashtermraw",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "raw selects noncanonical no-echo VMIN=1/VTIME=0; cooked restores",
+      "script": "bashtermraw raw; bashtermraw keypress > answer; bashtermraw cooked",
+      "steps": [
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ],
+            "cc": {
+              "VMIN": 1,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send": "q"
+        },
+        {
+          "termios": {
+            "set": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "bashtermraw/deferred-raw-cooked"
+      ],
+      "kind": "contract",
+      "oracle": "bashtermraw help text: raw = no echo, no canon, VMIN=1 VTIME=0; cooked restores the saved modes; size echoes 'ROWS COLS'; keypress echoes the decoded key name; cup is 1-indexed CSI H; terminal I/O goes to /dev/tty; reset restores sane canonical modes. Sequences per ECMA-48 and xterm ctlseqs.",
+      "expected_files": {
+        "answer": "q\n"
+      }
+    },
+    {
+      "id": "bashtermraw-size-resize",
+      "loadable": "bashtermraw",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "size reports TIOCGWINSZ before and after a resize",
+      "script": "bashtermraw size > answer; read -r _; bashtermraw size >> answer",
+      "steps": [
+        {
+          "settle_ms": 200
+        },
+        {
+          "resize": [
+            30,
+            100
+          ]
+        },
+        {
+          "send": "\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "bashtermraw/deferred-size-state-restore"
+      ],
+      "kind": "contract",
+      "oracle": "bashtermraw help text: raw = no echo, no canon, VMIN=1 VTIME=0; cooked restores the saved modes; size echoes 'ROWS COLS'; keypress echoes the decoded key name; cup is 1-indexed CSI H; terminal I/O goes to /dev/tty; reset restores sane canonical modes. Sequences per ECMA-48 and xterm ctlseqs.",
+      "expected_files": {
+        "answer": "24 80\n30 100\n"
+      }
+    },
+    {
+      "id": "bashtermraw-key-decoder",
+      "loadable": "bashtermraw",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "keypress names cursor, control, meta, modified, function and paste keys",
+      "script": "bashtermraw paste on; bashtermraw raw; for i in 1 2 3 4 5 6 7 8 9 10 11; do bashtermraw keypress; done > answer; bashtermraw cooked; bashtermraw paste off",
+      "steps": [
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[A"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\t"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "a"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001ba"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[1;2A"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[1;5D"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001bOP"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[200~"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001b[201~"
+        },
+        {
+          "settle_ms": 150
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "bashtermraw/deferred-key-decoder"
+      ],
+      "kind": "contract",
+      "oracle": "bashtermraw help text: raw = no echo, no canon, VMIN=1 VTIME=0; cooked restores the saved modes; size echoes 'ROWS COLS'; keypress echoes the decoded key name; cup is 1-indexed CSI H; terminal I/O goes to /dev/tty; reset restores sane canonical modes. Sequences per ECMA-48 and xterm ctlseqs.",
+      "expected_files": {
+        "answer": "UP\nTAB\nRET\na\nESC\nM-a\nS-UP\nC-LEFT\nF1\nPASTE-START\nPASTE-END\n"
+      }
+    },
+    {
+      "id": "bashtermraw-ansi-output",
+      "loadable": "bashtermraw",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "cup, clr-eol, clr-screen, show and paste write the documented sequences",
+      "script": "bashtermraw cup 5 3; bashtermraw clr-eol; bashtermraw clr-screen; bashtermraw show off; bashtermraw show on; bashtermraw paste on; bashtermraw paste off",
+      "steps": [
+        {
+          "expect": "\\A\\x1b\\[5;3H\\x1b\\[K\\x1b\\[2J\\x1b\\[H\\x1b\\[\\?25l\\x1b\\[\\?25h\\x1b\\[\\?2004h\\x1b\\[\\?2004l\\Z"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "bashtermraw/deferred-ansi-output"
+      ],
+      "kind": "contract",
+      "oracle": "bashtermraw help text: raw = no echo, no canon, VMIN=1 VTIME=0; cooked restores the saved modes; size echoes 'ROWS COLS'; keypress echoes the decoded key name; cup is 1-indexed CSI H; terminal I/O goes to /dev/tty; reset restores sane canonical modes. Sequences per ECMA-48 and xterm ctlseqs."
+    },
+    {
+      "id": "bashtermraw-cup-redirected",
+      "loadable": "bashtermraw",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "cup still moves the terminal cursor when stdout is redirected",
+      "script": "bashtermraw cup 5 3 > /dev/null",
+      "steps": [
+        {
+          "screen": {
+            "cursor": [
+              4,
+              2
+            ]
+          }
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "bashtermraw/deferred-ansi-output"
+      ],
+      "kind": "contract",
+      "oracle": "bashtermraw help text: raw = no echo, no canon, VMIN=1 VTIME=0; cooked restores the saved modes; size echoes 'ROWS COLS'; keypress echoes the decoded key name; cup is 1-indexed CSI H; terminal I/O goes to /dev/tty; reset restores sane canonical modes. Sequences per ECMA-48 and xterm ctlseqs."
+    },
+    {
+      "id": "bashtermraw-reset-recovery",
+      "loadable": "bashtermraw",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "reset emits RIS and returns a raw terminal to sane canonical modes",
+      "script": "bashtermraw raw; bashtermraw reset",
+      "steps": [
+        {
+          "expect": "\\x1bc"
+        },
+        {
+          "termios": {
+            "set": [
+              "ICANON",
+              "ECHO",
+              "ISIG",
+              "ICRNL",
+              "OPOST",
+              "ONLCR"
+            ]
+          }
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "bashtermraw/deferred-reset-recovery"
+      ],
+      "kind": "contract",
+      "oracle": "bashtermraw help text: raw = no echo, no canon, VMIN=1 VTIME=0; cooked restores the saved modes; size echoes 'ROWS COLS'; keypress echoes the decoded key name; cup is 1-indexed CSI H; terminal I/O goes to /dev/tty; reset restores sane canonical modes. Sequences per ECMA-48 and xterm ctlseqs.",
+      "restore_terminal": false
+    },
+    {
+      "id": "tui-init-dimensions",
+      "loadable": "tui",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "lines and cols report the PTY size; end restores the terminal modes",
+      "script": "tui init; tui lines > answer; tui cols >> answer; tui end",
+      "steps": [],
+      "expected_status": 0,
+      "covers": [
+        "tui/terminal-init-dimensions"
+      ],
+      "kind": "contract",
+      "oracle": "tui help text: state persists from init to end; lines/cols report the terminal size; move/addstr use Y X screen coordinates (curses convention, origin 0,0); getkey prints a token (UP/.../TAB/... or the literal char) with rc 0 key, 2 timeout; getstr prints the entered line; end restores the terminal.",
+      "size": [
+        20,
+        70
+      ],
+      "expected_files": {
+        "answer": "20\n70\n"
+      }
+    },
+    {
+      "id": "tui-addstr-position",
+      "loadable": "tui",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "addstr at Y X followed by refresh draws the text at that cell",
+      "script": "tui init; tui addstr -y 2 -x 5 hello; tui refresh; tui getkey > /dev/null; tui end",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "2": "^     hello$"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "tui/cell-drawing-refresh"
+      ],
+      "kind": "contract",
+      "oracle": "tui help text: state persists from init to end; lines/cols report the terminal size; move/addstr use Y X screen coordinates (curses convention, origin 0,0); getkey prints a token (UP/.../TAB/... or the literal char) with rc 0 key, 2 timeout; getstr prints the entered line; end restores the terminal."
+    },
+    {
+      "id": "tui-getkey-tokens",
+      "loadable": "tui",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "getkey decodes a cursor key in the selected cursor mode, Tab and a literal key",
+      "script": "tui init; tui getkey > k1; tui getkey > k2; tui getkey > k3; tui end",
+      "steps": [
+        {
+          "settle_ms": 200
+        },
+        {
+          "key": "up"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\t"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "x"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "tui/key-input-and-timeouts"
+      ],
+      "kind": "contract",
+      "oracle": "tui help text: state persists from init to end; lines/cols report the terminal size; move/addstr use Y X screen coordinates (curses convention, origin 0,0); getkey prints a token (UP/.../TAB/... or the literal char) with rc 0 key, 2 timeout; getstr prints the entered line; end restores the terminal.",
+      "expected_files": {
+        "k1": "UP\n",
+        "k2": "TAB\n",
+        "k3": "x\n"
+      }
+    },
+    {
+      "id": "tui-getkey-timeout",
+      "loadable": "tui",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "getkey with a timeout and no input returns status 2",
+      "script": "tui init; tui timeout 100; tui getkey > /dev/null; rc=$?; tui end; printf '%s\\n' \"$rc\" > answer",
+      "steps": [],
+      "expected_status": 0,
+      "covers": [
+        "tui/key-input-and-timeouts"
+      ],
+      "kind": "contract",
+      "oracle": "tui help text: state persists from init to end; lines/cols report the terminal size; move/addstr use Y X screen coordinates (curses convention, origin 0,0); getkey prints a token (UP/.../TAB/... or the literal char) with rc 0 key, 2 timeout; getstr prints the entered line; end restores the terminal.",
+      "expected_files": {
+        "answer": "2\n"
+      }
+    },
+    {
+      "id": "tui-getstr-edit",
+      "loadable": "tui",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "getstr shows the prompt, applies backspace and prints the entered line",
+      "script": "tui init; tui getstr -y 0 -x 0 'Name: ' > answer; tui end",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "^Name:"
+            ]
+          }
+        },
+        {
+          "send": "bob\u007fb\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "tui/line-input-editing"
+      ],
+      "kind": "contract",
+      "oracle": "tui help text: state persists from init to end; lines/cols report the terminal size; move/addstr use Y X screen coordinates (curses convention, origin 0,0); getkey prints a token (UP/.../TAB/... or the literal char) with rc 0 key, 2 timeout; getstr prints the entered line; end restores the terminal.",
+      "expected_files": {
+        "answer": "bob\n"
+      }
+    },
+    {
+      "id": "kgetch-read-esc-grace",
+      "loadable": "kgetch",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "A sequence split across writes inside the grace interval still decodes; a lone ESC followed by a pause does not absorb the next key",
+      "script": "bashtermraw raw; kgetch read > k1; kgetch read > esc; kgetch read > k2; kgetch read > k3; bashtermraw cooked",
+      "steps": [
+        {
+          "settle_ms": 200
+        },
+        {
+          "send": "\u001b"
+        },
+        {
+          "send": "[B"
+        },
+        {
+          "settle_ms": 200
+        },
+        {
+          "send": "\u001b"
+        },
+        {
+          "settle_ms": 300
+        },
+        {
+          "send": "q"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u001bOP"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "kgetch/read-esc-grace-and-partial-sequence"
+      ],
+      "kind": "contract",
+      "oracle": "kgetch help text and published key API: ESC grace is 50 ms; read prints 'NAME CODE' (key_up 257, key_down 258, key_f1 272, char N) for ECMA-48/xterm input sequences.",
+      "expected_files": {
+        "k1": "key_down 258\n",
+        "k2": "char 113\n",
+        "k3": "key_f1 272\n"
+      }
+    }
+  ]
+}

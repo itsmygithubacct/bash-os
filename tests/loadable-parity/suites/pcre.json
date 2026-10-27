@@ -128,9 +128,14 @@
     },
     {
       "id": "grep-live-producer-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify immediate delivery of a matching line before the input producer closes.",
-      "reason": "The supplied runner starts each fixture with stdin connected to /dev/null and provides no producer-open FIFO or PTY observation hook. A future test requires a disposable VM or runner-provided private FIFO/PTY producer that writes one matching line, stays open, and lets the test assert that pcre grep emits the line before EOF. No operation is executed here."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-pcre-grep-live-producer"
+        }
+      ]
     }
   ]
 }

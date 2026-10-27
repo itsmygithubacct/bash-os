@@ -1,0 +1,826 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-nice-child-default",
+      "loadable": "nice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "nice child default",
+      "oracle": "Upstream nice from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "before=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))')\nexport FIXTURE_VALUE=\"literal value\"\nnice  /usr/bin/python3 -c 'import os,sys,json;print(\"nice=\"+str(os.getpriority(os.PRIO_PROCESS,0)));print(json.dumps(sys.argv[1:]));print(os.environ[\"FIXTURE_VALUE\"]);sys.exit(7)' 'a b' '' '*'\nprintf \"status=%s\\n\" \"$?\"\nafter=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))'); printf \"parent-unchanged=%s\\n\" \"$((before==after))\"",
+      "stdout": "nice=10\n[\"a b\", \"\", \"*\"]\nliteral value\nstatus=7\nparent-unchanged=1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "nice",
+        "python3"
+      ],
+      "covers": [
+        "nice/child-priority-and-status"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os,resource;assert os.getpriority(os.PRIO_PROCESS,0)==0;assert resource.getrlimit(resource.RLIMIT_NICE)==(0,0)'"
+    },
+    {
+      "id": "migration-nice-child-short",
+      "loadable": "nice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "nice child short",
+      "oracle": "Upstream nice from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "before=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))')\nexport FIXTURE_VALUE=\"literal value\"\nnice -n 3 /usr/bin/python3 -c 'import os,sys,json;print(\"nice=\"+str(os.getpriority(os.PRIO_PROCESS,0)));print(json.dumps(sys.argv[1:]));print(os.environ[\"FIXTURE_VALUE\"]);sys.exit(7)' 'a b' '' '*'\nprintf \"status=%s\\n\" \"$?\"\nafter=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))'); printf \"parent-unchanged=%s\\n\" \"$((before==after))\"",
+      "stdout": "nice=3\n[\"a b\", \"\", \"*\"]\nliteral value\nstatus=7\nparent-unchanged=1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "nice",
+        "python3"
+      ],
+      "covers": [
+        "nice/child-priority-and-status"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os,resource;assert os.getpriority(os.PRIO_PROCESS,0)==0;assert resource.getrlimit(resource.RLIMIT_NICE)==(0,0)'"
+    },
+    {
+      "id": "migration-nice-child-long-equals",
+      "loadable": "nice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "nice child long equals",
+      "oracle": "Upstream nice from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "before=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))')\nexport FIXTURE_VALUE=\"literal value\"\nnice --adjustment=4 /usr/bin/python3 -c 'import os,sys,json;print(\"nice=\"+str(os.getpriority(os.PRIO_PROCESS,0)));print(json.dumps(sys.argv[1:]));print(os.environ[\"FIXTURE_VALUE\"]);sys.exit(7)' 'a b' '' '*'\nprintf \"status=%s\\n\" \"$?\"\nafter=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))'); printf \"parent-unchanged=%s\\n\" \"$((before==after))\"",
+      "stdout": "nice=4\n[\"a b\", \"\", \"*\"]\nliteral value\nstatus=7\nparent-unchanged=1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "nice",
+        "python3"
+      ],
+      "covers": [
+        "nice/child-priority-and-status"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os,resource;assert os.getpriority(os.PRIO_PROCESS,0)==0;assert resource.getrlimit(resource.RLIMIT_NICE)==(0,0)'"
+    },
+    {
+      "id": "migration-nice-child-long-value",
+      "loadable": "nice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "nice child long value",
+      "oracle": "Upstream nice from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "before=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))')\nexport FIXTURE_VALUE=\"literal value\"\nnice --adjustment 5 /usr/bin/python3 -c 'import os,sys,json;print(\"nice=\"+str(os.getpriority(os.PRIO_PROCESS,0)));print(json.dumps(sys.argv[1:]));print(os.environ[\"FIXTURE_VALUE\"]);sys.exit(7)' 'a b' '' '*'\nprintf \"status=%s\\n\" \"$?\"\nafter=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))'); printf \"parent-unchanged=%s\\n\" \"$((before==after))\"",
+      "stdout": "nice=5\n[\"a b\", \"\", \"*\"]\nliteral value\nstatus=7\nparent-unchanged=1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "nice",
+        "python3"
+      ],
+      "covers": [
+        "nice/child-priority-and-status"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os,resource;assert os.getpriority(os.PRIO_PROCESS,0)==0;assert resource.getrlimit(resource.RLIMIT_NICE)==(0,0)'"
+    },
+    {
+      "id": "migration-nice-child-obsolete",
+      "loadable": "nice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "nice child obsolete",
+      "oracle": "Upstream nice from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "before=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))')\nexport FIXTURE_VALUE=\"literal value\"\nnice -6 /usr/bin/python3 -c 'import os,sys,json;print(\"nice=\"+str(os.getpriority(os.PRIO_PROCESS,0)));print(json.dumps(sys.argv[1:]));print(os.environ[\"FIXTURE_VALUE\"]);sys.exit(7)' 'a b' '' '*'\nprintf \"status=%s\\n\" \"$?\"\nafter=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))'); printf \"parent-unchanged=%s\\n\" \"$((before==after))\"",
+      "stdout": "nice=6\n[\"a b\", \"\", \"*\"]\nliteral value\nstatus=7\nparent-unchanged=1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "nice",
+        "python3"
+      ],
+      "covers": [
+        "nice/child-priority-and-status"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os,resource;assert os.getpriority(os.PRIO_PROCESS,0)==0;assert resource.getrlimit(resource.RLIMIT_NICE)==(0,0)'"
+    },
+    {
+      "id": "migration-nice-child-saturated",
+      "loadable": "nice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "nice child saturated",
+      "oracle": "Upstream nice from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "before=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))')\nexport FIXTURE_VALUE=\"literal value\"\nnice -n 1000 /usr/bin/python3 -c 'import os,sys,json;print(\"nice=\"+str(os.getpriority(os.PRIO_PROCESS,0)));print(json.dumps(sys.argv[1:]));print(os.environ[\"FIXTURE_VALUE\"]);sys.exit(7)' 'a b' '' '*'\nprintf \"status=%s\\n\" \"$?\"\nafter=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))'); printf \"parent-unchanged=%s\\n\" \"$((before==after))\"",
+      "stdout": "nice=19\n[\"a b\", \"\", \"*\"]\nliteral value\nstatus=7\nparent-unchanged=1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "nice",
+        "python3"
+      ],
+      "covers": [
+        "nice/child-priority-and-status"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os,resource;assert os.getpriority(os.PRIO_PROCESS,0)==0;assert resource.getrlimit(resource.RLIMIT_NICE)==(0,0)'"
+    },
+    {
+      "id": "migration-nice-builtin-dispatch",
+      "loadable": "nice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "nice builtin dispatch",
+      "oracle": "Documented nice extension: enabled shell builtins may be dispatched in the adjusted child; Bash printf literal argument contract.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "nice -n 2 printf \"<%s>\\n\" \"a b\" \"\" \"*\"; printf \"status=%s\\n\" \"$?\"; printf \"continued\\n\"",
+      "stdout": "<a b>\n<>\n<*>\nstatus=0\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "python3"
+      ],
+      "covers": [
+        "nice/command-dispatch-and-errors"
+      ],
+      "kind": "contract",
+      "setup_script": "/usr/bin/python3 -c 'import os,resource;assert os.getpriority(os.PRIO_PROCESS,0)==0;assert resource.getrlimit(resource.RLIMIT_NICE)==(0,0)'"
+    },
+    {
+      "id": "migration-nice-exec-missing",
+      "loadable": "nice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "nice exec missing",
+      "oracle": "Upstream nice from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "nice /nonexistent-parity-command > out 2> err; rc=$?; [[ -s err ]] && diagnostic=yes || diagnostic=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$diagnostic\"; [[ ! -s out ]] && echo stdout=empty; rm -f err out; printf \"continued\\n\"",
+      "stdout": "status=127 diagnostic=yes\nstdout=empty\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "nice",
+        "python3"
+      ],
+      "covers": [
+        "nice/command-dispatch-and-errors"
+      ],
+      "files": {
+        "not-executable": "fixture data\n"
+      }
+    },
+    {
+      "id": "migration-nice-exec-nonexecutable",
+      "loadable": "nice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "nice exec nonexecutable",
+      "oracle": "Upstream nice from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "nice ./not-executable > out 2> err; rc=$?; [[ -s err ]] && diagnostic=yes || diagnostic=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$diagnostic\"; [[ ! -s out ]] && echo stdout=empty; rm -f err out; printf \"continued\\n\"",
+      "stdout": "status=126 diagnostic=yes\nstdout=empty\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "nice",
+        "python3"
+      ],
+      "covers": [
+        "nice/command-dispatch-and-errors"
+      ],
+      "files": {
+        "not-executable": "fixture data\n"
+      }
+    },
+    {
+      "id": "migration-nice-child-signal",
+      "loadable": "nice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "nice child signal",
+      "oracle": "Upstream nice from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact propagated child status and parent continuation. The calling shell may report an externally killed wrapper; that launcher diagnostic is excluded from this status comparison.",
+      "script": "{ nice -n 1 /usr/bin/python3 -c 'import os,signal;os.kill(os.getpid(),signal.SIGTERM)'; rc=$?; } 2> launcher-diagnostic\nprintf \"status=%s\\n\" \"$rc\"; rm -f launcher-diagnostic; echo continued",
+      "stdout": "status=143\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "nice",
+        "python3"
+      ],
+      "covers": [
+        "nice/command-dispatch-and-errors"
+      ]
+    },
+    {
+      "id": "migration-nice-denied-adjustment",
+      "loadable": "nice",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "nice denied adjustment",
+      "oracle": "Upstream nice from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Read-back of child and parent niceness; unchanged literal argv/environment and child status; warning required but implementation-specific wording is retained only by its nonempty predicate.",
+      "script": "before=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))')\nexport FIXTURE_VALUE=\"literal value\"\nnice -n -1 /usr/bin/python3 -c 'import os,sys,json;print(\"nice=\"+str(os.getpriority(os.PRIO_PROCESS,0)));print(json.dumps(sys.argv[1:]));print(os.environ[\"FIXTURE_VALUE\"]);sys.exit(7)' 'a b' '' '*' 2> err\nprintf \"status=%s\\n\" \"$?\"\n[[ -s err ]] && echo diagnostic=yes || echo diagnostic=no\nrm -f err; after=$(/usr/bin/python3 -c 'import os;print(os.getpriority(os.PRIO_PROCESS,os.getppid()))'); printf \"parent-unchanged=%s\\n\" \"$((before==after))\"",
+      "stdout": "nice=0\n[\"a b\", \"\", \"*\"]\nliteral value\nstatus=7\ndiagnostic=yes\nparent-unchanged=1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "nice",
+        "python3"
+      ],
+      "covers": [
+        "nice/denied-priority-adjustment"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os,resource;assert os.getpriority(os.PRIO_PROCESS,0)==0;assert resource.getrlimit(resource.RLIMIT_NICE)==(0,0)'"
+    },
+    {
+      "id": "migration-timeout-child-status-0",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout child status 0",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "timeout 2 /usr/bin/python3 -c 'import sys;print(\"child-output\");sys.exit(0)'; printf \"status=%s\\n\" \"$?\"; echo continued",
+      "stdout": "child-output\nstatus=0\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-child-status-and-lookup"
+      ]
+    },
+    {
+      "id": "migration-timeout-child-status-7",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout child status 7",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "timeout 2 /usr/bin/python3 -c 'import sys;print(\"child-output\");sys.exit(7)'; printf \"status=%s\\n\" \"$?\"; echo continued",
+      "stdout": "child-output\nstatus=7\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-child-status-and-lookup"
+      ]
+    },
+    {
+      "id": "migration-timeout-exec-missing",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout exec missing",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "timeout 2 /nonexistent-parity-command > out 2> err; rc=$?; [[ -s err ]] && diagnostic=yes || diagnostic=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$diagnostic\"; [[ ! -s out ]] && echo stdout=empty; rm -f err out; echo continued",
+      "stdout": "status=127 diagnostic=yes\nstdout=empty\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-child-status-and-lookup"
+      ],
+      "files": {
+        "not-executable": "fixture data\n"
+      }
+    },
+    {
+      "id": "migration-timeout-exec-nonexecutable",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout exec nonexecutable",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "timeout 2 ./not-executable > out 2> err; rc=$?; [[ -s err ]] && diagnostic=yes || diagnostic=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$diagnostic\"; [[ ! -s out ]] && echo stdout=empty; rm -f err out; echo continued",
+      "stdout": "status=126 diagnostic=yes\nstdout=empty\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-child-status-and-lookup"
+      ],
+      "files": {
+        "not-executable": "fixture data\n"
+      }
+    },
+    {
+      "id": "migration-timeout-signal-default",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout signal default",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "timeout  0.6 /usr/bin/python3 handler.py 15; printf \"status=%s\\n\" \"$?\"; echo continued",
+      "stdout": "signal=15\nstatus=124\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-default-expiration"
+      ],
+      "files": {
+        "handler.py": "import signal,sys\ndef received(sig,frame):\n print(\"signal=\"+str(sig),flush=True);sys.exit(3)\nsignal.signal(int(sys.argv[1]),received)\nsignal.alarm(8)\nwhile True: signal.pause()\n"
+      },
+      "timeout": 12
+    },
+    {
+      "id": "migration-timeout-signal-usr1-short",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout signal usr1 short",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "timeout -s USR1 0.6 /usr/bin/python3 handler.py 10; printf \"status=%s\\n\" \"$?\"; echo continued",
+      "stdout": "signal=10\nstatus=124\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-custom-signal-verbose"
+      ],
+      "files": {
+        "handler.py": "import signal,sys\ndef received(sig,frame):\n print(\"signal=\"+str(sig),flush=True);sys.exit(3)\nsignal.signal(int(sys.argv[1]),received)\nsignal.alarm(8)\nwhile True: signal.pause()\n"
+      },
+      "timeout": 12
+    },
+    {
+      "id": "migration-timeout-signal-usr1-long-equals",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout signal usr1 long equals",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "timeout --signal=USR1 0.6 /usr/bin/python3 handler.py 10; printf \"status=%s\\n\" \"$?\"; echo continued",
+      "stdout": "signal=10\nstatus=124\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-custom-signal-verbose"
+      ],
+      "files": {
+        "handler.py": "import signal,sys\ndef received(sig,frame):\n print(\"signal=\"+str(sig),flush=True);sys.exit(3)\nsignal.signal(int(sys.argv[1]),received)\nsignal.alarm(8)\nwhile True: signal.pause()\n"
+      },
+      "timeout": 12
+    },
+    {
+      "id": "migration-timeout-signal-usr1-long-value",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout signal usr1 long value",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "timeout --signal USR1 0.6 /usr/bin/python3 handler.py 10; printf \"status=%s\\n\" \"$?\"; echo continued",
+      "stdout": "signal=10\nstatus=124\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-custom-signal-verbose"
+      ],
+      "files": {
+        "handler.py": "import signal,sys\ndef received(sig,frame):\n print(\"signal=\"+str(sig),flush=True);sys.exit(3)\nsignal.signal(int(sys.argv[1]),received)\nsignal.alarm(8)\nwhile True: signal.pause()\n"
+      },
+      "timeout": 12
+    },
+    {
+      "id": "migration-timeout-signal-usr1-verbose",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout signal usr1 verbose",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child signal receipt, status and GNU diagnostic bytes under the harness C.UTF-8 locale, including typographic command quotes.",
+      "script": "timeout --verbose -s USR1 0.6 /usr/bin/python3 handler.py 10; printf \"status=%s\\n\" \"$?\"; echo continued",
+      "stdout": "signal=10\nstatus=124\ncontinued\n",
+      "stderr": "timeout: sending signal USR1 to command \u2018/usr/bin/python3\u2019\n",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-custom-signal-verbose"
+      ],
+      "files": {
+        "handler.py": "import signal,sys\ndef received(sig,frame):\n print(\"signal=\"+str(sig),flush=True);sys.exit(3)\nsignal.signal(int(sys.argv[1]),received)\nsignal.alarm(8)\nwhile True: signal.pause()\n"
+      },
+      "timeout": 12
+    },
+    {
+      "id": "migration-timeout-signal-usr1-short-verbose",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout signal usr1 short verbose",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child signal receipt, status and GNU diagnostic bytes under the harness C.UTF-8 locale, including typographic command quotes.",
+      "script": "timeout -v -s USR1 0.6 /usr/bin/python3 handler.py 10; printf \"status=%s\\n\" \"$?\"; echo continued",
+      "stdout": "signal=10\nstatus=124\ncontinued\n",
+      "stderr": "timeout: sending signal USR1 to command \u2018/usr/bin/python3\u2019\n",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-custom-signal-verbose"
+      ],
+      "files": {
+        "handler.py": "import signal,sys\ndef received(sig,frame):\n print(\"signal=\"+str(sig),flush=True);sys.exit(3)\nsignal.signal(int(sys.argv[1]),received)\nsignal.alarm(8)\nwhile True: signal.pause()\n"
+      },
+      "timeout": 12
+    },
+    {
+      "id": "migration-timeout-signal-preserved",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout signal preserved",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "timeout --preserve-status 0.6 /usr/bin/python3 handler.py 15; printf \"status=%s\\n\" \"$?\"; echo continued",
+      "stdout": "signal=15\nstatus=3\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-preserve-status"
+      ],
+      "files": {
+        "handler.py": "import signal,sys\ndef received(sig,frame):\n print(\"signal=\"+str(sig),flush=True);sys.exit(3)\nsignal.signal(int(sys.argv[1]),received)\nsignal.alarm(8)\nwhile True: signal.pause()\n"
+      },
+      "timeout": 12
+    },
+    {
+      "id": "migration-timeout-preserved-death",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout preserved death",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "timeout --preserve-status 0.2 /usr/bin/sleep 4; printf \"status=%s\\n\" \"$?\"; echo continued",
+      "stdout": "status=143\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "sleep"
+      ],
+      "covers": [
+        "timeout/deferred-preserve-status"
+      ]
+    },
+    {
+      "id": "migration-timeout-invalid-signal",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout invalid signal",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "timeout -s INVALID 1 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && diag=yes || diag=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$diag\"; [[ ! -e marker && ! -s out ]] && echo child-not-run; rm -f out err",
+      "stdout": "status=125 diagnostic=yes\nchild-not-run\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "touch"
+      ],
+      "covers": [
+        "timeout/deferred-custom-signal-verbose"
+      ]
+    },
+    {
+      "id": "migration-timeout-escalation-short",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout escalation short",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact propagated child status and parent continuation. The calling shell may report an externally killed wrapper; that launcher diagnostic is excluded from this status comparison.",
+      "script": "{ timeout -k 0.2 0.6 /usr/bin/python3 -c 'import signal;signal.signal(signal.SIGTERM,signal.SIG_IGN);signal.alarm(8);signal.pause()'; rc=$?; } 2> launcher-diagnostic\nprintf \"status=%s\\n\" \"$rc\"; rm -f launcher-diagnostic; echo continued",
+      "stdout": "status=137\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-kill-after-escalation"
+      ],
+      "timeout": 12
+    },
+    {
+      "id": "migration-timeout-escalation-long-equals",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout escalation long equals",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact propagated child status and parent continuation. The calling shell may report an externally killed wrapper; that launcher diagnostic is excluded from this status comparison.",
+      "script": "{ timeout --kill-after=0.2 0.6 /usr/bin/python3 -c 'import signal;signal.signal(signal.SIGTERM,signal.SIG_IGN);signal.alarm(8);signal.pause()'; rc=$?; } 2> launcher-diagnostic\nprintf \"status=%s\\n\" \"$rc\"; rm -f launcher-diagnostic; echo continued",
+      "stdout": "status=137\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-kill-after-escalation"
+      ],
+      "timeout": 12
+    },
+    {
+      "id": "migration-timeout-escalation-long-value",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout escalation long value",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact propagated child status and parent continuation. The calling shell may report an externally killed wrapper; that launcher diagnostic is excluded from this status comparison.",
+      "script": "{ timeout --kill-after 0.2 0.6 /usr/bin/python3 -c 'import signal;signal.signal(signal.SIGTERM,signal.SIG_IGN);signal.alarm(8);signal.pause()'; rc=$?; } 2> launcher-diagnostic\nprintf \"status=%s\\n\" \"$rc\"; rm -f launcher-diagnostic; echo continued",
+      "stdout": "status=137\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-kill-after-escalation"
+      ],
+      "timeout": 12
+    },
+    {
+      "id": "migration-timeout-duration-valid",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout duration valid",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "timeout 0 /usr/bin/true; printf \"%s=%s\\n\" 0 \"$?\"\ntimeout 1.5 /usr/bin/true; printf \"%s=%s\\n\" 1.5 \"$?\"\ntimeout 1s /usr/bin/true; printf \"%s=%s\\n\" 1s \"$?\"\ntimeout 1m /usr/bin/true; printf \"%s=%s\\n\" 1m \"$?\"\ntimeout 1h /usr/bin/true; printf \"%s=%s\\n\" 1h \"$?\"\ntimeout 1d /usr/bin/true; printf \"%s=%s\\n\" 1d \"$?\"\ntimeout 1e3 /usr/bin/true; printf \"%s=%s\\n\" 1e3 \"$?\"\ntimeout inf /usr/bin/true; printf \"%s=%s\\n\" inf \"$?\"",
+      "stdout": "0=0\n1.5=0\n1s=0\n1m=0\n1h=0\n1d=0\n1e3=0\ninf=0\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "true"
+      ],
+      "covers": [
+        "timeout/deferred-duration-contract"
+      ]
+    },
+    {
+      "id": "migration-timeout-duration-invalid",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout duration invalid",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "timeout -- -1 /usr/bin/touch marker > out 2> err; printf \"%s=%s\\n\" -1 \"$?\"\ntimeout -- bogus /usr/bin/touch marker > out 2> err; printf \"%s=%s\\n\" bogus \"$?\"\ntimeout -- 1q /usr/bin/touch marker > out 2> err; printf \"%s=%s\\n\" 1q \"$?\"\ntimeout -- 1,5 /usr/bin/touch marker > out 2> err; printf \"%s=%s\\n\" 1,5 \"$?\"\ntimeout -- 1.2.3 /usr/bin/touch marker > out 2> err; printf \"%s=%s\\n\" 1.2.3 \"$?\"\n[[ ! -e marker ]] && echo child-not-run; rm -f out err",
+      "stdout": "-1=125\nbogus=125\n1q=125\n1,5=125\n1.2.3=125\nchild-not-run\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "touch"
+      ],
+      "covers": [
+        "timeout/deferred-duration-contract"
+      ]
+    },
+    {
+      "id": "migration-timeout-zero-disabled",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "timeout zero disabled",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "timeout 0 /usr/bin/sleep 0.3; printf \"status=%s\\n\" \"$?\"",
+      "stdout": "status=0\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "sleep"
+      ],
+      "covers": [
+        "timeout/deferred-duration-contract"
+      ]
+    },
+    {
+      "id": "migration-taskset-wrapper-mask",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "taskset wrapper mask",
+      "oracle": "Upstream taskset from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "taskset 1 /usr/bin/python3 -c 'import os,sys,json;print(\"cpus=\"+\",\".join(map(str,sorted(os.sched_getaffinity(0)))));print(json.dumps(sys.argv[1:]));sys.exit(7)' 'a b' ''; printf \"status=%s\\n\" \"$?\"",
+      "stdout": "cpus=0\n[\"a b\", \"\"]\nstatus=7\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "taskset",
+        "python3"
+      ],
+      "covers": [
+        "taskset/deferred-command-wrapper"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os;assert os.sched_getaffinity(0)=={0,1}, os.sched_getaffinity(0)'"
+    },
+    {
+      "id": "migration-taskset-wrapper-list",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "taskset wrapper list",
+      "oracle": "Upstream taskset from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "taskset -c 1 /usr/bin/python3 -c 'import os,sys,json;print(\"cpus=\"+\",\".join(map(str,sorted(os.sched_getaffinity(0)))));print(json.dumps(sys.argv[1:]));sys.exit(7)' 'a b' ''; printf \"status=%s\\n\" \"$?\"",
+      "stdout": "cpus=1\n[\"a b\", \"\"]\nstatus=7\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "taskset",
+        "python3"
+      ],
+      "covers": [
+        "taskset/deferred-command-wrapper"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os;assert os.sched_getaffinity(0)=={0,1}, os.sched_getaffinity(0)'"
+    },
+    {
+      "id": "migration-taskset-wrapper-impossible",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "taskset wrapper impossible",
+      "oracle": "Upstream taskset from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "taskset -c 5 /usr/bin/touch marker > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -e marker ]] && echo child-not-run; rm -f out err",
+      "stdout": "status=1 diagnostic=yes\nchild-not-run\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "taskset",
+        "python3",
+        "touch"
+      ],
+      "covers": [
+        "taskset/deferred-command-wrapper"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os;assert os.sched_getaffinity(0)=={0,1}, os.sched_getaffinity(0)'"
+    },
+    {
+      "id": "migration-taskset-query-mask",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "taskset query mask",
+      "oracle": "Upstream taskset from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact GNU output after replacing only the independently known owned-child PID in verified line prefixes; all affinity formatting remains compared. Python sched_getaffinity independently asserts the precise resulting CPU set.",
+      "script": "/usr/bin/sleep 20 & child=$!\ntrap 'kill -KILL \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\nout=$(taskset -p \"$child\"); rc=$?; [[ $rc == 0 ]] || exit 91\nprintf \"%s\\n\" \"$out\" | /usr/bin/python3 -c 'import sys\nprefix=\"pid \"+sys.argv[1]+\"\\'\"'\"'s \"\nlines=sys.stdin.read().splitlines();assert len(lines)==int(sys.argv[2]),lines\nfor line in lines:\n assert line.startswith(prefix),line\n print(\"pid CHILD\\'\"'\"'s \"+line[len(prefix):])\n' \"$child\" 1 || exit 92\n/usr/bin/python3 -c 'import os,sys\na=os.sched_getaffinity(int(sys.argv[1]));assert a=={0, 1}\nprint(\"cpus=\"+\",\".join(map(str,sorted(a))))' \"$child\"",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "taskset",
+        "python3",
+        "sleep"
+      ],
+      "covers": [
+        "taskset/deferred-query-mask-and-list"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os;assert os.sched_getaffinity(0)=={0,1}, os.sched_getaffinity(0)'"
+    },
+    {
+      "id": "migration-taskset-query-list",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "taskset query list",
+      "oracle": "Upstream taskset from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact GNU output after replacing only the independently known owned-child PID in verified line prefixes; all affinity formatting remains compared. Python sched_getaffinity independently asserts the precise resulting CPU set.",
+      "script": "/usr/bin/sleep 20 & child=$!\ntrap 'kill -KILL \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\nout=$(taskset -cp \"$child\"); rc=$?; [[ $rc == 0 ]] || exit 91\nprintf \"%s\\n\" \"$out\" | /usr/bin/python3 -c 'import sys\nprefix=\"pid \"+sys.argv[1]+\"\\'\"'\"'s \"\nlines=sys.stdin.read().splitlines();assert len(lines)==int(sys.argv[2]),lines\nfor line in lines:\n assert line.startswith(prefix),line\n print(\"pid CHILD\\'\"'\"'s \"+line[len(prefix):])\n' \"$child\" 1 || exit 92\n/usr/bin/python3 -c 'import os,sys\na=os.sched_getaffinity(int(sys.argv[1]));assert a=={0, 1}\nprint(\"cpus=\"+\",\".join(map(str,sorted(a))))' \"$child\"",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "taskset",
+        "python3",
+        "sleep"
+      ],
+      "covers": [
+        "taskset/deferred-query-mask-and-list"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os;assert os.sched_getaffinity(0)=={0,1}, os.sched_getaffinity(0)'"
+    },
+    {
+      "id": "migration-taskset-set-mask",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "taskset set mask",
+      "oracle": "Upstream taskset from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact GNU output after replacing only the independently known owned-child PID in verified line prefixes; all affinity formatting remains compared. Python sched_getaffinity independently asserts the precise resulting CPU set.",
+      "script": "/usr/bin/sleep 20 & child=$!\ntrap 'kill -KILL \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\nout=$(taskset -p 1 \"$child\"); rc=$?; [[ $rc == 0 ]] || exit 91\nprintf \"%s\\n\" \"$out\" | /usr/bin/python3 -c 'import sys\nprefix=\"pid \"+sys.argv[1]+\"\\'\"'\"'s \"\nlines=sys.stdin.read().splitlines();assert len(lines)==int(sys.argv[2]),lines\nfor line in lines:\n assert line.startswith(prefix),line\n print(\"pid CHILD\\'\"'\"'s \"+line[len(prefix):])\n' \"$child\" 2 || exit 92\n/usr/bin/python3 -c 'import os,sys\na=os.sched_getaffinity(int(sys.argv[1]));assert a=={0}\nprint(\"cpus=\"+\",\".join(map(str,sorted(a))))' \"$child\"",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "taskset",
+        "python3",
+        "sleep"
+      ],
+      "covers": [
+        "taskset/deferred-set-owned-pid"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os;assert os.sched_getaffinity(0)=={0,1}, os.sched_getaffinity(0)'"
+    },
+    {
+      "id": "migration-taskset-set-list",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "taskset set list",
+      "oracle": "Upstream taskset from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact GNU output after replacing only the independently known owned-child PID in verified line prefixes; all affinity formatting remains compared. Python sched_getaffinity independently asserts the precise resulting CPU set.",
+      "script": "/usr/bin/sleep 20 & child=$!\ntrap 'kill -KILL \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\nout=$(taskset -cp 1 \"$child\"); rc=$?; [[ $rc == 0 ]] || exit 91\nprintf \"%s\\n\" \"$out\" | /usr/bin/python3 -c 'import sys\nprefix=\"pid \"+sys.argv[1]+\"\\'\"'\"'s \"\nlines=sys.stdin.read().splitlines();assert len(lines)==int(sys.argv[2]),lines\nfor line in lines:\n assert line.startswith(prefix),line\n print(\"pid CHILD\\'\"'\"'s \"+line[len(prefix):])\n' \"$child\" 2 || exit 92\n/usr/bin/python3 -c 'import os,sys\na=os.sched_getaffinity(int(sys.argv[1]));assert a=={1}\nprint(\"cpus=\"+\",\".join(map(str,sorted(a))))' \"$child\"",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "taskset",
+        "python3",
+        "sleep"
+      ],
+      "covers": [
+        "taskset/deferred-set-owned-pid"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os;assert os.sched_getaffinity(0)=={0,1}, os.sched_getaffinity(0)'"
+    },
+    {
+      "id": "migration-taskset-set-impossible",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "taskset set impossible",
+      "oracle": "Upstream taskset from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Separate -c -p options reach the affinity syscall even if combined -cp is unsupported. Assert EINVAL, failing status, and independent unchanged affinity of the owned child.",
+      "script": "/usr/bin/sleep 20 & child=$!\ntrap 'kill -KILL \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\ntaskset -c -p 5 \"$child\" > out 2> err; rc=$?; [[ $(<err) == *\"Invalid argument\"* ]] && d=EINVAL || d=other; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; rm -f out err\n/usr/bin/python3 -c 'import os,sys;print(\"cpus=\"+\",\".join(map(str,sorted(os.sched_getaffinity(int(sys.argv[1]))))))' \"$child\"",
+      "stdout": "status=1 diagnostic=EINVAL\ncpus=0,1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "taskset",
+        "python3",
+        "sleep"
+      ],
+      "covers": [
+        "taskset/deferred-set-owned-pid"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os;assert os.sched_getaffinity(0)=={0,1}, os.sched_getaffinity(0)'"
+    }
+  ]
+}

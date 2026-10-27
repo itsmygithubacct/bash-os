@@ -133,7 +133,7 @@
       "id": "device-input-boundary",
       "kind": "deferred",
       "purpose": "Exercise bounded reads and errors when the input is a device-backed special file.",
-      "reason": "No real or host device may be opened in this suite. Future coverage requires a disposable VM with a purpose-built harmless device or a reviewed syscall mock that supplies a bounded deterministic byte stream and failure mode; record expected bytes and status independently, and do not use raw disks or host device paths."
+      "reason": "Character-device cases (r1 to r3) are only missing fixtures, using VM-local sandbox nodes. A device read error (r5) uses SECCOMP-NOTIFY. Only block-device input (r4) needs a driver-provisioned loop device: the guest's /dev/vda is root:disk 0660 and loop attach needs CAP_SYS_ADMIN."
     },
     {
       "id": "zero-count-formats",

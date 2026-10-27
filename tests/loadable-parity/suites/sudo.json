@@ -46,37 +46,37 @@
       "id": "authority-command-authorization",
       "kind": "deferred",
       "purpose": "Exercise an authorized command, a policy denial, non-interactive denial, verifier success/failure, and fail-closed reauthorization on the v2 authority route.",
-      "reason": "Requires a disposable bash-os VM with a provisioned v2 /dev/bashos-auth implementation, synthetic policy and identities, and a controlled verifier response. The live authority and sudo invocation are prohibited in this environment."
+      "reason": "Shared doas backend; all paths require guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour."
     },
     {
       "id": "root-credential-drop",
       "kind": "deferred",
       "purpose": "Check child uid/gid and supplementary groups, environment scrubbing and assignment replacement, descriptor and signal cleanup, literal argv, and child exit/signal statuses on the root route.",
-      "reason": "Requires a disposable privileged user namespace or VM with private passwd/group fixtures and an exec recorder so real credential transitions can be verified without host accounts or privileges. This suite cannot invoke sudo."
+      "reason": "Root route is device-free but needs guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid)."
     },
     {
       "id": "login-shell-and-command-quoting",
       "kind": "deferred",
       "purpose": "Check -i home and login-shell selection, -s shell selection, and sudo command-string escaping for metacharacters, dollar signs, empty arguments, quotes, and newlines.",
-      "reason": "Requires the root credential route in a disposable account namespace plus controlled target shells and an argv recorder. These execution semantics cannot be reached here without invoking sudo."
+      "reason": "Escaping and -i/-s semantics are observed after exec on the root or authority route; only the delegate refusal is reachable unprivileged."
     },
     {
       "id": "timestamp-validation-flows",
       "kind": "deferred",
       "purpose": "Verify -k, -K, -v, and -k COMMAND ordering, including that a failed reset prevents the requested action.",
-      "reason": "Requires a disposable v2 authority or reviewed authority mock that records reset and authorization requests and supplies deterministic policy/verifier outcomes; no live authorization state may be used."
+      "reason": "Only the reset translation on the delegate route is reachable unprivileged; validation and ordering need guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour."
     },
     {
       "id": "sudoedit-safe-copyback",
       "kind": "deferred",
       "purpose": "Exercise sudoedit over private relative fixture files: safe open, private editor copies, reauthorization, digest-bound copyback, rejection cleanup, and multi-file behavior.",
-      "reason": "The production path depends on kernel safe-open and copyback mediation plus the sudoedit_live gate. It needs a disposable VM with that authority or an independently reviewed syscall mock operating only on private fixture files."
+      "reason": "The unprivileged sudoedit flow is kernel-mediated; it cannot be observed without guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour."
     },
     {
       "id": "policy-list-projection",
       "kind": "deferred",
       "purpose": "Check -l, -ll, and --list against a caller-readable private policy snapshot, including digest binding and empty/no-match behavior, without treating listing as execution approval.",
-      "reason": "Requires a disposable authority mock that publishes a private fixture policy path, digest, and generation. No live authority metadata or host policy can be read here, and invoking sudo is prohibited."
+      "reason": "The renderer is shared with `auth policy-list FILE` (device-free, see auth/authority-policy-audit-and-child-flow), but the sudo path reads only the authority-advertised file. Delegate behaviour is reachable now."
     }
   ]
 }

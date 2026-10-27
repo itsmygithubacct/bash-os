@@ -121,7 +121,7 @@
       "id": "termpixel-pty-input",
       "kind": "deferred",
       "purpose": "Exercise raw-mode setup/restoration, cursor hygiene, and ASCII/CSI arrow decoding using an isolated pseudo-terminal.",
-      "reason": "Requires a future disposable VM with a private PTY and bounded terminal driver. The available runner supplies stdin/stdout as non-PTY streams and has no PTY attachment or terminal-driver fixture. A future disposable PTY harness is required to send bounded key sequences and independently inspect termios state and emitted cursor controls."
+      "reason": "Only headless pipe decoding executes. Raw-mode entry/restoration, cursor controls and escape decoding on a PTY need only the existing PTY driver."
     },
     {
       "id": "probe-color-environment",

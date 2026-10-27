@@ -180,15 +180,24 @@
     },
     {
       "id": "df-mount-inventory-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check no-operand inventory and interactions among --all, --local, --type, and --exclude-type across multiple filesystem kinds.",
-      "reason": "Requires a disposable Linux VM with a deliberately arranged set of local and pseudo filesystem mounts and a stable mount table. The harness does not provide synthetic mounts or a controlled /proc/mounts fixture, and this suite must not inspect or manipulate host mounts."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-df-local-remote"
+        },
+        {
+          "group": "shell",
+          "id": "migration-df-mount-inventory"
+        }
+      ]
     },
     {
       "id": "df-statvfs-accounting-deferred",
       "kind": "deferred",
       "purpose": "Verify block and inode counters, -h/-H rounding, -B/-m scaling, and --total arithmetic at controlled boundary values.",
-      "reason": "Requires a disposable VM or reviewed statvfs mock that supplies fixed block, free, available, inode, and free-inode counts. Live counters can change between the sequential GNU and candidate runs, and the harness cannot inject statvfs results."
+      "reason": "Remaining obligations: r5: f_bavail < f_bfree needs a filesystem with reserved blocks (F2 ext4 mount); not authored"
     }
   ]
 }

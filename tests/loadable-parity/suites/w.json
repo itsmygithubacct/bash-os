@@ -118,7 +118,7 @@
       "id": "live-procps-parity",
       "kind": "deferred",
       "purpose": "Compare live process accounting, uptime header, clock and tty idle formatting with procps w.",
-      "reason": "Requires a future disposable VM with coherent reviewed utmp/process/tty/clock mocks. procps w has no alternate-utmp FILE selector. No host utmp or host processes may be used; synthetic cases establish only the documented custom output."
+      "reason": "A byte oracle requires both tools to read the same session source. procps w reads logind (if built with systemd) or /run/utmp; the candidate reads utmp. Semantic comparison on the VM's live state is possible for the header and process accounting; tty idle formatting follows the who/terminal-state technique."
     },
     {
       "id": "builtin-help-metadata",

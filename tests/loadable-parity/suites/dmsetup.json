@@ -54,49 +54,49 @@
       "id": "query-list-info",
       "kind": "deferred",
       "purpose": "Compare empty and populated ls/info results, name and UUID lookup, device state, and no-device behavior.",
-      "reason": "Requires a disposable VM with a private device-mapper control interface and controlled empty/named devices, or a reviewed ioctl/sysfs mock. Compare output and statuses with the LVM2 dmsetup CLI against the same fixture. This runner does not expose that kernel interface, so no query is invoked here."
+      "reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node. r5 needs no privilege and no new driver."
     },
     {
       "id": "query-tables-deps-targets",
       "kind": "deferred",
       "purpose": "Check active/inactive table and status formatting, target filtering, dependency lists, target versions, and crypt key redaction.",
-      "reason": "Requires a disposable VM or reviewed ioctl mock that supplies deterministic multi-target tables, dependencies, target versions, and crypt records. Compare table/status/deps/targets/version output with the LVM2 dmsetup CLI and use independently specified expected records. No device query is run in this suite."
+      "reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node."
     },
     {
       "id": "table-input-create-load",
       "kind": "deferred",
       "purpose": "Exercise create/load/reload from inline text, a small relative table file, and stdin, including flags and rollback after activation failure.",
-      "reason": "Requires a disposable VM with an isolated device-mapper instance and a VM-local backing device, or a reviewed ioctl mock that records requests and injects load/resume failures. The future fixture should use a small relative file inside its private work directory and compare valid table encoding against an independent ABI encoder plus the LVM2 dmsetup CLI behavior. No mutation is attempted here."
+      "reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node."
     },
     {
       "id": "table-invalid-input",
       "kind": "deferred",
       "purpose": "Verify malformed table rows and boundary values fail before a table-load ioctl, including invalid numbers, missing target fields, NUL input, and oversized text.",
-      "reason": "Requires a reviewed ioctl mock that records whether any request was sent, plus small relative fixture files for file-input cases and documented dmsetup/libdevmapper expectations. The operation path is not executed because dmsetup's load command reaches the kernel interface when mutation is enabled."
+      "reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node. An observer that proves 'no request was sent' needs either kernel state (PRIV-ROOT) or an ioctl intercept."
     },
     {
       "id": "state-flags-removal",
       "kind": "deferred",
       "purpose": "Check suspend/resume flags, clear versus wipe behavior, forced removal, deferred removal, remove_all, and continuation across per-device errors.",
-      "reason": "Requires a disposable VM with private mapped devices and an open-holder fixture for busy/deferred removal, or a reviewed stateful ioctl mock for flags and injected failures. Expected transitions should be checked against the LVM2 dmsetup CLI and kernel ABI definitions. No state-changing command is run here."
+      "reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node."
     },
     {
       "id": "rename-message",
       "kind": "deferred",
       "purpose": "Check name and UUID rename requests, validation of invalid names, sector/message payloads, and target message replies.",
-      "reason": "Requires a disposable VM with a target that accepts a deterministic message and isolated mapped devices, or a reviewed ioctl mock that verifies payload bytes and returns controlled replies. Compare CLI behavior with the LVM2 dmsetup CLI and encode request expectations independently. No rename or message is sent here."
+      "reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node."
     },
     {
       "id": "ioctl-errors-buffering",
       "kind": "deferred",
       "purpose": "Check ioctl errno reporting, open failures, response-buffer growth, malformed-record rejection, and descriptor cleanup.",
-      "reason": "Requires a reviewed ioctl mock that can inject errno values, correctly shaped kernel replies, buffer-full responses, and malformed records; expected bytes must come from Linux Device Mapper ABI definitions and an independent decoder. This suite does not open the kernel control interface or inject a mock."
+      "reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node. r2 and r5 need no privilege; r4 cannot be produced by the kernel at all."
     },
     {
       "id": "udev-real-device-qualification",
       "kind": "deferred",
       "purpose": "Qualify real target activation, udev node coordination, retry behavior, and output fields that depend on device nodes.",
-      "reason": "Requires a disposable VM with a private device-mapper kernel instance, VM-local backing devices, and controlled udev behavior. The published docs identify udev synchronization/node management and several report options as unimplemented or ignored; this case records the integration gap without claiming a pass."
+      "reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node. The candidate does not implement r2-r4 at all, so no fixture can close them."
     }
   ]
 }

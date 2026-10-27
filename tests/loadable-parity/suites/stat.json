@@ -136,9 +136,18 @@
     },
     {
       "id": "device-node-formats",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify character/block device fields and the device-specific default layout with fixed metadata.",
-      "reason": "Requires a future disposable VM with safely created, non-host-attached character and block nodes of fixed major/minor numbers, or an independently reviewed stat metadata mock. The current fixture boundary has no device creation or host device access; expected checks should include %t/%T, %Hr/%Lr, -L behavior, and the device default layout."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-stat-device-default-layout"
+        },
+        {
+          "group": "shell",
+          "id": "migration-stat-device-node-directives"
+        }
+      ]
     },
     {
       "id": "unknown-directive-continues",

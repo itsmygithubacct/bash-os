@@ -32,25 +32,25 @@
       "id": "deferred-freeze-supported-filesystem",
       "kind": "deferred",
       "purpose": "Check a successful freeze request against a dedicated supported filesystem and confirm the command returns without output.",
-      "reason": "Requires a disposable VM with CAP_SYS_ADMIN and a dedicated, known-freezable test mount. The fixture must guarantee an explicit thaw in cleanup even if assertions fail. No host or harness filesystem may be used."
+      "reason": "Success needs CAP_SYS_ADMIN over the filesystem's user namespace and a freezable filesystem; uid 2000 has no capabilities, every filesystem mountable inside an unprivileged user namespace (tmpfs, proc) lacks freeze support, and ext4/xfs cannot be mounted without init-namespace CAP_SYS_ADMIN and a block device."
     },
     {
       "id": "deferred-thaw-and-resume",
       "kind": "deferred",
       "purpose": "After a successful freeze on the same disposable mount, check a successful thaw and verify ordinary access resumes.",
-      "reason": "Requires the disposable VM and mount from a controlled freeze/thaw lifecycle. Verify FITHAW status and post-thaw reads/writes, with bounded timeouts and an unconditional thaw cleanup path."
+      "reason": "Remaining obligations: r1: unchanged: needs a frozen freezable filesystem"
     },
     {
       "id": "deferred-ioctl-error-contract",
       "kind": "deferred",
       "purpose": "Check status and action-specific diagnostics when the kernel ioctl rejects a freeze or thaw request.",
-      "reason": "Requires a separately reviewed syscall mock around ioctl that deterministically returns errors such as EPERM, ENOTTY, or EOPNOTSUPP without reaching the kernel, or a disposable VM with a controlled mock filesystem. The production binary has no test hook and this runner has no such mock."
+      "reason": "Remaining obligations: r4: usage diagnostics wording not asserted"
     },
     {
       "id": "deferred-symlink-mountpoint",
       "kind": "deferred",
       "purpose": "Verify the documented behavior that a symlink operand is followed to a directory on the disposable filesystem for freeze and subsequent thaw.",
-      "reason": "Requires a disposable VM, a dedicated freezable mount, and a relative symlink in its private fixture directory. The test must freeze and thaw only that mount and guarantee thaw cleanup."
+      "reason": "Remaining obligations: r1: successful freeze/thaw through a symlink needs a freezable filesystem (CAP_SYS_ADMIN)"
     }
   ]
 }

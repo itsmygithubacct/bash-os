@@ -43,25 +43,25 @@
       "id": "query-actions-mock",
       "kind": "deferred",
       "purpose": "Exercise query ioctl dispatch and formatting for size in sectors, size in bytes, legacy size, logical sector size, block size, and normalized read-only state.",
-      "reason": "Requires a separately reviewed syscall-mock fixture that intercepts open/ioctl/close and never forwards them to the host. The mock must register only relative fixture names and return fixed values, including a byte size with a remainder beyond the 32-bit sector range, a size below one sector, and nonzero read-only metadata. Compare the emitted values with independent Linux ioctl definitions and arithmetic."
+      "reason": "Query ioctls need a block device: uid 2000 with setgroups([]) cannot open /dev/loop-control or /dev/loopN (root:disk 0660), cannot mknod block nodes (CAP_MKNOD; device nodes are refused inside user namespaces), and the real virtio disk nodes are root:disk 0660, so no block device with known contents is visible to an unprivileged fixture. Read-only query ioctls themselves need no capability once a readable node exists, so only device provisioning is missing; r5 values cannot exist on a real device."
     },
     {
       "id": "readonly-transitions-mock",
       "kind": "deferred",
       "purpose": "Exercise ordered --getro, --setro, --getro, --setrw, --getro sequences across fixture devices and invocations.",
-      "reason": "Requires a separately reviewed syscall mock with in-memory device metadata only. It must record BLKROGET and BLKROSET request order and setter values, model state per relative fixture name, and make no host device calls. Expected output and final state must be calculated from the documented 0/1 getter and setter contract."
+      "reason": "Remaining obligations: r1: printed values 0/1/0 and setter values need a buffer-writing mock or a block device; r2: unchanged: per-device persistent state needs a block device or stateful mock; r3: unchanged: kernel EACCES for BLKROSET needs a block device"
     },
     {
       "id": "maintenance-requests-mock",
       "kind": "deferred",
       "purpose": "Exercise --flushbufs and --rereadpt dispatch, zero-argument ioctl requests, device iteration, and continuation order.",
-      "reason": "Requires a separately reviewed syscall mock that records BLKFLSBUF and BLKRRPART without forwarding either request. Use only relative fixture names and assert the device-major/action-minor request trace. Real flush or partition reread effects require a disposable VM with an explicitly created throwaway block device and are outside this runner."
+      "reason": "Remaining obligations: r1: real permitted/denied BLKFLSBUF needs a block device (BLOCK-DEV); r2: unchanged: partition re-read effect needs a loop device with partscan (BLOCK-DEV)"
     },
     {
       "id": "syscall-failures-mock",
       "kind": "deferred",
       "purpose": "Exercise missing/open-failing paths, EACCES read-write retry, ioctl failure continuation, descriptor close handling, and aggregate status.",
-      "reason": "Requires a separately reviewed syscall mock that can inject ENOENT, EACCES, EIO, ENOTTY, EPERM, and close errors while tracking every mock descriptor. It must reject unregistered relative names and must never call real open/ioctl/close on a device. Validate diagnostics policy, later-action/device continuation, descriptor cleanup, and final failure status against the documented source contract."
+      "reason": "Remaining obligations: r4: close(2) failure injection not attempted: no stable descriptor-number condition for a seccomp rule; r5: Descriptor counts are unchanged for the tested open/ioctl failures. Close-error cleanup and real successful device paths remain untested."
     }
   ]
 }

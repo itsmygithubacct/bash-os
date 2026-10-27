@@ -59,15 +59,45 @@
     },
     {
       "id": "deferred-request-dispatch",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify the dry-run, normal, and forced request paths against the documented poweroff contract.",
-      "reason": "Deferred until a disposable VM or a reviewed closed syscall mock is available. The future fixture must intercept reboot and sync without forwarding to the kernel; assert that -n reports a dry run and performs neither call, an ordinary request calls sync before reboot(RB_POWER_OFF), and -f skips sync but still dispatches reboot(RB_POWER_OFF). This suite did not invoke the operation."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-poweroff-dispatch-mocked-success"
+        },
+        {
+          "group": "shell",
+          "id": "migration-poweroff-dry-run-no-calls"
+        },
+        {
+          "group": "shell",
+          "id": "migration-poweroff-pidns-real-request"
+        }
+      ]
     },
     {
       "id": "deferred-argument-and-kernel-results",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify invalid arguments and kernel success/failure handling without allowing a real shutdown.",
-      "reason": "Deferred until a disposable VM or a reviewed closed syscall mock is available. The future fixture must intercept all reboot/sync calls, check that unsupported options and operands return the documented usage status before either call, and inject success plus representative errno results to verify status and diagnostics. The interceptor must never forward reboot to the host kernel. This suite did not invoke the operation."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-poweroff-dispatch-mocked-errors"
+        },
+        {
+          "group": "shell",
+          "id": "migration-poweroff-dispatch-mocked-success"
+        },
+        {
+          "group": "shell",
+          "id": "migration-poweroff-invalid-requests-no-calls"
+        },
+        {
+          "group": "shell",
+          "id": "migration-poweroff-unprivileged-real-refusal"
+        }
+      ]
     }
   ]
 }

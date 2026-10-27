@@ -35,43 +35,43 @@
       "id": "list-sysfs-rows",
       "kind": "deferred",
       "purpose": "Verify default listing and -a/-l/--list headers, row fields, ignored malformed entries, and optional sysfs attributes.",
-      "reason": "Future requirement: run with a private sysfs fixture and deterministic backing-file metadata, or in a disposable VM with private loop devices. The fixture must control /sys/block/loop* and must not expose host devices; compare row formatting and status to util-linux losetup there."
+      "reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted. r3 needs no privilege; r2's malformed tree needs a mount over /sys/block in a private mount namespace."
     },
     {
       "id": "associated-file-aliases",
       "kind": "deferred",
       "purpose": "Verify -j/--associated filtering for a backing file, no match, and a symlink or inode-equivalent path, including the list header.",
-      "reason": "Future requirement: use an isolated syscall/filesystem mock that redirects /sys and stats only relative fixture files, or a disposable VM with private loop devices. The mock must supply stable backing paths and inode metadata; no host path may be used."
+      "reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted."
     },
     {
       "id": "find-free-and-exhaustion",
       "kind": "deferred",
       "purpose": "Verify -f/--find selection, the returned device name, and the no-free-device error when allocation is exhausted.",
-      "reason": "Future requirement: provide a private loop-control ioctl mock with configured free/busy device state, or a disposable VM with private loop support and no host device mappings. The case must assert the selected index and exhaustion status without touching host loop devices."
+      "reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted."
     },
     {
       "id": "automatic-attach-options",
       "kind": "deferred",
       "purpose": "Verify -f --show attachment of a small relative backing file and construction of read-only, partition-scan, offset, and size-limit settings.",
-      "reason": "Future requirement: use a stateful ioctl mock that confines all backing-file access to the private fixture tree and records LOOP_SET_FD/LOOP_SET_STATUS64 requests, or use a disposable VM with private loop devices. Assert the selected device, flags, offset, size limit, and show output from the independent mock state."
+      "reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted. Attaching requires access to /dev/loop-control and the loop node, which uid 2000 lacks."
     },
     {
       "id": "selected-attach-and-validation",
       "kind": "deferred",
       "purpose": "Verify explicit loop-device attachment, --show output, option ordering and -- termination, plus incompatible or surplus operand rejection before device access.",
-      "reason": "Future requirement: use an ioctl/open mock that records exact relative fixture inputs and proves invalid argument combinations make no device calls, or a disposable VM with private loop devices. The mock must model attachment state and keep all paths inside the fixture tree."
+      "reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted."
     },
     {
       "id": "readonly-fallback-and-rollback",
       "kind": "deferred",
       "purpose": "Verify the documented read-only backing-file fallback on EACCES/EROFS and rollback behavior after loop status configuration failures, including rollback failure reporting.",
-      "reason": "Future requirement: use a fault-injecting syscall mock for open and loop ioctls, with per-call errno controls and an inspectable association state. A disposable VM alone cannot safely or deterministically produce these errno sequences."
+      "reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted. The historical reason claims a VM cannot produce EACCES/EROFS deterministically; that is stale for r1, but r2/r3 do need fault injection."
     },
     {
       "id": "detach-and-ownership",
       "kind": "deferred",
       "purpose": "Verify successful detach, detach error handling, and preservation of an association owned by another caller.",
-      "reason": "Future requirement: use a stateful loop ioctl mock that models a foreign association and LOOP_CLR_FD outcomes, or a disposable VM with isolated private loop devices. Assert both the reported result and final association state; never use host loop devices."
+      "reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted."
     }
   ]
 }

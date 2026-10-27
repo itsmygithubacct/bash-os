@@ -44,19 +44,19 @@
       "id": "kitty-presentation-transports",
       "kind": "deferred",
       "purpose": "Validate full frames, damage patches, scroll composition, synchronization, terminal rejection/fallback, and shared-memory cleanup for inline and shared-memory transports.",
-      "reason": "A future disposable VM needs a bounded PTY terminal peer implementing the Kitty graphics protocol and private shared-memory acknowledgements. The current declarative runner supplies no PTY peer, and no real terminal is within scope."
+      "reason": "Never executed. The obligations are observable with an ordinary unprivileged fixture: gpu accepts --tty PATH (gpu.c:721), and a trusted python3 helper can own a pty pair, act as the Kitty peer and decode payloads."
     },
     {
       "id": "terminal-input-and-restoration",
       "kind": "deferred",
       "purpose": "Validate key, UTF-8, mouse, resize, and timeout event decoding plus restoration of terminal settings on return and failure.",
-      "reason": "A future disposable VM needs a PTY driver that sends deterministic event sequences and independently checks variable bindings, timeouts, and termios restoration. The current runner has no controllable terminal fixture."
+      "reason": "Never executed. Everything is observable unprivileged with the Kitty-peer pty helper, or with a terminal.py Kitty responder plus ordinary PTY sends."
     },
     {
       "id": "gles-shader-and-dmabuf",
       "kind": "deferred",
       "purpose": "Validate shader compile/render output, CPU-canvas shader input retention, resize/readback behavior, and DMA-BUF handoff/fallback and resource retirement.",
-      "reason": "A future disposable VM must provide an independently reviewed GLES/GBM ABI mock or dedicated render-node fixture with an independent frame oracle and FD handoff peer. This suite does not open render devices or claim GPU rendering passed."
+      "reason": "Never executed. Rendering and DMA-BUF obligations need a kernel DRM render node, which an unprivileged fixture cannot create. The fallback and error-path obligations can be implemented now with the Kitty peer helper."
     },
     {
       "id": "headless-clear-pixel-clip",

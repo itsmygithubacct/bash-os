@@ -101,13 +101,13 @@
       "id": "deferred-policy-command",
       "kind": "deferred",
       "purpose": "Exercise policy selection, priority boundaries, reset-on-fork, argv forwarding, and child exit-status propagation without changing host process scheduling.",
-      "reason": "Requires a disposable VM with scheduling changes confined to disposable child processes, or an independently reviewed syscall mock for sched_setscheduler plus fork/exec/wait. The future fixture should cover OTHER/BATCH/IDLE/FIFO/RR, valid and invalid priorities, -R, command arguments, and child exit/signal status."
+      "reason": "Only read-only bounds and current-process queries execute. The candidate implements the command form (loadables/chrt.c bchrt_run_command: fork, bchrt_set_pid(0,...), execvp), but no fixture drives it."
     },
     {
       "id": "deferred-pid-deadline",
       "kind": "deferred",
       "purpose": "Exercise existing-PID/all-thread policy changes and SCHED_DEADLINE parameter validation only against an isolated target.",
-      "reason": "Requires a disposable VM with a dedicated throwaway process/thread group and appropriate scheduling privilege, or a reviewed sched_setscheduler/sched_setattr mock. The future fixture should check -p PRIO PID, --all-tasks, deadline runtime/deadline/period constraints, reset-on-fork interactions, and failure behavior without targeting any host process."
+      "reason": "Only parser errors for nonnumeric PIDs execute. Existing-PID changes, all-tasks, deadline validation and reset-on-fork on a PID have no fixture. Only a successful DEADLINE assignment needs a privilege that uid 2000 cannot have."
     },
     {
       "id": "invalid-pid-with-priority",

@@ -46,25 +46,25 @@
       "id": "flag-set-algebra",
       "kind": "deferred",
       "purpose": "Compare +, - and = behavior on two ordinary fixture files, verify add/remove composition and idempotent repeat operations, and read back the resulting flags.",
-      "reason": "Requires a disposable ext4 VM or equivalent fixture filesystem supporting FS_IOC_GETFLAGS/FS_IOC_SETFLAGS and GNU e2fsprogs chattr/lsattr as the independent oracle. The current task explicitly restricts execution to metadata/help contracts for this loadable; no filesystem flag mutation was run."
+      "reason": "No fixture exercises chattr operations. Present gap: missing fixture plus missing flag read-back in the snapshot. No privilege is needed: Saved evidence shows that the legacy fixture tree /work is ext4. legacy/lsattr/named_file stdout is '--------------e------- plain' on both builds, and legacy/df/df-output-filesystem-type reports ext4 mounted on /work. The fixture uid 2000 owns its files, so FS_IOC_SETFLAGS for the owner-modifiable, non-immutable flags (d, A, S, D, s, u, t, T) needs no capability, and the legacy seccomp list does not deny ioctl."
     },
     {
       "id": "recursive-tree",
       "kind": "deferred",
       "purpose": "Compare -R across a small relative-path directory tree, checking that the directory and nested regular files receive the requested change and that non-recursive behavior remains distinguishable.",
-      "reason": "Requires a disposable ext4 VM or equivalent supported filesystem plus GNU e2fsprogs chattr/lsattr to compare each fixture entry. Recursive chattr operation execution is explicitly out of scope for this constrained run."
+      "reason": "Missing fixture only. Saved evidence shows that the legacy fixture tree /work is ext4. legacy/lsattr/named_file stdout is '--------------e------- plain' on both builds, and legacy/df/df-output-filesystem-type reports ext4 mounted on /work. The fixture uid 2000 owns its files, so FS_IOC_SETFLAGS for the owner-modifiable, non-immutable flags (d, A, S, D, s, u, t, T) needs no capability, and the legacy seccomp list does not deny ioctl."
     },
     {
       "id": "capability-flags",
       "kind": "deferred",
       "purpose": "Exercise +i/-i and +a/-a with and without CAP_LINUX_IMMUTABLE, including cleanup of set flags, and compare GNU status, diagnostics and resulting state.",
-      "reason": "Requires a disposable VM with a supported filesystem and controlled capability transitions so immutable/append state can be safely set and cleared. The isolated runner does not declare that filesystem/capability fixture, and these mutating operations were not run."
+      "reason": "r1 and r2 are only missing fixtures and can be implemented in the legacy runner now. r3 and r4 need a capability that no driver grants: ext4 checks capable(CAP_LINUX_IMMUTABLE) when i or a changes."
     },
     {
       "id": "operation-errors-and-links",
       "kind": "deferred",
       "purpose": "Compare missing operands/paths, mixed valid and invalid path lists, unsupported ioctl behavior, and symlink target handling while retaining independent GNU exit-status and diagnostic evidence.",
-      "reason": "A future disposable VM or reviewed closed ioctl mock is needed to control supported versus unsupported filesystem responses and safely assert partial effects and symlink behavior against GNU e2fsprogs. No chattr operation was executed in this suite."
+      "reason": "Missing fixture only. All of these errors are reachable as uid 2000: Saved evidence shows that the legacy fixture tree /work is ext4. legacy/lsattr/named_file stdout is '--------------e------- plain' on both builds, and legacy/df/df-output-filesystem-type reports ext4 mounted on /work. The fixture uid 2000 owns its files, so FS_IOC_SETFLAGS for the owner-modifiable, non-immutable flags (d, A, S, D, s, u, t, T) needs no capability, and the legacy seccomp list does not deny ioctl. The private /tmp tmpfs supports only a subset of flags, so flags it lacks return EOPNOTSUPP."
     }
   ]
 }

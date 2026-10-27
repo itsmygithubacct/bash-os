@@ -17,13 +17,13 @@
       "id": "fixture_file_lifecycle",
       "kind": "deferred",
       "purpose": "Verify bashsyslogd appends records to pre-existing private log files and preserves their modes, then leaves fixture files available for copy/move/removal.",
-      "reason": "Requires a future disposable VM with a private AF_UNIX sender/receiver or a reviewed socket/clock mock that invokes bashsyslogd and supplies deterministic log records. Ordinary relative file setup is authorized, but by itself does not exercise this daemon; no socket/network operation is authorized here."
+      "reason": "No daemon run exists; a private AF_UNIX sender and owned daemon child are enough."
     },
     {
       "id": "fixture_links",
       "kind": "deferred",
       "purpose": "Verify bashsyslogd output routing through private hardlink aliases and relative symlinks, with exact record multiplicity and final link identity.",
-      "reason": "Requires a future disposable VM with a private AF_UNIX sender/receiver or a reviewed socket/clock mock that invokes bashsyslogd and supplies deterministic log records. Ordinary relative file setup is authorized, but by itself does not exercise this daemon; no socket/network operation is authorized here."
+      "reason": "No daemon run exists."
     },
     {
       "id": "builtin_type_metadata",
@@ -47,25 +47,25 @@
       "id": "local_datagram_routing",
       "kind": "deferred",
       "purpose": "Exercise PRI facility routing, control-byte scrubbing, append behavior, --once consumption, socket mode, and owned socket cleanup.",
-      "reason": "Requires a future disposable VM with a private AF_UNIX datagram socket and sender, an owned log tree, and controlled process cleanup. No equivalent-output GNU syslogd fixture is documented, and service operation is excluded in the current environment."
+      "reason": "No daemon run exists."
     },
     {
       "id": "config_reload",
       "kind": "deferred",
       "purpose": "Check literal BASHSYSLOGD_FORWARD parsing, startup precedence, SIGHUP reload, invalid-config retention, and empty-value disable behavior.",
-      "reason": "Requires a future disposable VM with an owned daemon and signal control plus a private loopback UDP receiver; the current task prohibits signal and network operations. A deterministic local receiver is needed to observe destination changes."
+      "reason": "No daemon is ever started. The daemon, its UDP receiver (existing udp peer or a python3 helper on a second port) and SIGHUP to the script's own child are all possible in the VM."
     },
     {
       "id": "forwarding_queue_replay",
       "kind": "deferred",
       "purpose": "Check sanitized UDP copies, lowercase-hex queue encoding, bounded admission, FIFO replay, malformed-record handling, and recovery after send failure.",
-      "reason": "Requires a future disposable VM with a private loopback receiver and reviewed deterministic send/clock failure shims to exercise queue admission and replay without relying on real network failures. No forwarding operation is run here."
+      "reason": "No forwarding run exists. Sends are unconnected with MSG_DONTWAIT, so a closed port does not fail; deterministic failure needs a destination with no route, which a script can create as VM root."
     },
     {
       "id": "socket_and_output_failures",
       "kind": "deferred",
       "purpose": "Check refusal of non-socket path collisions, stale-socket replacement, write-error exit status, inode-safe cleanup, signal restoration, and descriptor cleanup.",
-      "reason": "Requires a future disposable VM with private AF_UNIX paths and an owned child daemon, plus a reviewed output-write failure mock for deterministic error coverage. No daemon, signals, or special device paths are exercised here."
+      "reason": "No daemon run exists. Write failure is producible without a mock (output on a tiny tmpfs mounted by the VM-root script, or /dev/full via a relative symlink if the daemon follows links)."
     }
   ]
 }

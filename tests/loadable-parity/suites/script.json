@@ -115,9 +115,14 @@
     },
     {
       "id": "interactive-resize-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise live keystrokes, terminal echo restoration, window-size propagation, SIGWINCH timing events and asciinema resize events.",
-      "reason": "Requires a dedicated PTY driver in a future disposable VM or syscall mock that can inject input, change TIOCSWINSZ, deliver SIGWINCH, and inspect termios plus recorded resize output. The current fixture runner supplies stdin from /dev/null and has no terminal-control driver; no live resize operation is claimed here."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "migration-script-record-resize"
+        }
+      ]
     },
     {
       "id": "replay-short-log-error",

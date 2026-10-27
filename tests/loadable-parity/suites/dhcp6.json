@@ -113,13 +113,13 @@
       "id": "deferred_solicit_exchange",
       "kind": "deferred",
       "purpose": "Exercise the live SOLICIT to ADVERTISE to REQUEST to REPLY state machine only in a future disposable network fixture.",
-      "reason": "Requires a disposable VM or mock network namespace with an isolated IPv6 link, a controlled DHCPv6 server bound to UDP/547, permission to bind the client UDP/546 socket, and packet capture to verify XIDs, requested options, retries, and the accepted REPLY. This suite must not contact a real network target."
+      "reason": "The live state machine is reachable on [::1] with -S ::1 and BASHDHCP6_* ports; no DHCPv6 peer exists."
     },
     {
       "id": "deferred_inforequest_exchange",
       "kind": "deferred",
       "purpose": "Exercise the live stateless INFORMATION-REQUEST exchange and DNS/domain option handling only in a future disposable network fixture.",
-      "reason": "Requires a disposable VM or mock network namespace with an isolated IPv6 link, a controlled DHCPv6 server bound to UDP/547 that returns DNS/domain configuration, permission to bind the client UDP/546 socket, and packet capture proving the request/reply behavior. This suite must not contact a real network target."
+      "reason": "The live exchange is reachable on IPv6 loopback with -S ::1 and BASHDHCP6_SERVER_PORT/CLIENT_PORT; the peer driver lacks a DHCPv6/IPv6 peer."
     },
     {
       "id": "invalid-duid",

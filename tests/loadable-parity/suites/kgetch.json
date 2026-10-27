@@ -93,15 +93,41 @@
     },
     {
       "id": "read-esc-grace-and-partial-sequence",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate the bare-ESC grace period and behavior when a CSI prefix arrives but does not complete.",
-      "reason": "Requires a disposable PTY fixture with a byte feeder that can schedule lone ESC, completed CSI, and incomplete CSI input around the documented 50 ms grace interval. The current runner supplies no controllable terminal input or clock; run this only in a dedicated VM/mock with tolerant timing bounds."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "kgetch-read-esc-grace"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-kgetch-lone-esc-and-incomplete-csi"
+        }
+      ]
     },
     {
       "id": "read-sequence-total-cap",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate that slowly arriving escape-sequence bytes cannot extend one key read beyond the documented total cap.",
-      "reason": "Requires a disposable PTY feeder or mocked poll/monotonic-clock boundary that drips a valid-looking sequence across the max(400 ms, ESCDELAY*8) cap and records the result. Timing assertions are not stable in this bounded fixture runner, so no pass is claimed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-kgetch-total-cap-default"
+        },
+        {
+          "group": "shell",
+          "id": "migration-kgetch-total-cap-escdelay"
+        },
+        {
+          "group": "shell",
+          "id": "migration-kgetch-total-cap-pty-default"
+        },
+        {
+          "group": "shell",
+          "id": "migration-kgetch-total-cap-pty-escdelay"
+        }
+      ]
     }
   ]
 }

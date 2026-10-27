@@ -44,43 +44,52 @@
       "id": "hostkey-lifecycle",
       "kind": "deferred",
       "purpose": "Exercise sshd keygen, explicit missing-key refusal, and lazy native/encrypted host-key creation and permissions.",
-      "reason": "Requires a future disposable writable VM fixture with fresh ephemeral key paths and an independent OpenSSH ssh-keygen/key parser to check key encodings and modes. The task forbids invoking sshd operations here."
+      "reason": "Remaining obligations: r2: Native key creation, mode and public file are checked, but the documented placeholder bytes are not asserted.; r4: Lazy native creation and notice pass. The encrypted-key case used a scan parser that included a comment line, so its key-equality observation is invalid pending correction and rerun."
     },
     {
       "id": "native-command-stream",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check the native framed loopback protocol, --once behavior, stdin/stdout/stderr streaming, remote exit status, and session recording.",
-      "reason": "Requires a future disposable VM with a private loopback peer implementing the documented native frame protocol and a fixture-only command. No listener or network operation is run in this suite."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "migration-sshd-native-once-frame"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-session-lifecycle"
+        }
+      ]
     },
     {
       "id": "encrypted-ssh-interoperability",
       "kind": "deferred",
       "purpose": "Check encrypted SSH key exchange and public-key authentication against an independent SSH client using generated test-only keys.",
-      "reason": "Requires a future disposable VM with private loopback networking, newly generated fixture keys, and an independent OpenSSH client/protocol oracle. No network or authentication operation is run here."
+      "reason": "Remaining obligations: r4: The Ciphers restriction is exercised against OpenSSH; MAC and KEX allow-list enforcement still need explicit probes."
     },
     {
       "id": "configuration-policy",
       "kind": "deferred",
       "purpose": "Check sshd -F parsing for supported directives, Include expansion, Match blocks, invalid values, and configuration reload behavior.",
-      "reason": "Configuration is consumed through server startup/reload, so useful assertions need a future disposable VM with fixture-only configs and a private listener or reviewed listener/process mock. The loadable is not invoked here."
+      "reason": "Remaining obligations: r1: The shared fixture exercises listen address/port, host key, authorized keys, password-disabled and forwarding policy. PubkeyAuthentication disable and a positive AllowAgentForwarding channel still need explicit assertions.; r2: Absolute Include glob expansion and exclusion of nonmatching files pass. Relative-to-parent expansion in the reviewed contract remains untested; OpenSSH resolves relative Includes differently.; r3: Matching/nonmatching Address blocks exercise PermitTTY. Match User/All and PermitRootLogin/forwarding overrides remain untested.; r5: Not executed."
     },
     {
       "id": "authentication-authorization",
       "kind": "deferred",
       "purpose": "Check authorized-key matching and restrictions, password-auth policy, forced commands, accepted environment variables, root-login policy, and forwarding authorization.",
-      "reason": "Requires a future disposable VM with an isolated mock/test identity and ephemeral credentials plus an independent SSH protocol client. The task excludes account and credential operations, so no authentication path is run."
+      "reason": "Remaining obligations: r2: The from, no-pty and no-port-forwarding restrictions are exercised. The per-key no-agent-forwarding branch remains untested.; r4: Requires the bash-os kernel auth device /dev/bashos-auth (sshd.c:165,2160-2185) used to verify the PHC hash; the Debian trixie VM kernel has no such device, and a script cannot emulate a kernel ioctl interface.; r7: Not executed (sshd.c:2950-2965).; r8: Direct forwarding allow/deny is exercised; the allowed round-trip exposes a candidate lost-reply defect. Reverse-forward authorization denial remains untested."
     },
     {
       "id": "session-management",
       "kind": "deferred",
       "purpose": "Check status, sessions, stale-session cleanup, kick, stop, and reload against recorded runtime state.",
-      "reason": "These commands probe or signal process IDs; validation needs a future disposable VM with a reviewed fake process/signal interface or dedicated isolated server process. No process-control operation is run here."
+      "reason": "Remaining obligations: r3: Kick terminates the held target session. A second concurrent session is needed to prove unrelated sessions remain alive.; r5: Reload signals the server and it remains running; a changed configuration value has not been observed taking effect."
     },
     {
       "id": "sftp-and-forwarding",
       "kind": "deferred",
       "purpose": "Check SFTP file requests and direct/reverse TCP and agent forwarding after authentication, including denied-policy cases.",
-      "reason": "Requires a future disposable VM with a protocol client, disposable fixture files, and private loopback-only endpoint mocks. No network, credential, or filesystem transfer operation is run in this suite."
+      "reason": "Remaining obligations: r1: SFTP put/get/chmod bytes and modes pass; directory listing is not asserted.; r2: The direct-tcpip channel is exercised with ssh -W and loses a reply after EOF. An actual ssh -L local-listener probe is pending in batch43.; r3: The combined reverse-forward/session scenario fails before its listener data path. Separate reverse-only/cancel probes are pending in batch43.; r4: The candidate disconnects before the remote command, so agent-socket/channel use is not yet observed.; r5: Direct forwarding and global agent-forwarding denials are checked. SFTP-unavailable refusal and the per-key no-agent-forwarding branch remain untested."
     }
   ]
 }

@@ -117,13 +117,13 @@
       "id": "api_transport_mock",
       "kind": "deferred",
       "purpose": "Qualify prompt/api request headers and body, TLS verification, stream/raw responses, and retry behavior against deterministic local responses.",
-      "reason": "Requires a future disposable VM or independently reviewed private loopback TLS mock, with a generated synthetic CA, fake test key, no outside route, and deterministic success/SSE/HTTP-error/retry responses. The current runner has no service peer, and no network request or installed credential is used here."
+      "reason": "The VM now has loopback HTTPS and throwaway certificate setup. No Claude API fixture yet supplies the expected JSON or streaming responses through BASHCLAUDE_HOST, BASHCLAUDE_PORT and BASHCLAUDE_CA; only offline parser and request-assembly contracts have executed."
     },
     {
       "id": "update_package_mock",
       "kind": "deferred",
       "purpose": "Qualify signed-package selection, install/load sequencing, and dynamic builtin reload without touching a real package database.",
-      "reason": "Requires a future disposable dynamic build with a temporary package database, a deterministic signed fixture package, and an isolated mock package manager that records install/load calls. The current runner cannot safely qualify package installation or hot-reload effects."
+      "reason": "Not executed. Two concrete blockers. (1) The update helper hard-codes /bin/bash, which in the parity VM is the GNU reference shell, so the candidate always takes the 'pkg unavailable' path unless the image installs the candidate as /bin/bash. (2) Package trust uses the root-owned /etc/bashsignify/trusted, so a synthetic signed fixture package needs root provisioning. Separately, reload of the invoking shell appears not to be implemented."
     }
   ]
 }

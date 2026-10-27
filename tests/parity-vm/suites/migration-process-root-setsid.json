@@ -1,0 +1,361 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-setsid-fork-leader-default",
+      "loadable": "setsid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe setsid fork with a leader caller or terminal, using default.",
+      "oracle": "util-linux setsid in the pinned VM; independently read PID/PGID/SID, private PTY session ioctls and gated child wait results. A trusted Python setsid/TIOCSCTTY setup control proves each mechanism before candidate behavior.",
+      "comparison": "Exact semantic process/session and controlling-terminal relations, return timing relative to a closed child gate, exit/wait status and raw diagnostics. The reference shell execs util-linux so the tested caller PID/group role is preserved. Both sides reap their owned children; raw identifiers are retained in supplemental diagnostics.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" fork leader default",
+      "setup_timeout": 25,
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py candidate \"$BASH\" fork leader default",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py reference \"$BASH\" fork leader default",
+      "timeout": 25,
+      "expected_status": 0,
+      "diagnostic_files": [
+        "setsid-observed.json"
+      ],
+      "covers": [
+        "setsid/default_return_and_fork_policy"
+      ],
+      "stdout": "caller group leader yes\nhelper executed yes\nnew session leader yes\nfork yes\nreturned before release yes\nchild status 7\ninvocation status 0\nowned children reaped\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-setsid-fork-leader-short",
+      "loadable": "setsid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe setsid fork with a leader caller or terminal, using -f.",
+      "oracle": "util-linux setsid in the pinned VM; independently read PID/PGID/SID, private PTY session ioctls and gated child wait results. A trusted Python setsid/TIOCSCTTY setup control proves each mechanism before candidate behavior.",
+      "comparison": "Exact semantic process/session and controlling-terminal relations, return timing relative to a closed child gate, exit/wait status and raw diagnostics. The reference shell execs util-linux so the tested caller PID/group role is preserved. Both sides reap their owned children; raw identifiers are retained in supplemental diagnostics.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" fork leader -f",
+      "setup_timeout": 25,
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py candidate \"$BASH\" fork leader -f",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py reference \"$BASH\" fork leader -f",
+      "timeout": 25,
+      "expected_status": 0,
+      "diagnostic_files": [
+        "setsid-observed.json"
+      ],
+      "covers": [
+        "setsid/default_return_and_fork_policy"
+      ],
+      "stdout": "caller group leader yes\nhelper executed yes\nnew session leader yes\nfork yes\nreturned before release yes\nchild status 7\ninvocation status 0\nowned children reaped\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-setsid-fork-leader-long",
+      "loadable": "setsid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe setsid fork with a leader caller or terminal, using --fork.",
+      "oracle": "util-linux setsid in the pinned VM; independently read PID/PGID/SID, private PTY session ioctls and gated child wait results. A trusted Python setsid/TIOCSCTTY setup control proves each mechanism before candidate behavior.",
+      "comparison": "Exact semantic process/session and controlling-terminal relations, return timing relative to a closed child gate, exit/wait status and raw diagnostics. The reference shell execs util-linux so the tested caller PID/group role is preserved. Both sides reap their owned children; raw identifiers are retained in supplemental diagnostics.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" fork leader --fork",
+      "setup_timeout": 25,
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py candidate \"$BASH\" fork leader --fork",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py reference \"$BASH\" fork leader --fork",
+      "timeout": 25,
+      "expected_status": 0,
+      "diagnostic_files": [
+        "setsid-observed.json"
+      ],
+      "covers": [
+        "setsid/default_return_and_fork_policy"
+      ],
+      "stdout": "caller group leader yes\nhelper executed yes\nnew session leader yes\nfork yes\nreturned before release yes\nchild status 7\ninvocation status 0\nowned children reaped\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-setsid-fork-nonleader-default",
+      "loadable": "setsid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe setsid fork with a nonleader caller or terminal, using default.",
+      "oracle": "util-linux setsid in the pinned VM; independently read PID/PGID/SID, private PTY session ioctls and gated child wait results. A trusted Python setsid/TIOCSCTTY setup control proves each mechanism before candidate behavior.",
+      "comparison": "Exact semantic process/session and controlling-terminal relations, return timing relative to a closed child gate, exit/wait status and raw diagnostics. The reference shell execs util-linux so the tested caller PID/group role is preserved. Both sides reap their owned children; raw identifiers are retained in supplemental diagnostics.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" fork nonleader default",
+      "setup_timeout": 25,
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py candidate \"$BASH\" fork nonleader default",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py reference \"$BASH\" fork nonleader default",
+      "timeout": 25,
+      "expected_status": 0,
+      "diagnostic_files": [
+        "setsid-observed.json"
+      ],
+      "covers": [
+        "setsid/default_return_and_fork_policy"
+      ],
+      "stdout": "caller group leader no\nhelper executed yes\nnew session leader yes\nfork no\nreturned before release no\nchild status 7\ninvocation status 7\nowned children reaped\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-setsid-fork-nonleader-short",
+      "loadable": "setsid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe setsid fork with a nonleader caller or terminal, using -f.",
+      "oracle": "util-linux setsid in the pinned VM; independently read PID/PGID/SID, private PTY session ioctls and gated child wait results. A trusted Python setsid/TIOCSCTTY setup control proves each mechanism before candidate behavior.",
+      "comparison": "Exact semantic process/session and controlling-terminal relations, return timing relative to a closed child gate, exit/wait status and raw diagnostics. The reference shell execs util-linux so the tested caller PID/group role is preserved. Both sides reap their owned children; raw identifiers are retained in supplemental diagnostics.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" fork nonleader -f",
+      "setup_timeout": 25,
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py candidate \"$BASH\" fork nonleader -f",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py reference \"$BASH\" fork nonleader -f",
+      "timeout": 25,
+      "expected_status": 0,
+      "diagnostic_files": [
+        "setsid-observed.json"
+      ],
+      "covers": [
+        "setsid/default_return_and_fork_policy"
+      ],
+      "stdout": "caller group leader no\nhelper executed yes\nnew session leader yes\nfork yes\nreturned before release yes\nchild status 7\ninvocation status 0\nowned children reaped\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-setsid-fork-nonleader-long",
+      "loadable": "setsid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe setsid fork with a nonleader caller or terminal, using --fork.",
+      "oracle": "util-linux setsid in the pinned VM; independently read PID/PGID/SID, private PTY session ioctls and gated child wait results. A trusted Python setsid/TIOCSCTTY setup control proves each mechanism before candidate behavior.",
+      "comparison": "Exact semantic process/session and controlling-terminal relations, return timing relative to a closed child gate, exit/wait status and raw diagnostics. The reference shell execs util-linux so the tested caller PID/group role is preserved. Both sides reap their owned children; raw identifiers are retained in supplemental diagnostics.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" fork nonleader --fork",
+      "setup_timeout": 25,
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py candidate \"$BASH\" fork nonleader --fork",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py reference \"$BASH\" fork nonleader --fork",
+      "timeout": 25,
+      "expected_status": 0,
+      "diagnostic_files": [
+        "setsid-observed.json"
+      ],
+      "covers": [
+        "setsid/default_return_and_fork_policy"
+      ],
+      "stdout": "caller group leader no\nhelper executed yes\nnew session leader yes\nfork yes\nreturned before release yes\nchild status 7\ninvocation status 0\nowned children reaped\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-setsid-ctty-free-short",
+      "loadable": "setsid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe setsid ctty with a free caller or terminal, using -c.",
+      "oracle": "util-linux setsid in the pinned VM; independently read PID/PGID/SID, private PTY session ioctls and gated child wait results. A trusted Python setsid/TIOCSCTTY setup control proves each mechanism before candidate behavior.",
+      "comparison": "Exact semantic process/session and controlling-terminal relations, return timing relative to a closed child gate, exit/wait status and raw diagnostics. The reference shell execs util-linux so the tested caller PID/group role is preserved. Both sides reap their owned children; raw identifiers are retained in supplemental diagnostics.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" ctty free -c",
+      "setup_timeout": 25,
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py candidate \"$BASH\" ctty free -c",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py reference \"$BASH\" ctty free -c",
+      "timeout": 25,
+      "expected_status": 0,
+      "diagnostic_files": [
+        "setsid-observed.json"
+      ],
+      "covers": [
+        "setsid/ctty_with_private_pty"
+      ],
+      "stdout": "helper executed yes\nnew session leader yes\nstdin is tty yes\nctty matches stdin yes\nctty foreground yes\nchild status 7\ninvocation status 7\nowned children reaped\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-setsid-ctty-free-long",
+      "loadable": "setsid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe setsid ctty with a free caller or terminal, using --ctty.",
+      "oracle": "util-linux setsid in the pinned VM; independently read PID/PGID/SID, private PTY session ioctls and gated child wait results. A trusted Python setsid/TIOCSCTTY setup control proves each mechanism before candidate behavior.",
+      "comparison": "Exact semantic process/session and controlling-terminal relations, return timing relative to a closed child gate, exit/wait status and raw diagnostics. The reference shell execs util-linux so the tested caller PID/group role is preserved. Both sides reap their owned children; raw identifiers are retained in supplemental diagnostics.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" ctty free --ctty",
+      "setup_timeout": 25,
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py candidate \"$BASH\" ctty free --ctty",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py reference \"$BASH\" ctty free --ctty",
+      "timeout": 25,
+      "expected_status": 0,
+      "diagnostic_files": [
+        "setsid-observed.json"
+      ],
+      "covers": [
+        "setsid/ctty_with_private_pty"
+      ],
+      "stdout": "helper executed yes\nnew session leader yes\nstdin is tty yes\nctty matches stdin yes\nctty foreground yes\nchild status 7\ninvocation status 7\nowned children reaped\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-setsid-ctty-nonterminal-short",
+      "loadable": "setsid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe setsid ctty with a nonterminal caller or terminal, using -c.",
+      "oracle": "util-linux setsid in the pinned VM; independently read PID/PGID/SID, private PTY session ioctls and gated child wait results. A trusted Python setsid/TIOCSCTTY setup control proves each mechanism before candidate behavior.",
+      "comparison": "Exact semantic process/session and controlling-terminal relations, return timing relative to a closed child gate, exit/wait status and raw diagnostics. The reference shell execs util-linux so the tested caller PID/group role is preserved. Both sides reap their owned children; raw identifiers are retained in supplemental diagnostics.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" ctty nonterminal -c",
+      "setup_timeout": 25,
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py candidate \"$BASH\" ctty nonterminal -c",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py reference \"$BASH\" ctty nonterminal -c",
+      "timeout": 25,
+      "expected_status": 0,
+      "diagnostic_files": [
+        "setsid-observed.json"
+      ],
+      "covers": [
+        "setsid/ctty_with_private_pty"
+      ],
+      "stdout": "helper executed no\ninvocation status 1\nowned children reaped\n"
+    },
+    {
+      "id": "migration-setsid-ctty-nonterminal-long",
+      "loadable": "setsid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe setsid ctty with a nonterminal caller or terminal, using --ctty.",
+      "oracle": "util-linux setsid in the pinned VM; independently read PID/PGID/SID, private PTY session ioctls and gated child wait results. A trusted Python setsid/TIOCSCTTY setup control proves each mechanism before candidate behavior.",
+      "comparison": "Exact semantic process/session and controlling-terminal relations, return timing relative to a closed child gate, exit/wait status and raw diagnostics. The reference shell execs util-linux so the tested caller PID/group role is preserved. Both sides reap their owned children; raw identifiers are retained in supplemental diagnostics.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" ctty nonterminal --ctty",
+      "setup_timeout": 25,
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py candidate \"$BASH\" ctty nonterminal --ctty",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py reference \"$BASH\" ctty nonterminal --ctty",
+      "timeout": 25,
+      "expected_status": 0,
+      "diagnostic_files": [
+        "setsid-observed.json"
+      ],
+      "covers": [
+        "setsid/ctty_with_private_pty"
+      ],
+      "stdout": "helper executed no\ninvocation status 1\nowned children reaped\n"
+    },
+    {
+      "id": "migration-setsid-ctty-owned-short",
+      "loadable": "setsid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe setsid ctty with a owned caller or terminal, using -c.",
+      "oracle": "util-linux setsid in the pinned VM; independently read PID/PGID/SID, private PTY session ioctls and gated child wait results. A trusted Python setsid/TIOCSCTTY setup control proves each mechanism before candidate behavior.",
+      "comparison": "Exact semantic process/session and controlling-terminal relations, return timing relative to a closed child gate, exit/wait status and raw diagnostics. The reference shell execs util-linux so the tested caller PID/group role is preserved. Both sides reap their owned children; raw identifiers are retained in supplemental diagnostics.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" ctty owned -c",
+      "setup_timeout": 25,
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py candidate \"$BASH\" ctty owned -c",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py reference \"$BASH\" ctty owned -c",
+      "timeout": 25,
+      "expected_status": 0,
+      "diagnostic_files": [
+        "setsid-observed.json"
+      ],
+      "covers": [
+        "setsid/ctty_with_private_pty"
+      ],
+      "stdout": "helper executed no\ninvocation status 1\nowned children reaped\n"
+    },
+    {
+      "id": "migration-setsid-ctty-owned-long",
+      "loadable": "setsid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe setsid ctty with a owned caller or terminal, using --ctty.",
+      "oracle": "util-linux setsid in the pinned VM; independently read PID/PGID/SID, private PTY session ioctls and gated child wait results. A trusted Python setsid/TIOCSCTTY setup control proves each mechanism before candidate behavior.",
+      "comparison": "Exact semantic process/session and controlling-terminal relations, return timing relative to a closed child gate, exit/wait status and raw diagnostics. The reference shell execs util-linux so the tested caller PID/group role is preserved. Both sides reap their owned children; raw identifiers are retained in supplemental diagnostics.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" ctty owned --ctty",
+      "setup_timeout": 25,
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py candidate \"$BASH\" ctty owned --ctty",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py reference \"$BASH\" ctty owned --ctty",
+      "timeout": 25,
+      "expected_status": 0,
+      "diagnostic_files": [
+        "setsid-observed.json"
+      ],
+      "covers": [
+        "setsid/ctty_with_private_pty"
+      ],
+      "stdout": "helper executed no\ninvocation status 1\nowned children reaped\n"
+    }
+  ]
+}

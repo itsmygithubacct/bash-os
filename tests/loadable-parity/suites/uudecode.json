@@ -94,13 +94,18 @@
       "id": "invalid-input-reference-cases",
       "kind": "deferred",
       "purpose": "Compare the full GNU malformed-input status, diagnostic and partial-output cleanup behavior beyond the independently checked rejection contracts.",
-      "reason": "Requires a future disposable reference image with sharutils uudecode. The current environment lacks that CLI; missing-header and invalid-base64 rejection are already exercised as contracts, without claiming GNU compatibility."
+      "reason": "The semantic rejection contracts executed. GNU byte/status parity needs sharutils added to the image, which is root's image change."
     },
     {
       "id": "dev-stdout-alias",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "The source documents an absolute /dev/stdout output alias in addition to -o -.",
-      "reason": "This path is an absolute device path and is excluded by the fixture safety rules. A future isolated VM or reviewed path-resolution mock must provide a controlled /dev/stdout alias and verify that decoding writes only to captured stdout. The equivalent relative-safe -o - behavior is covered by base64-padded-stdout."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-uudecode-dev-stdout-alias"
+        }
+      ]
     },
     {
       "id": "missing-header-contract",

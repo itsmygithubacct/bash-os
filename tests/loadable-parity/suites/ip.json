@@ -38,31 +38,31 @@
       "id": "ip-read-only-queries",
       "kind": "deferred",
       "purpose": "Compare link, address, route, rule, and neighbour show output, including JSON/brief forms, family filtering, and selectors against independent rtnetlink state.",
-      "reason": "Requires a disposable Linux VM or controlled rtnetlink mock with seeded interfaces, addresses, routes, rules, and neighbours, plus iproute2 ip as the independent formatter/reference. No query was run because the requested safety scope forbids invoking ip against kernel network state."
+      "reason": "No seeded namespace exists; read-only queries of a script-owned namespace are safe in the VM."
     },
     {
       "id": "ip-link-changes",
       "kind": "deferred",
       "purpose": "Exercise link up/down, MTU and address setters, dummy/veth creation, and deletion while checking resulting link state.",
-      "reason": "Requires a disposable network namespace with CAP_NET_ADMIN or a controlled rtnetlink mock, deterministic dummy/veth state, and iproute2 ip for independent command semantics. It must not touch host interfaces or send traffic."
+      "reason": "No private-namespace link fixture exists."
     },
     {
       "id": "ip-address-changes",
       "kind": "deferred",
       "purpose": "Exercise address add, delete, change, replace, flush, and address selectors against a known interface state.",
-      "reason": "Requires a disposable Linux VM/network namespace with CAP_NET_ADMIN or a controlled rtnetlink mock, a seeded virtual interface, and iproute2 ip. The expected address state must be read from the isolated fixture, not from a host interface."
+      "reason": "No fixture runs ip; the VM can provide a private namespace with a seeded dummy interface, so this is fixture work."
     },
     {
       "id": "ip-route-rule-neighbour-changes",
       "kind": "deferred",
       "purpose": "Exercise route add/delete/replace/flush, policy-rule add/delete/flush, and neighbour add/change/replace/delete with deterministic state checks.",
-      "reason": "Requires a disposable VM/network namespace with CAP_NET_ADMIN or a controlled rtnetlink mock, seeded private tables and neighbour entries, and iproute2 ip as oracle. No real peer, packet exchange, host route, or host neighbour state may be used."
+      "reason": "No private-namespace routing fixture exists."
     },
     {
       "id": "ip-batch-mode",
       "kind": "deferred",
       "purpose": "Check batch-file tokenization, blank lines, stopping at the first failing command, and -force continuation using a bounded sequence with observable state.",
-      "reason": "Meaningful batch commands dispatch into rtnetlink, so the case requires a disposable namespace or controlled rtnetlink mock, a small relative batch fixture, and iproute2 ip for per-command reference behavior. A parse-only invocation was not run because this suite does not invoke the loadable's operational interface."
+      "reason": "Needs observable rtnetlink state in a private namespace; no fixture exists."
     }
   ]
 }

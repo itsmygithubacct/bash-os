@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-setpgid-owned-kernel-and-errors",
+      "loadable": "setpgid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Owned process-group changes, argument bounds and kernel error states",
+      "oracle": "Repository setpgid CLI contract and independent Python getpgid/getsid observations; a separate trusted Python syscall control verifies success and ESRCH/EPERM/EACCES in the VM before behavioral execution.",
+      "comparison": "33 bounded checks against fixture-owned shells and children. All child moves, error outcomes, statuses and diagnostics are retained in observed-calls.jsonl; every failed call must preserve both process-group and session IDs.",
+      "files": {
+        "control.py": "# SPDX-License-Identifier: MIT\n# Independent Python syscall controls for the same Linux process states.\nimport ctypes, errno, os, pathlib, subprocess, sys\nassert ctypes.sizeof(ctypes.c_int) == 4\ndef denied(pid, group, expected):\n    try:\n        os.setpgid(pid, group)\n    except OSError as error:\n        assert error.errno == expected, (error.errno, expected)\n    else:\n        raise AssertionError('setpgid unexpectedly succeeded')\nread, write = os.pipe()\nchild = os.fork()\nif child == 0:\n    os.close(write)\n    os.read(read, 1)\n    os._exit(0)\nos.close(read)\ngroup, session = os.getpgid(child), os.getsid(child)\ntry:\n    assert group == os.getpgrp() and session == os.getsid(0)\n    os.setpgid(child, 0)\n    assert os.getpgid(child) == child and os.getsid(child) == session\n    os.setpgid(child, group)\n    assert os.getpgid(child) == group and os.getsid(child) == session\nfinally:\n    os.close(write)\n    assert os.waitpid(child, 0)[1] == 0\ndenied(child, 0, errno.ESRCH)\nmissing = int(pathlib.Path('/proc/sys/kernel/pid_max').read_text()) + 1\nassert not pathlib.Path('/proc/%d' % missing).exists()\ndenied(missing, 0, errno.ESRCH)\ndenied(os.getppid(), 0, errno.ESRCH)\ndenied(0, missing, errno.EPERM)\nleader = os.fork()\nif leader == 0:\n    try:\n        os.setsid()\n        denied(0, 0, errno.EPERM)\n        assert os.getpgrp() == os.getsid(0) == os.getpid()\n    except BaseException:\n        os._exit(90)\n    os._exit(0)\nassert os.waitpid(leader, 0)[1] == 0\nexecuted = subprocess.Popen([sys.executable, '-c', 'import os;print(os.getpid(),flush=True);input()'], stdin=subprocess.PIPE, stdout=subprocess.PIPE)\ntry:\n    assert int(executed.stdout.readline()) == executed.pid\n    state = os.getpgid(executed.pid), os.getsid(executed.pid)\n    denied(executed.pid, 0, errno.EACCES)\n    assert (os.getpgid(executed.pid), os.getsid(executed.pid)) == state\nfinally:\n    executed.stdin.write(b'done\\n')\n    executed.stdin.close()\n    assert executed.wait(timeout=3) == 0\n    executed.stdout.close()\n"
+      },
+      "requires": [
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 control.py",
+      "helpers_sha256": {
+        "helpers/process-root-setpgid-check.py": "e03c43a4ba3c2d151fc5b7e55ca7f14ffcf051c6a37bd1e11103ef38e423dcf1"
+      },
+      "timeout": 45,
+      "expected_status": 0,
+      "stdout": "setpgid kernel checks=33\n",
+      "stderr": "",
+      "covers": [
+        "setpgid/defer_owned_child_moves",
+        "setpgid/defer_kernel_errors",
+        "setpgid/defer_argument_validation"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setpgid-check.py --binary \"$BASH\" >checks.log 2>checks.err || { /usr/bin/python3 -c 'import pathlib,sys;sys.stderr.write(pathlib.Path(\"checks.log\").read_text()+pathlib.Path(\"checks.err\").read_text())'; exit 91; }\n/usr/bin/python3 - <<'VERIFY'\nimport pathlib\nlines=pathlib.Path(\"checks.log\").read_text().splitlines()\nassert lines[-1]==\"33 passed; 0 failed\" and sum(line.startswith(\"PASS \") for line in lines)==33\nassert not pathlib.Path(\"checks.err\").read_bytes()\nprint(\"setpgid kernel checks=33\")\nVERIFY"
+    },
+    {
+      "id": "migration-setpgid-invalid-syscall-guard",
+      "loadable": "setpgid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Malformed setpgid operands are rejected before the syscall",
+      "oracle": "Documented exact arity, numeric/range statuses and a positively controlled seccomp kill filter on setpgid.",
+      "comparison": "22 malformed argument combinations; exact status, diagnostic presence/range wording, unchanged independently read group/session, and zero attempted setpgid syscalls.",
+      "files": {
+        "guard.py": "# SPDX-License-Identifier: MIT\nimport json, pathlib, shlex, subprocess, sys\ncases = json.loads(pathlib.Path('invalid.json').read_text())\nstate = \"\"\"/usr/bin/python3 -c 'import os,sys;p=int(sys.argv[1]);print(os.getpgid(p),os.getsid(p))' \"$BASHPID\" \"\"\"\nwith pathlib.Path('invalid-calls.jsonl').open('w') as log:\n    for arguments in cases:\n        script = 'before=$(' + state + ')\\nsetpgid ' + arguments + '\\nrc=$?\\nafter=$(' + state + ')\\n[[ $before == \"$after\" ]] || exit 90\\nprintf \"case-status=%s\\\\n\" \"$rc\"\\n'\n        result = subprocess.run(['/usr/bin/python3', '/opt/bashos-parity/harness/helpers/system-seccomp.py', '--kill', 'setpgid', '--', sys.argv[1], '--noprofile', '--norc', '-c', script], capture_output=True, timeout=3)\n        record = dict(arguments=arguments, status=result.returncode, stdout=result.stdout.decode(), stderr=result.stderr.decode())\n        log.write(json.dumps(record, sort_keys=True) + '\\n')\n        expected = 2 if len(shlex.split(arguments)) != 2 else 1\n        assert result.returncode == 0 and result.stdout == ('case-status=%d\\n' % expected).encode() and result.stderr, record\n        if any(value in shlex.split(arguments) for value in ['2147483648', '4294967296', '9223372036854775807']):\n            assert b'value out of range' in result.stderr, record\nprint('invalid inputs=%d syscall attempts=0' % len(cases))\n",
+        "invalid.json": "[\n  \"\",\n  \"0\",\n  \"0 0 extra\",\n  \"abc 0\",\n  \"0 abc\",\n  \"'' 0\",\n  \"0 ''\",\n  \"-1 0\",\n  \"0 -1\",\n  \"1.0 0\",\n  \"0 1x\",\n  \"9223372036854775808 0\",\n  \"0 9223372036854775808\",\n  \"4294967296 0\",\n  \"0 4294967296\",\n  \"2147483648 0\",\n  \"0 2147483648\",\n  \"9223372036854775807 0\",\n  \"0 9223372036854775807\",\n  \"18446744073709551616 0\",\n  \"0 18446744073709551616\",\n  \"--help\"\n]\n"
+      },
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "timeout": 45,
+      "expected_status": 0,
+      "stdout": "invalid inputs=22 syscall attempts=0\n",
+      "stderr": "",
+      "covers": [
+        "setpgid/defer_argument_validation"
+      ],
+      "setup_script": "if /usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill setpgid -- /usr/bin/python3 -c 'import os;os.setpgid(0,0)' >control.out 2>control.err; then rc=0; else rc=$?; fi; [[ $rc == 159 ]] || exit 90; rm -f control.out control.err",
+      "script": "/usr/bin/python3 guard.py \"$BASH\""
+    }
+  ]
+}

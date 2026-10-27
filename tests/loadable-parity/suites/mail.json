@@ -45,31 +45,31 @@
       "id": "unix_submission_protocol",
       "kind": "deferred",
       "purpose": "Exercise mail serve and client submission framing, including fragmented valid frames, malformed/truncated fields, and queue persistence.",
-      "reason": "The operation requires socket I/O, which this task forbids. A future disposable VM or socket mock must provide only a private AF_UNIX endpoint beneath the fixture directory and an independently implemented bounded BASHMAIL1 peer; verify framing and queue contents against that model, with no host socket path, external network, or system service."
+      "reason": "No AF_UNIX fixture; an independent BASHMAIL1 peer is a short python3 helper."
     },
     {
       "id": "smtp_outbound_delivery",
       "kind": "deferred",
       "purpose": "Check deliver-fd's SMTP command sequence, message line-ending conversion, dot stuffing, recipient response handling, and preservation of queued data after failures.",
-      "reason": "No matching GNU SMTP-delivery CLI provides an equivalent oracle, and the current task forbids network activity. A future disposable VM or transport mock must connect only to a private socketpair or isolated loopback stub, use deterministic SMTP replies, and independently validate wire bytes, status mapping, and unchanged queue contents after temporary/permanent failures. Do not use DNS, MX lookup, TLS deployment credentials, or external peers."
+      "reason": "No SMTP server stub exists; the existing peers cannot give scripted per-command replies."
     },
     {
       "id": "smtp_inbound_server",
       "kind": "deferred",
       "purpose": "Check smtpd command parsing and bounded inbound SMTP message acceptance into a private incoming queue.",
-      "reason": "The operation requires a listening socket and has no equivalent GNU CLI. A future disposable VM or reviewed socket mock must bind only an isolated fixture endpoint, use a synthetic client, and compare accepted message bytes and metadata to an independent SMTP/queue model. It must not alter users, accounts, host services, or external network state."
+      "reason": "No inbound SMTP fixture; smtpd reads commands line by line, so the existing tcp-client peer can send a pipelined dialog and read to EOF after QUIT."
     },
     {
       "id": "dkim_contract_vectors",
       "kind": "deferred",
       "purpose": "Verify DKIM valid, invalid, and usage outcomes using fixed messages and independently generated public test vectors; optionally cover signing output with a fixture-only key.",
-      "reason": "There is no matching GNU DKIM verification command suitable as a reference. A future disposable VM fixture needs an independent RFC 6376 implementation or published deterministic vectors, fixed fixture keys only, and byte-exact canonicalization/signature checks. No installed credentials or live mail path may be used."
+      "reason": "dkim-verify is offline (message on stdin, key on the command line) and needs no socket, so r1-r4 are cheap data fixtures; r5 depends on the outbound SMTP stub."
     },
     {
       "id": "queue_runner_wakeup",
       "kind": "deferred",
       "purpose": "Check queue-flush PID parsing and the documented runner wakeup request without signaling an unrelated process.",
-      "reason": "Queue flush sends a process signal and has no GNU parity command. A future syscall mock or dedicated disposable VM must intercept the signal request and verify that only the fixture runner identity and documented wakeup signal are selected; do not signal any host or unrelated process."
+      "reason": "No fixture; an owned background child with a USR1 trap makes the signal observable without touching other processes."
     },
     {
       "id": "direct_queue_submission",

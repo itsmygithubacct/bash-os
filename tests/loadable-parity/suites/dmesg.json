@@ -105,19 +105,19 @@
       "id": "live-ring-buffer",
       "kind": "deferred",
       "purpose": "Read and decode records from the live kernel ring buffer.",
-      "reason": "Requires a disposable Linux VM with a seeded private /dev/kmsg ring buffer, known record timestamps, and access sufficient to read it; a regular-file fixture cannot establish live device behavior. Compare against the Linux dev-kmsg ABI and a pinned util-linux dmesg in that VM."
+      "reason": "Decoder logic executed on regular files only. Live /dev/kmsg reading needs CAP_SYSLOG (dmesg_restrict) and root to seed records; no current driver has either."
     },
     {
       "id": "console-level-change",
       "kind": "deferred",
       "purpose": "Exercise dmesg -n against the kernel console log level.",
-      "reason": "Requires a disposable VM with CAP_SYSLOG and an isolated console log level. Set a known level, independently observe the result, and restore or discard the VM; this suite does not issue the syslog control operation."
+      "reason": "No -n invocation executed. The EPERM and usage paths are unprivileged; a successful change needs CAP_SYSLOG and restore of global console level."
     },
     {
       "id": "clear-ring-buffer",
       "kind": "deferred",
       "purpose": "Exercise dmesg -c against a populated kernel ring buffer.",
-      "reason": "Requires a disposable VM with CAP_SYSLOG and a seeded private ring buffer; verify printed records and the post-clear state, then discard the VM. This suite does not clear a kernel ring buffer."
+      "reason": "No -c invocation executed. Unprivileged failure and fixture-hook paths are reachable now; live clear needs CAP_SYSLOG plus ring seeding."
     }
   ]
 }

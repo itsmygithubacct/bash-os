@@ -78,8 +78,41 @@
     {
       "id": "resize-and-terminal-defaults",
       "purpose": "Qualify terminal-derived dimensions and aspect defaults with a real terminal fixture; explicit resizing is covered separately.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable VM with a private PTY/ioctl mock returning fixed TIOCGWINSZ pixel dimensions and an independent expected raster. Explicit width/height, RLE and short bands already execute without a terminal; terminal-derived defaults remain unqualified."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-sixel-raster-explicit-height"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sixel-raster-explicit-width"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sixel-raster-pipe-fallback"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sixel-raster-terminal-default"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sixel-raster-terminal-resized"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sixel-raster-zero-pixels"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-sixel-terminal-pixel-size"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-sixel-zero-pixel-fallback"
+        }
+      ]
     },
     {
       "id": "base64-image-input",

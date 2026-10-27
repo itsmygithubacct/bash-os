@@ -38,39 +38,69 @@
     },
     {
       "id": "sysv-shared-memory",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify creation and kernel metadata for one IPC_PRIVATE System V shared memory segment, then remove only the ID returned by the fixture.",
-      "reason": "Requires a disposable Linux VM with a fresh private IPC namespace and GNU util-linux ipcmk. A future test should create a small segment (for example, 4096 bytes at mode 0600), parse its returned ID, independently verify size, mode, and owner with shmctl(IPC_STAT), then remove and confirm absence with shmctl(IPC_RMID/IPC_STAT). Do not inspect or remove any pre-existing ID."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ipcmk-sysv-objects"
+        }
+      ]
     },
     {
       "id": "sysv-semaphore-array",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify a System V semaphore array's requested count and mode, then remove only the array created by the fixture.",
-      "reason": "Requires a disposable Linux VM with a fresh private IPC namespace and GNU util-linux ipcmk. A future test should create a small array (for example, two semaphores at mode 0600), parse its returned ID, independently check sem_nsems, mode, and owner with semctl(IPC_STAT), then remove and confirm absence with semctl(IPC_RMID/IPC_STAT). Use no existing semaphore IDs."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ipcmk-sysv-objects"
+        }
+      ]
     },
     {
       "id": "sysv-message-queue",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify System V message queue creation, empty initial state, and requested mode, then remove only the created queue.",
-      "reason": "Requires a disposable Linux VM with a fresh private IPC namespace and GNU util-linux ipcmk. A future test should create one queue at a small explicit mode, parse the returned ID, independently verify owner, mode, and zero queued messages with msgctl(IPC_STAT), then remove and confirm absence with msgctl(IPC_RMID/IPC_STAT). Never target an unrelated queue."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ipcmk-sysv-objects"
+        }
+      ]
     },
     {
       "id": "posix-shared-memory",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify named POSIX shared memory size, umask-filtered mode, exclusive creation, and cleanup of the fixture-owned name.",
-      "reason": "Requires a disposable Linux VM with isolated POSIX IPC backing storage, a unique slash-prefixed name, and GNU util-linux ipcmk. A future test should create a small named object under a controlled umask, inspect its owner, exact length, and mode through shm_open/fstat, confirm a second exclusive create fails without changing the object, and shm_unlink only the name it created."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ipcmk-posix-objects"
+        }
+      ]
     },
     {
       "id": "posix-semaphore",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify named POSIX semaphore initial value, umask-filtered mode, exclusive creation, and cleanup of the fixture-owned name.",
-      "reason": "Requires a disposable Linux VM with isolated POSIX IPC backing storage, a unique slash-prefixed name, and GNU util-linux ipcmk. A future test should create under a controlled umask, independently confirm sem_getvalue is zero and inspect owner/mode, verify a second exclusive create fails without taking ownership, and sem_unlink only the name created by the fixture."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ipcmk-posix-objects"
+        }
+      ]
     },
     {
       "id": "posix-message-queue",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify named POSIX message queue default attributes, umask-filtered mode, exclusive creation, and cleanup of the fixture-owned name.",
-      "reason": "Requires a disposable Linux VM with isolated POSIX IPC backing storage, a unique slash-prefixed name, and GNU util-linux ipcmk. A future test should independently inspect mq_getattr for zero queued messages and positive kernel-default capacities, inspect owner/mode under a controlled umask, confirm a second exclusive create fails, and mq_unlink only the fixture-owned name."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ipcmk-posix-objects"
+        }
+      ]
     }
   ]
 }

@@ -125,9 +125,22 @@
     },
     {
       "id": "read-error-after-open",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check the checksum command's read-error path after a file has opened and yielded data, including failure status, no checksum record for incomplete input, and later command usability.",
-      "reason": "Requires a disposable VM or reviewed syscall-fault mock that makes read(2) return EIO after one bounded successful read for a relative fixture file, for both GNU and candidate runs. A regular fixture file cannot induce this deterministically. A future test should assert nonzero status, no digest record for the incomplete file, and successful hashing of a fresh file afterward."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-sha256sum-named-operand-read-eio"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sha256sum-named-read-eio"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sha256sum-read-eio-after-data"
+        }
+      ]
     },
     {
       "id": "empty-and-binary-boundaries",

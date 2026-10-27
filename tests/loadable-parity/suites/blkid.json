@@ -103,7 +103,7 @@
       "id": "device-discovery-deferred",
       "kind": "deferred",
       "purpose": "No-operand enumeration and -L/-U discovery are core operations that cannot be compared safely against ambient device state.",
-      "reason": "Requires a disposable VM or reviewed sysfs/device mock with a controlled /dev topology. The reference GNU blkid must enumerate the same isolated fixture devices so path resolution and partition-parent metadata can be compared; this suite never scans host devices."
+      "reason": "Discovery needs real block devices with known signatures. uid 2000 with setgroups([]) cannot open /dev/loop-control or /dev/loopN (root:disk 0660), cannot mknod block nodes (CAP_MKNOD; device nodes are refused inside user namespaces), and the real virtio disk nodes are root:disk 0660, so no block device with known contents is visible to an unprivileged fixture. The util-linux reference cannot use the candidate-only override variables, so byte parity needs driver-provisioned devices; only the candidate-side contract (r4) is reachable unprivileged."
     },
     {
       "id": "explicit-label-lookup",

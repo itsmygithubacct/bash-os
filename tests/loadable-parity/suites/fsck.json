@@ -110,7 +110,7 @@
       "id": "real-block-device",
       "kind": "deferred",
       "purpose": "Qualify behavior when IMAGE is an actual block device rather than a private regular-file fixture.",
-      "reason": "DEFERRED: Requires a disposable VM with a dedicated throwaway block device and a bounded fixture filesystem. The supplied harness exposes only private regular-file fixtures; no host device path or live device operation is allowed."
+      "reason": "uid 2000 with setgroups([]) cannot open /dev/loop-control or /dev/loopN (root:disk 0660), cannot mknod block nodes (CAP_MKNOD; device nodes are refused inside user namespaces), and the real virtio disk nodes are root:disk 0660, so no block device with known contents is visible to an unprivileged fixture. Reading/writing an exposed loop node needs no capability, so only device provisioning is missing."
     }
   ]
 }

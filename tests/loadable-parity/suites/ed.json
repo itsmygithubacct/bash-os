@@ -103,7 +103,7 @@
       "id": "modified_quit_prompt_pty",
       "kind": "deferred",
       "purpose": "Check the editor's modified-buffer quit warning and response while attached to a terminal.",
-      "reason": "Requires a future disposable VM with a bounded PTY driver that can send ed commands and capture the prompt/response sequence. The current runner provides no terminal fixture; any future fixture must use only relative files inside its private workspace."
+      "reason": "The prompt and quit basics ran in the PTY driver. GNU ed is now present in the VM reference, so this is GNU parity, not the old contract-only basis. The warning help, Q and EOF responses are not exercised."
     },
     {
       "id": "global-match-offsets",

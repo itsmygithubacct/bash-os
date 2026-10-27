@@ -37,31 +37,31 @@
       "id": "ntp-query-packet-cases",
       "kind": "deferred",
       "purpose": "Exercise query request/reply matching and the normal, alarm, KoD, malformed-response and timeout paths.",
-      "reason": "Requires a future disposable VM with a private network namespace with a local UDP NTP peer that emits fixed RFC 5905 packets from an independent packet builder. The peer must check the request originate timestamp and provide normal stratum, LI alarm, RATE KoD, malformed mode/timestamp and no-response scenarios. This suite performs no network activity."
+      "reason": "No executed fixture supplies an RFC 5905 UDP responder with scenario-specific packets; the existing 'udp' peer only echoes 'echo:'+datagram and cannot build NTP packets."
     },
     {
       "id": "ntp-sync-median-dry-run",
       "kind": "deferred",
       "purpose": "Verify multi-server offset aggregation, panic/clamp boundaries and the documented -n applied=no result.",
-      "reason": "Requires local deterministic UDP NTP peers in a future disposable VM with a private network namespace plus a syscall mock/recorder for clock_settime, adjtime and adjtimex. The future fixture should assert median and boundary results and prove -n makes no clock syscall; any mutating sync path must remain behind the mock. This suite performs no network or clock operation."
+      "reason": "No executed fixture provides several deterministic NTP servers; sync uses one BASHNTP_SERVER_PORT for all servers, so distinct loopback addresses are needed."
     },
     {
       "id": "ntp-serve-wire-response",
       "kind": "deferred",
       "purpose": "Check a serve response's mode/version/leap/stratum/refid and timestamp fields against a fixed client request.",
-      "reason": "Requires a local client/server packet exchange inside a future disposable VM with a private network namespace and an independent RFC 5905 response decoder. The fixture should use an unprivileged high port and deterministic request fields; it must not use an external peer or hardware refclock. This suite performs no network activity."
+      "reason": "No executed fixture sends a client request to a candidate-run ntp serve and decodes the response. The existing udp-client peer sends one text datagram and does not record replies."
     },
     {
       "id": "ntp-run-config-state",
       "kind": "deferred",
       "purpose": "Check config parsing, cfg/last state records, one-shot completion and the documented dry-run discipline output.",
-      "reason": "Requires a private relative config/state fixture, a local deterministic UDP peer in a future disposable VM with a private network namespace, and a syscall mock that records/rejects clock_settime, adjtime and adjtimex. The future case should compare resulting files and assert dry-run reports live_clock_settime=no and live_ntp_adjtime=no. This suite performs no network or clock operation."
+      "reason": "No executed fixture provides an NTP responder for run, and no case observes the clock around a dry-run discipline call."
     },
     {
       "id": "ntp-nts-ke-query",
       "kind": "deferred",
       "purpose": "Verify the NTS-KE negotiation, cookie handling and authenticated NTP response path against independently generated protocol fixtures.",
-      "reason": "Requires local TLS NTS-KE and UDP NTP mock peers in a future disposable VM with a private network namespace, with test-only certificates/keys and an independent RFC 8915 plus AES-SIV-CMAC fixture generator/verifier. No installed credentials or external server may be used. This suite performs no network activity."
+      "reason": "No executed fixture provides an NTS-KE TLS server and an NTS-authenticated NTP UDP responder. The candidate's ntp query passes no CA path to bc_nts_ke_run, so trust must come from the system bundle, which a fixture must override privately."
     }
   ]
 }

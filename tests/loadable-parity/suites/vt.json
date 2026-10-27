@@ -99,13 +99,13 @@
       "id": "pty-client-integration",
       "kind": "deferred",
       "purpose": "Exercise vt with a client connected to a pseudo-terminal, including terminal input forwarding and resize events.",
-      "reason": "Requires a future disposable VM fixture with a private PTY driver and a client transcript that controls terminal size, sends input, and captures replies. The current bounded contract cases exercise only vt's in-memory feed/model interface."
+      "reason": "Never executed. Implementable in the plain driver inside the VM: pty spawn allocates the PTY, the candidate shell is the client, and /usr/bin/stty size is an independent geometry observer."
     },
     {
       "id": "external-terminal-conformance",
       "kind": "deferred",
       "purpose": "Compare broader parser behavior across VT100/xterm control-sequence classes against an independent terminal implementation.",
-      "reason": "No matching GNU CLI or independently pinned xterm/VT100 transcript oracle is available here. A future disposable VM should supply a reviewed reference transcript corpus (or pinned independent emulator) and compare bounded parser outputs; candidate output must not seed those expectations."
+      "reason": "No external conformance comparison ran. An independent pinned emulator exists in the VM: python3-pyte 0.8.0 (already the driver's decoder). A per-side script parity case can compare the vt render with the pyte render of the same corpus. The old 'no independent oracle' reason is stale for the sequence classes pyte models."
     },
     {
       "id": "split-csi-feed",

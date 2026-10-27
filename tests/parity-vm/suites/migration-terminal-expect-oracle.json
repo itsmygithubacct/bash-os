@@ -1,0 +1,121 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "id": "migration-expect-tcl-alt-pattern",
+   "loadable": "expect",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Different scripts per side by design: the reference side is the independent oracle (Tcl Expect 5.45 from the Debian 'expect' package driving the same trusted child), the candidate side is the bash-os expect builtin; both write the same semantic record file 'out', which the tree comparison checks byte for byte. Dialog: a ready 'beta alpha id=42' line tested with patterns alpha, beta (first listed wins) and zzz, id=[0-9]+ (capture); 'split-ok' arriving as 'spl' then 'it-ok' 300 ms later; timeout 0 consuming ready 'late-token' and timing out at once on an absent pattern. Correction after batch37: every expect(1) call passes pattern/action pairs as separate arguments; the first version used one-line single braced lists (and '-timeout N {list}'), which expect(1) treats as a single glob pattern, so no action ran.",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "expect/alt-pattern-buffering"
+   ],
+   "oracle": "Independent oracle: Tcl Expect (expect(1)): patterns of one expect command are tested in the order listed; -re captures in expect_out(0,string); timeout bounds the expect command; timeout 0 examines available input without waiting; eof is distinct from timeout; close + wait reports the child's exit status or CHILDKILLED signal. The candidate's documented mapping (expect.c expect_doc): 0 match, 1 timeout, 2 EOF; eof 0/1; close returns status or 128+N. Tcl's consuming buffer differs from the candidate's retained buffer, so every dialog uses patterns whose outcome is the same under both buffer policies.",
+   "comparison": "parity of semantic records vs Tcl Expect (independent oracle): which pattern, capture, spanning match, zero-timeout statuses and promptness, EOF and close status",
+   "requires": [
+    "expect",
+    "python3"
+   ],
+   "timeout": 40,
+   "files": {
+    "alt2.py": "import os, time\nos.write(1, b'beta alpha id=42\\n')\nos.read(0, 100)\nos.write(1, b'spl')\ntime.sleep(0.3)\nos.write(1, b'it-ok\\n')\ntime.sleep(0.2)\nos.write(1, b'mark1\\n')\ntime.sleep(0.2)\nos.write(1, b'late-token\\n')\nos.read(0, 100)\n",
+    "alt.exp": "log_user 0\nset timeout 10\nset out \"\"\nproc rec {s} { global out; append out $s \"\\n\" }\nproc signum {n} { array set m {SIGHUP 1 SIGINT 2 SIGKILL 9 SIGTERM 15}; return $m($n) }\nproc status {w} {\n    if {[llength $w] > 4 && [lindex $w 4] eq \"CHILDKILLED\"} { return [expr {128 + [signum [lindex $w 5]]}] }\n    return [lindex $w 3]\n}\nproc finish {} { global out; set f [open out w]; puts -nonewline $f $out; flush $f; exit 0 }\n# Every expect call passes its patterns and actions as separate arguments (no single braced list), so\n# expect(1)'s one-argument brace heuristic and a preceding -timeout flag cannot turn the list into a pattern.\nspawn /usr/bin/python3 alt2.py\nafter 500\nexpect -re {alpha} { rec \"rc=0 which=0 match=$expect_out(0,string)\" } \\\n       -re {beta} { rec \"rc=0 which=1 match=$expect_out(0,string)\" } \\\n       timeout { rec \"rc=1\" } eof { rec \"rc=2\" }\nexpect -re {zzz} { rec \"rc=0 which=0 match=$expect_out(0,string)\" } \\\n       -re {id=[0-9]+} { rec \"rc=0 which=1 match=$expect_out(0,string)\" } \\\n       timeout { rec \"rc=1\" } eof { rec \"rc=2\" }\nsend \"go\\n\"\nexpect -re {split-ok} { rec \"split rc=0 match=$expect_out(0,string)\" } timeout { rec \"split rc=1\" } eof { rec \"split rc=2\" }\nexpect -re {mark1} { rec \"mark=0\" } timeout { rec \"mark=1\" } eof { rec \"mark=2\" }\nafter 600\nset t0 [clock milliseconds]\nexpect -timeout 0 -re {late-token} { rec \"ready-bytes=0\" } timeout { rec \"ready-bytes=1\" } eof { rec \"ready-bytes=2\" }\nexpect -timeout 0 -re {never-printed} { rec \"absent=0\" } timeout { rec \"absent=1\" } eof { rec \"absent=2\" }\nif {[clock milliseconds] - $t0 < 500} { rec \"no-wait\" } else { rec \"waited\" }\nsend \"quit\\n\"\nexpect eof { rec \"eof=0\" } timeout { rec \"eof=1\" }\ncatch {close}\nrec \"close=[status [wait]]\"\nfinish\n"
+   },
+   "expected_files": {
+    "out": "rc=0 which=0 match=alpha\nrc=0 which=1 match=id=42\nsplit rc=0 match=split-ok\nmark=0\nready-bytes=0\nabsent=1\nno-wait\neof=0\nclose=0\n"
+   },
+   "reference_script": "/usr/bin/expect -f alt.exp\n",
+   "candidate_script": "expect log_user off\nexpect spawn /usr/bin/python3 alt2.py -h fd -h pid\nsleep 0.5\nalt() { local r; expect expect-alt \"$fd\" \"$@\" -t 10 -V w -V m; r=$?\n        if (( r == 0 )); then echo \"rc=0 which=$w match=$m\"; else echo \"rc=$r\"; fi >> out; }\nalt alpha beta\nalt zzz 'id=[0-9]+'\nexpect send \"$fd\" $'go\\n'\nexpect expect \"$fd\" split-ok -t 10 -V m; r=$?\nif (( r == 0 )); then echo \"split rc=0 match=$m\"; else echo \"split rc=$r\"; fi >> out\nexpect expect \"$fd\" mark1 -t 10; echo \"mark=$?\" >> out\nsleep 0.6\nt0=${EPOCHREALTIME/./}\nexpect expect \"$fd\" late-token -t 0; echo \"ready-bytes=$?\" >> out\nexpect expect \"$fd\" never-printed -t 0; echo \"absent=$?\" >> out\nt1=${EPOCHREALTIME/./}\n(( (t1 - t0) / 1000 < 500 )) && echo no-wait >> out || echo waited >> out\nexpect sendline \"$fd\" quit\nexpect eof \"$fd\" -t 10; echo \"eof=$?\" >> out\nexpect close \"$fd\" \"$pid\"; echo \"close=$?\" >> out\n"
+  },
+  {
+   "id": "migration-expect-tcl-deadline-eof",
+   "loadable": "expect",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Different scripts per side by design: the reference side is the independent oracle (Tcl Expect 5.45 from the Debian 'expect' package driving the same trusted child), the candidate side is the bash-os expect builtin; both write the same semantic record file 'out', which the tree comparison checks byte for byte. Dialog: continuous 'x' output every 50 ms against a 3 s timeout; a silent live child (eof and expect time out after 1 s); EOF arriving well before a 10 s deadline for expect and, on a second child, for eof. Correction after batch37: every expect(1) call passes pattern/action pairs as separate arguments; the first version used one-line single braced lists (and '-timeout N {list}'), which expect(1) treats as a single glob pattern, so no action ran. Correction after batch46: Expect 5.45.4 keeps the expect deadline in whole seconds (expect.c: end_time = Tcl_GetTime().sec + timeout; remtime recomputed from .sec after every read, timeout once remtime < 0), so under continuous output a -timeout T wait ends at a second boundary in (T-1, T] s; the continuous-output segment now uses T = 3 on both sides and the predicate 1.9 s <= elapsed < 4.0 s, which still rejects a timer reset by output (no timeout at all) and an early return. The candidate's finer 0.9-2.0 s bound for -t 1 remains asserted by the executed contract case migration-expect-deadline-and-eof.",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "expect/deadline-eof-timeout"
+   ],
+   "oracle": "Independent oracle: Tcl Expect (expect(1)): patterns of one expect command are tested in the order listed; -re captures in expect_out(0,string); timeout bounds the expect command; timeout 0 examines available input without waiting; eof is distinct from timeout; close + wait reports the child's exit status or CHILDKILLED signal. The candidate's documented mapping (expect.c expect_doc): 0 match, 1 timeout, 2 EOF; eof 0/1; close returns status or 128+N. Tcl's consuming buffer differs from the candidate's retained buffer, so every dialog uses patterns whose outcome is the same under both buffer policies. Expect's timeout clock has one-second resolution (expect.c 5.45.4, Exp_ExpectObjCmd timeout loop): with continuous non-matching output the wait ends within (T-1, T] s, with a silent child after T s.",
+   "comparison": "parity of semantic records vs Tcl Expect: statuses and coarse elapsed predicates (1.9-4.0 s for -t 3 under continuous output, <3 s for EOF)",
+   "requires": [
+    "expect",
+    "python3"
+   ],
+   "timeout": 40,
+   "files": {
+    "dl.py": "import os, sys, time\nif sys.argv[1] == 'stream':\n    while True:\n        os.write(1, b'x')\n        time.sleep(0.05)\nos.write(1, b'ready\\n')\nos.read(0, 100)\n",
+    "dl.exp": "log_user 0\nset timeout 10\nset out \"\"\nproc rec {s} { global out; append out $s \"\\n\" }\nproc signum {n} { array set m {SIGHUP 1 SIGINT 2 SIGKILL 9 SIGTERM 15}; return $m($n) }\nproc status {w} {\n    if {[llength $w] > 4 && [lindex $w 4] eq \"CHILDKILLED\"} { return [expr {128 + [signum [lindex $w 5]]}] }\n    return [lindex $w 3]\n}\nproc finish {} { global out; set f [open out w]; puts -nonewline $f $out; flush $f; exit 0 }\n# Every expect call passes its patterns and actions as separate arguments (no single braced list), so\n# expect(1)'s one-argument brace heuristic and a preceding -timeout flag cannot turn the list into a pattern.\nspawn /usr/bin/python3 dl.py stream\nexpect -re {x} { rec \"first=0\" } timeout { rec \"first=1\" } eof { rec \"first=2\" }\nset r unset\nset t0 [clock milliseconds]\nexpect -timeout 3 -re {never-printed} { set r 0 } timeout { set r 1 } eof { set r 2 }\nset ms [expr {[clock milliseconds] - $t0}]\nrec \"timeout=$r\"\nif {$ms >= 1900 && $ms < 4000} { rec \"bounded-by-deadline\" } else { rec \"elapsed-outside-1.9-4.0s\" }\ncatch {close}; catch {wait}; rec \"closed\"\nspawn /usr/bin/python3 dl.py wait\nexpect -re {ready} { rec \"ready=0\" } timeout { rec \"ready=1\" } eof { rec \"ready=2\" }\nexpect -timeout 1 eof { rec \"eof-live=0\" } timeout { rec \"eof-live=1\" }\nexpect -timeout 1 -re {never-printed} { rec \"expect-live=0\" } timeout { rec \"expect-live=1\" } eof { rec \"expect-live=2\" }\nsend \"go\\n\"\nset r unset\nset t0 [clock milliseconds]\nexpect -timeout 10 -re {never-printed} { set r 0 } timeout { set r 1 } eof { set r 2 }\nrec \"expect-eof=$r\"\nif {[clock milliseconds] - $t0 < 3000} { rec \"expect-prompt\" } else { rec \"expect-slow\" }\ncatch {close}; rec \"close=[status [wait]]\"\nspawn /usr/bin/python3 dl.py wait\nexpect -re {ready} { rec \"ready=0\" } timeout { rec \"ready=1\" } eof { rec \"ready=2\" }\nsend \"go\\n\"\nset r unset\nset t0 [clock milliseconds]\nexpect -timeout 10 eof { set r 0 } timeout { set r 1 }\nrec \"eof=$r\"\nif {[clock milliseconds] - $t0 < 3000} { rec \"eof-prompt\" } else { rec \"eof-slow\" }\ncatch {close}; rec \"close=[status [wait]]\"\nfinish\n"
+   },
+   "expected_files": {
+    "out": "first=0\ntimeout=1\nbounded-by-deadline\nclosed\nready=0\neof-live=1\nexpect-live=1\nexpect-eof=2\nexpect-prompt\nclose=0\nready=0\neof=0\neof-prompt\nclose=0\n"
+   },
+   "reference_script": "/usr/bin/expect -f dl.exp\n",
+   "candidate_script": "expect log_user off\nexpect spawn /usr/bin/python3 dl.py stream -h fd -h pid\nexpect expect \"$fd\" x -t 10; echo \"first=$?\" >> out\nt0=${EPOCHREALTIME/./}; expect expect \"$fd\" never-printed -t 3; r=$?; t1=${EPOCHREALTIME/./}\necho \"timeout=$r\" >> out; e=$(( (t1 - t0) / 1000 ))\n(( e >= 1900 && e < 4000 )) && echo bounded-by-deadline >> out || echo elapsed-outside-1.9-4.0s >> out\nexpect close \"$fd\" \"$pid\"; echo closed >> out\nexpect spawn /usr/bin/python3 dl.py wait -h fd -h pid\nexpect expect \"$fd\" ready -t 10; echo \"ready=$?\" >> out\nexpect eof \"$fd\" -t 1; echo \"eof-live=$?\" >> out\nexpect expect \"$fd\" never-printed -t 1; echo \"expect-live=$?\" >> out\nexpect sendline \"$fd\" go\nt0=${EPOCHREALTIME/./}; expect expect \"$fd\" never-printed -t 10; r=$?; t1=${EPOCHREALTIME/./}\necho \"expect-eof=$r\" >> out; (( (t1 - t0) / 1000 < 3000 )) && echo expect-prompt >> out || echo expect-slow >> out\nexpect close \"$fd\" \"$pid\"; echo \"close=$?\" >> out\nexpect spawn /usr/bin/python3 dl.py wait -h fd -h pid\nexpect expect \"$fd\" ready -t 10; echo \"ready=$?\" >> out\nexpect sendline \"$fd\" go\nt0=${EPOCHREALTIME/./}; expect eof \"$fd\" -t 10; r=$?; t1=${EPOCHREALTIME/./}\necho \"eof=$r\" >> out; (( (t1 - t0) / 1000 < 3000 )) && echo eof-prompt >> out || echo eof-slow >> out\nexpect close \"$fd\" \"$pid\"; echo \"close=$?\" >> out\n"
+  },
+  {
+   "id": "migration-expect-tcl-round-trip",
+   "loadable": "expect",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Different scripts per side by design: the reference side is the independent oracle (Tcl Expect 5.45 from the Debian 'expect' package driving the same trusted child), the candidate side is the bash-os expect builtin; both write the same semantic record file 'out', which the tree comparison checks byte for byte. Dialog: spawn reports session leader/controlling terminal and its own pid; prompt capture; a line with its PTY echo and the child's reply; CR translated to NL; EOF after exit; close/wait statuses 7, 143 (self SIGTERM) and 129 (hangup on close); children gone afterwards. Correction after batch37: every expect(1) call passes pattern/action pairs as separate arguments; the first version used one-line single braced lists (and '-timeout N {list}'), which expect(1) treats as a single glob pattern, so no action ran.",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "expect/pty-round-trip"
+   ],
+   "oracle": "Independent oracle: Tcl Expect (expect(1)): patterns of one expect command are tested in the order listed; -re captures in expect_out(0,string); timeout bounds the expect command; timeout 0 examines available input without waiting; eof is distinct from timeout; close + wait reports the child's exit status or CHILDKILLED signal. The candidate's documented mapping (expect.c expect_doc): 0 match, 1 timeout, 2 EOF; eof 0/1; close returns status or 128+N. Tcl's consuming buffer differs from the candidate's retained buffer, so every dialog uses patterns whose outcome is the same under both buffer policies.",
+   "comparison": "parity of semantic records vs Tcl Expect: self-check line, PID-is-child marker, captures (CR/LF shown as <CR>/<LF>), statuses",
+   "requires": [
+    "expect",
+    "python3"
+   ],
+   "timeout": 50,
+   "files": {
+    "rt.py": "import os, signal, sys, time\ndef w(s): os.write(1, s.encode())\nmode = sys.argv[1]\nif mode == 'dialog':\n    leader = os.getsid(0) == os.getpid() and os.isatty(0) and os.tcgetpgrp(0) == os.getpgrp()\n    try:\n        os.close(os.open('/dev/tty', os.O_RDWR)); ctty = 'yes'\n    except OSError:\n        ctty = 'no'\n    w('leader=%s ctty=%s pid=%d\\n' % ('yes' if leader else 'no', ctty, os.getpid()))\n    w('name? ')\n    w('got=%r\\n' % os.read(0, 100).decode())\n    w('cmd? ')\n    w('got2=%r\\n' % os.read(0, 100).decode())\n    sys.exit(7)\nif mode == 'killself':\n    w('ready\\n')\n    os.kill(os.getpid(), signal.SIGTERM)\n    time.sleep(5)\nif mode == 'linger':\n    w('ready\\n')\n    time.sleep(30)\n    sys.exit(3)\n",
+    "rt.exp": "log_user 0\nset timeout 10\nset out \"\"\nproc rec {s} { global out; append out $s \"\\n\" }\nproc signum {n} { array set m {SIGHUP 1 SIGINT 2 SIGKILL 9 SIGTERM 15}; return $m($n) }\nproc status {w} {\n    if {[llength $w] > 4 && [lindex $w 4] eq \"CHILDKILLED\"} { return [expr {128 + [signum [lindex $w 5]]}] }\n    return [lindex $w 3]\n}\nproc finish {} { global out; set f [open out w]; puts -nonewline $f $out; flush $f; exit 0 }\n# Every expect call passes its patterns and actions as separate arguments (no single braced list), so\n# expect(1)'s one-argument brace heuristic and a preceding -timeout flag cannot turn the list into a pattern.\nspawn /usr/bin/python3 rt.py dialog\nset pid [exp_pid]\nset info none\nexpect -re {leader=[a-z]+ ctty=[a-z]+ pid=[0-9]+\\r} { set info [string trimright $expect_out(0,string) \"\\r\"] } \\\n       timeout { rec \"info=1\" } eof { rec \"info=2\" }\nset cp none\nregexp {pid=([0-9]+)} $info -> cp\nif {$cp == $pid} { rec \"pid-is-child\" } else { rec \"pid-differs\" }\nregsub { pid=[0-9]+$} $info \"\" short\nrec $short\nexpect -re {name\\? $} { rec \"prompt=\\[$expect_out(0,string)\\]\" } timeout { rec \"prompt=1\" } eof { rec \"prompt=2\" }\nsend \"alice\\n\"\nexpect -re {alice\\r\\ngot='[^']*'} { rec \"echo-and-reply=[string map [list \\r <CR> \\n <LF>] $expect_out(0,string)]\" } \\\n       timeout { rec \"echo-and-reply=1\" } eof { rec \"echo-and-reply=2\" }\nexpect -re {cmd\\? $} { rec \"cmd=0\" } timeout { rec \"cmd=1\" } eof { rec \"cmd=2\" }\nsend \"bob\\r\"\nexpect -re {got2='[^']*'} { rec $expect_out(0,string) } timeout { rec \"got2=1\" } eof { rec \"got2=2\" }\nset r unset\nexpect -re {never-printed} { set r 0 } timeout { set r 1 } eof { set r 2 }\nrec \"expect-at-eof=$r\"\ncatch {close}; rec \"close=[status [wait]]\"\nif {[file exists /proc/$pid]} { rec \"child-present\" } else { rec \"child-gone\" }\nspawn /usr/bin/python3 rt.py killself\nset pid [exp_pid]\nexpect -re {ready} { rec \"kill-ready=0\" } timeout { rec \"kill-ready=1\" } eof { rec \"kill-ready=2\" }\nexpect eof { rec \"kill-eof=0\" } timeout { rec \"kill-eof=1\" }\ncatch {close}; rec \"kill-close=[status [wait]]\"\nif {[file exists /proc/$pid]} { rec \"child-present\" } else { rec \"child-gone\" }\nspawn /usr/bin/python3 rt.py linger\nset pid [exp_pid]\nexpect -re {ready} { rec \"hup-ready=0\" } timeout { rec \"hup-ready=1\" } eof { rec \"hup-ready=2\" }\nset t0 [clock milliseconds]\ncatch {close}; set st [status [wait]]\nrec \"hup-close=$st\"\nif {[clock milliseconds] - $t0 < 10000} { rec \"close-did-not-wait\" } else { rec \"close-waited\" }\nif {[file exists /proc/$pid]} { rec \"child-present\" } else { rec \"child-gone\" }\nfinish\n"
+   },
+   "expected_files": {
+    "out": "pid-is-child\nleader=yes ctty=yes\nprompt=[name? ]\necho-and-reply=alice<CR><LF>got='alice\\n'\ncmd=0\ngot2='bob\\n'\nexpect-at-eof=2\nclose=7\nchild-gone\nkill-ready=0\nkill-eof=0\nkill-close=143\nchild-gone\nhup-ready=0\nhup-close=129\nclose-did-not-wait\nchild-gone\n"
+   },
+   "reference_script": "/usr/bin/expect -f rt.exp\n",
+   "candidate_script": "expect log_user off\ngone() { [[ -e /proc/$pid ]] && echo child-present >> out || echo child-gone >> out; }\nexpect spawn /usr/bin/python3 rt.py dialog -h fd -h pid\nexpect expect \"$fd\" 'leader=[a-z]+ ctty=[a-z]+ pid=[0-9]+'$'\\r' -t 10 -V info\ninfo=${info%$'\\r'}\n[[ ${info##*pid=} == \"$pid\" ]] && echo pid-is-child >> out || echo pid-differs >> out\nprintf '%s\\n' \"${info% pid=*}\" >> out\nexpect expect \"$fd\" 'name\\? $' -t 10 -V p; printf 'prompt=[%s]\\n' \"$p\" >> out\nexpect sendline \"$fd\" alice\nexpect expect \"$fd\" $'alice\\r\\ngot=\\'[^\\']*\\'' -t 10 -V g\ng=${g//$'\\r'/<CR>}; g=${g//$'\\n'/<LF>}; printf 'echo-and-reply=%s\\n' \"$g\" >> out\nexpect expect \"$fd\" 'cmd\\? $' -t 10; echo \"cmd=$?\" >> out\nexpect send \"$fd\" $'bob\\r'\nexpect expect \"$fd\" \"got2='[^']*'\" -t 10 -V g2; printf '%s\\n' \"$g2\" >> out\nexpect expect \"$fd\" never-printed -t 10; echo \"expect-at-eof=$?\" >> out\nexpect close \"$fd\" \"$pid\"; echo \"close=$?\" >> out; gone\nexpect spawn /usr/bin/python3 rt.py killself -h fd -h pid\nexpect expect \"$fd\" ready -t 10; echo \"kill-ready=$?\" >> out\nexpect eof \"$fd\" -t 10; echo \"kill-eof=$?\" >> out\nexpect close \"$fd\" \"$pid\"; echo \"kill-close=$?\" >> out; gone\nexpect spawn /usr/bin/python3 rt.py linger -h fd -h pid\nexpect expect \"$fd\" ready -t 10; echo \"hup-ready=$?\" >> out\nt0=${EPOCHREALTIME/./}; expect close \"$fd\" \"$pid\"; r=$?; t1=${EPOCHREALTIME/./}\necho \"hup-close=$r\" >> out\n(( (t1 - t0) / 1000 < 10000 )) && echo close-did-not-wait >> out || echo close-waited >> out\ngone\n"
+  },
+  {
+   "id": "migration-expect-transcript-encoder",
+   "loadable": "expect",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Different scripts per side by design: the reference side is an independent transcript encoder (tenc.py, a trusted python3 pty.fork driver that logs what it reads and writes with the same direction-marker convention); the candidate side is the expect builtin with 'log FD -F 5 -m'. The same three-prompt dialog with tr.py runs on each side's own PTY; the tree comparison checks log-a byte for byte, and both must equal the expected transcript derived from POSIX termios defaults (ECHO, ICRNL, ONLCR).",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "expect/transcript-logging"
+   ],
+   "oracle": "Independent encoder: python3 pty.fork + os.read/os.write on the master, markers per expect.c be_log_bytes convention ('<<<\\n' before incoming, '>>>\\n' before outgoing bytes on each direction change).",
+   "comparison": "byte parity of the transcript vs the independent encoder, plus exact expected bytes",
+   "requires": [
+    "python3"
+   ],
+   "timeout": 40,
+   "files": {
+    "tr.py": "import os\nfor i in (1, 2, 3):\n    os.write(1, b'p%d> ' % i)\n    line = os.read(0, 100)\n    os.write(1, b'reply:' + line.rstrip(b'\\n') + b'\\n')\n",
+    "tenc.py": "import os, pty, select, sys\n# Independent transcript encoder: a trusted python3 driver runs the same three-prompt dialog with tr.py on its\n# own pty (pty.fork: new session, the pty as controlling terminal, default termios) and records the bytes it\n# reads and writes, writing '<<<\\n' / '>>>\\n' on each direction change. Logging stops before the third\n# exchange, as the candidate case does with 'expect log FD off'.\npid, fd = pty.fork()\nif pid == 0:\n    os.execv('/usr/bin/python3', ['/usr/bin/python3', 'tr.py'])\nlog, last, buf, logging = open('log-a', 'wb'), None, b'', True\ndef rec(d, data):\n    global last\n    if logging and data:\n        if d != last:\n            log.write(b'<<<\\n' if d == '<' else b'>>>\\n'); last = d\n        log.write(data)\ndef wait_for(pat):\n    global buf\n    while pat not in buf:\n        if not select.select([fd], [], [], 10)[0]:\n            sys.exit('timeout waiting for %r' % pat)\n        try:\n            d = os.read(fd, 256)\n        except OSError:\n            d = b''\n        if not d:\n            sys.exit('eof waiting for %r' % pat)\n        rec('<', d); buf += d\ndef send(data):\n    os.write(fd, data); rec('>', data)\nwait_for(b'p1> '); send(b'one\\n'); wait_for(b'p2> '); send(b'two\\n'); wait_for(b'p3> ')\nlogging = False\nsend(b'three\\n'); wait_for(b'reply:three')\nwhile True:\n    try:\n        if not os.read(fd, 256):\n            break\n    except OSError:\n        break\n_, st = os.waitpid(pid, 0)\nlog.close()\nopen('done', 'w').write('exit=%d\\n' % os.waitstatus_to_exitcode(st))\n"
+   },
+   "expected_files": {
+    "log-a": "<<<\np1> >>>\none\n<<<\none\r\nreply:one\r\np2> >>>\ntwo\n<<<\ntwo\r\nreply:two\r\np3> ",
+    "done": "exit=0\n"
+   },
+   "reference_script": "/usr/bin/python3 tenc.py\n",
+   "candidate_script": "expect log_user off\nexec 5>log-a\nexpect spawn /usr/bin/python3 tr.py -h fd -h pid\nexpect log \"$fd\" -F 5 -m\nexpect expect \"$fd\" 'p1> ' -t 10\nexpect sendline \"$fd\" one\nexpect expect \"$fd\" 'p2> ' -t 10\nexpect send \"$fd\" $'two\\n'\nexpect expect \"$fd\" 'p3> ' -t 10\nexpect log \"$fd\" off\nexpect sendline \"$fd\" three\nexpect expect \"$fd\" 'reply:three' -t 10\nexpect eof \"$fd\" -t 10\nexpect close \"$fd\" \"$pid\"; echo \"exit=$?\" > done\nexec 5>&-\n"
+  }
+ ]
+}

@@ -94,7 +94,7 @@
       "id": "successful-login-session",
       "kind": "deferred",
       "purpose": "Verify that a non-default controlled login-session identity is returned, and that spoofed environment values do not replace it.",
-      "reason": "Requires a future disposable VM fixture that creates a controlled PTY and matching login record visible to getlogin(), or an independently reviewed libc getlogin mock returning a non-default fixed name. The current runner exposes only its synthetic runner account, so it cannot validate a distinct login-session identity."
+      "reason": "glibc getlogin() reads /proc/self/loginuid (2000, written by the guest controller for legacy runs, guest.py:390) and maps it through passwd. Inside a user namespace the loginuid is translated to the inner id, so mapping 2000 to an inner uid with its own bind-mounted passwd row yields a non-default login name without privilege."
     },
     {
       "id": "end-of-options",

@@ -121,7 +121,7 @@
       "id": "terminal-device-integration",
       "kind": "deferred",
       "purpose": "End-to-end terminal reporting and mode negotiation remain outside pure-byte decoding.",
-      "reason": "Requires a future disposable VM with a private PTY emulator and controlled terminal/mouse input. Pure stdout mode-sequence emission is covered separately and establishes no live terminal state."
+      "reason": "There is no PTY fixture. A physical device is unnecessary because the private PTY plus injected report bytes exercise the whole software path. The candidate never queries the terminal (no DECRQM), so 'negotiation' reduces to emitting modes and decoding the reports that follow."
     },
     {
       "id": "type-metadata",
@@ -163,7 +163,7 @@
       "id": "pty-terminal-interoperability",
       "kind": "deferred",
       "purpose": "Exercise enable/decode/disable against terminal input and verify mode cleanup across a bounded consumer lifecycle.",
-      "reason": "Requires a future disposable test VM or isolated private-PTY emulator that can negotiate DEC mouse modes, inject SGR/1015/X10 input, observe terminal mode state, and verify cleanup on normal exit and interruption. No real terminal or host device is used by this suite."
+      "reason": "There is no PTY case. The driver can now inject mouse report bytes as ordinary input and observe the emitted mode sequences with expect, so no real mouse device is needed."
     }
   ]
 }

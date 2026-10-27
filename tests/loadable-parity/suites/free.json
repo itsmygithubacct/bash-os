@@ -114,9 +114,14 @@
     },
     {
       "id": "full-numeric-gnu-parity",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Full numeric output parity needs GNU free and the candidate to read the same immutable meminfo snapshot.",
-      "reason": "GNU free reads its mounted /proc and has no BASHOS_PROC_ROOT equivalent, while candidate fixtures can use a relative BASHOS_PROC_ROOT and live proc counters vary between invocations. A future disposable VM/mock must expose one immutable meminfo snapshot to both implementations or provide an independently reviewed procfs interposition layer."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-free-meminfo-snapshots"
+        }
+      ]
     },
     {
       "id": "argument-error-0",

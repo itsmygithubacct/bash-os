@@ -44,39 +44,141 @@
     },
     {
       "id": "terminal-init-dimensions",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate init/end, fixed screen rows and columns, raw-mode entry, alternate-screen/cursor handling, and restoration after teardown.",
-      "reason": "Requires a future disposable VM fixture with a private controlling PTY that supplies a fixed window size and records termios plus terminal output; compare the observed ECMA-48 stream and restored terminal state with an independent decoder. The current runner starts the shell without a controlling terminal."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "migration-tui-exit-without-end"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tui-init-raw-altscreen"
+        },
+        {
+          "group": "terminal",
+          "id": "tui-init-dimensions"
+        }
+      ]
     },
     {
       "id": "cell-drawing-refresh",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate persistent cursor movement, addstr clipping and wrapping, erase, box, horizontal/vertical lines, clear-to-end operations, and changed-cell refresh output.",
-      "reason": "Requires a future disposable VM fixture with a private PTY and fixed geometry, plus an independent ECMA-48 screen decoder that checks resulting cells and exact refresh traffic. No matching GNU tui command exists and the current runner cannot provide that terminal oracle."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "migration-tui-box-lines"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tui-cursor-wrap-clear"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tui-diff-refresh"
+        },
+        {
+          "group": "terminal",
+          "id": "tui-addstr-position"
+        }
+      ]
     },
     {
       "id": "rendition-and-ansi",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate bold/dim/italic/underline/blink/reverse attributes, named/indexed/RGB colors, color-mode conversion, and addansi SGR/control parsing.",
-      "reason": "Requires a future disposable VM with a private controlling PTY and an independent ECMA-48 parser that records cell attributes and colors across 16-color, 256-color, and truecolor modes. Screen output cannot be meaningfully checked by this noninteractive runner."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/tui/color-mode-state"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/tui/invalid-colormode"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tui-addansi"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tui-attributes"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tui-colormode-conversion"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tui-colors-truecolor"
+        }
+      ]
     },
     {
       "id": "key-input-and-timeouts",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate getkey character and escape-sequence tokens, queued ESC pushback, nonblocking/finite timeout status, and EOF behavior.",
-      "reason": "Requires a future disposable VM fixture with a private controlling PTY and a bounded terminal-input driver that can inject key byte sequences and close only the owned input endpoint; verify tokens and statuses from the documented API."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "migration-tui-getkey-eof"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tui-getkey-esc-pushback"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tui-getkey-timeout-modes"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tui-getkey-token-table"
+        },
+        {
+          "group": "terminal",
+          "id": "tui-getkey-timeout"
+        },
+        {
+          "group": "terminal",
+          "id": "tui-getkey-tokens"
+        }
+      ]
     },
     {
       "id": "line-input-editing",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate getstr prompt placement, character entry, backspace editing, line completion, and ESC cancellation.",
-      "reason": "Requires a future disposable VM fixture with a private controlling PTY and an input driver for deterministic key sequences, plus an independent assertion of the returned text, cancellation status, and terminal restoration."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "migration-tui-getstr-position-cancel"
+        },
+        {
+          "group": "terminal",
+          "id": "tui-getstr-edit"
+        }
+      ]
     },
     {
       "id": "resize-and-lifecycle",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate resize notification and geometry updates, retained screen contents after growth/shrink, repeated init/end, and exit cleanup.",
-      "reason": "Requires a future disposable VM fixture with an owned PTY, controlled window-size changes, signals delivered only to the fixture process, and an independent terminal-state/ECMA-48 observer. Those terminal controls are unavailable in the current runner."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "migration-tui-exit-without-end"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tui-repeated-init-end"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tui-resize-geometry"
+        }
+      ]
     },
     {
       "id": "color-mode-state",

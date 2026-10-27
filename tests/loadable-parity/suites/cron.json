@@ -109,13 +109,13 @@
       "id": "deferred-daemon-lifecycle",
       "kind": "deferred",
       "purpose": "Long-lived polling, @reboot execution, clock catch-up across polls, reload, and shutdown behavior.",
-      "reason": "Requires a future disposable VM or purpose-built mock clock and child-process harness to keep cron run alive, advance time deterministically, inspect @reboot and catch-up dispatch, and deliver reload/shutdown signals only to that private process. This suite does not run a daemon or signal fixtures."
+      "reason": "cron provides deterministic clock hooks (BASHCRON_NOW_EPOCH, BASHCRON_NOW_FILE consumed one line per poll) and private spool/etc/cron.d/output/mail directories, so the daemon lifecycle is unprivileged and deterministic. No mock clock is needed."
     },
     {
       "id": "deferred-system-user-drop",
       "kind": "deferred",
       "purpose": "System crontab dispatch under root with a real USER-column privilege transition, including failure refusal.",
-      "reason": "Requires a future disposable VM with an isolated account database and controlled root privilege, or a reviewed syscall mock for getpwnam/initgroups/setgid/setuid. User/account changes and privilege manipulation are out of scope here; the test must verify the selected uid and that a failed drop never executes the command."
+      "reason": "The non-root environment contract is implementable now; the privileged drop needs guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid)."
     }
   ]
 }

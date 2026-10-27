@@ -74,31 +74,31 @@
       "id": "batch-proc-snapshots",
       "purpose": "Compare deterministic --once/-b/--batch output, CPU and memory sorting, PID tie breaks, and row caps against an independent proc-fixture encoder.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM or reviewed interposition mock that redirects every /proc directory scan and file open to two small private snapshots (stat, status, cmdline, meminfo, loadavg). The future oracle must independently encode proc(5) fields and the documented headers/rows; live host proc data is not a valid reference."
+      "reason": "Never executed. A deterministic private snapshot is presentable unprivileged by bind-mounting a fixture tree over /proc inside an unprivileged user+mount namespace. The oracle is an independent proc(5) encoder written into the fixture expectation."
     },
     {
       "id": "proc-record-and-pid-lifecycle",
       "purpose": "Check malformed/truncated and vanishing records, empty process lists, CPU counter rollback, guest accounting, and new or reused PIDs with independently specified records.",
       "kind": "deferred",
-      "reason": "Requires a private proc interposition fixture with controllable snapshots and directory entries. The fixture must not expose host /proc; expected inclusion, identity, and CPU deltas must be computed independently from proc(5) field positions and the documented top rules."
+      "reason": "Never executed. Static malformed or empty records are implementable with the bind-mounted snapshot. Changes between samples need the snapshot rewritten between refreshes, which a bounded background writer in the same script can do. Vanishing-between-scan-and-read is the only timing-sensitive item."
     },
     {
       "id": "interactive-pty-contract",
       "purpose": "Check bounded redraw count, delay and sort prompts, scrolling keys, resize behavior, empty-list recovery, exit keys, and terminal/shell trap restoration.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM or private PTY driver plus the same controlled proc snapshots. A cell decoder must independently interpret the emitted ECMA-48 subset; no real user's terminal or host process table may be used."
+      "reason": "Never executed. The PTY driver supplies keys, resize, screen and termios. Deterministic rows need the same private /proc snapshot (user-namespace bind mount) or rows restricted to owned processes on live namespaced /proc."
     },
     {
       "id": "mutation-prompts-mocked",
       "purpose": "Check PID/signal and PID/nice input validation and request construction without sending a signal or changing any process priority.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM/private PTY and a reviewed syscall mock that intercepts kill, getpriority, and setpriority, records arguments, and never forwards calls to the kernel."
+      "reason": "Never executed. A syscall mock is unnecessary: per design, owned children are legitimate targets. Each side starts its own sleep child, gives top its PID, and verifies the effect (signal status via wait, nice via /proc/PID/stat). Raising niceness is unprivileged."
     },
     {
       "id": "batch-failure-cleanup",
       "purpose": "Check missing proc input, output write failure, repeated invocations, and descriptor/state cleanup while preserving the documented failure statuses.",
       "kind": "deferred",
-      "reason": "Requires a private proc fixture and bounded output-failure injection in a disposable VM (for example, a controlled failing sink); it must not read host proc data or use a host device path."
+      "reason": "Never executed. Write failure, repetition and fd checks are implementable now on live namespaced /proc. Missing proc input needs the user-namespace bind-mount technique."
     },
     {
       "id": "invalid-delay-zero",

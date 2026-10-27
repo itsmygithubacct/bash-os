@@ -134,9 +134,14 @@
     },
     {
       "id": "deferred-short-io-injection",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise binhex read/write loops after deterministic EINTR and short transfers.",
-      "reason": "A future disposable VM or audited syscall mock must wrap only fixture file descriptors and inject EINTR plus short reads/writes. The provided harness has no deterministic syscall-injection fixture, and ordinary files/pipes cannot reliably force these return patterns."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-binhex-short-io-eintr"
+        }
+      ]
     },
     {
       "id": "decode-single-zero",

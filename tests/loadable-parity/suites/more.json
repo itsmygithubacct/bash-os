@@ -129,7 +129,7 @@
       "id": "interactive_pty_navigation",
       "kind": "deferred",
       "purpose": "Exercise interactive page boundaries, Enter/space navigation, -d prompt text, forward search, quit across operands, and terminal-state restoration.",
-      "reason": "The harness runs scripts without a controlling PTY. A future disposable VM runner must attach a private PTY with controlled row counts and key input, then verify visible bytes, prompt transitions, EOF behavior, and termios restoration. No host terminal should be used."
+      "reason": "Paging, line advance, short-file EOF and termios restoration are exercised. -d prompt text, search and multi-operand quit have no fixture."
     },
     {
       "id": "missing-valid-continuation",

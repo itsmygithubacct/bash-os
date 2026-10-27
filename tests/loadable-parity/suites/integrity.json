@@ -106,7 +106,7 @@
       "id": "default-system-roots",
       "kind": "deferred",
       "purpose": "Exercise the implicit /bin, /bash-os, and /etc/bash-os roots against a controlled installed-system image.",
-      "reason": "Requires a disposable VM image containing a deliberately small fixture tree at those absolute system paths and an independently prepared manifest with controlled metadata. The current fixture runner permits only relative fixture paths and must not inspect host/system paths."
+      "reason": "No privilege is needed. Default roots resolve under --root (loadables/integrity.c:592-596, :643), so a relative fixture tree covers them in the legacy runner. The implicit-/ variant needs a per-side chroot built by a USERNS in the plain driver. No fixture exists."
     },
     {
       "id": "verify-independent-manifest",

@@ -40,37 +40,37 @@
       "id": "session-keyring-ownership",
       "purpose": "Deferred operation check for anonymous and named session creation, including serial output and ensuring all later operations are confined to the newly owned ring.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM child or closed syscall mock. In the future fixture, join an anonymous ring first, stop without mutation if the join fails, verify a positive serial, then separately verify a named session; never clear or otherwise mutate an inherited ring."
+      "reason": "Not a capability block: No capability is needed. keyctl, add_key and request_key are denied (EPERM) only by the legacy runner's seccomp list. The modern plain driver runs uid 2000 without that filter, so a per-side anonymous session keyring (KEYCTL_JOIN_SESSION_KEYRING with a NULL name) gives each side a private ring that the kernel garbage-collects when the side exits. /proc/keys (serial, flags, usage, perm, uid, gid, type, description for keys the caller can view) is an independent oracle. A trusted python3 ctypes helper calling syscall(SYS_keyctl, KEYCTL_READ/DESCRIBE) reads payloads independently. keyutils is not installed, so there is no CLI byte oracle unless root adds keyutils to image.lock. Hazard: @u and @us name the uid-2000 user keyrings shared across cases and sides, so fixtures must not add to or clear them; alternatively the driver can give each case a distinct uid."
     },
     {
       "id": "binary-add-search-print-update",
       "purpose": "Deferred operation check for byte-exact payload handling, lookup, printing without an added newline, and same-description update identity.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM with a child-owned keyring or a closed syscall mock that faithfully models add_key and KEYCTL_SEARCH/READ. Use a small deterministic payload containing NUL and non-ASCII bytes; assert exact printed bytes and that updating the same type/description preserves the serial while replacing the payload."
+      "reason": "Not a capability block: No capability is needed. keyctl, add_key and request_key are denied (EPERM) only by the legacy runner's seccomp list. The modern plain driver runs uid 2000 without that filter, so a per-side anonymous session keyring (KEYCTL_JOIN_SESSION_KEYRING with a NULL name) gives each side a private ring that the kernel garbage-collects when the side exits. /proc/keys (serial, flags, usage, perm, uid, gid, type, description for keys the caller can view) is an independent oracle. A trusted python3 ctypes helper calling syscall(SYS_keyctl, KEYCTL_READ/DESCRIBE) reads payloads independently. keyutils is not installed, so there is no CLI byte oracle unless root adds keyutils to image.lock. Hazard: @u and @us name the uid-2000 user keyrings shared across cases and sides, so fixtures must not add to or clear them; alternatively the driver can give each case a distinct uid."
     },
     {
       "id": "revoke-and-clear-lifecycle",
       "purpose": "Deferred operation check for revocation, link clearing, and repeated clear behavior on only keys created by the fixture.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM child or closed syscall mock with an explicitly owned session ring. Add and revoke only a fixture-created key, check the documented revoked-key failure, clear the owned ring, check that search no longer finds the link, and verify a second clear is handled according to the contract."
+      "reason": "Not a capability block: No capability is needed. keyctl, add_key and request_key are denied (EPERM) only by the legacy runner's seccomp list. The modern plain driver runs uid 2000 without that filter, so a per-side anonymous session keyring (KEYCTL_JOIN_SESSION_KEYRING with a NULL name) gives each side a private ring that the kernel garbage-collects when the side exits. /proc/keys (serial, flags, usage, perm, uid, gid, type, description for keys the caller can view) is an independent oracle. A trusted python3 ctypes helper calling syscall(SYS_keyctl, KEYCTL_READ/DESCRIBE) reads payloads independently. keyutils is not installed, so there is no CLI byte oracle unless root adds keyutils to image.lock. Hazard: @u and @us name the uid-2000 user keyrings shared across cases and sides, so fixtures must not add to or clear them; alternatively the driver can give each case a distinct uid."
     },
     {
       "id": "aliases-and-serial-abi",
       "purpose": "Deferred operation check for recognized keyring aliases and signed 32-bit decimal key serial parsing.",
       "kind": "deferred",
-      "reason": "Requires a closed syscall mock so parsed ring values can be inspected without touching real keyrings. Verify @s, @t, @p, @u, @us, and @g mappings and signed ABI endpoints, plus rejection of empty, malformed, whitespace, plus-prefixed, and out-of-range operands."
+      "reason": "No capability is needed. Alias mapping can be observed through behavior: add to a ring by alias, then confirm in /proc/keys and by searching through the numeric KEY_SPEC id. The before-syscall rejection can be proved with unprivileged seccomp errno injection. No fixture exists."
     },
     {
       "id": "argument-and-size-boundaries",
       "purpose": "Deferred operation check for verb arity, type/description limits, and bounded stdin payload handling.",
       "kind": "deferred",
-      "reason": "Requires a closed syscall mock and private relative fixture files. Check usage status for extra/missing operands, documented type/name limits and leading-dot rules, and the 1048575-byte add payload limit; ensure invalid input is rejected before a syscall is recorded."
+      "reason": "No capability is needed. Parser and limit checks run before any syscall and are observable with seccomp errno injection, or in the legacy runner, where keyctl calls fail with EPERM and parse errors show as status 2. No fixture exists."
     },
     {
       "id": "syscall-and-io-failures",
       "purpose": "Deferred operation check for keyring syscall errors and stdin/stdout failures without affecting external keyring state.",
       "kind": "deferred",
-      "reason": "Requires a closed syscall mock that can return ENOKEY, EKEYREVOKED, EACCES, EPERM, and ENOSYS, plus private fixture streams for read/write errors. Verify status and diagnostics for missing/revoked keys and failures, and verify failed output does not poison a later invocation."
+      "reason": "No capability is needed. Every listed errno is reachable through real operations in the plain driver, seccomp EPERM in the legacy runner, or unprivileged seccomp errno injection. No fixture exists."
     }
   ]
 }

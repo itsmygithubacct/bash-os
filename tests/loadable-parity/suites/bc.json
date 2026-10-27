@@ -168,7 +168,7 @@
       "id": "interactive_terminal_editing",
       "kind": "deferred",
       "purpose": "Interactive readline and terminal rendering are distinct from the covered piped-program interface.",
-      "reason": "The fixture runner connects stdin to /dev/null and does not allocate a PTY. A future disposable PTY driver must feed a short expression plus an editing key sequence and compare captured interactive behavior with GNU bc; no real terminal should be used."
+      "reason": "The PTY cases exist and ran. The candidate bc has no interactive or readline mode (loadables/bc.c reads all input before executing and has no isatty or readline path), so r1-r3 fail. Rendering and history are unasserted."
     },
     {
       "id": "missing_named_file_gnu_difference",

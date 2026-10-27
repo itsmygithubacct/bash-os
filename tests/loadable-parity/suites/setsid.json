@@ -31,15 +31,69 @@
     },
     {
       "id": "default_return_and_fork_policy",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify the default return timing and compare default versus -f/--fork when the caller is and is not a process-group leader, using a gated child to make waiting observable.",
-      "reason": "The operation creates a new session and its GNU default fork decision depends on process-group state. A future disposable Linux VM must control the parent PGID, gate and reap the private child, and use an independent helper to record PID/PGID/SID while comparing with GNU util-linux setsid."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/setsid/force-wait-session-identity"
+        },
+        {
+          "group": "shell",
+          "id": "migration-setsid-fork-leader-default"
+        },
+        {
+          "group": "shell",
+          "id": "migration-setsid-fork-leader-long"
+        },
+        {
+          "group": "shell",
+          "id": "migration-setsid-fork-leader-short"
+        },
+        {
+          "group": "shell",
+          "id": "migration-setsid-fork-nonleader-default"
+        },
+        {
+          "group": "shell",
+          "id": "migration-setsid-fork-nonleader-long"
+        },
+        {
+          "group": "shell",
+          "id": "migration-setsid-fork-nonleader-short"
+        }
+      ]
     },
     {
       "id": "ctty_with_private_pty",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check -c/--ctty with a private pseudo-terminal, including that the child sees the expected controlling terminal and that setup failure does not execute the helper.",
-      "reason": "TIOCSCTTY requires a suitable session and terminal. A future disposable Linux VM must provide a private PTY and a helper that reports its controlling-terminal state; no host terminal or terminal driver may be used."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-setsid-ctty-free-long"
+        },
+        {
+          "group": "shell",
+          "id": "migration-setsid-ctty-free-short"
+        },
+        {
+          "group": "shell",
+          "id": "migration-setsid-ctty-nonterminal-long"
+        },
+        {
+          "group": "shell",
+          "id": "migration-setsid-ctty-nonterminal-short"
+        },
+        {
+          "group": "shell",
+          "id": "migration-setsid-ctty-owned-long"
+        },
+        {
+          "group": "shell",
+          "id": "migration-setsid-ctty-owned-short"
+        }
+      ]
     },
     {
       "id": "wait_status_and_forwarding",

@@ -1,0 +1,147 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "id": "migration-escdelay-pty-builtin-state",
+   "loadable": "escdelay",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Private PTY feed: after 'escdelay set 1000' (and, for a wgetch handle named tty, 'escdelay set --screen tty 1000'), a CSI written 200 ms after ESC should decode as Up for kgetch, wgetch and the named screen, as the escdelay documentation describes. Expected to record the known candidate mismatch (decoders read only the environment), now on a private PTY rather than a pipe. Correction after batch37 (root-approved): the helper stops on master EOF/child exit instead of busy-polling a zombie, records read-count N / child-exited-early, and bounds each feed at 7 s; assertions unchanged.",
+   "script": "unset BASHESCDELAY BASHKGETCH_ESCDELAY\n/usr/bin/python3 tfeed.py \"$BASH\" k 2 'kgetch read' 'escdelay set 1000' 1b s200 5b41 > k/helper\n/usr/bin/python3 tfeed.py \"$BASH\" w 2 'wgetch read 0' 'escdelay set 1000' 1b s200 5b41 > w/helper\n/usr/bin/python3 tfeed.py \"$BASH\" s 2 'wgetch read \"$h\"' 'escdelay set --screen tty 1000; wgetch open 0 tty > hfile; read -r h < hfile' 1b s200 5b41 > s/helper\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "escdelay/decoder-timing-integration"
+   ],
+   "oracle": "escdelay help text ('Configurable ESC grace knob for the bash-os input pipeline'; set [--screen NAME] MS, 0..5000; precedence BASHESCDELAY_SCREEN_<NAME> > per-screen state > BASHESCDELAY > global state > 50); kgetch/wgetch help: BASHESCDELAY (and BASHKGETCH_ESCDELAY for kgetch) set the grace; invalid values are ignored (50 ms).",
+   "comparison": "contract: decoded records compared with the documented effect of the configured grace; Real-clock timing on a private PTY with margins of at least 2.5x around the grace (no mock clock: see the batch-6 assessment); bytes are written by the helper only after the reader is observed blocked.",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "timeout": 40,
+   "files": {
+    "tfeed.py": "import os, select, signal, subprocess, sys, time, tty\n# Timed private-PTY feeder: SHELL runs CHILD with stdin/stdout/stderr on the raw slave of a pty this helper\n# owns (child stays in this session and ignores SIGHUP). After the shell's FEED-READY marker and 5 consecutive\n# sleeping samples, the helper writes TOKENS to the master (hex bytes, or sNNN to wait NNN ms while draining).\n# It then waits for NREADS-1 'K' markers (one per decoded key), checks the shell is blocked in its last read,\n# and closes the master so that read sees end of input. If the shell exits before that (master EOF/EIO), the\n# helper drains to end of output, records read-count N and child-exited-early instead of polling; each feed\n# has a 7 s bound.\nCHILD = r\"\"\"\ncd \"$1\" || exit 1\neval \"$4\"\nprintf 'FEED-READY\\n'\nfor (( i = 0; i < $2; i++ )); do eval \"$3\" >> keys; printf 'K\\n'; done\nprintf 'end\\n' > done\n\"\"\"\nshell, where, nreads, reader, pre = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5]\ntokens = sys.argv[6:]\nseen, eof = b'', False\ndef note(s):\n    print(s, flush=True)\ndef pump(until):\n    global seen, eof\n    while not eof:\n        left = until - time.monotonic()\n        if left <= 0:\n            return\n        if select.select([master], [], [], min(left, 0.005))[0]:\n            try:\n                data = os.read(master, 4096)\n            except OSError:\n                data = b''\n            if data:\n                seen += data\n            else:\n                eof = True\n    time.sleep(max(0, until - time.monotonic()))\ndef blocked_for(samples, deadline):\n    run = 0\n    while run < samples and time.monotonic() < deadline:\n        if child.poll() is not None:\n            return False\n        try:\n            st = open('/proc/%d/stat' % child.pid).read().rsplit(')', 1)[1].split()[0]\n        except OSError:\n            return False\n        run = run + 1 if st == 'S' else 0\n        pump(time.monotonic() + 0.02)\n    return run >= samples\nmaster, slave = os.openpty()\ntty.setraw(slave)\nchild = subprocess.Popen([shell, '--noprofile', '--norc', '-c', CHILD, 'tfeed', where, str(nreads), reader, pre],\n                         stdin=slave, stdout=slave, stderr=slave, close_fds=True,\n                         preexec_fn=lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN))\nos.close(slave)\ndeadline = time.monotonic() + 7\nwhile b'FEED-READY' not in seen and not eof and time.monotonic() < deadline:\n    pump(time.monotonic() + 0.05)\nready = b'FEED-READY' in seen and blocked_for(5, deadline)\nnote('ready blocked' if ready else 'not-ready')\nif ready:\n    for t in tokens:\n        if t.startswith('s'):\n            pump(time.monotonic() + int(t[1:]) / 1000)\n        else:\n            os.write(master, bytes.fromhex(t))\n    while seen.count(b'K\\n') < nreads - 1 and not eof and time.monotonic() < deadline:\n        pump(time.monotonic() + 0.05)\n    if seen.count(b'K\\n') == nreads - 1 and blocked_for(5, deadline):\n        note('all-read')\n    else:\n        while not eof and time.monotonic() < deadline:\n            pump(time.monotonic() + 0.05)\n        note('read-count %d' % seen.count(b'K\\n'))\n        try:\n            child.wait(timeout=1)\n            note('child-exited-early')\n        except subprocess.TimeoutExpired:\n            pass\nos.close(master)\nnote('master-closed')\ntry:\n    status = child.wait(timeout=3)\nexcept subprocess.TimeoutExpired:\n    child.kill(); status = child.wait(); note('killed-after-timeout')\nnote('child-exit %d' % status)\n",
+    "k/.keep": "",
+    "w/.keep": "",
+    "s/.keep": ""
+   },
+   "expected_files": {
+    "k/keys": "key_up 257\nnone 0\n",
+    "k/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "w/keys": "key_up 257\nnone 0\n",
+    "w/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "s/keys": "key_up 257\nnone 0\n",
+    "s/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n"
+   }
+  },
+  {
+   "id": "migration-escdelay-pty-env-grace-and-bounds",
+   "loadable": "escdelay",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Private PTY feeds for both decoders: BASHESCDELAY=200 (CSI 100 ms after ESC is Up, 500 ms after is split); BASHESCDELAY=0 (CSI 50 ms after ESC is split); BASHESCDELAY=5000 (CSI 400 ms after ESC is still Up).",
+   "script": "unset BASHKGETCH_ESCDELAY\nfor r in k w; do\n  if [[ $r == k ]]; then rd='kgetch read'; else rd='wgetch read 0'; fi\n  export BASHESCDELAY=200\n  /usr/bin/python3 tfeed.py \"$BASH\" $r-within 2 \"$rd\" : 1b s100 5b41 > $r-within/helper\n  /usr/bin/python3 tfeed.py \"$BASH\" $r-after 4 \"$rd\" : 1b s500 5b41 > $r-after/helper\n  export BASHESCDELAY=0\n  /usr/bin/python3 tfeed.py \"$BASH\" $r-zero 4 \"$rd\" : 1b s50 5b41 > $r-zero/helper\n  export BASHESCDELAY=5000\n  /usr/bin/python3 tfeed.py \"$BASH\" $r-max 2 \"$rd\" : 1b s400 5b41 > $r-max/helper\ndone\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "escdelay/decoder-timing-integration",
+    "wgetch/escape-timing"
+   ],
+   "oracle": "escdelay help text ('Configurable ESC grace knob for the bash-os input pipeline'; set [--screen NAME] MS, 0..5000; precedence BASHESCDELAY_SCREEN_<NAME> > per-screen state > BASHESCDELAY > global state > 50); kgetch/wgetch help: BASHESCDELAY (and BASHKGETCH_ESCDELAY for kgetch) set the grace; invalid values are ignored (50 ms).",
+   "comparison": "contract: exact decoded records per feed; Real-clock timing on a private PTY with margins of at least 2.5x around the grace (no mock clock: see the batch-6 assessment); bytes are written by the helper only after the reader is observed blocked.",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "timeout": 60,
+   "files": {
+    "tfeed.py": "import os, select, signal, subprocess, sys, time, tty\n# Timed private-PTY feeder: SHELL runs CHILD with stdin/stdout/stderr on the raw slave of a pty this helper\n# owns (child stays in this session and ignores SIGHUP). After the shell's FEED-READY marker and 5 consecutive\n# sleeping samples, the helper writes TOKENS to the master (hex bytes, or sNNN to wait NNN ms while draining).\n# It then waits for NREADS-1 'K' markers (one per decoded key), checks the shell is blocked in its last read,\n# and closes the master so that read sees end of input.\nCHILD = r\"\"\"\ncd \"$1\" || exit 1\neval \"$4\"\nprintf 'FEED-READY\\n'\nfor (( i = 0; i < $2; i++ )); do eval \"$3\" >> keys; printf 'K\\n'; done\nprintf 'end\\n' > done\n\"\"\"\nshell, where, nreads, reader, pre = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5]\ntokens = sys.argv[6:]\nseen, out = b'', []\ndef pump(until):\n    global seen\n    while True:\n        left = until - time.monotonic()\n        if left <= 0:\n            return\n        if select.select([master], [], [], min(left, 0.005))[0]:\n            try:\n                seen += os.read(master, 4096)\n            except OSError:\n                return\ndef blocked_for(samples, deadline):\n    run = 0\n    while run < samples and time.monotonic() < deadline:\n        try:\n            st = open('/proc/%d/stat' % child.pid).read().rsplit(')', 1)[1].split()[0]\n        except OSError:\n            return False\n        run = run + 1 if st == 'S' else 0\n        pump(time.monotonic() + 0.02)\n    return run >= samples\nmaster, slave = os.openpty()\ntty.setraw(slave)\nchild = subprocess.Popen([shell, '--noprofile', '--norc', '-c', CHILD, 'tfeed', where, str(nreads), reader, pre],\n                         stdin=slave, stdout=slave, stderr=slave, close_fds=True,\n                         preexec_fn=lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN))\nos.close(slave)\ndeadline = time.monotonic() + 20\nwhile b'FEED-READY' not in seen and time.monotonic() < deadline:\n    pump(time.monotonic() + 0.05)\nready = b'FEED-READY' in seen and blocked_for(5, deadline)\nout.append('ready blocked' if ready else 'not-ready')\nif ready:\n    for t in tokens:\n        if t.startswith('s'):\n            pump(time.monotonic() + int(t[1:]) / 1000)\n        else:\n            os.write(master, bytes.fromhex(t))\n    while seen.count(b'K\\n') < nreads - 1 and time.monotonic() < deadline:\n        pump(time.monotonic() + 0.05)\n    n = seen.count(b'K\\n')\n    out.append('all-read' if n == nreads - 1 and blocked_for(5, deadline) else 'read-count %d' % n)\nos.close(master)\nout.append('master-closed')\ntry:\n    status = child.wait(timeout=10)\nexcept subprocess.TimeoutExpired:\n    child.kill(); status = child.wait(); out.append('killed-after-timeout')\nout.append('child-exit %d' % status)\nprint('\\n'.join(out))\n",
+    "k-within/.keep": "",
+    "k-after/.keep": "",
+    "k-zero/.keep": "",
+    "k-max/.keep": "",
+    "w-within/.keep": "",
+    "w-after/.keep": "",
+    "w-zero/.keep": "",
+    "w-max/.keep": ""
+   },
+   "expected_files": {
+    "k-within/keys": "key_up 257\nnone 0\n",
+    "k-within/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "k-after/keys": "esc 27\nchar 91\nchar 65\nnone 0\n",
+    "k-after/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "k-zero/keys": "esc 27\nchar 91\nchar 65\nnone 0\n",
+    "k-zero/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "k-max/keys": "key_up 257\nnone 0\n",
+    "k-max/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "w-within/keys": "key_up 257\nnone 0\n",
+    "w-within/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "w-after/keys": "esc 27\nchar 91\nchar 65\nnone 0\n",
+    "w-after/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "w-zero/keys": "esc 27\nchar 91\nchar 65\nnone 0\n",
+    "w-zero/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "w-max/keys": "key_up 257\nnone 0\n",
+    "w-max/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n"
+   }
+  },
+  {
+   "id": "migration-escdelay-pty-env-fallback",
+   "loadable": "escdelay",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Private PTY feeds: malformed or out-of-range BASHESCDELAY (wgetch) and BASHKGETCH_ESCDELAY (kgetch) values abc, 6000, -1, 12x and empty fall back to 50 ms: a CSI 20 ms after ESC is Up, one 300 ms after ESC is split.",
+   "script": "export BASHESCDELAY='abc'\n/usr/bin/python3 tfeed.py \"$BASH\" w1 5 'wgetch read 0' : 1b s20 5b41 1b s300 5b41 > w1/helper\nunset BASHESCDELAY; export BASHKGETCH_ESCDELAY='abc'\n/usr/bin/python3 tfeed.py \"$BASH\" k1 5 'kgetch read' : 1b s20 5b41 1b s300 5b41 > k1/helper\nunset BASHKGETCH_ESCDELAY\nexport BASHESCDELAY='6000'\n/usr/bin/python3 tfeed.py \"$BASH\" w2 5 'wgetch read 0' : 1b s20 5b41 1b s300 5b41 > w2/helper\nunset BASHESCDELAY; export BASHKGETCH_ESCDELAY='6000'\n/usr/bin/python3 tfeed.py \"$BASH\" k2 5 'kgetch read' : 1b s20 5b41 1b s300 5b41 > k2/helper\nunset BASHKGETCH_ESCDELAY\nexport BASHESCDELAY='-1'\n/usr/bin/python3 tfeed.py \"$BASH\" w3 5 'wgetch read 0' : 1b s20 5b41 1b s300 5b41 > w3/helper\nunset BASHESCDELAY; export BASHKGETCH_ESCDELAY='-1'\n/usr/bin/python3 tfeed.py \"$BASH\" k3 5 'kgetch read' : 1b s20 5b41 1b s300 5b41 > k3/helper\nunset BASHKGETCH_ESCDELAY\nexport BASHESCDELAY='12x'\n/usr/bin/python3 tfeed.py \"$BASH\" w4 5 'wgetch read 0' : 1b s20 5b41 1b s300 5b41 > w4/helper\nunset BASHESCDELAY; export BASHKGETCH_ESCDELAY='12x'\n/usr/bin/python3 tfeed.py \"$BASH\" k4 5 'kgetch read' : 1b s20 5b41 1b s300 5b41 > k4/helper\nunset BASHKGETCH_ESCDELAY\nexport BASHESCDELAY=''\n/usr/bin/python3 tfeed.py \"$BASH\" w5 5 'wgetch read 0' : 1b s20 5b41 1b s300 5b41 > w5/helper\nunset BASHESCDELAY; export BASHKGETCH_ESCDELAY=''\n/usr/bin/python3 tfeed.py \"$BASH\" k5 5 'kgetch read' : 1b s20 5b41 1b s300 5b41 > k5/helper\nunset BASHKGETCH_ESCDELAY\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "escdelay/decoder-timing-integration"
+   ],
+   "oracle": "escdelay help text ('Configurable ESC grace knob for the bash-os input pipeline'; set [--screen NAME] MS, 0..5000; precedence BASHESCDELAY_SCREEN_<NAME> > per-screen state > BASHESCDELAY > global state > 50); kgetch/wgetch help: BASHESCDELAY (and BASHKGETCH_ESCDELAY for kgetch) set the grace; invalid values are ignored (50 ms).",
+   "comparison": "contract: exact decoded records per value and decoder; Real-clock timing on a private PTY with margins of at least 2.5x around the grace (no mock clock: see the batch-6 assessment); bytes are written by the helper only after the reader is observed blocked.",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "timeout": 60,
+   "files": {
+    "tfeed.py": "import os, select, signal, subprocess, sys, time, tty\n# Timed private-PTY feeder: SHELL runs CHILD with stdin/stdout/stderr on the raw slave of a pty this helper\n# owns (child stays in this session and ignores SIGHUP). After the shell's FEED-READY marker and 5 consecutive\n# sleeping samples, the helper writes TOKENS to the master (hex bytes, or sNNN to wait NNN ms while draining).\n# It then waits for NREADS-1 'K' markers (one per decoded key), checks the shell is blocked in its last read,\n# and closes the master so that read sees end of input.\nCHILD = r\"\"\"\ncd \"$1\" || exit 1\neval \"$4\"\nprintf 'FEED-READY\\n'\nfor (( i = 0; i < $2; i++ )); do eval \"$3\" >> keys; printf 'K\\n'; done\nprintf 'end\\n' > done\n\"\"\"\nshell, where, nreads, reader, pre = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5]\ntokens = sys.argv[6:]\nseen, out = b'', []\ndef pump(until):\n    global seen\n    while True:\n        left = until - time.monotonic()\n        if left <= 0:\n            return\n        if select.select([master], [], [], min(left, 0.005))[0]:\n            try:\n                seen += os.read(master, 4096)\n            except OSError:\n                return\ndef blocked_for(samples, deadline):\n    run = 0\n    while run < samples and time.monotonic() < deadline:\n        try:\n            st = open('/proc/%d/stat' % child.pid).read().rsplit(')', 1)[1].split()[0]\n        except OSError:\n            return False\n        run = run + 1 if st == 'S' else 0\n        pump(time.monotonic() + 0.02)\n    return run >= samples\nmaster, slave = os.openpty()\ntty.setraw(slave)\nchild = subprocess.Popen([shell, '--noprofile', '--norc', '-c', CHILD, 'tfeed', where, str(nreads), reader, pre],\n                         stdin=slave, stdout=slave, stderr=slave, close_fds=True,\n                         preexec_fn=lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN))\nos.close(slave)\ndeadline = time.monotonic() + 20\nwhile b'FEED-READY' not in seen and time.monotonic() < deadline:\n    pump(time.monotonic() + 0.05)\nready = b'FEED-READY' in seen and blocked_for(5, deadline)\nout.append('ready blocked' if ready else 'not-ready')\nif ready:\n    for t in tokens:\n        if t.startswith('s'):\n            pump(time.monotonic() + int(t[1:]) / 1000)\n        else:\n            os.write(master, bytes.fromhex(t))\n    while seen.count(b'K\\n') < nreads - 1 and time.monotonic() < deadline:\n        pump(time.monotonic() + 0.05)\n    n = seen.count(b'K\\n')\n    out.append('all-read' if n == nreads - 1 and blocked_for(5, deadline) else 'read-count %d' % n)\nos.close(master)\nout.append('master-closed')\ntry:\n    status = child.wait(timeout=10)\nexcept subprocess.TimeoutExpired:\n    child.kill(); status = child.wait(); out.append('killed-after-timeout')\nout.append('child-exit %d' % status)\nprint('\\n'.join(out))\n",
+    "k1/.keep": "",
+    "k2/.keep": "",
+    "k3/.keep": "",
+    "k4/.keep": "",
+    "k5/.keep": "",
+    "w1/.keep": "",
+    "w2/.keep": "",
+    "w3/.keep": "",
+    "w4/.keep": "",
+    "w5/.keep": ""
+   },
+   "expected_files": {
+    "k1/keys": "key_up 257\nesc 27\nchar 91\nchar 65\nnone 0\n",
+    "k1/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "k2/keys": "key_up 257\nesc 27\nchar 91\nchar 65\nnone 0\n",
+    "k2/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "k3/keys": "key_up 257\nesc 27\nchar 91\nchar 65\nnone 0\n",
+    "k3/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "k4/keys": "key_up 257\nesc 27\nchar 91\nchar 65\nnone 0\n",
+    "k4/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "k5/keys": "key_up 257\nesc 27\nchar 91\nchar 65\nnone 0\n",
+    "k5/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "w1/keys": "key_up 257\nesc 27\nchar 91\nchar 65\nnone 0\n",
+    "w1/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "w2/keys": "key_up 257\nesc 27\nchar 91\nchar 65\nnone 0\n",
+    "w2/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "w3/keys": "key_up 257\nesc 27\nchar 91\nchar 65\nnone 0\n",
+    "w3/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "w4/keys": "key_up 257\nesc 27\nchar 91\nchar 65\nnone 0\n",
+    "w4/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "w5/keys": "key_up 257\nesc 27\nchar 91\nchar 65\nnone 0\n",
+    "w5/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n"
+   }
+  }
+ ]
+}

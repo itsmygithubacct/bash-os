@@ -42,21 +42,36 @@
     },
     {
       "id": "defer-shm-removal",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate gated shared-memory removal, policy denial, and exact-object selection.",
-      "reason": "Requires a disposable Linux VM with a private IPC namespace and working System V shared memory. A future fixture must allocate two IPC_PRIVATE mode-0600 segments itself, use only those returned IDs, verify that an unset/non-1 policy preserves both, verify that exact policy value 1 removes only the selected segment via an independent IPC_STAT check, and clean up only IDs it allocated. A closed shmctl mock that cannot reach the kernel is an acceptable alternative for validating IPC_RMID dispatch and the null argument."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ipcctl-shm-removal"
+        }
+      ]
     },
     {
       "id": "defer-msg-removal",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate gated message-queue removal, policy denial, and exact-object selection.",
-      "reason": "Requires a disposable Linux VM with a private IPC namespace and working System V message queues. A future fixture must allocate two IPC_PRIVATE mode-0600 queues itself, use only those returned IDs, verify that an unset/non-1 policy preserves both, verify that exact policy value 1 removes only the selected queue via an independent IPC_STAT check, and clean up only IDs it allocated. A closed msgctl mock that cannot reach the kernel is an acceptable alternative for validating IPC_RMID dispatch and the null argument."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ipcctl-msg-removal"
+        }
+      ]
     },
     {
       "id": "defer-sem-removal",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate gated semaphore-set removal, policy denial, and exact-object selection.",
-      "reason": "Requires a disposable Linux VM with a private IPC namespace and working System V semaphore sets. A future fixture must allocate two IPC_PRIVATE mode-0600 sets itself, use only those returned IDs, verify that an unset/non-1 policy preserves both, verify that exact policy value 1 removes only the selected set via an independent IPC_STAT check, and clean up only IDs it allocated. A closed semctl mock that cannot reach the kernel is an acceptable alternative for validating IPC_RMID dispatch and semaphore number zero."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ipcctl-sem-removal"
+        }
+      ]
     }
   ]
 }

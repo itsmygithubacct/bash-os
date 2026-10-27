@@ -142,7 +142,7 @@
       "id": "mknod-device-nodes-deferred",
       "kind": "deferred",
       "purpose": "Cover the loadable's character and block device-node operations when a safe privileged fixture becomes available.",
-      "reason": "Character/block node creation needs a disposable VM or a reviewed mknod syscall mock with synthetic major/minor numbers. A future case should verify node type, mode, device numbers, existing-path behavior, and the expected permission-denied path. The current capability-free fixture covers FIFO creation only."
+      "reason": "Successful node creation needs CAP_MKNOD (r1, r2). The denial, existing-path and parse paths are unexecuted fixtures available unprivileged now."
     },
     {
       "id": "fifo-modes-and-umask",

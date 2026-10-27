@@ -34,37 +34,37 @@
       "id": "exec-trace-status",
       "kind": "deferred",
       "purpose": "Compare ordinary child tracing, decoded core syscalls, and propagation of the tracee's exit status.",
-      "reason": "Requires a future disposable Linux VM where the tracer may ptrace its own child, plus an independent GNU strace installation and a reviewed, deterministic fixture executable invoked by a relative path. The current harness denies ptrace through mandatory seccomp, and this suite must not treat that denial as operation coverage."
+      "reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. "
     },
     {
       "id": "output-file-routing",
       "kind": "deferred",
       "purpose": "Check that -o writes trace records to the requested relative fixture file while preserving the tracee's stdout and exit status.",
-      "reason": "Requires a future disposable Linux VM with ptrace allowed, a relative-path fixture executable, and GNU strace as the independent reference. Validate the target's stdout/status and parse the trace file for expected events; runtime PIDs and GNU formatting must not be mistaken for stable fixture content."
+      "reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. "
     },
     {
       "id": "syscall-filter",
       "kind": "deferred",
       "purpose": "Check that -e trace=LIST includes selected calls and excludes other calls for a deterministic tracee.",
-      "reason": "Requires a future disposable Linux VM with ptrace allowed, a reviewed relative-path fixture that makes a small known sequence of syscalls, and GNU strace as an independent filter-semantics oracle. The current seccomp policy blocks the operation before filtering can be observed."
+      "reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. "
     },
     {
       "id": "summary-counts",
       "kind": "deferred",
       "purpose": "Check -c/--summary call and error counts on a deterministic fixture, including suppression of per-call records.",
-      "reason": "Requires a future disposable Linux VM with ptrace allowed, a small reviewed fixture with a known syscall sequence, and GNU strace as the independent oracle. Compare parsed syscall counts and error counts; elapsed-time columns are variable and need a semantic summary parser."
+      "reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. "
     },
     {
       "id": "follow-children",
       "kind": "deferred",
       "purpose": "Check that -f reports syscalls from a fixture's child process and distinguish those records from the non-following mode.",
-      "reason": "Requires a future disposable Linux VM with ptrace allowed for fork/clone tracing, a reviewed relative-path fixture that forks and waits for one bounded child, and GNU strace as the independent reference. The fixture must remain private to that VM."
+      "reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. "
     },
     {
       "id": "attach-existing-pid",
       "kind": "deferred",
       "purpose": "Check -p attachment to an already-running fixture process, tracing until that process exits naturally.",
-      "reason": "Requires a future disposable Linux VM with ptrace attach permission and an independently launched, bounded fixture process that exits naturally, plus GNU strace as the oracle. Do not attach to host processes or use system-wide signals; the current harness denies ptrace."
+      "reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. The fixture process is a descendant of the calling shell (builtin), so attach is permitted under yama.ptrace_scope <= 1."
     }
   ]
 }

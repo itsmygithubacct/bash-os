@@ -186,7 +186,7 @@
       "id": "live_default_utmp",
       "kind": "deferred",
       "purpose": "Compare discovery and reporting of live login records through the default /var/run/utmp path.",
-      "reason": "Requires a future disposable VM with a synthetic /var/run/utmp image or a safely injected utmp path and GNU who reading the same controlled sessions. The isolated runner intentionally does not expose the host login database."
+      "reason": "Both GNU who and the candidate default to /var/run/utmp. uid 2000 cannot write /run/utmp or mount over it in the initial namespaces, and the VM's own /run/utmp (whatever systemd wrote, possibly absent) is not a representative fixture. Inside an unprivileged user+mount namespace a case can bind its own utmp fixture over /run/utmp for both sides, so no root capability is needed."
     },
     {
       "id": "identity",
@@ -201,7 +201,7 @@
       "id": "terminal-state",
       "kind": "deferred",
       "purpose": "Qualify actual idle durations, writable-terminal signs, and positive current-terminal matching.",
-      "reason": "Requires reviewed stat/clock/ttyname mocks or a disposable PTY setup with private synthetic session records. Current fixtures exercise unknown-terminal markers and the no-matching-terminal case only; no live terminal or session database is inspected."
+      "reason": "The PTY driver gives the case a real /dev/pts/N owned by uid 2000 (terminal.py fchown of the slave), so the case can chmod g+w/g-w it and set its atime with touch -a, and a private utmp FILE can name that line. GNU who reads the same FILE."
     }
   ]
 }

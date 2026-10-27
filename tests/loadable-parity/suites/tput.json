@@ -146,21 +146,42 @@
     },
     {
       "id": "private-pty-terminal-integration",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate terminal-size queries and the visible effect of emitted control strings in a controlled PTY session.",
-      "reason": "Requires a future disposable VM or isolated PTY mock with a fixed xterm-256color terminfo entry, a controlled window size, and a terminal emulator/driver to observe the resulting screen state. The current harness captures stdout with no controlling terminal, so this integration behavior is not executed or counted as a pass."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/tput/xterm-common-capabilities"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tput-pty-resize"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tput-pty-size"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tput-terminal-byte-parity"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tput-visible-effects"
+        }
+      ]
     },
     {
       "id": "compiled-terminfo",
       "kind": "deferred",
       "purpose": "Full compiled terminfo loading, arbitrary user database replacements, aliases, extended capabilities and padding timing need separate implementation and qualification; this command intentionally preserves its custom text sidecar interface.",
-      "reason": "Requires a future disposable VM with a version-pinned compiled terminfo database and independent ncurses reader. Arbitrary database parsing and padding timing are not qualified by the curated byte fixtures."
+      "reason": "Remaining obligations: r4: Extended-capability query is attempted, but arbitrary compiled terminal lookup fails first, so extended-capability decoding is not reached.; r5: Reference produces 40 pad bytes at 38400 baud; candidate rejects the compiled terminal before padding processing. Padding at output speed remains unexercised."
     },
     {
       "id": "hardware-init-reset",
       "kind": "deferred",
       "purpose": "Hardware and init/reset terminal-driver qualification requires a controlled terminal mock or disposable hardware environment. These mode-setting operations are not exercised in the byte fixtures.",
-      "reason": "Hardware and init/reset terminal-driver qualification requires a controlled terminal mock or disposable hardware environment. These mode-setting operations are not exercised in the byte fixtures."
+      "reason": "Remaining obligations: r2: Echo, canonical input, ONLCR and reset bytes are observed; special-character restoration is not asserted.; r4: Not applicable in a VM; the PTY is the terminal under test. Physical serial/console hardware would need real hardware and is out of scope for a disposable VM."
     }
   ]
 }

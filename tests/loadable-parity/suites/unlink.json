@@ -132,7 +132,7 @@
       "id": "immutable-file-denial",
       "purpose": "A future protected-file case can qualify unlink's kernel-level denial path without touching a host path.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM or reviewed filesystem/syscall mock that can create and verify an immutable regular file (for example, a dedicated disposable filesystem with the required immutable-file capability). The fixture must stay relative and prove the entry and contents remain after unlink is denied. No immutable attribute operation is attempted in this suite."
+      "reason": "Creating the protected file is the only privileged step. The unlink itself can run as unprivileged uid 2000 and still gets EPERM from the kernel. No existing driver can set i."
     },
     {
       "id": "dash-prefixed-name",

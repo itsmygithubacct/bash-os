@@ -46,19 +46,81 @@
       "id": "address-discovery-modes",
       "kind": "deferred",
       "purpose": "Check -i, -I, and -A formatting, token order, duplicate handling, and empty-result behavior with deterministic resolver and interface data.",
-      "reason": "Live resolver and interface discovery requires a future disposable VM with reviewed resolver/getifaddrs mocks and independent expected discovery results. The runnable text-file hooks cover rendering only and do not establish live discovery or deduplication behavior."
+      "reason": "Discovery and deduplication never executed; all obligations are reachable with an unprivileged user+net+mount+uts namespace in the plain driver and Debian hostname 3.25 as reference."
     },
     {
       "id": "set-positional-name",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise positional hostname setting, successful isolated state change, and rejection of names at the length and slash boundaries.",
-      "reason": "The positional form calls sethostname(2) and changes kernel UTS state. It needs a disposable VM with a private UTS namespace and the narrowly required capability, or a reviewed syscall mock that records arguments and returns controlled results; the host or ordinary candidate runner must not be used."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-hostname-set-length-63"
+        },
+        {
+          "group": "shell",
+          "id": "migration-hostname-set-length-64"
+        },
+        {
+          "group": "shell",
+          "id": "migration-hostname-set-length-65"
+        },
+        {
+          "group": "shell",
+          "id": "migration-hostname-set-name"
+        },
+        {
+          "group": "shell",
+          "id": "migration-hostname-set-slash"
+        },
+        {
+          "group": "shell",
+          "id": "migration-hostname-set-unprivileged"
+        }
+      ]
     },
     {
       "id": "set-from-file",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise -F with a small relative fixture containing a newline or CRLF, and cover empty and unreadable-file errors without host paths.",
-      "reason": "A successful -F operation also calls sethostname(2). A future disposable private-UTS VM or reviewed syscall mock must accept only relative files inside its private fixture tree and record the exact name passed to the syscall; no host path may be used."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/hostname/dry-run-audit"
+        },
+        {
+          "group": "shell",
+          "id": "migration-hostname-file-crlf"
+        },
+        {
+          "group": "shell",
+          "id": "migration-hostname-file-empty"
+        },
+        {
+          "group": "shell",
+          "id": "migration-hostname-file-lf"
+        },
+        {
+          "group": "shell",
+          "id": "migration-hostname-file-missing"
+        },
+        {
+          "group": "shell",
+          "id": "migration-hostname-file-name-conflict"
+        },
+        {
+          "group": "shell",
+          "id": "migration-hostname-file-newline"
+        },
+        {
+          "group": "shell",
+          "id": "migration-hostname-file-selector-conflict"
+        },
+        {
+          "group": "shell",
+          "id": "migration-hostname-file-unreadable"
+        }
+      ]
     },
     {
       "id": "dry-run-audit",
@@ -101,9 +163,18 @@
     },
     {
       "id": "dry-run-syscall-proof",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Prove no sethostname syscall is issued by any dry-run form, beyond checking the documented output and unchanged observed name.",
-      "reason": "Requires a future reviewed sethostname syscall counter/mock in a disposable VM. The current byte/audit contract cannot observe attempted syscalls; no UTS mutation is authorized."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/hostname/dry-run-audit"
+        },
+        {
+          "group": "shell",
+          "id": "migration-hostname-dry-run-syscall-guard"
+        }
+      ]
     }
   ]
 }

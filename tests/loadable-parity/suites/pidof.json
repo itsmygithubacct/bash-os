@@ -39,44 +39,190 @@
     {
       "id": "pidof-comm-match-and-miss",
       "purpose": "Compare exact-name comm matching, reporting multiple matching processes, and the no-match status/output contract.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable VM with a private PID namespace and controlled fixture processes whose comm names and PIDs are known, or a reviewed procfs adapter supplying deterministic /proc/PID/comm and cmdline records to both sides. Run procps-ng pidof and bash-os against the same fixture. The current runner gives reference and candidate separate changing process trees, exposes only read-only live procfs, and pidof.c hardcodes /proc."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/pidof/no-match-plain"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pidof/no-match-quiet"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pidof/no-match-single"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pidof/owned-child-lookup"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-comm-multiple"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-comm-only"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-separator-short"
+        }
+      ]
     },
     {
       "id": "pidof-argv0-basename",
       "purpose": "Compare argv[0] matching when comm differs, including a command argument containing a directory prefix whose basename should match.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable VM or reviewed shared procfs mock with NUL-delimited /proc/PID/cmdline records where argv[0] differs from comm, including both bare and slash-containing command arguments. procps-ng pidof must see the same fixed records; the current runner cannot inject them and the candidate opens hardcoded /proc paths."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/pidof/owned-child-lookup"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-argv-prefix"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-login-argv"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-query-prefix"
+        }
+      ]
     },
     {
       "id": "pidof-single-and-quiet",
       "purpose": "Compare -s first-match behavior and -q output suppression while retaining success and no-match statuses.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable VM with at least two controlled matching processes, or a reviewed procfs mock with stable PID records and enumeration order, plus procps-ng pidof as the reference. The current live /proc snapshot is not shared or pinned between executions, so exact first-match output cannot be checked safely here."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/pidof/no-match-quiet"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pidof/no-match-single"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pidof/owned-child-lookup"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-single-first"
+        }
+      ]
     },
     {
       "id": "pidof-script-match-x",
       "purpose": "Compare whether -x includes a script name found as argv[1] of an interpreter, while the default mode excludes that argv[1] match.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable VM or reviewed procfs mock containing a controlled interpreter cmdline with a NUL-delimited script argv[1], plus the corresponding procps-ng pidof comparison. The current runner provides no stable synthetic cmdline records and the candidate reads hardcoded /proc/PID/cmdline."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-pidof-script-disabled"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-script-enabled"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-script-noninterpreter"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-script-shebang-disabled"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-script-shebang-enabled"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-script-shell-disabled"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-script-shell-enabled"
+        }
+      ]
     },
     {
       "id": "pidof-omit-list",
       "purpose": "Compare -o omission of numeric PIDs and %PPID, including the documented comma, semicolon, and colon list separators.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable VM with fixed matching PIDs and a controlled parent relationship, or a reviewed procfs/process-ID mock that gives both procps-ng pidof and the candidate identical process records. The current runner's parent PIDs differ between reference and candidate runs, and the candidate has no injectable proc root."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/pidof/owned-child-lookup"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-omit-colon"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-omit-comma"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-omit-invalid-empty"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-omit-invalid-word"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-omit-invalid-zero"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-omit-parent"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-omit-repeated"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-omit-semicolon"
+        }
+      ]
     },
     {
       "id": "pidof-check-root",
       "purpose": "Compare -c filtering when one controlled process has the caller's root and another has a different root.",
       "kind": "deferred",
-      "reason": "Requires a future disposable VM with controlled process root links or a reviewed procfs mock supplying distinct /proc/PID/root link targets to both implementations. The current runner gives processes one sandbox root and the candidate hardcodes /proc, so the root-filter behavior cannot be isolated with a stable oracle here."
+      "reason": "Needs a matching process whose root differs from the caller's. Inside the legacy runner nested user namespaces are disabled (bwrap --disable-userns), but the VM plain driver (uid 2000, no bwrap) can create one with an unprivileged user+mount namespace helper if the Debian kernel default unprivileged_userns_clone remains enabled in the image."
     },
     {
       "id": "pidof-custom-separator",
       "purpose": "Compare -S and its -d alias for joining multiple matched PIDs with a requested separator.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable VM with multiple controlled matching processes or a reviewed shared procfs mock fixing the matched PID set and output order, plus procps-ng pidof for comparison. Separate runner process trees and a live changing /proc prevent deterministic output comparison here."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-pidof-separator-alias"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-separator-attached"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-separator-long"
+        },
+        {
+          "group": "shell",
+          "id": "migration-pidof-separator-short"
+        }
+      ]
     },
     {
       "id": "no-match-plain",

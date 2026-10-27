@@ -52,27 +52,78 @@
     },
     {
       "id": "regular-image-layout",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify successful formatting of a small relative regular-file image with default options and each supported block size, including filesystem geometry and the root/lost+found directories.",
-      "reason": "Requires explicit authorization to invoke the destructive formatter on per-case fixture images in a disposable VM with all writes confined by a reviewed syscall mock. A future run must use only small relative images, independently decode ext2 fields and directory records, and check the results with available read-only tools such as e2fsck -fn, dumpe2fs, debugfs, and blkid."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-mkfs-block-sizes"
+        },
+        {
+          "group": "shell",
+          "id": "migration-mkfs-default-layout"
+        },
+        {
+          "group": "shell",
+          "id": "migration-mkfs-multigroup-1024"
+        },
+        {
+          "group": "shell",
+          "id": "migration-mkfs-multigroup-sizes"
+        },
+        {
+          "group": "shell",
+          "id": "migration-mkfs-replace-existing"
+        }
+      ]
     },
     {
       "id": "options-label-reserved",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check -L truncation at 16 bytes, -m boundaries, -F compatibility, -- option termination, and preservation of the regular image's length across supported block sizes.",
-      "reason": "Requires a future disposable VM providing the following prerequisite: Requires the same explicit authorization and disposable fixture environment as regular-image formatting. The expected label, reserved-block count, block size, image length, and ext2 features must be derived from the documented contract and an independent ext2 decoder, not from candidate output."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-mkfs-block-sizes"
+        },
+        {
+          "group": "shell",
+          "id": "migration-mkfs-label-truncation"
+        },
+        {
+          "group": "shell",
+          "id": "migration-mkfs-option-forms"
+        },
+        {
+          "group": "shell",
+          "id": "migration-mkfs-reserved-percent"
+        }
+      ]
     },
     {
       "id": "dry-run-and-invalid-inputs",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check that -n leaves a prefilled relative image byte-for-byte unchanged and that malformed options, undersized images, and layouts too small for metadata fail without changing image contents.",
-      "reason": "The loadable must not be invoked under the current safety instruction. A future disposable VM with a reviewed formatter syscall mock should hash the small image before and after, cover documented status classes and representative numeric boundaries, and keep all paths relative to the private fixture directory."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-mkfs-dry-run"
+        },
+        {
+          "group": "shell",
+          "id": "migration-mkfs-invalid-inputs"
+        },
+        {
+          "group": "shell",
+          "id": "migration-mkfs-short-final-group"
+        }
+      ]
     },
     {
       "id": "block-device-and-io-errors",
       "kind": "deferred",
       "purpose": "Exercise BLKGETSIZE64 sizing and bounded write, sync, and close failures without touching a host device.",
-      "reason": "Requires a future disposable VM with a dedicated disposable block device or a separately reviewed syscall mock that redirects every write to a test-owned regular image. The mock must inject ioctl and I/O failures and verify recovery and descriptor cleanup; no physical or host block device may be used."
+      "reason": "Remaining obligations: r1: unchanged: needs a block device node (BLOCK-DEV request in review-214.json); r3: close(2) failure is not injected (no fd-specific rule); descriptor cleanup is observed by /proc/BASHPID/fd counts"
     }
   ]
 }

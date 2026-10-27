@@ -38,31 +38,31 @@
       "id": "wire-format-options",
       "kind": "deferred",
       "purpose": "Check one datagram per valid call, default <13> user formatting, explicit tags and priorities, and the PID-bearing -i/--id form. Compute the expected PRI independently as facility * 8 + severity and compare exact packet bytes.",
-      "reason": "Requires a future disposable VM with a private AF_UNIX receiver and an independently reviewed socket/syscall mock that prevents any host logging or network effects. Independently compute facility*8+severity, exact tag/PID bytes and one datagram per call."
+      "reason": "No datagram has ever been captured; a private AF_UNIX receiver via BASHLOGGER_SOCKET is enough."
     },
     {
       "id": "priority-grammar",
       "kind": "deferred",
       "purpose": "Check decimal PRI endpoints 0 and 191, named and numeric facility/severity pairs, case-insensitive names and documented aliases; verify invalid or out-of-range priorities fail before any datagram is sent.",
-      "reason": "Requires a future disposable VM with a private AF_UNIX receiver and an independently reviewed socket/syscall mock that prevents any host logging or network effects. Exercise valid named, numeric and mixed priority forms and audit that invalid values open no socket; ordinary invalid-input rejection is covered separately."
+      "reason": "Rejection statuses are covered; accepted forms need a private AF_UNIX receiver."
     },
     {
       "id": "message-framing-limits",
       "kind": "deferred",
       "purpose": "Check argument joining including empty arguments, -- termination, stdin input, removal of one trailing LF/CRLF, preservation of internal newlines, NUL rejection, and the documented 2047-byte message boundary against exact received bytes/status.",
-      "reason": "Requires a future disposable VM with a private AF_UNIX receiver and an independently reviewed socket/syscall mock that prevents any host logging or network effects. Check exact packet bytes for argument joining, stdin newline framing and documented size boundaries; pre-socket NUL/empty rejection is covered separately."
+      "reason": "Only pre-socket rejection statuses are executed; delivery bytes need a private AF_UNIX receiver, which the VM can host with BASHLOGGER_SOCKET."
     },
     {
       "id": "socket-path-errors",
       "kind": "deferred",
       "purpose": "Check missing and non-socket destinations fail, an overlong socket path is rejected before send, and a path that would otherwise be truncated never receives a packet. Use only private relative fixture paths and independently inspect packet delivery/status.",
-      "reason": "Requires a future disposable VM with a private AF_UNIX receiver and an independently reviewed socket/syscall mock that prevents any host logging or network effects. Use only relative private endpoints and a mock for socket/send/path-length outcomes; no real service endpoint may be used."
+      "reason": "These obligations need only relative files and a private AF_UNIX receiver; no fixture exists."
     },
     {
       "id": "descriptor-safety",
       "kind": "deferred",
       "purpose": "Check SOCK_CLOEXEC/FD_CLOEXEC on the sending socket, no descriptor inheritance by an exec child, interrupted-send retry, and descriptor closure after one injected send failure or short send.",
-      "reason": "Requires a future disposable VM with a private AF_UNIX receiver and an independently reviewed socket/syscall mock that prevents any host logging or network effects. Record CLOEXEC, closure and single-call EINTR/short-send/failure outcomes through the mock; no stress loop."
+      "reason": "No fixture observes descriptors; all of r1-r4 are observable with a private AF_UNIX receiver inside the VM, and r5 needs a ptrace-based return-value injector helper."
     },
     {
       "id": "invalid-priority",

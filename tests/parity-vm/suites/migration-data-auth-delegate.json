@@ -1,0 +1,170 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 30,
+   "files": {
+    "delegate.sh": "#!/bin/sh\n{\n  printf 'argv0=%s\\n' \"${0##*/}\"\n  i=0\n  for a in \"$@\"; do i=$((i + 1)); printf 'arg%d=[%s]\\n' \"$i\" \"$a\"; done\n  printf 'argc=%d\\n' \"$#\"\n  printf 'X=%s Y=%s\\n' \"${X-unset}\" \"${Y-unset}\"\n  fds=\n  for n in 3 4 5 6 7 8 9; do\n    if [ -e \"/proc/$$/fd/$n\" ]; then fds=\"$fds $n\"; fi\n  done\n  printf 'open-fds=[%s]\\n' \"${fds# }\"\n  ign=0 blk=0\n  while read -r k v; do\n    case $k in SigIgn:) ign=$v ;; SigBlk:) blk=$v ;; esac\n  done < /proc/$$/status\n  printf 'usr1-ignored=%d term-ignored=%d blocked=%s\\n' $(( (0x$ign >> 9) & 1 )) $(( (0x$ign >> 14) & 1 )) \"$blk\"\n} > \"rec.${REC_TAG:-run}\"\ncase ${DELEGATE_ACTION-} in term) kill -TERM $$ ;; esac\nexit \"${DELEGATE_STATUS:-0}\"\n",
+    "bin/doas": "#!/bin/sh\n{\n  printf 'argv0=%s\\n' \"${0##*/}\"\n  i=0\n  for a in \"$@\"; do i=$((i + 1)); printf 'arg%d=[%s]\\n' \"$i\" \"$a\"; done\n  printf 'argc=%d\\n' \"$#\"\n  printf 'X=%s Y=%s\\n' \"${X-unset}\" \"${Y-unset}\"\n  fds=\n  for n in 3 4 5 6 7 8 9; do\n    if [ -e \"/proc/$$/fd/$n\" ]; then fds=\"$fds $n\"; fi\n  done\n  printf 'open-fds=[%s]\\n' \"${fds# }\"\n  ign=0 blk=0\n  while read -r k v; do\n    case $k in SigIgn:) ign=$v ;; SigBlk:) blk=$v ;; esac\n  done < /proc/$$/status\n  printf 'usr1-ignored=%d term-ignored=%d blocked=%s\\n' $(( (0x$ign >> 9) & 1 )) $(( (0x$ign >> 14) & 1 )) \"$blk\"\n} > \"rec.${REC_TAG:-run}\"\ncase ${DELEGATE_ACTION-} in term) kill -TERM $$ ;; esac\nexit \"${DELEGATE_STATUS:-0}\"\n",
+    "plain.txt": "not a program\n"
+   },
+   "requires": [
+    "chmod",
+    "cat",
+    "rm"
+   ],
+   "id": "migration-doas-external-delegate-verbatim",
+   "loadable": "doas",
+   "purpose": "Without the bash-os authority, doas runs BASHDOAS_EXTERNAL (or doas from PATH) with the original words unchanged, refreshes the exported environment at each call, closes inherited descriptors, resets signal dispositions and mask, propagates exit and signal statuses, and returns 127/126 when the delegate is missing or not executable; refused options and usage errors never start the delegate.",
+   "oracle": "doas front-end documentation ('Non-root callers use v2 authority when available, otherwise external doas'; usage synopsis), shell conventions for exec failure (127 not found, 126 not executable) and 128+N for a signal death, exported-variable semantics of bash (exported, not plain, variables reach children with their current values), and execve(2)/signal(7) inheritance rules. Delegate hygiene: descriptors above 2 closed (the caller holds 7 and 9 open), signal dispositions reset (the caller ignores SIGUSR1/SIGTERM) and an empty signal mask, observed by a POSIX sh recorder from /proc/self/status.",
+   "comparison": "Exact status, recorder observations (argv, environment, descriptors, signals) and whether the delegate ran.",
+   "script": "[[ $(type -t doas) == builtin ]] || { printf 'candidate doas builtin missing\\n'; exit 99; }\n/usr/bin/chmod 755 delegate.sh bin/doas\nunset BASHDOAS_EXTERNAL BASHSUDO_EXTERNAL X Y DELEGATE_STATUS DELEGATE_ACTION\ntrap '' USR1 TERM\nexec 7< delegate.sh 9> fd9.tmp\nrun() {\n  local tag=$1; shift\n  export REC_TAG=$tag\n  \"$@\" > \"out.$tag\" 2> \"err.$tag\"; local rc=$?\n  printf '%s rc=%d delegate=%s diag=%s\\n' \"$tag\" \"$rc\" \"$([[ -e rec.$tag ]] && echo ran || echo not-run)\" \"$([[ -s err.$tag ]] && echo yes || echo no)\"\n  [[ -e rec.$tag ]] && /usr/bin/cat \"rec.$tag\"\n  return 0\n}\nexport BASHDOAS_EXTERNAL=./delegate.sh\nexport X=first; Y=local\nrun verbatim doas -u bob -- printf '%s' 'a b' '' $'line\\nbreak'\nX=second\nrun refresh doas id\nexport DELEGATE_STATUS=7; run status doas true; unset DELEGATE_STATUS\nexport DELEGATE_ACTION=term; run signal doas true; unset DELEGATE_ACTION\nBASHDOAS_EXTERNAL=./missing.sh; run missing doas true\nBASHDOAS_EXTERNAL=./plain.txt; run not-executable doas true\nBASHDOAS_EXTERNAL=./delegate.sh\nrun unknown-flag doas -x true\nrun user-missing doas -u\nrun no-args doas\nprintf 'no-args-usage=%s\\n' \"$([[ -s out.no-args ]] && echo printed || echo none)\"\nunset BASHDOAS_EXTERNAL\nPATH=$PWD/bin run default-path doas -n true\nPATH=/empty run default-absent doas true\nexec 7<&- 9>&-\ntrap - USR1 TERM\n/usr/bin/rm -f rec.* out.* err.* fd9.tmp\n",
+   "expected_status": 0,
+   "stdout": "verbatim rc=0 delegate=ran diag=no\nargv0=delegate.sh\narg1=[-u]\narg2=[bob]\narg3=[--]\narg4=[printf]\narg5=[%s]\narg6=[a b]\narg7=[]\narg8=[line\nbreak]\nargc=8\nX=first Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nrefresh rc=0 delegate=ran diag=no\nargv0=delegate.sh\narg1=[id]\nargc=1\nX=second Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nstatus rc=7 delegate=ran diag=no\nargv0=delegate.sh\narg1=[true]\nargc=1\nX=second Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nsignal rc=143 delegate=ran diag=no\nargv0=delegate.sh\narg1=[true]\nargc=1\nX=second Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nmissing rc=127 delegate=not-run diag=yes\nnot-executable rc=126 delegate=not-run diag=yes\nunknown-flag rc=2 delegate=not-run diag=yes\nuser-missing rc=2 delegate=not-run diag=yes\nno-args rc=2 delegate=not-run diag=no\nno-args-usage=printed\ndefault-path rc=0 delegate=ran diag=no\nargv0=doas\narg1=[-n]\narg2=[true]\nargc=2\nX=second Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\ndefault-absent rc=127 delegate=not-run diag=yes\n",
+   "covers": [
+    "doas/external_delegate_fallback"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 30,
+   "files": {
+    "delegate.sh": "#!/bin/sh\n{\n  printf 'argv0=%s\\n' \"${0##*/}\"\n  i=0\n  for a in \"$@\"; do i=$((i + 1)); printf 'arg%d=[%s]\\n' \"$i\" \"$a\"; done\n  printf 'argc=%d\\n' \"$#\"\n  printf 'X=%s Y=%s\\n' \"${X-unset}\" \"${Y-unset}\"\n  fds=\n  for n in 3 4 5 6 7 8 9; do\n    if [ -e \"/proc/$$/fd/$n\" ]; then fds=\"$fds $n\"; fi\n  done\n  printf 'open-fds=[%s]\\n' \"${fds# }\"\n  ign=0 blk=0\n  while read -r k v; do\n    case $k in SigIgn:) ign=$v ;; SigBlk:) blk=$v ;; esac\n  done < /proc/$$/status\n  printf 'usr1-ignored=%d term-ignored=%d blocked=%s\\n' $(( (0x$ign >> 9) & 1 )) $(( (0x$ign >> 14) & 1 )) \"$blk\"\n} > \"rec.${REC_TAG:-run}\"\ncase ${DELEGATE_ACTION-} in term) kill -TERM $$ ;; esac\nexit \"${DELEGATE_STATUS:-0}\"\n",
+    "bin/doas": "#!/bin/sh\n{\n  printf 'argv0=%s\\n' \"${0##*/}\"\n  i=0\n  for a in \"$@\"; do i=$((i + 1)); printf 'arg%d=[%s]\\n' \"$i\" \"$a\"; done\n  printf 'argc=%d\\n' \"$#\"\n  printf 'X=%s Y=%s\\n' \"${X-unset}\" \"${Y-unset}\"\n  fds=\n  for n in 3 4 5 6 7 8 9; do\n    if [ -e \"/proc/$$/fd/$n\" ]; then fds=\"$fds $n\"; fi\n  done\n  printf 'open-fds=[%s]\\n' \"${fds# }\"\n  ign=0 blk=0\n  while read -r k v; do\n    case $k in SigIgn:) ign=$v ;; SigBlk:) blk=$v ;; esac\n  done < /proc/$$/status\n  printf 'usr1-ignored=%d term-ignored=%d blocked=%s\\n' $(( (0x$ign >> 9) & 1 )) $(( (0x$ign >> 14) & 1 )) \"$blk\"\n} > \"rec.${REC_TAG:-run}\"\ncase ${DELEGATE_ACTION-} in term) kill -TERM $$ ;; esac\nexit \"${DELEGATE_STATUS:-0}\"\n",
+    "plain.txt": "not a program\n"
+   },
+   "requires": [
+    "chmod",
+    "cat",
+    "rm"
+   ],
+   "id": "migration-sudo-doas-fallback-translation",
+   "loadable": "sudo",
+   "purpose": "Without the authority and without an explicit delegate, sudo translates what doas can express (-u USER, -u #UID, -n, -s, --, -k/-K to doas -L, bundled and attached options, operands stop option parsing) into an external doas argv, refuses -i, -e, -v, -g, -k with an action, VAR=value and -s with a command without starting doas, and reports option errors as usage errors.",
+   "oracle": "sudo(8) option semantics (getopt-style bundling and attached arguments, '#uid' targets, -k/-K invalidate or remove cached credentials, -i/-s/-e/-v/-g meanings, mutually exclusive -e/-i/-K/-l/-s/-v, -K and -v take no command), doas(1) synopsis (doas [-Lns] [-u user] [--] command [args]; -L clears persisted authentication), and the sudo front-end documentation: 'otherwise external doas; that fallback refuses what doas cannot express (-i, -e, -v, -g, VAR=value)'. Delegate hygiene: descriptors above 2 closed (the caller holds 7 and 9 open), signal dispositions reset (the caller ignores SIGUSR1/SIGTERM) and an empty signal mask, observed by a POSIX sh recorder from /proc/self/status.",
+   "comparison": "Exact status and the recorded doas argv, or that doas never ran.",
+   "script": "[[ $(type -t sudo) == builtin ]] || { printf 'candidate sudo builtin missing\\n'; exit 99; }\n/usr/bin/chmod 755 delegate.sh bin/doas\nunset BASHDOAS_EXTERNAL BASHSUDO_EXTERNAL X Y DELEGATE_STATUS DELEGATE_ACTION\ntrap '' USR1 TERM\nexec 7< delegate.sh 9> fd9.tmp\nrun() {\n  local tag=$1; shift\n  export REC_TAG=$tag\n  \"$@\" > \"out.$tag\" 2> \"err.$tag\"; local rc=$?\n  printf '%s rc=%d delegate=%s diag=%s\\n' \"$tag\" \"$rc\" \"$([[ -e rec.$tag ]] && echo ran || echo not-run)\" \"$([[ -s err.$tag ]] && echo yes || echo no)\"\n  [[ -e rec.$tag ]] && /usr/bin/cat \"rec.$tag\"\n  return 0\n}\nPATH=$PWD/bin\nrun plain sudo printf '%s' 'a b'\nrun user sudo -u bob id\nrun attached sudo -ubob id\nrun long-user sudo --user=bob id\nrun numeric-uid sudo -u '#1001' id\nrun noninteractive sudo -n -u bob id\nrun bundled sudo -nu bob id\nrun separator sudo -- id -x\nrun operand-stops sudo id -u bob\nrun shell sudo -s\nrun shell-user sudo -s -u bob\nrun reset sudo -k\nrun remove sudo -K\nexport DELEGATE_STATUS=5; run status sudo true; unset DELEGATE_STATUS\nrun refuse-login sudo -i\nrun refuse-login-user sudo -iu bob\nrun refuse-edit sudo -e /tmp/parity-case/plain.txt\nrun refuse-validate sudo -v\nrun refuse-group sudo -g staff id\nrun refuse-reset-command sudo -k id\nrun refuse-env-assign sudo X=1 id\nrun refuse-shell-command sudo -s id\nrun usage-unsupported sudo -E id\nrun usage-remove-command sudo -K id\nrun usage-validate-command sudo -v id\nrun usage-env-only sudo X=1\nrun usage-exclusive sudo -i -s\nrun usage-user-missing sudo -u\nrun usage-flag-with-value sudo --shell=x\nrun usage-long-unknown sudo --preserve-env id\nrun no-args sudo\nexec 7<&- 9>&-\ntrap - USR1 TERM\n/usr/bin/rm -f rec.* out.* err.* fd9.tmp\n",
+   "expected_status": 0,
+   "stdout": "plain rc=0 delegate=ran diag=no\nargv0=doas\narg1=[-u]\narg2=[root]\narg3=[--]\narg4=[printf]\narg5=[%s]\narg6=[a b]\nargc=6\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nuser rc=0 delegate=ran diag=no\nargv0=doas\narg1=[-u]\narg2=[bob]\narg3=[--]\narg4=[id]\nargc=4\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nattached rc=0 delegate=ran diag=no\nargv0=doas\narg1=[-u]\narg2=[bob]\narg3=[--]\narg4=[id]\nargc=4\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nlong-user rc=0 delegate=ran diag=no\nargv0=doas\narg1=[-u]\narg2=[bob]\narg3=[--]\narg4=[id]\nargc=4\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nnumeric-uid rc=0 delegate=ran diag=no\nargv0=doas\narg1=[-u]\narg2=[1001]\narg3=[--]\narg4=[id]\nargc=4\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nnoninteractive rc=0 delegate=ran diag=no\nargv0=doas\narg1=[-n]\narg2=[-u]\narg3=[bob]\narg4=[--]\narg5=[id]\nargc=5\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nbundled rc=0 delegate=ran diag=no\nargv0=doas\narg1=[-n]\narg2=[-u]\narg3=[bob]\narg4=[--]\narg5=[id]\nargc=5\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nseparator rc=0 delegate=ran diag=no\nargv0=doas\narg1=[-u]\narg2=[root]\narg3=[--]\narg4=[id]\narg5=[-x]\nargc=5\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\noperand-stops rc=0 delegate=ran diag=no\nargv0=doas\narg1=[-u]\narg2=[root]\narg3=[--]\narg4=[id]\narg5=[-u]\narg6=[bob]\nargc=6\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nshell rc=0 delegate=ran diag=no\nargv0=doas\narg1=[-u]\narg2=[root]\narg3=[-s]\nargc=3\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nshell-user rc=0 delegate=ran diag=no\nargv0=doas\narg1=[-u]\narg2=[bob]\narg3=[-s]\nargc=3\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nreset rc=0 delegate=ran diag=no\nargv0=doas\narg1=[-L]\nargc=1\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nremove rc=0 delegate=ran diag=no\nargv0=doas\narg1=[-L]\nargc=1\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nstatus rc=5 delegate=ran diag=no\nargv0=doas\narg1=[-u]\narg2=[root]\narg3=[--]\narg4=[true]\nargc=4\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nrefuse-login rc=1 delegate=not-run diag=yes\nrefuse-login-user rc=1 delegate=not-run diag=yes\nrefuse-edit rc=1 delegate=not-run diag=yes\nrefuse-validate rc=1 delegate=not-run diag=yes\nrefuse-group rc=1 delegate=not-run diag=yes\nrefuse-reset-command rc=1 delegate=not-run diag=yes\nrefuse-env-assign rc=1 delegate=not-run diag=yes\nrefuse-shell-command rc=1 delegate=not-run diag=yes\nusage-unsupported rc=2 delegate=not-run diag=yes\nusage-remove-command rc=2 delegate=not-run diag=yes\nusage-validate-command rc=2 delegate=not-run diag=yes\nusage-env-only rc=2 delegate=not-run diag=yes\nusage-exclusive rc=2 delegate=not-run diag=yes\nusage-user-missing rc=2 delegate=not-run diag=yes\nusage-flag-with-value rc=2 delegate=not-run diag=yes\nusage-long-unknown rc=2 delegate=not-run diag=yes\nno-args rc=2 delegate=not-run diag=no\n",
+   "covers": [
+    "doas/external_delegate_fallback",
+    "sudo/timestamp-validation-flows",
+    "sudo/login-shell-and-command-quoting"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 30,
+   "files": {
+    "delegate.sh": "#!/bin/sh\n{\n  printf 'argv0=%s\\n' \"${0##*/}\"\n  i=0\n  for a in \"$@\"; do i=$((i + 1)); printf 'arg%d=[%s]\\n' \"$i\" \"$a\"; done\n  printf 'argc=%d\\n' \"$#\"\n  printf 'X=%s Y=%s\\n' \"${X-unset}\" \"${Y-unset}\"\n  fds=\n  for n in 3 4 5 6 7 8 9; do\n    if [ -e \"/proc/$$/fd/$n\" ]; then fds=\"$fds $n\"; fi\n  done\n  printf 'open-fds=[%s]\\n' \"${fds# }\"\n  ign=0 blk=0\n  while read -r k v; do\n    case $k in SigIgn:) ign=$v ;; SigBlk:) blk=$v ;; esac\n  done < /proc/$$/status\n  printf 'usr1-ignored=%d term-ignored=%d blocked=%s\\n' $(( (0x$ign >> 9) & 1 )) $(( (0x$ign >> 14) & 1 )) \"$blk\"\n} > \"rec.${REC_TAG:-run}\"\ncase ${DELEGATE_ACTION-} in term) kill -TERM $$ ;; esac\nexit \"${DELEGATE_STATUS:-0}\"\n",
+    "bin/doas": "#!/bin/sh\n{\n  printf 'argv0=%s\\n' \"${0##*/}\"\n  i=0\n  for a in \"$@\"; do i=$((i + 1)); printf 'arg%d=[%s]\\n' \"$i\" \"$a\"; done\n  printf 'argc=%d\\n' \"$#\"\n  printf 'X=%s Y=%s\\n' \"${X-unset}\" \"${Y-unset}\"\n  fds=\n  for n in 3 4 5 6 7 8 9; do\n    if [ -e \"/proc/$$/fd/$n\" ]; then fds=\"$fds $n\"; fi\n  done\n  printf 'open-fds=[%s]\\n' \"${fds# }\"\n  ign=0 blk=0\n  while read -r k v; do\n    case $k in SigIgn:) ign=$v ;; SigBlk:) blk=$v ;; esac\n  done < /proc/$$/status\n  printf 'usr1-ignored=%d term-ignored=%d blocked=%s\\n' $(( (0x$ign >> 9) & 1 )) $(( (0x$ign >> 14) & 1 )) \"$blk\"\n} > \"rec.${REC_TAG:-run}\"\ncase ${DELEGATE_ACTION-} in term) kill -TERM $$ ;; esac\nexit \"${DELEGATE_STATUS:-0}\"\n",
+    "plain.txt": "not a program\n"
+   },
+   "requires": [
+    "chmod",
+    "cat",
+    "rm"
+   ],
+   "id": "migration-sudo-list-delegate-only",
+   "loadable": "sudo",
+   "purpose": "Without the authority, sudo -l/-ll/--list never falls back to external doas (which cannot list): it fails unless BASHSUDO_EXTERNAL names a sudo-compatible delegate, which then receives the original words; listing never runs the command it names.",
+   "oracle": "sudo front-end documentation ('sudo -l|-ll (read-only authority policy projection)'; 'listing is not an execution approval'), doas(1) has no listing operation, sudo(8) -l [command] checks rather than runs the command, and unsupported sudo options are refused. Delegate hygiene: descriptors above 2 closed (the caller holds 7 and 9 open), signal dispositions reset (the caller ignores SIGUSR1/SIGTERM) and an empty signal mask, observed by a POSIX sh recorder from /proc/self/status.",
+   "comparison": "Exact status and whether, and with which argv, the delegate ran.",
+   "script": "[[ $(type -t sudo) == builtin ]] || { printf 'candidate sudo builtin missing\\n'; exit 99; }\n/usr/bin/chmod 755 delegate.sh bin/doas\nunset BASHDOAS_EXTERNAL BASHSUDO_EXTERNAL X Y DELEGATE_STATUS DELEGATE_ACTION\ntrap '' USR1 TERM\nexec 7< delegate.sh 9> fd9.tmp\nrun() {\n  local tag=$1; shift\n  export REC_TAG=$tag\n  \"$@\" > \"out.$tag\" 2> \"err.$tag\"; local rc=$?\n  printf '%s rc=%d delegate=%s diag=%s\\n' \"$tag\" \"$rc\" \"$([[ -e rec.$tag ]] && echo ran || echo not-run)\" \"$([[ -s err.$tag ]] && echo yes || echo no)\"\n  [[ -e rec.$tag ]] && /usr/bin/cat \"rec.$tag\"\n  return 0\n}\nPATH=$PWD/bin\nrun list-no-delegate sudo -l\nrun list-long-no-delegate sudo -ll\nrun list-word-no-delegate sudo --list\nBASHDOAS_EXTERNAL=./delegate.sh; export BASHDOAS_EXTERNAL\nrun list-doas-delegate-only sudo -l\nunset BASHDOAS_EXTERNAL\nexport BASHSUDO_EXTERNAL=./delegate.sh\nrun list-delegate sudo -l\nrun list-long-delegate sudo -ll\nrun list-command-delegate sudo -l id\nrun list-bad-option sudo -l -U bob\nexec 7<&- 9>&-\ntrap - USR1 TERM\n/usr/bin/rm -f rec.* out.* err.* fd9.tmp\n",
+   "expected_status": 0,
+   "stdout": "list-no-delegate rc=1 delegate=not-run diag=yes\nlist-long-no-delegate rc=1 delegate=not-run diag=yes\nlist-word-no-delegate rc=1 delegate=not-run diag=yes\nlist-doas-delegate-only rc=1 delegate=not-run diag=yes\nlist-delegate rc=0 delegate=ran diag=no\nargv0=delegate.sh\narg1=[-l]\nargc=1\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nlist-long-delegate rc=0 delegate=ran diag=no\nargv0=delegate.sh\narg1=[-ll]\nargc=1\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nlist-command-delegate rc=0 delegate=ran diag=no\nargv0=delegate.sh\narg1=[-l]\narg2=[id]\nargc=2\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nlist-bad-option rc=2 delegate=not-run diag=yes\n",
+   "covers": [
+    "sudo/policy-list-projection"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 30,
+   "files": {
+    "delegate.sh": "#!/bin/sh\n{\n  printf 'argv0=%s\\n' \"${0##*/}\"\n  i=0\n  for a in \"$@\"; do i=$((i + 1)); printf 'arg%d=[%s]\\n' \"$i\" \"$a\"; done\n  printf 'argc=%d\\n' \"$#\"\n  printf 'X=%s Y=%s\\n' \"${X-unset}\" \"${Y-unset}\"\n  fds=\n  for n in 3 4 5 6 7 8 9; do\n    if [ -e \"/proc/$$/fd/$n\" ]; then fds=\"$fds $n\"; fi\n  done\n  printf 'open-fds=[%s]\\n' \"${fds# }\"\n  ign=0 blk=0\n  while read -r k v; do\n    case $k in SigIgn:) ign=$v ;; SigBlk:) blk=$v ;; esac\n  done < /proc/$$/status\n  printf 'usr1-ignored=%d term-ignored=%d blocked=%s\\n' $(( (0x$ign >> 9) & 1 )) $(( (0x$ign >> 14) & 1 )) \"$blk\"\n} > \"rec.${REC_TAG:-run}\"\ncase ${DELEGATE_ACTION-} in term) kill -TERM $$ ;; esac\nexit \"${DELEGATE_STATUS:-0}\"\n",
+    "bin/doas": "#!/bin/sh\n{\n  printf 'argv0=%s\\n' \"${0##*/}\"\n  i=0\n  for a in \"$@\"; do i=$((i + 1)); printf 'arg%d=[%s]\\n' \"$i\" \"$a\"; done\n  printf 'argc=%d\\n' \"$#\"\n  printf 'X=%s Y=%s\\n' \"${X-unset}\" \"${Y-unset}\"\n  fds=\n  for n in 3 4 5 6 7 8 9; do\n    if [ -e \"/proc/$$/fd/$n\" ]; then fds=\"$fds $n\"; fi\n  done\n  printf 'open-fds=[%s]\\n' \"${fds# }\"\n  ign=0 blk=0\n  while read -r k v; do\n    case $k in SigIgn:) ign=$v ;; SigBlk:) blk=$v ;; esac\n  done < /proc/$$/status\n  printf 'usr1-ignored=%d term-ignored=%d blocked=%s\\n' $(( (0x$ign >> 9) & 1 )) $(( (0x$ign >> 14) & 1 )) \"$blk\"\n} > \"rec.${REC_TAG:-run}\"\ncase ${DELEGATE_ACTION-} in term) kill -TERM $$ ;; esac\nexit \"${DELEGATE_STATUS:-0}\"\n",
+    "plain.txt": "not a program\n"
+   },
+   "requires": [
+    "chmod",
+    "cat",
+    "rm"
+   ],
+   "id": "migration-sudo-doas-delegate-translated",
+   "loadable": "sudo",
+   "purpose": "When only BASHDOAS_EXTERNAL (a doas delegate) is set, sudo's fallback still speaks doas syntax: it refuses -i and translates -u USER COMMAND and -k, instead of handing the doas program sudo-only words.",
+   "oracle": "The sudo front-end documentation ('otherwise external doas; that fallback refuses what doas cannot express (-i, -e, -v, -g, VAR=value)'), the doas front-end's own use of BASHDOAS_EXTERNAL as its external doas, and doas(1) syntax (-L, -u user, --). Kept separate from the translation case so a divergence here does not mask it.",
+   "comparison": "Exact status and recorded delegate argv, or that the delegate never ran.",
+   "script": "[[ $(type -t sudo) == builtin ]] || { printf 'candidate sudo builtin missing\\n'; exit 99; }\n/usr/bin/chmod 755 delegate.sh bin/doas\nunset BASHDOAS_EXTERNAL BASHSUDO_EXTERNAL X Y DELEGATE_STATUS DELEGATE_ACTION\ntrap '' USR1 TERM\nexec 7< delegate.sh 9> fd9.tmp\nrun() {\n  local tag=$1; shift\n  export REC_TAG=$tag\n  \"$@\" > \"out.$tag\" 2> \"err.$tag\"; local rc=$?\n  printf '%s rc=%d delegate=%s diag=%s\\n' \"$tag\" \"$rc\" \"$([[ -e rec.$tag ]] && echo ran || echo not-run)\" \"$([[ -s err.$tag ]] && echo yes || echo no)\"\n  [[ -e rec.$tag ]] && /usr/bin/cat \"rec.$tag\"\n  return 0\n}\nexport BASHDOAS_EXTERNAL=./delegate.sh\nrun login sudo -i\nrun user sudo -u bob id\nrun reset sudo -k\nexec 7<&- 9>&-\ntrap - USR1 TERM\n/usr/bin/rm -f rec.* out.* err.* fd9.tmp\n",
+   "expected_status": 0,
+   "stdout": "login rc=1 delegate=not-run diag=yes\nuser rc=0 delegate=ran diag=no\nargv0=delegate.sh\narg1=[-u]\narg2=[bob]\narg3=[--]\narg4=[id]\nargc=4\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\nreset rc=0 delegate=ran diag=no\nargv0=delegate.sh\narg1=[-L]\nargc=1\nX=unset Y=unset\nopen-fds=[]\nusr1-ignored=0 term-ignored=0 blocked=0000000000000000\n",
+   "covers": [
+    "doas/external_delegate_fallback",
+    "sudo/login-shell-and-command-quoting"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 30,
+   "files": {
+    "passwd.fixture": "# comment row\neight:x:1001:1001:g:/h:/bin/sh:extra\nbadchar:x:abc:1::/:/bin/sh\nuidmax:x:4294967295:1::/:/bin/sh\ngidmax:x:1:4294967295::/:/bin/sh\nemptygid:x:1:::/:/bin/sh\nsixf:x:1:1:/:/bin/sh\n\n",
+    "shadow.fixture": "nosuch:!:19000:0:99999:7:::\n"
+   },
+   "requires": [
+    "cp",
+    "chmod",
+    "mkdir",
+    "rm"
+   ],
+   "id": "migration-su-private-account-lookup-failclosed",
+   "loadable": "su",
+   "purpose": "su resolves targets only from the private database (PHCLIB_PASSWD, else PASSWD_FILE): absent users and rows with non-numeric, reserved or empty ids or too few fields never select an account; an unreadable file and a directory report an unreadable database rather than a missing user; an eight-field row elsewhere in the file is parsed without harming the shell. No row is reachable, so nothing authenticates.",
+   "oracle": "passwd(5) seven-field rows with decimal uid/gid ((uid_t)-1 and (gid_t)-1 reserved), su(1) 'no such user' versus a database read failure (fopen/read errors such as EACCES and EISDIR are not absence), and the loadables' shared PHCLIB_PASSWD-then-PASSWD_FILE fixture selection.",
+   "comparison": "Exact status, empty stdout and diagnostic class (documented message keys) per lookup, and that the shell survives every lookup.",
+   "script": "[[ $(type -t su) == builtin ]] || { printf 'candidate su builtin missing\\n'; exit 99; }\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_SHADOW=shadow.fixture\nunset PASSWD_FILE\ntry() {\n  local label=$1; shift\n  su \"$@\" > out 2> err; local rc=$?\n  local e; e=$(< err) c=other\n  case $e in\n    *\"no such user: \"*) c=\"no-such-user(${e##*no such user: })\" ;;\n    *\"invalid user: \"*) c=\"invalid-user\" ;;\n    *\"cannot read passwd database\"*) c=\"unreadable-db\" ;;\n    \"\") c=none ;;\n  esac\n  [[ -s out ]] && o=nonempty || o=empty\n  printf '%s rc=%d stdout=%s diag=%s\\n' \"$label\" \"$rc\" \"$o\" \"$c\"\n}\nexport PHCLIB_PASSWD=passwd.fixture\nfor u in nosuch badchar uidmax gidmax emptygid sixf; do try \"$u\" \"$u\"; done\n/usr/bin/cp passwd.fixture locked.fixture; /usr/bin/chmod 000 locked.fixture\nPHCLIB_PASSWD=locked.fixture; try unreadable nosuch\n/usr/bin/mkdir adir; PHCLIB_PASSWD=adir; try directory nosuch\n: > empty.fixture; PHCLIB_PASSWD=empty.fixture; try empty-db nosuch\nPHCLIB_PASSWD=; PASSWD_FILE=absent.fixture; export PASSWD_FILE; try fallback-variable nosuch\nPHCLIB_PASSWD=passwd.fixture; try precedence nosuch\nprintf 'shell=alive\\n'\n/usr/bin/chmod 600 locked.fixture; /usr/bin/rm -rf out err locked.fixture adir empty.fixture\n",
+   "expected_status": 0,
+   "stdout": "nosuch rc=1 stdout=empty diag=no-such-user(nosuch)\nbadchar rc=1 stdout=empty diag=no-such-user(badchar)\nuidmax rc=1 stdout=empty diag=no-such-user(uidmax)\ngidmax rc=1 stdout=empty diag=no-such-user(gidmax)\nemptygid rc=1 stdout=empty diag=no-such-user(emptygid)\nsixf rc=1 stdout=empty diag=no-such-user(sixf)\nunreadable rc=1 stdout=empty diag=unreadable-db\ndirectory rc=1 stdout=empty diag=unreadable-db\nempty-db rc=1 stdout=empty diag=no-such-user(nosuch)\nfallback-variable rc=1 stdout=empty diag=unreadable-db\nprecedence rc=1 stdout=empty diag=no-such-user(nosuch)\nshell=alive\n",
+   "covers": [
+    "su/private-account-lookup"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "timeout": 30,
+   "files": {
+    "passwd.fixture": "# comment row\nbadchar:x:abc:1::/:/bin/sh\nuidmax:x:4294967295:1::/:/bin/sh\ngidmax:x:1:4294967295::/:/bin/sh\nemptygid:x:1:::/:/bin/sh\nsixf:x:1:1:/:/bin/sh\n\n",
+    "shadow.fixture": "nosuch:!:19000:0:99999:7:::\n"
+   },
+   "requires": [
+    "cp",
+    "chmod",
+    "mkdir",
+    "rm"
+   ],
+   "id": "migration-su-private-account-lookup-seven-field-rows",
+   "loadable": "su",
+   "purpose": "The same fail-closed lookups as migration-su-private-account-lookup-failclosed over a database without the eight-field row, so absence, invalid ids, too few fields, unreadable and directory databases and the PHCLIB_PASSWD-then-PASSWD_FILE selection are observed independently of that row's parsing (F24). No row is reachable, so nothing authenticates.",
+   "oracle": "passwd(5) seven-field rows with decimal uid/gid ((uid_t)-1 and (gid_t)-1 reserved), su(1) 'no such user' versus a database read failure (fopen/read errors such as EACCES and EISDIR are not absence), and the loadables' shared PHCLIB_PASSWD-then-PASSWD_FILE fixture selection.",
+   "comparison": "Exact status, empty stdout and diagnostic class (documented message keys) per lookup, and that the shell survives every lookup.",
+   "script": "[[ $(type -t su) == builtin ]] || { printf 'candidate su builtin missing\\n'; exit 99; }\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_SHADOW=shadow.fixture\nunset PASSWD_FILE\ntry() {\n  local label=$1; shift\n  su \"$@\" > out 2> err; local rc=$?\n  local e; e=$(< err) c=other\n  case $e in\n    *\"no such user: \"*) c=\"no-such-user(${e##*no such user: })\" ;;\n    *\"invalid user: \"*) c=\"invalid-user\" ;;\n    *\"cannot read passwd database\"*) c=\"unreadable-db\" ;;\n    \"\") c=none ;;\n  esac\n  [[ -s out ]] && o=nonempty || o=empty\n  printf '%s rc=%d stdout=%s diag=%s\\n' \"$label\" \"$rc\" \"$o\" \"$c\"\n}\nexport PHCLIB_PASSWD=passwd.fixture\nfor u in nosuch badchar uidmax gidmax emptygid sixf; do try \"$u\" \"$u\"; done\n/usr/bin/cp passwd.fixture locked.fixture; /usr/bin/chmod 000 locked.fixture\nPHCLIB_PASSWD=locked.fixture; try unreadable nosuch\n/usr/bin/mkdir adir; PHCLIB_PASSWD=adir; try directory nosuch\n: > empty.fixture; PHCLIB_PASSWD=empty.fixture; try empty-db nosuch\nPHCLIB_PASSWD=; PASSWD_FILE=absent.fixture; export PASSWD_FILE; try fallback-variable nosuch\nPHCLIB_PASSWD=passwd.fixture; try precedence nosuch\nprintf 'shell=alive\\n'\n/usr/bin/chmod 600 locked.fixture; /usr/bin/rm -rf out err locked.fixture adir empty.fixture\n",
+   "expected_status": 0,
+   "stdout": "nosuch rc=1 stdout=empty diag=no-such-user(nosuch)\nbadchar rc=1 stdout=empty diag=no-such-user(badchar)\nuidmax rc=1 stdout=empty diag=no-such-user(uidmax)\ngidmax rc=1 stdout=empty diag=no-such-user(gidmax)\nemptygid rc=1 stdout=empty diag=no-such-user(emptygid)\nsixf rc=1 stdout=empty diag=no-such-user(sixf)\nunreadable rc=1 stdout=empty diag=unreadable-db\ndirectory rc=1 stdout=empty diag=unreadable-db\nempty-db rc=1 stdout=empty diag=no-such-user(nosuch)\nfallback-variable rc=1 stdout=empty diag=unreadable-db\nprecedence rc=1 stdout=empty diag=no-such-user(nosuch)\nshell=alive\n",
+   "covers": [
+    "su/private-account-lookup"
+   ]
+  }
+ ]
+}

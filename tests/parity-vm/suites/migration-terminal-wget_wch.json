@@ -1,0 +1,177 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "id": "migration-wget-wch-fragmented-scalar",
+   "loadable": "wget_wch",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "On a noncanonical PTY, a 2-byte and a 4-byte scalar each delivered in two writes 200 ms apart are returned as one complete scalar each.",
+   "script": "bashtermraw raw; wget_wch read > a; wget_wch read > b; bashtermraw cooked",
+   "steps": [
+    {
+     "termios": {
+      "clear": [
+       "ICANON"
+      ]
+     }
+    },
+    {
+     "send_base64": "ww=="
+    },
+    {
+     "settle_ms": 200
+    },
+    {
+     "send_base64": "qQ=="
+    },
+    {
+     "settle_ms": 150
+    },
+    {
+     "send_base64": "8J8="
+    },
+    {
+     "settle_ms": 200
+    },
+    {
+     "send_base64": "mIA="
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "wget_wch/pty-fragmented-input"
+   ],
+   "oracle": "wget_wch help text: read [FD] decodes one UTF-8 scalar/cluster and prints 'wch U+XXXX[,U+YYYY...] bytes=N'; nonseekable lookahead is process-local; extension marks join only when immediately available (wget_wch.c bww_read_cluster uses a poll(0) check); invalid or incomplete input fails (rc 1, no record). Code points per Unicode/UTF-8 (RFC 3629).",
+   "comparison": "contract: decoded record lines",
+   "kind": "contract",
+   "expected_files": {
+    "a": "wch U+00E9 bytes=2\n",
+    "b": "wch U+1F600 bytes=4\n"
+   }
+  },
+  {
+   "id": "migration-wget-wch-late-combining-mark",
+   "loadable": "wget_wch",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "A combining acute (U+0301) written 300 ms after its base 'e' is not joined: the base is returned alone and the mark is the next record; the same pair in one write is joined into one cluster.",
+   "script": "bashtermraw raw; wget_wch read > base; wget_wch read > mark; wget_wch read > joined; bashtermraw cooked",
+   "steps": [
+    {
+     "termios": {
+      "clear": [
+       "ICANON"
+      ]
+     }
+    },
+    {
+     "send": "e"
+    },
+    {
+     "settle_ms": 300
+    },
+    {
+     "send_base64": "zIE="
+    },
+    {
+     "settle_ms": 200
+    },
+    {
+     "send_base64": "ZcyB"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "wget_wch/pty-fragmented-input"
+   ],
+   "oracle": "wget_wch help text: read [FD] decodes one UTF-8 scalar/cluster and prints 'wch U+XXXX[,U+YYYY...] bytes=N'; nonseekable lookahead is process-local; extension marks join only when immediately available (wget_wch.c bww_read_cluster uses a poll(0) check); invalid or incomplete input fails (rc 1, no record). Code points per Unicode/UTF-8 (RFC 3629).",
+   "comparison": "contract: decoded record lines",
+   "kind": "contract",
+   "expected_files": {
+    "base": "wch U+0065 bytes=1\n",
+    "mark": "wch U+0301 bytes=2\n",
+    "joined": "wch U+0065,U+0301 bytes=3\n"
+   }
+  },
+  {
+   "id": "migration-wget-wch-canonical-vs-pipe",
+   "loadable": "wget_wch",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "Complete scalars typed on a canonical-mode terminal (line delivered on Enter) decode the same as the same bytes from a pipe: e-acute, CJK U+4E2D, then the newline.",
+   "script": "for i in 1 2 3; do wget_wch read; done > tty-records\nprintf '\\303\\251\\344\\270\\255\\n' | { for i in 1 2 3; do wget_wch read; done; } > pipe-records\n[[ $(< tty-records) == \"$(< pipe-records)\" ]] && echo same > compare || echo differ > compare\n",
+   "steps": [
+    {
+     "termios": {
+      "set": [
+       "ICANON"
+      ]
+     }
+    },
+    {
+     "send_base64": "w6nkuK0="
+    },
+    {
+     "send": "\r"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "wget_wch/pty-fragmented-input"
+   ],
+   "oracle": "wget_wch help text: read [FD] decodes one UTF-8 scalar/cluster and prints 'wch U+XXXX[,U+YYYY...] bytes=N'; nonseekable lookahead is process-local; extension marks join only when immediately available (wget_wch.c bww_read_cluster uses a poll(0) check); invalid or incomplete input fails (rc 1, no record). Code points per Unicode/UTF-8 (RFC 3629).",
+   "comparison": "contract: decoded record lines from the canonical PTY and from a pipe, plus their equality",
+   "kind": "contract",
+   "expected_files": {
+    "tty-records": "wch U+00E9 bytes=2\nwch U+4E2D bytes=3\nwch U+000A bytes=1\n",
+    "pipe-records": "wch U+00E9 bytes=2\nwch U+4E2D bytes=3\nwch U+000A bytes=1\n",
+    "compare": "same\n"
+   }
+  },
+  {
+   "id": "migration-wget-wch-incomplete-at-eof",
+   "loadable": "wget_wch",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "On a canonical PTY, a UTF-8 lead byte followed by ^D (end of input after the partial line; the 1-byte continuation read then sees EOF, and a second ^D is sent in case the first only delivers the partial line) fails with rc 1 and no record; the shell continues.",
+   "script": "wget_wch read > rec; printf '%s\\n' \"$?\" > rc; printf 'after\\n' > after",
+   "steps": [
+    {
+     "termios": {
+      "set": [
+       "ICANON"
+      ]
+     }
+    },
+    {
+     "send_base64": "ww=="
+    },
+    {
+     "settle_ms": 100
+    },
+    {
+     "send": "\u0004"
+    },
+    {
+     "settle_ms": 200
+    },
+    {
+     "send": "\u0004"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "wget_wch/pty-fragmented-input"
+   ],
+   "oracle": "wget_wch help text: read [FD] decodes one UTF-8 scalar/cluster and prints 'wch U+XXXX[,U+YYYY...] bytes=N'; nonseekable lookahead is process-local; extension marks join only when immediately available (wget_wch.c bww_read_cluster uses a poll(0) check); invalid or incomplete input fails (rc 1, no record). Code points per Unicode/UTF-8 (RFC 3629).",
+   "comparison": "contract: rc and empty record",
+   "kind": "contract",
+   "expected_files": {
+    "rec": "",
+    "rc": "1\n",
+    "after": "after\n"
+   }
+  }
+ ]
+}

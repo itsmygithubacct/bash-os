@@ -132,13 +132,13 @@
       "id": "remote_protocol_mock",
       "kind": "deferred",
       "purpose": "Remote protocol behavior for clone, fetch, and push.",
-      "reason": "Requires a future disposable in-namespace upload-pack/receive-pack mock with injected SSH or HTTP transport and deterministic protocol responses. The current fixture runner has no local peer injection; do not substitute a real network target."
+      "reason": "No remote-transport fixture exists. The candidate implements http(s) and ssh transports, an upload-pack (protocol v2) and receive-pack, so this is fixture work only."
     },
     {
       "id": "signing_and_editor",
       "kind": "deferred",
       "purpose": "Signed commits and interactive editor-driven operations.",
-      "reason": "Requires a future disposable PTY plus a fake signing helper and test-only key material created inside that fixture. This suite has no terminal or signing-service mock and must not read installed credentials."
+      "reason": "No signing or editor fixture exists. A PTY is not required: git invokes the editor non-interactively through the shell, and ssh signing needs only a fixture key; OpenPGP signing is not implemented by the candidate."
     },
     {
       "id": "missing_object_modes",

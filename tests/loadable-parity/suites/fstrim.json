@@ -39,45 +39,84 @@
     },
     {
       "id": "listed-file-selection",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare -I colon-list choice, regular/non-empty file rules, fstab-shaped parsing, malformed rows and mountpoint eligibility.",
-      "reason": "Requires a disposable VM or reviewed syscall mock that redirects candidate and util-linux table/file/stat/access/statfs/realpath/open calls to the same small private fixture. The mock must supply fake mountpoint metadata and block real FITRIM ioctls; the current runner exposes neither the path macros nor a syscall fixture for this binary."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-fstrim-listed-tables"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-selection-listed-tables"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-selection-namespace-escapes"
+        }
+      ]
     },
     {
       "id": "mountinfo-all-mode",
       "kind": "deferred",
       "purpose": "Compare -a mountinfo parsing and selection of writable local filesystems, including read-only, pseudo, network and unmounted entries.",
-      "reason": "Requires a disposable VM or reviewed mock that supplies a private mountinfo table and consistent filesystem/device metadata to both the candidate and util-linux reference. The mock must intercept table access and all filesystem checks and guarantee no FITRIM ioctl reaches the kernel."
+      "reason": "Remaining obligations: r1: No positive -a listing: the guest root is not selected by util-linux -a (likely mounted read-only), so reverse-order listing of writable local block filesystems is unobserved.; r3: No -a run attempts FITRIM in the guest; per-filesystem EPERM/unsupported reporting and the 32/64 aggregates in -a mode are unobserved."
     },
     {
       "id": "fstab-tags-and-root",
       "kind": "deferred",
       "purpose": "Compare -A fstab behavior, LABEL/UUID-style device resolution and root-device selection from a supplied command line or fake sysfs.",
-      "reason": "Requires a disposable VM or reviewed mock for fstab, command-line, /dev/disk and sysfs lookups, plus fake mountpoint/device metadata for both implementations. It must contain no real device access and must block FITRIM ioctls."
+      "reason": "Remaining obligations: r1: Only the UUID= form yields a positive selected row. LABEL= positive selection and the PARTLABEL=/PARTUUID= forms are not exercised.; r2: Root-device guessing is only inferred from duplicate-source deduplication; no selected row depends solely on resolving /dev/root."
     },
     {
       "id": "dedup-escapes-and-types",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare duplicate target/source rules, octal escapes, repeated/trailing slash path equivalence, and case-insensitive positive and negated -t filters.",
-      "reason": "Requires the same reviewed private table and filesystem syscall mock for candidate and util-linux, with fixture paths containing spaces, tabs and backslashes and deterministic mountpoint/device identities. The mock must prevent all real trim ioctls."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-fstrim-listed-tables"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-namespace-mounts"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-selection-discard-capable-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-selection-listed-tables"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-selection-namespace-escapes"
+        }
+      ]
     },
     {
       "id": "ranges-and-option-errors",
       "kind": "deferred",
       "purpose": "Compare -o/-l/-m size parsing (base-0 numbers, binary/decimal suffixes, fractions and limits), option permutation and representative usage failures.",
-      "reason": "Even dry-run range cases open and validate a target path. Requires a disposable fixture target or syscall mock for both implementations, util-linux fstrim as oracle, and a check that dry-run issues no FITRIM request. Invalid-option cases may be added to that bounded reference comparison."
+      "reason": "Remaining obligations: r1: Size syntax acceptance/rejection and dry-run target validation are exercised. Converted numeric offset/length/minimum fields are not observed; the dry-run line reports zero bytes."
     },
     {
       "id": "fitrim-results-and-statuses",
       "kind": "deferred",
       "purpose": "Compare range arguments, verbose size formatting, unsupported-operation handling, quiet mode, and all-failed/partial-failed aggregate exit statuses.",
-      "reason": "Requires a reviewed closed ioctl mock that records start/length/minimum-length and supplies deterministic success or errno responses to candidate and util-linux. The mock must prove that no FITRIM ioctl reaches the kernel; a disposable real filesystem alone is not an acceptable substitute."
+      "reason": "Remaining obligations: r1: start/length/minlen values are inside struct fstrim_range in memory; system-seccomp.py can record only integer and string arguments, so request values are not observed (only the request count per invocation). Needs a struct-reading notify log.; r2: Successful mocked FITRIM leaves the requested length unchanged and its formatting is checked. A distinct kernel-returned length has not been written into the response buffer and observed.; r4: some-failed status 64 needs a mixed per-filesystem result; the helper replies per syscall name, and successive FITRIM calls are not distinguishable by integer arguments"
     },
     {
       "id": "single-target-path-lifecycle",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare single-target directory checks, realpath/open failures, dry-run output and descriptor cleanup on success or failure.",
-      "reason": "Requires a disposable target tree plus a reviewed filesystem/ioctl mock for both implementations to provide deterministic stat, realpath, open and close behavior. The mock must block FITRIM at the syscall boundary, including error cases."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-fstrim-single-target"
+        }
+      ]
     }
   ]
 }

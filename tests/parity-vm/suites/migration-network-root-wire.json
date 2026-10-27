@@ -1,0 +1,155 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-dns-wire-noedns",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns",
+      "purpose": "Compare the complete DNS query wire image after zeroing only its random transaction ID; retain the original raw packet and QNAME case. No EDNS additional record is sent.",
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\n"
+      },
+      "candidate_script": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\" BASHDNS_0X20=0; dns query WwW.Example.test A 2>/dev/null",
+      "reference_script": "dig +short +tries=1 +time=1 +nosearch +nocookie +noedns +noadflag @127.0.0.1 WwW.Example.test A 2>/dev/null",
+      "stdout": "192.0.2.10\n",
+      "stderr": "",
+      "expected_status": 0,
+      "expected_requests": [
+        {
+          "transport": "udp",
+          "qname_case": "WwW.Example.test",
+          "edns": false,
+          "advertised_udp_size": 512,
+          "wire_id_zero_base64": "AAABAAABAAAAAAAAA1d3VwdFeGFtcGxlBHRlc3QAAAEAAQ=="
+        }
+      ],
+      "compare_request_keys": [
+        "wire_id_zero_base64"
+      ],
+      "requires": [
+        "dig"
+      ],
+      "covers": [
+        "dns/dns-query-udp-tcp"
+      ],
+      "oracle": "BIND dig with explicit matching flags; independent RFC 1035 header/question encoding and RFC 6891 OPT encoding. BASHDNS_0X20=0 is the documented switch disabling query-case randomization for this deterministic comparison.",
+      "comparison": "Every request byte except the two transaction-ID bytes is compared; the unmodified packet remains in peer evidence. CLI DNSSEC warning policy is excluded from this wire-format check by explicit stderr redirection on both sides."
+    },
+    {
+      "id": "migration-dns-wire-edns-do",
+      "loadable": "dns",
+      "group": "network",
+      "driver": "network",
+      "peer": "dns",
+      "purpose": "Compare the complete DNS query wire image after zeroing only its random transaction ID; retain the original raw packet and QNAME case. Include the EDNS0 OPT record, 1024-byte size and DO flag.",
+      "files": {
+        "resolv.conf": "nameserver 127.0.0.1\n"
+      },
+      "candidate_script": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\" BASHDNS_0X20=0; dns query WwW.Example.test A --dnssec 2>/dev/null",
+      "reference_script": "dig +short +tries=1 +time=1 +nosearch +nocookie +dnssec +bufsize=1024 +noadflag @127.0.0.1 WwW.Example.test A 2>/dev/null",
+      "stdout": "192.0.2.10\n",
+      "stderr": "",
+      "expected_status": 0,
+      "expected_requests": [
+        {
+          "transport": "udp",
+          "qname_case": "WwW.Example.test",
+          "edns": true,
+          "advertised_udp_size": 1024,
+          "wire_id_zero_base64": "AAABAAABAAAAAAABA1d3VwdFeGFtcGxlBHRlc3QAAAEAAQAAKQQAAACAAAAA"
+        }
+      ],
+      "compare_request_keys": [
+        "wire_id_zero_base64"
+      ],
+      "requires": [
+        "dig"
+      ],
+      "covers": [
+        "dns/dns-query-udp-tcp"
+      ],
+      "oracle": "BIND dig with explicit matching flags; independent RFC 1035 header/question encoding and RFC 6891 OPT encoding. BASHDNS_0X20=0 is the documented switch disabling query-case randomization for this deterministic comparison.",
+      "comparison": "Every request byte except the two transaction-ID bytes is compared; the unmodified packet remains in peer evidence. CLI DNSSEC warning policy is excluded from this wire-format check by explicit stderr redirection on both sides."
+    },
+    {
+      "id": "migration-nc-usage-no-socket",
+      "loadable": "nc",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe every socket syscall after a fresh shell announces command readiness, and require invalid nc requests to return usage status before any socket or DNS activity.",
+      "oracle": "The original nc usage contract requires status 2 before socket activity. An unprivileged seccomp notification supervisor records all socket families; a write to inherited descriptor 3 marks the end of shell startup. Trusted setup proves that a known post-marker socket is recorded.",
+      "comparison": "Exact status, empty nc stdout, and zero post-readiness socket calls for each invalid form. Startup libc/NSS activity is separated by an explicit marker. Complete per-form syscall logs remain in the result tree.",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify socket --notify write:0=3 --log-args write=0 --log-args socket=0 --log probe-trace -- /usr/bin/python3 -c 'import os,socket;os.write(3,b\"START\");socket.socket(socket.AF_INET,socket.SOCK_STREAM).close()' 3>probe-marker\n[[ $(/usr/bin/python3 count-sockets.py probe-trace) == 1 ]]\nrm -f probe-trace probe-marker",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify socket --notify write:0=3 --log-args write=0 --log-args socket=0 --log trace-connect-0 -- \"$BASH\" --noprofile --norc -c '/usr/bin/python3 ready.py; nc connect 127.0.0.1 0 -w 1' 3>marker </dev/null > out 2> err; rc=$?\nn=$(/usr/bin/python3 count-sockets.py trace-connect-0) || exit 97\n[[ -s out ]] && bytes=nonempty || bytes=empty; printf \"%s=%s stdout=%s sockets=%s\\n\" connect-0 \"$rc\" \"$bytes\" \"$n\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify socket --notify write:0=3 --log-args write=0 --log-args socket=0 --log trace-connect-65536 -- \"$BASH\" --noprofile --norc -c '/usr/bin/python3 ready.py; nc connect 127.0.0.1 65536 -w 1' 3>marker </dev/null > out 2> err; rc=$?\nn=$(/usr/bin/python3 count-sockets.py trace-connect-65536) || exit 97\n[[ -s out ]] && bytes=nonempty || bytes=empty; printf \"%s=%s stdout=%s sockets=%s\\n\" connect-65536 \"$rc\" \"$bytes\" \"$n\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify socket --notify write:0=3 --log-args write=0 --log-args socket=0 --log trace-connect-99999 -- \"$BASH\" --noprofile --norc -c '/usr/bin/python3 ready.py; nc connect 127.0.0.1 99999 -w 1' 3>marker </dev/null > out 2> err; rc=$?\nn=$(/usr/bin/python3 count-sockets.py trace-connect-99999) || exit 97\n[[ -s out ]] && bytes=nonempty || bytes=empty; printf \"%s=%s stdout=%s sockets=%s\\n\" connect-99999 \"$rc\" \"$bytes\" \"$n\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify socket --notify write:0=3 --log-args write=0 --log-args socket=0 --log trace-connect-http -- \"$BASH\" --noprofile --norc -c '/usr/bin/python3 ready.py; nc connect 127.0.0.1 http -w 1' 3>marker </dev/null > out 2> err; rc=$?\nn=$(/usr/bin/python3 count-sockets.py trace-connect-http) || exit 97\n[[ -s out ]] && bytes=nonempty || bytes=empty; printf \"%s=%s stdout=%s sockets=%s\\n\" connect-http \"$rc\" \"$bytes\" \"$n\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify socket --notify write:0=3 --log-args write=0 --log-args socket=0 --log trace-connect-8x -- \"$BASH\" --noprofile --norc -c '/usr/bin/python3 ready.py; nc connect 127.0.0.1 8x -w 1' 3>marker </dev/null > out 2> err; rc=$?\nn=$(/usr/bin/python3 count-sockets.py trace-connect-8x) || exit 97\n[[ -s out ]] && bytes=nonempty || bytes=empty; printf \"%s=%s stdout=%s sockets=%s\\n\" connect-8x \"$rc\" \"$bytes\" \"$n\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify socket --notify write:0=3 --log-args write=0 --log-args socket=0 --log trace-listen-0 -- \"$BASH\" --noprofile --norc -c '/usr/bin/python3 ready.py; nc listen 0 -s 127.0.0.1 -w 1' 3>marker </dev/null > out 2> err; rc=$?\nn=$(/usr/bin/python3 count-sockets.py trace-listen-0) || exit 97\n[[ -s out ]] && bytes=nonempty || bytes=empty; printf \"%s=%s stdout=%s sockets=%s\\n\" listen-0 \"$rc\" \"$bytes\" \"$n\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify socket --notify write:0=3 --log-args write=0 --log-args socket=0 --log trace-listen-65536 -- \"$BASH\" --noprofile --norc -c '/usr/bin/python3 ready.py; nc listen 65536 -s 127.0.0.1 -w 1' 3>marker </dev/null > out 2> err; rc=$?\nn=$(/usr/bin/python3 count-sockets.py trace-listen-65536) || exit 97\n[[ -s out ]] && bytes=nonempty || bytes=empty; printf \"%s=%s stdout=%s sockets=%s\\n\" listen-65536 \"$rc\" \"$bytes\" \"$n\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify socket --notify write:0=3 --log-args write=0 --log-args socket=0 --log trace-listen-99999 -- \"$BASH\" --noprofile --norc -c '/usr/bin/python3 ready.py; nc listen 99999 -s 127.0.0.1 -w 1' 3>marker </dev/null > out 2> err; rc=$?\nn=$(/usr/bin/python3 count-sockets.py trace-listen-99999) || exit 97\n[[ -s out ]] && bytes=nonempty || bytes=empty; printf \"%s=%s stdout=%s sockets=%s\\n\" listen-99999 \"$rc\" \"$bytes\" \"$n\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify socket --notify write:0=3 --log-args write=0 --log-args socket=0 --log trace-listen-http -- \"$BASH\" --noprofile --norc -c '/usr/bin/python3 ready.py; nc listen http -s 127.0.0.1 -w 1' 3>marker </dev/null > out 2> err; rc=$?\nn=$(/usr/bin/python3 count-sockets.py trace-listen-http) || exit 97\n[[ -s out ]] && bytes=nonempty || bytes=empty; printf \"%s=%s stdout=%s sockets=%s\\n\" listen-http \"$rc\" \"$bytes\" \"$n\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify socket --notify write:0=3 --log-args write=0 --log-args socket=0 --log trace-listen-8x -- \"$BASH\" --noprofile --norc -c '/usr/bin/python3 ready.py; nc listen 8x -s 127.0.0.1 -w 1' 3>marker </dev/null > out 2> err; rc=$?\nn=$(/usr/bin/python3 count-sockets.py trace-listen-8x) || exit 97\n[[ -s out ]] && bytes=nonempty || bytes=empty; printf \"%s=%s stdout=%s sockets=%s\\n\" listen-8x \"$rc\" \"$bytes\" \"$n\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify socket --notify write:0=3 --log-args write=0 --log-args socket=0 --log trace-scan-reversed -- \"$BASH\" --noprofile --norc -c '/usr/bin/python3 ready.py; nc scan 127.0.0.1 20485 20483' 3>marker </dev/null > out 2> err; rc=$?\nn=$(/usr/bin/python3 count-sockets.py trace-scan-reversed) || exit 97\n[[ -s out ]] && bytes=nonempty || bytes=empty; printf \"%s=%s stdout=%s sockets=%s\\n\" scan-reversed \"$rc\" \"$bytes\" \"$n\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify socket --notify write:0=3 --log-args write=0 --log-args socket=0 --log trace-scan-zero -- \"$BASH\" --noprofile --norc -c '/usr/bin/python3 ready.py; nc scan 127.0.0.1 0 1' 3>marker </dev/null > out 2> err; rc=$?\nn=$(/usr/bin/python3 count-sockets.py trace-scan-zero) || exit 97\n[[ -s out ]] && bytes=nonempty || bytes=empty; printf \"%s=%s stdout=%s sockets=%s\\n\" scan-zero \"$rc\" \"$bytes\" \"$n\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify socket --notify write:0=3 --log-args write=0 --log-args socket=0 --log trace-missing-address -- \"$BASH\" --noprofile --norc -c '/usr/bin/python3 ready.py; nc listen 20483' 3>marker </dev/null > out 2> err; rc=$?\nn=$(/usr/bin/python3 count-sockets.py trace-missing-address) || exit 97\n[[ -s out ]] && bytes=nonempty || bytes=empty; printf \"%s=%s stdout=%s sockets=%s\\n\" missing-address \"$rc\" \"$bytes\" \"$n\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify socket --notify write:0=3 --log-args write=0 --log-args socket=0 --log trace-bad-wait -- \"$BASH\" --noprofile --norc -c '/usr/bin/python3 ready.py; nc connect 127.0.0.1 20483 -w bad' 3>marker </dev/null > out 2> err; rc=$?\nn=$(/usr/bin/python3 count-sockets.py trace-bad-wait) || exit 97\n[[ -s out ]] && bytes=nonempty || bytes=empty; printf \"%s=%s stdout=%s sockets=%s\\n\" bad-wait \"$rc\" \"$bytes\" \"$n\"\nrm -f marker out err",
+      "stdout": "connect-0=2 stdout=empty sockets=0\nconnect-65536=2 stdout=empty sockets=0\nconnect-99999=2 stdout=empty sockets=0\nconnect-http=2 stdout=empty sockets=0\nconnect-8x=2 stdout=empty sockets=0\nlisten-0=2 stdout=empty sockets=0\nlisten-65536=2 stdout=empty sockets=0\nlisten-99999=2 stdout=empty sockets=0\nlisten-http=2 stdout=empty sockets=0\nlisten-8x=2 stdout=empty sockets=0\nscan-reversed=2 stdout=empty sockets=0\nscan-zero=2 stdout=empty sockets=0\nmissing-address=2 stdout=empty sockets=0\nbad-wait=2 stdout=empty sockets=0\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 60,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "covers": [
+        "nc/deferred-usage-validation"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "files": {
+        "count-sockets.py": "import json,sys\nrows=[json.loads(s) for s in open(sys.argv[1])]\nmarkers=[i for i,r in enumerate(rows) if r[\"syscall\"]==\"write\" and r.get(\"arg0\")==3]\nassert len(markers)==1,rows\nprint(sum(r[\"syscall\"]==\"socket\" for r in rows[markers[0]+1:]))\n",
+        "ready.py": "import os\nos.write(3,b\"START\")\n"
+      }
+    },
+    {
+      "id": "migration-less-page-size-rendering",
+      "loadable": "less",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "The documented -n 10 page contains exactly ten data rows; space advances by ten rows, with the prompt below the data.",
+      "oracle": "Candidate less help defines -n LINES as page height. Independently numbered fixture data fixes the first and last line of each ten-line page. GNU -z scrolling distance is compared separately.",
+      "comparison": "Decoded rows 0 and 9 establish page contents; row 10 is a nonempty prompt and row 11 is empty. Exact terminal restoration and successful quit are required.",
+      "script": "less -n 10 note",
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\n"
+      },
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$",
+              "9": "^line-010$",
+              "10": ".+",
+              "11": "^$"
+            }
+          }
+        },
+        {
+          "send": " "
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-011$",
+              "9": "^line-020$",
+              "10": ".+",
+              "11": "^$"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "less/pty-options-and-resize"
+      ]
+    }
+  ]
+}

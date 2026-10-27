@@ -1,0 +1,932 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "id": "migration-tui-cursor-wrap-clear",
+   "loadable": "tui",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "move Y X persists for addstr without coordinates; text reaching the right edge wraps to column 0 of the next row; clrtoeol and clrtobot blank from the cursor; erase blanks the buffer, and the next refresh clears the terminal cells.",
+   "script": "tui init\ntui move 2 3; tui addstr abc; tui addstr def\ntui addstr -y 4 -x 16 wrapping\ntui addstr -y 6 -x 0 0123456789; tui move 6 4; tui clrtoeol\ntui addstr -y 7 -x 0 keep7; tui addstr -y 8 -x 0 gone8; tui addstr -y 9 -x 0 gone9; tui move 8 2; tui clrtobot\ntui refresh\ntui getkey > /dev/null\ntui erase; tui addstr -y 0 -x 0 after-erase; tui refresh\ntui getkey > /dev/null\ntui end\n",
+   "steps": [
+    {
+     "screen": {
+      "rows": {
+       "2": "^   abcdef$",
+       "4": "^ {16}wrap$",
+       "5": "^ping$",
+       "6": "^0123$",
+       "7": "^keep7$",
+       "8": "^go$",
+       "9": "^$"
+      }
+     }
+    },
+    {
+     "send": "q"
+    },
+    {
+     "screen": {
+      "rows": {
+       "0": "^after-erase$",
+       "2": "^$",
+       "4": "^$",
+       "5": "^$",
+       "6": "^$",
+       "7": "^$",
+       "8": "^$"
+      }
+     }
+    },
+    {
+     "send": "q"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tui/cell-drawing-refresh"
+   ],
+   "oracle": "tui help text and tui.c header: init enters raw mode and the alternate screen, end restores (idempotent); lines/cols; resized prints 1 once after SIGWINCH (rc 0) else 0 (rc 1); move/addstr Y X (origin 0,0); erase/clrtoeol/clrtobot; box/hline/vline default glyphs U+250C U+2510 U+2514 U+2518 U+2500 U+2502; refresh flushes only changed cells; attr normal|bold|dim|italic|underline|blink|reverse; fg/bg default|NAME|N|#RRGGBB|R,G,B; colormode 16|256|truecolor; getkey tokens UP/DOWN/LEFT/RIGHT/HOME/END/PGUP/PGDN/RET/TAB/ESC/BS/DEL/F1..F4/C-A.. with rc 0 key, 1 EOF, 2 timeout; timeout -1 blocks, 0 nonblocking, >0 ms; getstr prints the line, rc 1 if cancelled. SGR parameter meanings per ECMA-48/xterm ctlseqs, decoded independently by pyte for cell assertions.",
+   "comparison": "contract: pyte-decoded screen rows on a 10x20 PTY",
+   "kind": "contract",
+   "size": [
+    10,
+    20
+   ]
+  },
+  {
+   "id": "migration-tui-box-lines",
+   "loadable": "tui",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "box draws the border with the documented corner/edge glyphs; hline/vline draw runs of the default glyphs or a given character, starting at the cursor and clipped at the screen edge.",
+   "script": "tui init; tui box; tui move 2 2; tui hline 5; tui move 1 8; tui vline 3; tui move 3 2; tui hline = 3\ntui move 4 10; tui vline '!' 5; tui refresh; tui getkey > /dev/null; tui end\n",
+   "steps": [
+    {
+     "screen": {
+      "rows": {
+       "0": "^┌──────────┐$",
+       "1": "^│\\ \\ \\ \\ \\ \\ \\ │\\ \\ │$",
+       "2": "^│\\ ─────\\ │\\ \\ │$",
+       "3": "^│\\ ===\\ \\ \\ │\\ \\ │$",
+       "4": "^│\\ \\ \\ \\ \\ \\ \\ \\ \\ !│$",
+       "5": "^└─────────!┘$"
+      }
+     }
+    },
+    {
+     "send": "q"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tui/cell-drawing-refresh"
+   ],
+   "oracle": "tui help text and tui.c header: init enters raw mode and the alternate screen, end restores (idempotent); lines/cols; resized prints 1 once after SIGWINCH (rc 0) else 0 (rc 1); move/addstr Y X (origin 0,0); erase/clrtoeol/clrtobot; box/hline/vline default glyphs U+250C U+2510 U+2514 U+2518 U+2500 U+2502; refresh flushes only changed cells; attr normal|bold|dim|italic|underline|blink|reverse; fg/bg default|NAME|N|#RRGGBB|R,G,B; colormode 16|256|truecolor; getkey tokens UP/DOWN/LEFT/RIGHT/HOME/END/PGUP/PGDN/RET/TAB/ESC/BS/DEL/F1..F4/C-A.. with rc 0 key, 1 EOF, 2 timeout; timeout -1 blocks, 0 nonblocking, >0 ms; getstr prints the line, rc 1 if cancelled. SGR parameter meanings per ECMA-48/xterm ctlseqs, decoded independently by pyte for cell assertions.",
+   "comparison": "contract: pyte-decoded screen rows on a 6x12 PTY",
+   "kind": "contract",
+   "size": [
+    6,
+    12
+   ]
+  },
+  {
+   "id": "migration-tui-diff-refresh",
+   "loadable": "tui",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "After a refresh, changing one cell and refreshing again sends only cursor positioning and that cell: between the first refresh's 'abcd' and tui end's restore sequence the raw output contains only CSI sequences and the single changed character X.",
+   "script": "tui init; tui addstr -y 1 -x 0 abcd; tui refresh; tui getkey > /dev/null\ntui addstr -y 1 -x 2 X; tui refresh; tui getkey > /dev/null; tui end\n",
+   "steps": [
+    {
+     "screen": {
+      "rows": {
+       "1": "^abcd$"
+      }
+     }
+    },
+    {
+     "send": "q"
+    },
+    {
+     "screen": {
+      "rows": {
+       "1": "^abXd$"
+      }
+     }
+    },
+    {
+     "send": "q"
+    },
+    {
+     "expect": "abcd(?:\\x1b\\[[0-9;?]*[A-Za-z])*X(?:\\x1b\\[[0-9;?]*[A-Za-z])*\\x1b\\[0m\\x1b\\[\\?25h\\x1b\\[\\?1049l"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tui/cell-drawing-refresh"
+   ],
+   "oracle": "tui help text and tui.c header: init enters raw mode and the alternate screen, end restores (idempotent); lines/cols; resized prints 1 once after SIGWINCH (rc 0) else 0 (rc 1); move/addstr Y X (origin 0,0); erase/clrtoeol/clrtobot; box/hline/vline default glyphs U+250C U+2510 U+2514 U+2518 U+2500 U+2502; refresh flushes only changed cells; attr normal|bold|dim|italic|underline|blink|reverse; fg/bg default|NAME|N|#RRGGBB|R,G,B; colormode 16|256|truecolor; getkey tokens UP/DOWN/LEFT/RIGHT/HOME/END/PGUP/PGDN/RET/TAB/ESC/BS/DEL/F1..F4/C-A.. with rc 0 key, 1 EOF, 2 timeout; timeout -1 blocks, 0 nonblocking, >0 ms; getstr prints the line, rc 1 if cancelled. SGR parameter meanings per ECMA-48/xterm ctlseqs, decoded independently by pyte for cell assertions.",
+   "comparison": "contract: raw PTY bytes (only CSI between the two refreshes' text) and pyte-decoded rows",
+   "kind": "contract"
+  },
+  {
+   "id": "migration-tui-attributes",
+   "loadable": "tui",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "attr bold, italic+underline, reverse, dim, blink and normal apply to the drawn cells and refresh emits the matching SGR parameters (1, 3;4, 7, 2, 5, none) with default colours 39/49.",
+   "script": "tui init; tui attr bold; tui addstr -y 0 -x 0 B; tui attr italic underline; tui addstr I; tui attr reverse\ntui addstr R; tui attr dim; tui addstr D; tui attr blink; tui addstr K; tui attr normal; tui addstr N\ntui refresh; tui getkey > /dev/null; tui end\n",
+   "steps": [
+    {
+     "screen": {
+      "rows": {
+       "0": "^BIRDKN$"
+      },
+      "cells": [
+       {
+        "row": 0,
+        "col": 0,
+        "data": "B",
+        "bold": true,
+        "italics": false,
+        "reverse": false
+       },
+       {
+        "row": 0,
+        "col": 1,
+        "data": "I",
+        "bold": false,
+        "italics": true,
+        "underscore": true
+       },
+       {
+        "row": 0,
+        "col": 2,
+        "data": "R",
+        "reverse": true,
+        "italics": false,
+        "underscore": false
+       },
+       {
+        "row": 0,
+        "col": 3,
+        "data": "D",
+        "bold": false,
+        "reverse": false
+       },
+       {
+        "row": 0,
+        "col": 5,
+        "data": "N",
+        "bold": false,
+        "italics": false,
+        "underscore": false,
+        "reverse": false,
+        "fg": "default",
+        "bg": "default"
+       }
+      ]
+     }
+    },
+    {
+     "send": "q"
+    },
+    {
+     "expect": "\\x1b\\[0;1;39;49mB\\x1b\\[0;3;4;39;49mI\\x1b\\[0;7;39;49mR\\x1b\\[0;2;39;49mD\\x1b\\[0;5;39;49mK\\x1b\\[0;39;49mN"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tui/rendition-and-ansi"
+   ],
+   "oracle": "tui help text and tui.c header: init enters raw mode and the alternate screen, end restores (idempotent); lines/cols; resized prints 1 once after SIGWINCH (rc 0) else 0 (rc 1); move/addstr Y X (origin 0,0); erase/clrtoeol/clrtobot; box/hline/vline default glyphs U+250C U+2510 U+2514 U+2518 U+2500 U+2502; refresh flushes only changed cells; attr normal|bold|dim|italic|underline|blink|reverse; fg/bg default|NAME|N|#RRGGBB|R,G,B; colormode 16|256|truecolor; getkey tokens UP/DOWN/LEFT/RIGHT/HOME/END/PGUP/PGDN/RET/TAB/ESC/BS/DEL/F1..F4/C-A.. with rc 0 key, 1 EOF, 2 timeout; timeout -1 blocks, 0 nonblocking, >0 ms; getstr prints the line, rc 1 if cancelled. SGR parameter meanings per ECMA-48/xterm ctlseqs, decoded independently by pyte for cell assertions.",
+   "comparison": "contract: pyte cell attributes (bold/italics/underscore/reverse; pyte does not model dim or blink) plus exact raw SGR bytes in the implementation's reset-and-rebuild form (screen.c set_rendition)",
+   "kind": "contract"
+  },
+  {
+   "id": "migration-tui-colors-truecolor",
+   "loadable": "tui",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "In truecolor mode fg/bg accept a name, an index, #RRGGBB and R,G,B: named red is palette 1 (38;5;1), index 196 is 38;5;196, #102030 is 38;2;16;32;48, bg 10,20,30 is 48;2;10;20;30, and default restores 39/49.",
+   "script": "tui init; tui colormode truecolor > mode; tui fg red; tui addstr -y 0 -x 0 r; tui fg 196; tui addstr i\ntui fg '#102030'; tui bg 10,20,30; tui addstr h; tui fg default; tui bg default; tui addstr d\ntui refresh; tui getkey > /dev/null; tui end\n",
+   "steps": [
+    {
+     "screen": {
+      "rows": {
+       "0": "^rihd$"
+      },
+      "cells": [
+       {
+        "row": 0,
+        "col": 0,
+        "fg": "cd0000",
+        "bg": "default"
+       },
+       {
+        "row": 0,
+        "col": 1,
+        "fg": "ff0000"
+       },
+       {
+        "row": 0,
+        "col": 2,
+        "fg": "102030",
+        "bg": "0a141e"
+       },
+       {
+        "row": 0,
+        "col": 3,
+        "fg": "default",
+        "bg": "default"
+       }
+      ]
+     }
+    },
+    {
+     "send": "q"
+    },
+    {
+     "expect": "\\x1b\\[0;38;5;1;49mr\\x1b\\[0;38;5;196;49mi\\x1b\\[0;38;2;16;32;48;48;2;10;20;30mh\\x1b\\[0;39;49md"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tui/rendition-and-ansi"
+   ],
+   "oracle": "tui help text and tui.c header: init enters raw mode and the alternate screen, end restores (idempotent); lines/cols; resized prints 1 once after SIGWINCH (rc 0) else 0 (rc 1); move/addstr Y X (origin 0,0); erase/clrtoeol/clrtobot; box/hline/vline default glyphs U+250C U+2510 U+2514 U+2518 U+2500 U+2502; refresh flushes only changed cells; attr normal|bold|dim|italic|underline|blink|reverse; fg/bg default|NAME|N|#RRGGBB|R,G,B; colormode 16|256|truecolor; getkey tokens UP/DOWN/LEFT/RIGHT/HOME/END/PGUP/PGDN/RET/TAB/ESC/BS/DEL/F1..F4/C-A.. with rc 0 key, 1 EOF, 2 timeout; timeout -1 blocks, 0 nonblocking, >0 ms; getstr prints the line, rc 1 if cancelled. SGR parameter meanings per ECMA-48/xterm ctlseqs, decoded independently by pyte for cell assertions.",
+   "comparison": "contract: pyte-decoded cell colours (xterm 256 palette as hex) plus exact raw SGR bytes",
+   "kind": "contract",
+   "expected_files": {
+    "mode": "truecolor\n"
+   }
+  },
+  {
+   "id": "migration-tui-colormode-conversion",
+   "loadable": "tui",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "With TERM=xterm-256color and no COLORTERM, init selects the 256-colour mode; colormode 256 converts #ff8000 to cube index 208 and gray #808080 to ramp index 244; colormode 16 converts #ff8000 to bright yellow (93) and palette 196 to bright red (91).",
+   "script": "tui init; tui colormode > modes; tui fg '#ff8000'; tui addstr -y 0 -x 0 a; tui fg '#808080'; tui addstr b\ntui refresh; tui getkey > /dev/null\ntui colormode 16 >> modes; tui fg '#ff8000'; tui addstr -y 1 -x 0 c; tui fg 196; tui addstr d\ntui refresh; tui getkey > /dev/null; tui end\n",
+   "steps": [
+    {
+     "screen": {
+      "rows": {
+       "0": "^ab$"
+      },
+      "cells": [
+       {
+        "row": 0,
+        "col": 0,
+        "fg": "ff8700"
+       },
+       {
+        "row": 0,
+        "col": 1,
+        "fg": "808080"
+       }
+      ]
+     }
+    },
+    {
+     "send": "q"
+    },
+    {
+     "screen": {
+      "rows": {
+       "1": "^cd$"
+      }
+     }
+    },
+    {
+     "send": "q"
+    },
+    {
+     "expect": "\\x1b\\[0;38;5;208;49ma\\x1b\\[0;38;5;244;49mb"
+    },
+    {
+     "expect": "\\x1b\\[0;93;49m(?:\\x1b\\[[0-9;?]*[A-Za-z])*c\\x1b\\[0;91;49md"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tui/rendition-and-ansi"
+   ],
+   "oracle": "tui help text and tui.c header: init enters raw mode and the alternate screen, end restores (idempotent); lines/cols; resized prints 1 once after SIGWINCH (rc 0) else 0 (rc 1); move/addstr Y X (origin 0,0); erase/clrtoeol/clrtobot; box/hline/vline default glyphs U+250C U+2510 U+2514 U+2518 U+2500 U+2502; refresh flushes only changed cells; attr normal|bold|dim|italic|underline|blink|reverse; fg/bg default|NAME|N|#RRGGBB|R,G,B; colormode 16|256|truecolor; getkey tokens UP/DOWN/LEFT/RIGHT/HOME/END/PGUP/PGDN/RET/TAB/ESC/BS/DEL/F1..F4/C-A.. with rc 0 key, 1 EOF, 2 timeout; timeout -1 blocks, 0 nonblocking, >0 ms; getstr prints the line, rc 1 if cancelled. SGR parameter meanings per ECMA-48/xterm ctlseqs, decoded independently by pyte for cell assertions.",
+   "comparison": "contract: exact raw SGR bytes after the documented conversion (xterm 6x6x6 cube and gray ramp; nearest base colour with brightness) plus pyte hex colours for the 256-colour cells",
+   "kind": "contract",
+   "expected_files": {
+    "modes": "256\n16\n"
+   }
+  },
+  {
+   "id": "migration-tui-addansi",
+   "loadable": "tui",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "addansi applies embedded SGR (bold, 38;5;N, 38;2;R;G;B, reset) to the drawn cells, drops non-SGR CSI and two-byte escapes, shows C0 controls in caret notation and expands tab to the next multiple of 8.",
+   "script": "tui init; tui colormode truecolor > /dev/null\ntui addansi $'\\e[1mB\\e[0mn\\e[38;5;196mR\\e[38;2;1;2;3mT\\e[0m\\e[2Kx\\e7y\\001z\\tw'\ntui refresh; tui getkey > /dev/null; tui end\n",
+   "steps": [
+    {
+     "screen": {
+      "rows": {
+       "0": "^BnRTxy\\^Az {7}w$"
+      },
+      "cells": [
+       {
+        "row": 0,
+        "col": 0,
+        "data": "B",
+        "bold": true
+       },
+       {
+        "row": 0,
+        "col": 1,
+        "data": "n",
+        "bold": false,
+        "fg": "default"
+       },
+       {
+        "row": 0,
+        "col": 2,
+        "data": "R",
+        "fg": "ff0000"
+       },
+       {
+        "row": 0,
+        "col": 3,
+        "data": "T",
+        "fg": "010203"
+       },
+       {
+        "row": 0,
+        "col": 4,
+        "data": "x",
+        "fg": "default"
+       }
+      ]
+     }
+    },
+    {
+     "send": "q"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tui/rendition-and-ansi"
+   ],
+   "oracle": "tui help text and tui.c header: init enters raw mode and the alternate screen, end restores (idempotent); lines/cols; resized prints 1 once after SIGWINCH (rc 0) else 0 (rc 1); move/addstr Y X (origin 0,0); erase/clrtoeol/clrtobot; box/hline/vline default glyphs U+250C U+2510 U+2514 U+2518 U+2500 U+2502; refresh flushes only changed cells; attr normal|bold|dim|italic|underline|blink|reverse; fg/bg default|NAME|N|#RRGGBB|R,G,B; colormode 16|256|truecolor; getkey tokens UP/DOWN/LEFT/RIGHT/HOME/END/PGUP/PGDN/RET/TAB/ESC/BS/DEL/F1..F4/C-A.. with rc 0 key, 1 EOF, 2 timeout; timeout -1 blocks, 0 nonblocking, >0 ms; getstr prints the line, rc 1 if cancelled. SGR parameter meanings per ECMA-48/xterm ctlseqs, decoded independently by pyte for cell assertions. addansi: SGR only; other CSI consumed through the final byte; two-character escapes ignored; C0/DEL as caret notation; tab via addstr tab stops (tui.c/screen.c bls_addstr_ansi).",
+   "comparison": "contract: pyte-decoded rows and cell attributes; the colour mode is forced to truecolor before drawing",
+   "kind": "contract"
+  },
+  {
+   "id": "migration-tui-getkey-token-table",
+   "loadable": "tui",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "getkey prints the documented tokens for HOME, END, PGUP, PGDN, RET, BS, DEL, INS, F1..F4 (SS3 and CSI ~ forms), C-A, C-Z and the remaining arrows.",
+   "script": "tui init; for i in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do tui getkey; done > tokens; tui end\n",
+   "steps": [
+    {
+     "settle_ms": 200
+    },
+    {
+     "send": "\u001b[H"
+    },
+    {
+     "settle_ms": 120
+    },
+    {
+     "send": "\u001b[F"
+    },
+    {
+     "settle_ms": 120
+    },
+    {
+     "send": "\u001b[5~"
+    },
+    {
+     "settle_ms": 120
+    },
+    {
+     "send": "\u001b[6~"
+    },
+    {
+     "settle_ms": 120
+    },
+    {
+     "send": "\r"
+    },
+    {
+     "settle_ms": 120
+    },
+    {
+     "send": ""
+    },
+    {
+     "settle_ms": 120
+    },
+    {
+     "send": "\u001b[3~"
+    },
+    {
+     "settle_ms": 120
+    },
+    {
+     "send": "\u001b[2~"
+    },
+    {
+     "settle_ms": 120
+    },
+    {
+     "send": "\u001bOP"
+    },
+    {
+     "settle_ms": 120
+    },
+    {
+     "send": "\u001b[12~"
+    },
+    {
+     "settle_ms": 120
+    },
+    {
+     "send": "\u001bOR"
+    },
+    {
+     "settle_ms": 120
+    },
+    {
+     "send": "\u001b[14~"
+    },
+    {
+     "settle_ms": 120
+    },
+    {
+     "send": "\u0001"
+    },
+    {
+     "settle_ms": 120
+    },
+    {
+     "send": "\u001a"
+    },
+    {
+     "settle_ms": 120
+    },
+    {
+     "send": "\u001b[B"
+    },
+    {
+     "settle_ms": 120
+    },
+    {
+     "send": "\u001b[D"
+    },
+    {
+     "settle_ms": 120
+    },
+    {
+     "send": "\u001b[C"
+    },
+    {
+     "settle_ms": 120
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tui/key-input-and-timeouts"
+   ],
+   "oracle": "tui help text and tui.c header: init enters raw mode and the alternate screen, end restores (idempotent); lines/cols; resized prints 1 once after SIGWINCH (rc 0) else 0 (rc 1); move/addstr Y X (origin 0,0); erase/clrtoeol/clrtobot; box/hline/vline default glyphs U+250C U+2510 U+2514 U+2518 U+2500 U+2502; refresh flushes only changed cells; attr normal|bold|dim|italic|underline|blink|reverse; fg/bg default|NAME|N|#RRGGBB|R,G,B; colormode 16|256|truecolor; getkey tokens UP/DOWN/LEFT/RIGHT/HOME/END/PGUP/PGDN/RET/TAB/ESC/BS/DEL/F1..F4/C-A.. with rc 0 key, 1 EOF, 2 timeout; timeout -1 blocks, 0 nonblocking, >0 ms; getstr prints the line, rc 1 if cancelled. SGR parameter meanings per ECMA-48/xterm ctlseqs, decoded independently by pyte for cell assertions.",
+   "comparison": "contract: tokens written by getkey for xterm input sequences",
+   "kind": "contract",
+   "expected_files": {
+    "tokens": "HOME\nEND\nPGUP\nPGDN\nRET\nBS\nDEL\nINS\nF1\nF2\nF3\nF4\nC-A\nC-Z\nDOWN\nLEFT\nRIGHT\n"
+   }
+  },
+  {
+   "id": "migration-tui-getkey-esc-pushback",
+   "loadable": "tui",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "ESC followed within the grace by a non-sequence byte yields ESC and then that byte on the next getkey; a lone ESC followed by a pause yields ESC alone.",
+   "script": "tui init; tui getkey > k1; tui getkey > k2; tui getkey > k3; tui getkey > k4; tui end\n",
+   "steps": [
+    {
+     "settle_ms": 200
+    },
+    {
+     "send": "\u001bx"
+    },
+    {
+     "settle_ms": 200
+    },
+    {
+     "send": "\u001b"
+    },
+    {
+     "settle_ms": 300
+    },
+    {
+     "send": "y"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tui/key-input-and-timeouts"
+   ],
+   "oracle": "tui help text and tui.c header: init enters raw mode and the alternate screen, end restores (idempotent); lines/cols; resized prints 1 once after SIGWINCH (rc 0) else 0 (rc 1); move/addstr Y X (origin 0,0); erase/clrtoeol/clrtobot; box/hline/vline default glyphs U+250C U+2510 U+2514 U+2518 U+2500 U+2502; refresh flushes only changed cells; attr normal|bold|dim|italic|underline|blink|reverse; fg/bg default|NAME|N|#RRGGBB|R,G,B; colormode 16|256|truecolor; getkey tokens UP/DOWN/LEFT/RIGHT/HOME/END/PGUP/PGDN/RET/TAB/ESC/BS/DEL/F1..F4/C-A.. with rc 0 key, 1 EOF, 2 timeout; timeout -1 blocks, 0 nonblocking, >0 ms; getstr prints the line, rc 1 if cancelled. SGR parameter meanings per ECMA-48/xterm ctlseqs, decoded independently by pyte for cell assertions.",
+   "comparison": "contract: tokens written by getkey",
+   "kind": "contract",
+   "expected_files": {
+    "k1": "ESC\n",
+    "k2": "x\n",
+    "k3": "ESC\n",
+    "k4": "y\n"
+   }
+  },
+  {
+   "id": "migration-tui-getkey-timeout-modes",
+   "loadable": "tui",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "timeout 0 makes getkey return 2 at once with no input (well under 100 ms); timeout -1 blocks until a key arrives about 400 ms later (at least 300 ms) and returns it with rc 0.",
+   "script": "tui init; tui timeout 0; t0=$EPOCHREALTIME; tui getkey > k0; r0=$?; t1=$EPOCHREALTIME\ntui timeout -1; tui getkey > /dev/null; t2=$EPOCHREALTIME; tui getkey > k1; r1=$?; t3=$EPOCHREALTIME; tui end\na=$(( (${t1/./} - ${t0/./}) / 1000 )); b=$(( (${t3/./} - ${t2/./}) / 1000 ))\n{ printf '%s %s\\n' \"$r0\" \"$r1\"; (( a < 100 )) && echo nonblocking-ok || echo \"nonblocking-slow $a\"\n  (( b >= 300 )) && echo blocked-ok || echo \"blocked-short $b\"; } > answer\n",
+   "steps": [
+    {
+     "expect": "\\x1b\\[\\?1049h\\x1b\\[\\?25l\\x1b\\[0m\\x1b\\[H\\x1b\\[2J"
+    },
+    {
+     "settle_ms": 300
+    },
+    {
+     "send": "s"
+    },
+    {
+     "settle_ms": 400
+    },
+    {
+     "send": "k"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tui/key-input-and-timeouts"
+   ],
+   "oracle": "tui help text and tui.c header: init enters raw mode and the alternate screen, end restores (idempotent); lines/cols; resized prints 1 once after SIGWINCH (rc 0) else 0 (rc 1); move/addstr Y X (origin 0,0); erase/clrtoeol/clrtobot; box/hline/vline default glyphs U+250C U+2510 U+2514 U+2518 U+2500 U+2502; refresh flushes only changed cells; attr normal|bold|dim|italic|underline|blink|reverse; fg/bg default|NAME|N|#RRGGBB|R,G,B; colormode 16|256|truecolor; getkey tokens UP/DOWN/LEFT/RIGHT/HOME/END/PGUP/PGDN/RET/TAB/ESC/BS/DEL/F1..F4/C-A.. with rc 0 key, 1 EOF, 2 timeout; timeout -1 blocks, 0 nonblocking, >0 ms; getstr prints the line, rc 1 if cancelled. SGR parameter meanings per ECMA-48/xterm ctlseqs, decoded independently by pyte for cell assertions.",
+   "comparison": "contract, semantic timing predicate: rc values and k0/k1 contents exact; elapsed windows tolerant",
+   "kind": "contract",
+   "expected_files": {
+    "answer": "2 0\nnonblocking-ok\nblocked-ok\n",
+    "k0": "",
+    "k1": "k\n"
+   }
+  },
+  {
+   "id": "migration-tui-getkey-eof",
+   "loadable": "tui",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "EOF on the input returns rc 1 and prints nothing. A fixture-owned python3 helper runs the candidate shell on a second, private pty in the helper's own session (so that pty cannot become the child's controlling terminal and no hangup signal is sent; SIGHUP is also ignored in the child), waits until the shell has printed its marker and is blocked in getkey (sleeping on 5 consecutive samples), then closes the master; getkey returns 1, tui end returns and the shell exits 0. A trusted setup positive control runs the same helper with a python3 child instead of the candidate and must observe the poll wake and the read end (setup failure is an ERROR).",
+   "script": "/usr/bin/python3 eof.py \"$BASH\" > helper\n",
+   "steps": [],
+   "expected_status": 0,
+   "covers": [
+    "tui/key-input-and-timeouts"
+   ],
+   "oracle": "tui help text and tui.c header: init enters raw mode and the alternate screen, end restores (idempotent); lines/cols; resized prints 1 once after SIGWINCH (rc 0) else 0 (rc 1); move/addstr Y X (origin 0,0); erase/clrtoeol/clrtobot; box/hline/vline default glyphs U+250C U+2510 U+2514 U+2518 U+2500 U+2502; refresh flushes only changed cells; attr normal|bold|dim|italic|underline|blink|reverse; fg/bg default|NAME|N|#RRGGBB|R,G,B; colormode 16|256|truecolor; getkey tokens UP/DOWN/LEFT/RIGHT/HOME/END/PGUP/PGDN/RET/TAB/ESC/BS/DEL/F1..F4/C-A.. with rc 0 key, 1 EOF, 2 timeout; timeout -1 blocks, 0 nonblocking, >0 ms; getstr prints the line, rc 1 if cancelled. SGR parameter meanings per ECMA-48/xterm ctlseqs, decoded independently by pyte for cell assertions.",
+   "comparison": "contract: rc/key/end files written by the candidate on the helper pty; helper lines (controlling-terminal check, observed readiness, master close, child exit); setup positive control lines from the same mechanism with a trusted python3 child",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "files": {
+    "eof.py": "import os, select, signal, subprocess, sys, time\n# Fixture-owned helper. The child stays in this helper's session (no setsid), so the private\n# pty can never become its controlling terminal (only a session leader without one can\n# acquire a terminal); SIGHUP is also ignored in the child. Readiness is observed, not slept.\nCONTROL = r\"\"\"\nimport os, select\nos.write(1, b'EOF-READY\\n')\np = select.poll(); p.register(0, select.POLLIN)\nev = p.poll()\ntry:\n    d = os.read(0, 1); r = 'eof' if d == b'' else 'data'\nexcept OSError as e:\n    r = 'errno%d' % e.errno\nopen('control-detail', 'w').write('revents=%#x read=%s\\n' % (ev[0][1], r))\nopen('control-read', 'w').write('poll-woke read-ended\\n' if r in ('eof', 'errno5') else 'poll-woke read-' + r + '\\n')\n\"\"\"\nCANDIDATE = (\"tui init; printf 'EOF-READY\\\\n'; tui getkey > key; printf '%s\\\\n' \\\"$?\\\" > rc; \"\n             \"tui end; printf 'end-returned\\\\n' > end\")\n\ndef hup_ignored():\n    signal.signal(signal.SIGHUP, signal.SIG_IGN)\n\ndef stat(pid):\n    f = open('/proc/%d/stat' % pid).read().rsplit(')', 1)[1].split()\n    return f[0], int(f[4])            # state, tty_nr\n\ndef syscall(pid):\n    try:\n        return open('/proc/%d/syscall' % pid).read().split()[0]\n    except OSError:\n        return None\n\ndef main(mode):\n    out = []\n    master, slave = os.openpty()\n    rdev = os.fstat(slave).st_rdev\n    mj, mn = os.major(rdev), os.minor(rdev)\n    tty_nr = (mn & 0xff) | (mj << 8) | ((mn & ~0xff) << 12)\n    argv = [sys.executable, '-c', CONTROL] if mode == 'control' else [mode, '--noprofile', '--norc', '-c', CANDIDATE]\n    child = subprocess.Popen(argv, stdin=slave, stdout=slave, stderr=slave, close_fds=True,\n                             preexec_fn=hup_ignored)\n    os.close(slave)\n    deadline = time.monotonic() + 15\n    seen, ready = b'', False\n    while b'EOF-READY' not in seen and time.monotonic() < deadline:\n        if select.select([master], [], [], 0.1)[0]:\n            try:\n                seen += os.read(master, 4096)\n            except OSError:\n                break\n    if b'EOF-READY' in seen:\n        # Blocked in its input wait: state S on 5 consecutive samples 20 ms apart, with an\n        # unchanged, non-running /proc syscall record where that file is readable.\n        run, last, ctty = 0, None, None\n        while run < 5 and time.monotonic() < deadline:\n            try:\n                state, ctty = stat(child.pid); sc = syscall(child.pid)\n            except OSError:\n                break\n            ok = state == 'S' and sc != 'running' and (last is None or sc == last)\n            run, last = (run + 1, sc) if ok else (0, None)\n            time.sleep(0.02)\n        ready = run >= 5\n        out.append('private-pty-is-ctty %s' % ('yes' if ctty == tty_nr else 'no'))\n    out.append('ready blocked' if ready else 'not-ready')\n    os.close(master)\n    out.append('master-closed')\n    try:\n        status = child.wait(timeout=10)\n    except subprocess.TimeoutExpired:\n        child.kill(); status = child.wait(); out.append('killed-after-timeout')\n    out.append('child-exit %d' % status)\n    print('\\n'.join(out))\n    ok = ready and status == 0\n    if mode == 'control':\n        try:\n            ok = ok and open('control-read').read() == 'poll-woke read-ended\\n'\n        except OSError:\n            ok = False\n    return 0 if ok else 1\n\nsys.exit(main(sys.argv[1]))\n"
+   },
+   "expected_files": {
+    "rc": "1\n",
+    "key": "",
+    "end": "end-returned\n",
+    "helper": "private-pty-is-ctty no\nready blocked\nmaster-closed\nchild-exit 0\n",
+    "control": "private-pty-is-ctty no\nready blocked\nmaster-closed\nchild-exit 0\n",
+    "control-read": "poll-woke read-ended\n"
+   },
+   "setup_script": "/usr/bin/python3 eof.py control > control\n",
+   "setup_timeout": 40,
+   "timeout": 40
+  },
+  {
+   "id": "migration-tui-getstr-position-cancel",
+   "loadable": "tui",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "getstr draws its prompt at the given -y/-x cell with the cursor after the typed text; ESC cancels (rc 1, no output) and ^C cancels a second prompt the same way.",
+   "script": "tui init; tui getstr -y 3 -x 4 'Name: ' > a1; r1=$?; tui getstr -y 5 -x 2 'Again: ' > a2; r2=$?; tui end\nprintf '%s %s\\n' \"$r1\" \"$r2\" > status\n",
+   "steps": [
+    {
+     "screen": {
+      "rows": {
+       "3": "^    Name:$"
+      },
+      "cursor": [
+       3,
+       10
+      ]
+     }
+    },
+    {
+     "send": "ab"
+    },
+    {
+     "screen": {
+      "rows": {
+       "3": "^    Name: ab$"
+      },
+      "cursor": [
+       3,
+       12
+      ]
+     }
+    },
+    {
+     "send": "\u001b"
+    },
+    {
+     "settle_ms": 200
+    },
+    {
+     "screen": {
+      "rows": {
+       "5": "^  Again:$"
+      },
+      "cursor": [
+       5,
+       9
+      ]
+     }
+    },
+    {
+     "send": "x\u0003"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tui/line-input-editing"
+   ],
+   "oracle": "tui help text and tui.c header: init enters raw mode and the alternate screen, end restores (idempotent); lines/cols; resized prints 1 once after SIGWINCH (rc 0) else 0 (rc 1); move/addstr Y X (origin 0,0); erase/clrtoeol/clrtobot; box/hline/vline default glyphs U+250C U+2510 U+2514 U+2518 U+2500 U+2502; refresh flushes only changed cells; attr normal|bold|dim|italic|underline|blink|reverse; fg/bg default|NAME|N|#RRGGBB|R,G,B; colormode 16|256|truecolor; getkey tokens UP/DOWN/LEFT/RIGHT/HOME/END/PGUP/PGDN/RET/TAB/ESC/BS/DEL/F1..F4/C-A.. with rc 0 key, 1 EOF, 2 timeout; timeout -1 blocks, 0 nonblocking, >0 ms; getstr prints the line, rc 1 if cancelled. SGR parameter meanings per ECMA-48/xterm ctlseqs, decoded independently by pyte for cell assertions.",
+   "comparison": "contract: pyte-decoded rows (rendered rows are right-stripped, so an unwritten trailing prompt blank is asserted through the cursor column) and cursor; rc and empty output files",
+   "kind": "contract",
+   "expected_files": {
+    "a1": "",
+    "a2": "",
+    "status": "1 1\n"
+   }
+  },
+  {
+   "id": "migration-tui-init-raw-altscreen",
+   "loadable": "tui",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "While initialized the terminal is raw (ECHO, ECHONL, ICANON, ISIG, IEXTEN, ICRNL, IXON and OPOST cleared, VMIN=1 VTIME=0); init emits alternate screen on, cursor hidden, SGR reset, home and clear; end emits SGR reset, cursor shown and alternate screen off, and the canonical modes are back.",
+   "script": "tui init; tui getkey > k; tui end; read -r _\n",
+   "steps": [
+    {
+     "expect": "\\x1b\\[\\?1049h\\x1b\\[\\?25l\\x1b\\[0m\\x1b\\[H\\x1b\\[2J"
+    },
+    {
+     "termios": {
+      "clear": [
+       "ECHO",
+       "ECHONL",
+       "ICANON",
+       "ISIG",
+       "IEXTEN",
+       "ICRNL",
+       "IXON",
+       "OPOST"
+      ],
+      "cc": {
+       "VMIN": 1,
+       "VTIME": 0
+      }
+     }
+    },
+    {
+     "send": "q"
+    },
+    {
+     "expect": "\\x1b\\[0m\\x1b\\[\\?25h\\x1b\\[\\?1049l"
+    },
+    {
+     "termios": {
+      "set": [
+       "ECHO",
+       "ICANON",
+       "ISIG",
+       "IEXTEN",
+       "ICRNL",
+       "OPOST"
+      ]
+     }
+    },
+    {
+     "send": "\r"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tui/terminal-init-dimensions"
+   ],
+   "oracle": "tui help text and tui.c header: init enters raw mode and the alternate screen, end restores (idempotent); lines/cols; resized prints 1 once after SIGWINCH (rc 0) else 0 (rc 1); move/addstr Y X (origin 0,0); erase/clrtoeol/clrtobot; box/hline/vline default glyphs U+250C U+2510 U+2514 U+2518 U+2500 U+2502; refresh flushes only changed cells; attr normal|bold|dim|italic|underline|blink|reverse; fg/bg default|NAME|N|#RRGGBB|R,G,B; colormode 16|256|truecolor; getkey tokens UP/DOWN/LEFT/RIGHT/HOME/END/PGUP/PGDN/RET/TAB/ESC/BS/DEL/F1..F4/C-A.. with rc 0 key, 1 EOF, 2 timeout; timeout -1 blocks, 0 nonblocking, >0 ms; getstr prints the line, rc 1 if cancelled. SGR parameter meanings per ECMA-48/xterm ctlseqs, decoded independently by pyte for cell assertions.",
+   "comparison": "contract: termios state observed on the PTY plus exact raw init/end byte sequences",
+   "kind": "contract",
+   "expected_files": {
+    "k": "q\n"
+   }
+  },
+  {
+   "id": "migration-tui-exit-without-end",
+   "loadable": "tui",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "When the shell exits while tui is initialized (no tui end), the exit handler emits the restore sequence and the saved terminal modes are restored (harness before/after termios comparison).",
+   "script": "tui init; tui addstr -y 1 -x 1 left-active; tui refresh\n",
+   "steps": [
+    {
+     "expect": "left-active"
+    },
+    {
+     "expect": "\\x1b\\[0m\\x1b\\[\\?25h\\x1b\\[\\?1049l"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tui/terminal-init-dimensions",
+    "tui/resize-and-lifecycle"
+   ],
+   "oracle": "tui help text and tui.c header: init enters raw mode and the alternate screen, end restores (idempotent); lines/cols; resized prints 1 once after SIGWINCH (rc 0) else 0 (rc 1); move/addstr Y X (origin 0,0); erase/clrtoeol/clrtobot; box/hline/vline default glyphs U+250C U+2510 U+2514 U+2518 U+2500 U+2502; refresh flushes only changed cells; attr normal|bold|dim|italic|underline|blink|reverse; fg/bg default|NAME|N|#RRGGBB|R,G,B; colormode 16|256|truecolor; getkey tokens UP/DOWN/LEFT/RIGHT/HOME/END/PGUP/PGDN/RET/TAB/ESC/BS/DEL/F1..F4/C-A.. with rc 0 key, 1 EOF, 2 timeout; timeout -1 blocks, 0 nonblocking, >0 ms; getstr prints the line, rc 1 if cancelled. SGR parameter meanings per ECMA-48/xterm ctlseqs, decoded independently by pyte for cell assertions.",
+   "comparison": "contract: raw restore bytes after the drawn text plus the harness terminal_restored check",
+   "kind": "contract"
+  },
+  {
+   "id": "migration-tui-repeated-init-end",
+   "loadable": "tui",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "Two init/end cycles in one shell each enter raw mode and the alternate screen and each restore canonical modes on end; the second cycle draws normally.",
+   "script": "tui init; tui addstr -y 0 -x 0 one; tui refresh; tui getkey > /dev/null; tui end; read -r _\ntui init; tui lines > l2; tui addstr -y 1 -x 0 two; tui refresh; tui getkey > /dev/null; tui end; read -r _\n",
+   "steps": [
+    {
+     "expect": "\\x1b\\[\\?1049h\\x1b\\[\\?25l\\x1b\\[0m\\x1b\\[H\\x1b\\[2J[\\s\\S]*one"
+    },
+    {
+     "termios": {
+      "clear": [
+       "ICANON",
+       "ECHO",
+       "ISIG"
+      ]
+     }
+    },
+    {
+     "send": "a"
+    },
+    {
+     "expect": "\\x1b\\[0m\\x1b\\[\\?25h\\x1b\\[\\?1049l"
+    },
+    {
+     "termios": {
+      "set": [
+       "ICANON",
+       "ECHO",
+       "ISIG"
+      ]
+     }
+    },
+    {
+     "send": "\r"
+    },
+    {
+     "expect": "\\x1b\\[\\?1049h\\x1b\\[\\?25l\\x1b\\[0m\\x1b\\[H\\x1b\\[2J[\\s\\S]*two"
+    },
+    {
+     "termios": {
+      "clear": [
+       "ICANON",
+       "ECHO",
+       "ISIG"
+      ]
+     }
+    },
+    {
+     "send": "b"
+    },
+    {
+     "expect": "\\x1b\\[0m\\x1b\\[\\?25h\\x1b\\[\\?1049l"
+    },
+    {
+     "termios": {
+      "set": [
+       "ICANON",
+       "ECHO",
+       "ISIG"
+      ]
+     }
+    },
+    {
+     "send": "\r"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tui/resize-and-lifecycle"
+   ],
+   "oracle": "tui help text and tui.c header: init enters raw mode and the alternate screen, end restores (idempotent); lines/cols; resized prints 1 once after SIGWINCH (rc 0) else 0 (rc 1); move/addstr Y X (origin 0,0); erase/clrtoeol/clrtobot; box/hline/vline default glyphs U+250C U+2510 U+2514 U+2518 U+2500 U+2502; refresh flushes only changed cells; attr normal|bold|dim|italic|underline|blink|reverse; fg/bg default|NAME|N|#RRGGBB|R,G,B; colormode 16|256|truecolor; getkey tokens UP/DOWN/LEFT/RIGHT/HOME/END/PGUP/PGDN/RET/TAB/ESC/BS/DEL/F1..F4/C-A.. with rc 0 key, 1 EOF, 2 timeout; timeout -1 blocks, 0 nonblocking, >0 ms; getstr prints the line, rc 1 if cancelled. SGR parameter meanings per ECMA-48/xterm ctlseqs, decoded independently by pyte for cell assertions.",
+   "comparison": "contract: termios state between cycles and raw init/end sequences",
+   "kind": "contract",
+   "expected_files": {
+    "l2": "24\n"
+   }
+  },
+  {
+   "id": "migration-tui-resize-geometry",
+   "loadable": "tui",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "A window-size change is reported once by resized (1 with rc 0, then 0 with rc 1); lines/cols give the new geometry; contents are kept after growth (a new bottom row can be drawn) and clipped after shrinking.",
+   "script": "k() { local n=0; until tui getkey > /dev/null; do n=$((n+1)); (( n > 20 )) && break; done; }\ntui init; tui addstr -y 0 -x 0 top-left; tui addstr -y 9 -x 15 BR; tui refresh\n{ tui resized; echo \"rc$?\"; } > r0\nk\n{ tui resized; echo \"rc$?\"; tui resized; echo \"rc$?\"; } > r1\ntui lines > dims; tui cols >> dims; tui addstr -y 13 -x 0 new-bottom; tui refresh\nk\ntui lines >> dims; tui cols >> dims; tui refresh\nk\ntui end\n",
+   "steps": [
+    {
+     "screen": {
+      "rows": {
+       "0": "^top-left$",
+       "9": "^ {15}BR$"
+      }
+     }
+    },
+    {
+     "resize": [
+      14,
+      30
+     ]
+    },
+    {
+     "settle_ms": 200
+    },
+    {
+     "send": "g"
+    },
+    {
+     "screen": {
+      "rows": {
+       "0": "^top-left$",
+       "9": "^ {15}BR$",
+       "13": "^new-bottom$"
+      }
+     }
+    },
+    {
+     "resize": [
+      6,
+      12
+     ]
+    },
+    {
+     "settle_ms": 200
+    },
+    {
+     "send": "s"
+    },
+    {
+     "screen": {
+      "rows": {
+       "0": "^top-left$",
+       "1": "^$",
+       "5": "^$"
+      }
+     }
+    },
+    {
+     "send": "e"
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "tui/resize-and-lifecycle"
+   ],
+   "oracle": "tui help text and tui.c header: init enters raw mode and the alternate screen, end restores (idempotent); lines/cols; resized prints 1 once after SIGWINCH (rc 0) else 0 (rc 1); move/addstr Y X (origin 0,0); erase/clrtoeol/clrtobot; box/hline/vline default glyphs U+250C U+2510 U+2514 U+2518 U+2500 U+2502; refresh flushes only changed cells; attr normal|bold|dim|italic|underline|blink|reverse; fg/bg default|NAME|N|#RRGGBB|R,G,B; colormode 16|256|truecolor; getkey tokens UP/DOWN/LEFT/RIGHT/HOME/END/PGUP/PGDN/RET/TAB/ESC/BS/DEL/F1..F4/C-A.. with rc 0 key, 1 EOF, 2 timeout; timeout -1 blocks, 0 nonblocking, >0 ms; getstr prints the line, rc 1 if cancelled. SGR parameter meanings per ECMA-48/xterm ctlseqs, decoded independently by pyte for cell assertions.",
+   "comparison": "contract: resized/lines/cols output files and pyte-decoded rows after each redraw",
+   "kind": "contract",
+   "size": [
+    10,
+    20
+   ],
+   "expected_files": {
+    "r0": "0\nrc1\n",
+    "r1": "1\nrc0\n0\nrc1\n",
+    "dims": "14\n30\n6\n12\n"
+   }
+  }
+ ]
+}

@@ -110,9 +110,14 @@
     },
     {
       "id": "unmapped-effective-uid",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare behavior when the effective UID has no passwd/NSS name, including GNU's diagnostic and the loadable's fallback behavior.",
-      "reason": "The harness provides a passwd entry for its sole isolated identity and does not let a fixture alter the read-only NSS files or select an unmapped effective UID. A future disposable VM or controlled identity/NSS mock must run GNU whoami and the candidate with the same unmapped UID and verify stdout, stderr, and status."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-whoami-unmapped-euid"
+        }
+      ]
     },
     {
       "id": "operand-after-end",

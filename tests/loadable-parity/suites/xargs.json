@@ -142,9 +142,18 @@
     },
     {
       "id": "prompt-requires-pty",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise -p confirmation and rejection with one harmless fixed child command.",
-      "reason": "A meaningful -p check needs a controlling PTY to provide bounded y/n responses. The fixture runner supplies no PTY, so defer until a future disposable VM/PTY driver can feed fixed answers and verify whether the child marker runs."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "xargs-prompt-format"
+        },
+        {
+          "group": "terminal",
+          "id": "xargs-prompt-terminal"
+        }
+      ]
     },
     {
       "id": "lines-blanks-quotes",

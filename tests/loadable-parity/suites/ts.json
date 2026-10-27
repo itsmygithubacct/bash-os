@@ -91,7 +91,7 @@
       "id": "upstream_tree_sitter_differential",
       "kind": "deferred",
       "purpose": "A full parser/query differential across all five bundled grammars would validate broad compatibility beyond the small documented contracts.",
-      "reason": "The runner exposes GNU reference tools but no upstream tree-sitter CLI with the exact bundled grammar revisions. A future comparison needs a disposable VM with a pinned tree-sitter CLI and matching JSON, TOML, Bash, Markdown block, and Markdown inline grammar/query sources; this case executes no operation and is not a pass."
+      "reason": "This needs a reference tool that is absent from the image: a tree-sitter CLI built at the bundled grammar revisions. That is an image addition owned by root, not a new execution capability."
     },
     {
       "id": "fixture_file_ops",

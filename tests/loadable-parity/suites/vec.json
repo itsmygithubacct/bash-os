@@ -128,7 +128,7 @@
       "id": "simd-cross-cpu-backends",
       "purpose": "Exercise scalar/SSE2/AVX2 backend selection and reduction equivalence on explicitly controlled CPU feature sets.",
       "kind": "deferred",
-      "reason": "Requires a future disposable VM matrix with AVX2 masked and a non-SSE2 x86 target (or equivalent emulator), so each supported backend path can be selected without host CPU probing. In that VM, run small exact integer sum/dot/min/max cases with vector lengths that cover full SIMD lanes and scalar tails, compare against an independent scalar formula, and verify the reported backend. The current runner does not provide CPU feature controls or alternate architectures."
+      "reason": "Most of the matrix is reachable through the documented BASHVEC_BACKEND override on the existing VM. Masking AVX2 at runtime needs a VM CPU-model variant."
     },
     {
       "id": "copy-is-independent",

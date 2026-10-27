@@ -75,37 +75,37 @@
       "id": "pkg-package-validation",
       "kind": "deferred",
       "purpose": "Cover info and verify for valid, unsigned, untrusted, revoked, tampered, malformed, wrong-architecture, and wrong-ABI package files.",
-      "reason": "Deferred because meaningful positive cases require independently generated package archives, a throwaway signing key, and a trusted-key/revocation fixture; no installed credentials may be used. A future isolated mock must supply those inputs and compare parser, signature, digest, and ELF checks against independent encoders and verifiers."
+      "reason": "Only unsigned manifest parsing executed. All signature, digest, ELF and ABI policies are reachable in the legacy runner using fixture-relative trust directories and an independent python signer."
     },
     {
       "id": "pkg-install-rollback-remove",
       "kind": "deferred",
       "purpose": "Check signed package installation, data-tree replacement, failed-install rollback, explicit rollback, and removal effects.",
-      "reason": "Deferred because package installation and removal are outside this run. A future disposable VM or mock must use only a relative --root fixture, signed synthetic packages, and a filesystem snapshot that verifies both intended state changes and preservation of unrelated entries."
+      "reason": "Never executed; package installation into a fixture-relative --root is ordinary file IO and reachable in the existing legacy runner (no system paths, no privilege)."
     },
     {
       "id": "pkg-repository-io",
       "kind": "deferred",
       "purpose": "Cover signed remote index refresh, download and fetch against a mock transport; local INDEX search executes separately.",
-      "reason": "Network activity is prohibited. A future disposable VM needs a loopback-only signed repository mock, per-architecture indexes, package digests, and egress denied. Local INDEX substring/glob search has a separate runnable fixture."
+      "reason": "Remote index/download/fetch never executed; file:// and loopback http:// transports are supported by the candidate and reachable with existing legacy and network drivers."
     },
     {
       "id": "pkg-upgrade-delta",
       "kind": "deferred",
       "purpose": "Check upgrade selection, trust policy, delta download and rollback after a rejected update; standalone local delta application executes separately.",
-      "reason": "Deferred because valid coverage needs independently encoded and signed old/new packages plus a delta fixture and package state. A future disposable root and local mock repository must verify both the selected update path and byte-for-byte restoration after failure."
+      "reason": "Only standalone delta application executed; upgrade/trust/rollback are fixture-relative and reachable in the legacy runner."
     },
     {
       "id": "pkg-load-unload",
       "kind": "deferred",
       "purpose": "Check pkg load verifies installed state before enabling a package builtin, and record the documented unload behavior.",
-      "reason": "Deferred because this needs a benign shared object built for the exact Bash ABI and package binary, and load/unload changes the running shell's builtin table. A future disposable VM or dedicated mock must use only a throwaway fixture module and must not load host or installed modules."
+      "reason": "Never executed. Refusals are reachable in legacy; the positive path needs an in-VM fixture module build and per-build expectations (static build may legitimately be unable to dlopen)."
     },
     {
       "id": "pkg-legacy-hooks",
       "kind": "deferred",
       "purpose": "Cover explicitly opted-in legacy rootfs package hooks and refusal of undeclared legacy payloads.",
-      "reason": "Deferred because package-provided hooks execute shell code and legacy installs modify a root tree. A future disposable VM must use an isolated --root, synthetic hooks with bounded fixture-only effects, and a mock that records hook order and environment without access to host paths or services."
+      "reason": "Never executed; legacy hooks are shell scripts writing inside a fixture-relative root and are reachable in the existing legacy runner."
     },
     {
       "id": "pkg-info-independent-ustar",

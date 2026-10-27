@@ -108,9 +108,18 @@
     },
     {
       "id": "live_timed_sampling_deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise nonzero-delay sampling against changing kernel counters and verify delay-based rates in an actual disposable system fixture.",
-      "reason": "Requires a disposable Linux VM or a controlled procfs plus clock/sleep mock that can advance /proc/stat and /proc/vmstat between samples. The live host procfs and timing state are out of scope here; no operation was run or counted as passing."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-vmstat-live-sampling-header-repeat"
+        },
+        {
+          "group": "shell",
+          "id": "migration-vmstat-live-sampling-one-header"
+        }
+      ]
     }
   ]
 }

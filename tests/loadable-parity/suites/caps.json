@@ -39,45 +39,235 @@
     },
     {
       "id": "caps-probe-masks",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate the five rendered capability sets and -V bindings using fixed, independently known masks.",
-      "reason": "Requires a disposable VM with controlled initial capability state or reviewed capget/prctl mocks. Compare permitted, effective, inheritable, ambient, and bounding names against independently decoded kernel masks (and ambient prctl queries); check exact ordering and all five -V variables. This suite does not invoke caps probe."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-caps-probe-empty"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-probe-populated"
+        }
+      ]
     },
     {
       "id": "caps-has-membership",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check positive and negative effective-set membership, case-insensitive names, optional CAP_ prefix, and a capability index above bit 31.",
-      "reason": "Requires a disposable process with a fixed effective mask or a capget mock. Validate results against the independent effective mask from capget or /proc/self/status, including a high-index capability such as CAP_BPF; this suite does not invoke caps has."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/caps/unknown-capability-name"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-has-empty"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-has-populated"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-has-unknown-syscall-guard"
+        }
+      ]
     },
     {
       "id": "caps-mutation-transitions",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check drop/add behavior across permitted, effective, inheritable, and ambient sets, including kernel-rejected raises.",
-      "reason": "Requires fresh disposable child processes plus a reviewed capset/prctl mock or VM-controlled capability state. Record calls and independently verify before/after masks, the permitted-drop cascade, supported add targets, and permission errors; never apply these mutations to a shared shell."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-caps-add-effective-within-permitted"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-add-inheritable-ambient-sequence"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-add-permitted-bounding-no-mutation"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-add-permitted-bounding-refused"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-ambient-without-inheritable-refused"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-drop-bounding-one-way"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-drop-effective-only"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-drop-inheritable-lowers-ambient"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-drop-permitted-cascade"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-unknown-cap-no-change"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-unprivileged-raise-refused"
+        }
+      ]
     },
     {
       "id": "caps-clear-bounding",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check clear for individual sets and the ordering and final state of clear all, including the one-way bounding set.",
-      "reason": "Requires a disposable VM or syscall mock and a fresh child per invocation because bounding-set drops cannot be undone. Verify prctl/capset call order and resulting masks independently, then let each child exit; this suite does not invoke caps clear."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-caps-capset-failure"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-clear-all-order"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-clear-ambient"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-clear-ambient-ignores-errors"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-clear-bounding"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-clear-bounding-unprivileged"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-clear-effective"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-clear-inheritable"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-clear-permitted"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-clear-usage"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-drop-bounding-one-way"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-malformed-requests"
+        }
+      ]
     },
     {
       "id": "caps-file-decoder",
       "kind": "deferred",
       "purpose": "Check security.capability revision 2 and 3 decoding, effective flag handling, empty xattrs, malformed payload lengths, and -V binding.",
-      "reason": "Requires a private xattr-capable disposable filesystem with controlled file capabilities, or a reviewed getxattr mock returning fixed UAPI vfs_cap_data byte strings and ENODATA/ENOTSUP/error results. Expected masks must be independently encoded from Linux UAPI definitions; the runnable cases read only newly created private files without file capabilities."
+      "reason": "Remaining obligations: r6: Malformed xattr lengths need a reviewed buffer-writing getxattr mock. Worker214 is preparing it; current kernel-written revision2/3 cases cannot supply invalid payloads."
     },
     {
       "id": "caps-input-validation",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check missing operands, unknown verbs/sets/capability names, and accepted case/prefix variants with exact status and diagnostics.",
-      "reason": "Requires an isolated candidate run with captured diagnostics and a reviewed syscall-call mock to prove malformed requests do not reach capset/prctl/getxattr. Use the documented CLI contract for expected statuses and distinguish parse rejection from kernel permission errors; the runnable unknown-name case covers only pure lookup rejection before capget."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/caps/unknown-capability-name"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-clear-usage"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-drop-effective-only"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-has-unknown-syscall-guard"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-malformed-exact-diagnostics"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-malformed-no-kernel-call"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-malformed-requests"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-unknown-cap-no-change"
+        }
+      ]
     },
     {
       "id": "caps-kernel-error-paths",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check errno propagation and partial-operation behavior when capability syscalls fail at selected points.",
-      "reason": "Requires a reviewed capget/capset/prctl/getxattr mock that injects deterministic errno values and records all calls, or a dedicated disposable VM with a fixed policy. Assert diagnostics, status, and state after each injected failure; do not induce these paths against host capability state."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/caps/missing-private-file"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-ambient-raise-stops"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-bounding-drop-stops"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-capget-failure"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-capset-failure"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-clear-ambient-ignores-errors"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-getxattr-errors"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-getxattr-injected"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-unprivileged-raise-refused"
+        }
+      ]
     },
     {
       "id": "private-file-without-capabilities",

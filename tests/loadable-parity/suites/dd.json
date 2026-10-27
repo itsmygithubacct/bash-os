@@ -126,13 +126,22 @@
       "id": "raw_device_copy",
       "kind": "deferred",
       "purpose": "Qualify dd's raw block-device read/write and seek boundaries without touching host hardware.",
-      "reason": "Requires a disposable VM with an exclusive loop device backed by a tiny seeded image and no host device passthrough. A future case must verify exact sectors written and unchanged bytes outside the requested range against an independent image reader. No device path is accessed here."
+      "reason": "No driver provisions a block device. The loop device must be attached by a controller with CAP_SYS_ADMIN, while dd itself can run unprivileged on a node chowned to uid 2000."
     },
     {
       "id": "noerror_read_recovery",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify conv=noerror,sync recovery after a deterministic input read error.",
-      "reason": "Requires a reviewed syscall or file-descriptor mock that injects one EIO into reads from a private fixture while allowing later reads. A future disposable test must compare recovery, padding, exit status, and output bytes with GNU dd under the same injected fault. This suite does not use devices or fault injection."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-dd-noerror-midstream-eio"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dd-noerror-read-errors-r2"
+        }
+      ]
     },
     {
       "id": "empty-and-zero-count",

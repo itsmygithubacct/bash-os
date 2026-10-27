@@ -109,13 +109,13 @@
       "id": "deferred-gnu-batch-parity",
       "kind": "deferred",
       "purpose": "Full GNU comparison of batch arithmetic, ordering, and malformed-row handling against the same controlled slabinfo data.",
-      "reason": "Requires a disposable VM or reviewed syscall/file-open mock that redirects both candidate and procps-ng slabtop reads of /proc/slabinfo to the same private fixture. GNU slabtop does not honor BASHOS_PROC_ROOT, while the provided runner cannot mount or interpose a shared mock. Future fixture should include ordinary rows, zero objects, equal sort keys, malformed lines, and rows whose slab/object rounding differs; compare full output and status. No operation parity is claimed here."
+      "reason": "Never executed against procps slabtop. GNU slabtop reads /proc/slabinfo only (root-readable 0400 on the live kernel) and takes no input path. A per-side unprivileged user+mount namespace with a fixture bind-mounted over /proc/slabinfo gives both implementations the same readable data without guest root. Precondition for root: confirm unprivileged user namespaces in the guest's case context. The evaluation runs under systemd-run plus unshare --mount --pid --net --mount-proc as root and drops to uid 2000. The case must belong to a modern VM group, not the legacy bubblewrap runner, which passes --disable-userns. user.max_user_namespaces must be nonzero (it is on the Debian default kernel)."
     },
     {
       "id": "deferred-interactive-pty",
       "kind": "deferred",
       "purpose": "Interactive screen behavior and terminal cleanup need a bounded PTY driver and independently controlled slab data.",
-      "reason": "Requires a disposable VM/mock for /proc/slabinfo plus a PTY driver. A future case should check the initial table, s sort cycling and tie ordering, q/ESC exit, timeout/redraw behavior, resize handling, and terminal/cursor restoration against a documented screen oracle. The provided runner has no PTY setup interface, and interactive operation is not reported as passed."
+      "reason": "There is no fixture. Candidate-contract behavior is testable now through BASHOS_PROC_ROOT with a relative fixture plus the PTY driver. The GNU interactive comparison (r7) uses the same unprivileged unshare -Urm bind-mount overlay as deferred-gnu-batch-parity."
     },
     {
       "id": "missing-private-slabinfo",

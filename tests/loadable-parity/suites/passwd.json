@@ -37,32 +37,82 @@
     {
       "id": "account_file_mutations",
       "purpose": "Future coverage for account database updates, deletion, lock state, and shadow aging without touching any host account files.",
-      "kind": "deferred",
-      "reason": "The task forbids user/account changes. A future run needs a disposable VM or isolated syscall/filesystem mock with only private relative PHCLIB_PASSWD, PHCLIB_GROUP, and PHCLIB_SHADOW fixtures. Check add/delete/lock/unlock/expire record effects, file modes, atomic replacement, and rollback after injected write/rename failures against independently authored expected records; never bind host account paths."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-passwd-add-fd-records"
+        },
+        {
+          "group": "shell",
+          "id": "migration-passwd-add-fd-rejects-invalid-fields"
+        },
+        {
+          "group": "shell",
+          "id": "migration-passwd-add-fd-rollback-after-failures"
+        },
+        {
+          "group": "shell",
+          "id": "migration-passwd-add-fd-unterminated-last-row"
+        },
+        {
+          "group": "shell",
+          "id": "migration-passwd-delete-records"
+        },
+        {
+          "group": "shell",
+          "id": "migration-passwd-expire-last-change-field"
+        },
+        {
+          "group": "shell",
+          "id": "migration-passwd-lock-once-unlock-roundtrip"
+        },
+        {
+          "group": "shell",
+          "id": "migration-passwd-lock-unlock-preserves-hash-and-aging"
+        }
+      ]
     },
     {
       "id": "password_hash_updates",
       "purpose": "Future coverage for set, set-fd, change, add, and add-fd password hashing and shadow updates.",
       "kind": "deferred",
-      "reason": "These verbs consume password bytes and write credential records, which this task prohibits. A future disposable VM/mock must use synthetic secrets and private account files, independently generated Argon2id PHC vectors, a test double for /dev/bashos-auth secret-slot ioctls, and fault injection to verify secret cleanup, file permissions, and account rollback. No installed or real credential may be used."
+      "reason": "Remaining obligations: r3: Not executed.; r5: Requires guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour; with the device absent the required mode must fail closed, which is observable now."
     },
     {
       "id": "password_verification_lockout",
       "purpose": "Future coverage for correct/wrong password results, locked/malformed shadow rows, and failure lockout state.",
       "kind": "deferred",
-      "reason": "verify and verify-fd process password material and update lockout state, so they are not invoked here. A future disposable VM/mock must provide independently generated synthetic PHC vectors, private shadow and lock files, a deterministic clock or lockout-time mock, and an authentication-device test double for the kernel-secret path; assert success, rejection, status codes, and lockout cleanup without real credentials."
+      "reason": "Remaining obligations: r5: Requires guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour."
     },
     {
       "id": "interactive_password_prompts",
       "purpose": "Future coverage for prompt ordering, new-password confirmation, echo suppression, and terminal restoration.",
       "kind": "deferred",
-      "reason": "Interactive password commands need terminal input and can read or change credentials. A future disposable VM/mock must supply an owned PTY driver, synthetic input only, a fake authentication device, and assertions that echo is disabled during reads and restored after success, mismatch, read failure, and signal interruption."
+      "reason": "passwd uses private PHCLIB_PASSWD/PHCLIB_GROUP/PHCLIB_SHADOW files and BPW_LOCK_DIR; kernel secret slots are optional (BASHPASSWD_KERNEL_SECRETS=0 or an absent device selects C-owned buffers), and add-fd/set-fd/verify-fd read password bytes from a file descriptor, so these operations run unprivileged without a PTY or device. The PTY driver (terminal group) supplies the owned terminal; no auth device is required."
     },
     {
       "id": "readonly_database_queries",
       "purpose": "Future fixture-only coverage for list, list -l, and info parsing of empty fields, malformed rows, and numeric identifier boundaries.",
-      "kind": "deferred",
-      "reason": "Account database operations require an explicitly authorized disposable VM or reviewed filesystem/authentication mock. A future runner case should use relative private PHCLIB_PASSWD and PHCLIB_SHADOW files and an independent POSIX-field encoder (such as a small awk reference), with empty-field, malformed-row, missing-user, and uid/gid boundary fixtures. It must not read /etc/passwd or installed credentials."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-passwd-info-boundaries"
+        },
+        {
+          "group": "shell",
+          "id": "migration-passwd-info-empty-shell-default"
+        },
+        {
+          "group": "shell",
+          "id": "migration-passwd-info-success-silent"
+        },
+        {
+          "group": "shell",
+          "id": "migration-passwd-list-projection"
+        }
+      ]
     }
   ]
 }

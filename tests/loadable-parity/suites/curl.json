@@ -43,39 +43,237 @@
     },
     {
       "id": "http-body-framing",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare response body bytes and status for Content-Length and chunked HTTP responses, including a small binary body with NUL and high-bit bytes.",
-      "reason": "Requires a future disposable VM with a private loopback HTTP fixture and GNU curl available as the independent CLI oracle. The fixture must serve fixed Content-Length and chunked responses and compare -s stdout/status byte-for-byte; this suite does not open sockets."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "curl-chunked"
+        },
+        {
+          "group": "network",
+          "id": "curl-chunked-extensions-trailer"
+        },
+        {
+          "group": "network",
+          "id": "curl-content-length"
+        },
+        {
+          "group": "network",
+          "id": "migration-curl-body-all-octets"
+        },
+        {
+          "group": "network",
+          "id": "migration-curl-chunked-all-octets"
+        },
+        {
+          "group": "network",
+          "id": "migration-curl-echo-high-bit-body"
+        }
+      ]
     },
     {
       "id": "request-wire-shape",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check request method, path, headers, POST body, Basic authorization, and cookie handling against a captured request from a deterministic server.",
-      "reason": "Requires a future disposable VM with a private HTTP mock that records request bytes, plus GNU curl for the shared option behavior. Use only fixture credentials and a small relative payload; this suite does not send requests."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "curl-cookie-jar-roundtrip"
+        },
+        {
+          "group": "network",
+          "id": "curl-cookie-literal"
+        },
+        {
+          "group": "network",
+          "id": "curl-data-binary-file"
+        },
+        {
+          "group": "network",
+          "id": "curl-data-binary-stdin"
+        },
+        {
+          "group": "network",
+          "id": "curl-data-file-strips-newlines"
+        },
+        {
+          "group": "network",
+          "id": "curl-explicit-get-with-data"
+        },
+        {
+          "group": "network",
+          "id": "curl-header-override-remove"
+        },
+        {
+          "group": "network",
+          "id": "curl-post"
+        },
+        {
+          "group": "network",
+          "id": "curl-post-multiple-data"
+        },
+        {
+          "group": "network",
+          "id": "curl-put"
+        },
+        {
+          "group": "network",
+          "id": "curl-query-string"
+        },
+        {
+          "group": "network",
+          "id": "curl-request-headers"
+        },
+        {
+          "group": "network",
+          "id": "migration-curl-header-names-order"
+        },
+        {
+          "group": "network",
+          "id": "migration-curl-header-set"
+        }
+      ]
     },
     {
       "id": "response-file-effects",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare -o output bytes, -O URL basename handling, -D dumped headers, and -w %{http_code} output including resulting fixture files.",
-      "reason": "Requires a future disposable VM with an isolated deterministic HTTP endpoint and GNU curl. The runner should compare stdout and private fixture tree contents, modes, and links; this suite performs no transfer or file-output operation."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "curl-cookie-jar-roundtrip"
+        },
+        {
+          "group": "network",
+          "id": "curl-dump-header-file"
+        },
+        {
+          "group": "network",
+          "id": "curl-dump-header-stdout"
+        },
+        {
+          "group": "network",
+          "id": "curl-fail-output-file"
+        },
+        {
+          "group": "network",
+          "id": "curl-no-content"
+        },
+        {
+          "group": "network",
+          "id": "curl-output-file"
+        },
+        {
+          "group": "network",
+          "id": "curl-remote-name"
+        },
+        {
+          "group": "network",
+          "id": "curl-write-out-code"
+        },
+        {
+          "group": "network",
+          "id": "migration-curl-remote-name-nested-query"
+        }
+      ]
     },
     {
       "id": "http-fail-policy",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check ordinary HTTP error responses with and without -f, including curl's status 22 behavior and -sS diagnostic policy.",
-      "reason": "Requires a future disposable VM with a private mock serving fixed success and 404/500 responses, plus GNU curl as oracle. Compare body, status, and the documented silent/show-error behavior; no endpoint is contacted here."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "curl-fail-output-file"
+        },
+        {
+          "group": "network",
+          "id": "curl-fail-show-error"
+        },
+        {
+          "group": "network",
+          "id": "curl-http-error"
+        },
+        {
+          "group": "network",
+          "id": "curl-http-error-body-without-fail"
+        },
+        {
+          "group": "network",
+          "id": "curl-write-out-code"
+        },
+        {
+          "group": "network",
+          "id": "migration-curl-fail-success"
+        },
+        {
+          "group": "network",
+          "id": "migration-curl-server-error-without-fail"
+        }
+      ]
     },
     {
       "id": "redirect-resolution",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check -L handling of absolute and relative Location values, redirect limits, and a bounded long redirect target.",
-      "reason": "Requires a future disposable VM with a private HTTP redirect fixture and GNU curl. The mock should include absolute and relative locations, a short loop for the redirect limit, and a deterministic multi-kilobyte Location boundary case; no network activity occurs in this suite."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "curl-max-redirs"
+        },
+        {
+          "group": "network",
+          "id": "curl-redirect"
+        },
+        {
+          "group": "network",
+          "id": "curl-redirect-absolute"
+        },
+        {
+          "group": "network",
+          "id": "curl-redirect-not-followed"
+        },
+        {
+          "group": "network",
+          "id": "migration-curl-redirect-long-target"
+        },
+        {
+          "group": "network",
+          "id": "migration-curl-redirect-over-candidate-limit"
+        },
+        {
+          "group": "network",
+          "id": "migration-curl-redirect-relative-dot-segments"
+        },
+        {
+          "group": "network",
+          "id": "migration-curl-redirect-relative-sibling"
+        }
+      ]
     },
     {
       "id": "https-trust-policy",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check HTTPS trust using a throwaway local CA, rejection of an untrusted certificate, and the explicit -k bypass against a private TLS server.",
-      "reason": "Requires a future disposable VM with an isolated TLS mock, locally generated throwaway certificates, and GNU curl as the independent oracle. Compare status/body for --cacert, default verification, and -k; this suite creates no certificate and opens no connection."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "migration-curl-https-cacert"
+        },
+        {
+          "group": "network",
+          "id": "migration-curl-https-default-trust-rejects"
+        },
+        {
+          "group": "network",
+          "id": "migration-curl-https-insecure"
+        },
+        {
+          "group": "network",
+          "id": "migration-curl-https-wrong-ca-rejects"
+        }
+      ]
     },
     {
       "id": "missing-output-argument",

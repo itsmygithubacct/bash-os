@@ -130,9 +130,26 @@
     },
     {
       "id": "follow-append-and-rotation",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise -f append delivery and -F pathname retry/rotation behavior under a controlled writer.",
-      "reason": "Requires a future disposable VM fixture with a supervised asynchronous writer that appends to a relative file, renames and recreates it for -F, and stops the tail process through a private bounded supervisor. The one-shot comparison fixture cannot reliably schedule inotify events or verify follow lifecycle and clean shutdown."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "migration-tail-follow-append"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tail-follow-diagnostics"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tail-follow-retry-missing"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tail-follow-rotation"
+        }
+      ]
     },
     {
       "id": "argument-error-0",

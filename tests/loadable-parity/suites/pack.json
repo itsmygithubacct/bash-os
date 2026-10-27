@@ -117,7 +117,7 @@
       "id": "large-offset-deferred",
       "kind": "deferred",
       "purpose": "Exercise pack cat through an index v2 64-bit offset entry above the 32-bit offset range.",
-      "reason": "The runner limits individual files to 8 MiB and process memory to 768 MiB, while pack cat slurps the complete pack into memory. A valid object after offset 0x80000000 cannot be represented within those limits. A future disposable VM should use a sparse pack constructor or a bounded seek/read mock, produce an index v2 overflow table that Git verify-pack accepts, and compare the object bytes and status with git cat-file. This case does not execute."
+      "reason": "The real >2 GiB scenario needs a resource class the VM does not offer. The 64-bit table lookup itself (r1) can be reached with a small pack: an index whose 32-bit entry has the MSB set and points into a one-entry overflow table holding a small offset. Git reads such entries through nth_packed_object_offset, but git verify-pack/fsck may reject an overflow entry below 2^31, so the reference must be recorded rather than assumed."
     }
   ]
 }

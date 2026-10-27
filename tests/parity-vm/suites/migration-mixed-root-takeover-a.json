@@ -1,0 +1,216 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "id": "migration-uname-efault",
+   "loadable": "uname",
+   "group": "shell",
+   "driver": "plain",
+   "kind": "parity",
+   "covers": [
+    "uname/deferred-syscall-error"
+   ],
+   "purpose": "uname(2) fails with EFAULT for the filtered shell and its children only: plain, -a, -s and -m each report the failure with no stdout and status 1, the shell keeps running, and an unfiltered uname -s afterwards succeeds.",
+   "oracle": "GNU coreutils 9.7 uname(1) under the identical per-side seccomp ERRNO rule (pinned helpers/system-seccomp.py)",
+   "comparison": "Byte parity of status, stdout and stderr; each invocation is bracketed by \"[label]\" markers on both streams and followed by its status. The filter is a stateless SECCOMP_RET_ERRNO rule on uname installed with no_new_privs around a fresh side shell, so only that shell and the command it runs see EFAULT. Setup proves the rule makes trusted /usr/bin/uname fail with \"Bad address\"; the trailing unfiltered uname -s proves the failure came from the rule. No normalisation.",
+   "requires": [
+    "python3",
+    "uname"
+   ],
+   "helpers_sha256": {
+    "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+   },
+   "files": {
+    "inner.sh": "mark() { printf '[%s]\\n' \"$1\"; printf '[%s]\\n' \"$1\" >&2; }\nfor args in \"\" -a -s -m; do\n  label=\"uname${args:+ $args}\"\n  mark \"$label\"\n  uname $args\n  printf '[%s] status=%d\\n' \"$label\" \"$?\"\ndone\nmark after\nprintf 'shell-continues\\n'\n"
+   },
+   "setup_script": "export PYTHONDONTWRITEBYTECODE=1 H=/opt/bashos-parity/harness/helpers/system-seccomp.py\nout=$(/usr/bin/python3 \"$H\" --errno uname:EFAULT -- /usr/bin/uname -s 2>&1) && { echo \"CONTROL-FAILED uname rule not applied\"; exit 98; }\n[[ $out == *\"Bad address\"* ]] || { echo \"CONTROL-FAILED unexpected control diagnostic\"; exit 98; }\n",
+   "script": "export PYTHONDONTWRITEBYTECODE=1 H=/opt/bashos-parity/harness/helpers/system-seccomp.py\n/usr/bin/python3 \"$H\" --errno uname:EFAULT -- \"$BASH\" --noprofile --norc inner.sh\nprintf 'filtered-shell-status=%d\\n' \"$?\"\nuname -s\nprintf 'unfiltered status=%d\\n' \"$?\"\n",
+   "expected_status": 0,
+   "stdout": "[uname]\n[uname] status=1\n[uname -a]\n[uname -a] status=1\n[uname -s]\n[uname -s] status=1\n[uname -m]\n[uname -m] status=1\n[after]\nshell-continues\nfiltered-shell-status=0\nLinux\nunfiltered status=0\n",
+   "timeout": 20
+  },
+  {
+   "id": "migration-whoami-unmapped-euid",
+   "loadable": "whoami",
+   "group": "shell",
+   "driver": "plain",
+   "kind": "parity",
+   "covers": [
+    "whoami/unmapped-effective-uid"
+   ],
+   "purpose": "In a user namespace mapping uid/gid 4242 (which has no passwd/NSS entry) to the fixture user, whoami and whoami -- are compared with GNU: diagnostic, status and empty stdout, and the shell continues.",
+   "oracle": "GNU coreutils 9.7 whoami(1) in an identically built user namespace",
+   "comparison": "Byte parity of status, stdout and stderr; markers on both streams; the side shell prints its real and effective uid from /proc/self/status first so both sides prove they ran as 4242. Setup proves getent has no passwd entry for 4242 and that the namespace map yields uid 4242. No normalisation.",
+   "requires": [
+    "unshare",
+    "getent",
+    "id"
+   ],
+   "features": [
+    "userns"
+   ],
+   "files": {
+    "inner.sh": "mark() { printf '[%s]\\n' \"$1\"; printf '[%s]\\n' \"$1\" >&2; }\nwhile read -r k a b _; do\n  [[ $k == Uid: ]] && printf 'ruid=%s euid=%s\\n' \"$a\" \"$b\"\ndone </proc/self/status\nmark whoami\nwhoami\nprintf '[whoami] status=%d\\n' \"$?\"\nmark 'whoami --'\nwhoami --\nprintf '[whoami --] status=%d\\n' \"$?\"\nmark after\nprintf 'shell-continues\\n'\n"
+   },
+   "setup_script": "! /usr/bin/getent passwd 4242 >/dev/null || { echo \"CONTROL-FAILED uid 4242 has a passwd entry\"; exit 98; }\n[[ $(/usr/bin/unshare --user --map-user=4242 --map-group=4242 /usr/bin/id -u) == 4242 ]] || { echo \"CONTROL-FAILED userns map\"; exit 98; }\n",
+   "script": "/usr/bin/unshare --user --map-user=4242 --map-group=4242 \"$BASH\" --noprofile --norc inner.sh\nprintf 'namespace-shell-status=%d\\n' \"$?\"\n",
+   "expected_status": 0,
+   "stdout": "ruid=4242 euid=4242\n[whoami]\n[whoami] status=1\n[whoami --]\n[whoami --] status=1\n[after]\nshell-continues\nnamespace-shell-status=0\n",
+   "timeout": 20
+  },
+  {
+   "id": "migration-hostid-etc-hostid-r2",
+   "loadable": "hostid",
+   "group": "shell",
+   "driver": "plain",
+   "kind": "parity",
+   "covers": [
+    "hostid/controlled-etc-hostid"
+   ],
+   "purpose": "With a fixture /etc/hostid holding known native-endian bytes, default hostid prints the value GNU hostid prints: byte order (01020304 -> 04030201), leading zero nibbles (0a000000 -> 0000000a) and a high-bit value; invalid, short, missing and empty BASHHOSTID_MACHINE_ID_PATH overrides fall back to the /etc/hostid value.",
+   "oracle": "GNU coreutils 9.7 hostid(1) (glibc gethostid reads /etc/hostid) in an identically built user+mount namespace",
+   "comparison": "Byte parity of status, stdout and stderr with markers on both streams. Each side runs as user-namespace root in a private mount namespace where the trusted ns_build.py shadows /etc with a tmpfs of symlinks to every original entry plus /etc/hostid -> a case file; a trusted python3 rewrites that file and prints its bytes before each step. Setup proves the /etc shadow takes effect; the side shell then creates /etc/hostid as a symlink to the case file (trusted ln, exit 96 if refused). r2 of takeover-a-54: the shadow check compares /etc with the stash, so the symlink is no longer a spec step. GNU ignores the bash-os override variable, so every override step must print the /etc/hostid value. No normalisation.",
+   "requires": [
+    "unshare",
+    "python3",
+    "hostid"
+   ],
+   "features": [
+    "userns"
+   ],
+   "files": {
+    "ns_build.py": "# SPDX-License-Identifier: MIT\n# Trusted mount-namespace builder for table-driven fixtures (pane 214). Runs\n# as uid 0 of a fresh user+mount namespace (unshare --user --map-root-user\n# --mount), applies SPEC in order with mount(2), then executes PROGRAM. The\n# \"check\" form applies nothing: it verifies, inside an identically built\n# namespace, that every step took effect (setup control).\n# SPEC is a JSON list of steps:\n#   [\"tmpfs\", PATH, READONLY]   private tmpfs (size=1m) at PATH, optionally MS_RDONLY\n#   [\"bind\", SOURCE, TARGET]    bind SOURCE over TARGET (file or directory)\n#   [\"symlink\", TARGET, LINK]   create LINK -> TARGET (inside a mounted tmpfs)\n#   [\"mkdir\", PATH]             create a directory (inside a mounted tmpfs)\n#   [\"shadow\", DIR, NAME]       bind DIR to ./shadow-stash, mount a tmpfs over DIR and\n#                               relink every entry except NAME (symlinks copied as-is,\n#                               others point into the stash), so DIR/NAME is absent\n# Usage: ns_build.py SPEC PROGRAM [ARG...] | ns_build.py check SPEC\nimport ctypes, json, os, sys\n\nMS_RDONLY, MS_REMOUNT, MS_BIND = 1, 32, 4096\nlib = ctypes.CDLL(None, use_errno=True)\nSTASH = os.path.abspath('shadow-stash')\n\n\ndef mount(source, target, fstype, flags, data):\n    if lib.mount(source.encode(), target.encode(), fstype.encode() if fstype else None, ctypes.c_ulong(flags),\n                 data.encode() if data else None) != 0:\n        print('SETUP-INVALID mount %s on %r: %s' % (fstype or 'bind', target, os.strerror(ctypes.get_errno())))\n        sys.exit(97)\n\n\ndef apply(spec):\n    for step in spec:\n        kind = step[0]\n        if kind == 'tmpfs':\n            mount('parity-ns', step[1], 'tmpfs', MS_RDONLY if step[2] else 0, 'size=1m,mode=0755')\n        elif kind == 'bind':\n            mount(step[1], step[2], None, MS_BIND, None)\n        elif kind == 'symlink':\n            os.symlink(step[1], step[2])\n        elif kind == 'mkdir':\n            os.mkdir(step[1])\n        elif kind == 'shadow':\n            os.makedirs(STASH, exist_ok=True)\n            mount(step[1], STASH, None, MS_BIND, None)\n            names = os.listdir(STASH)\n            mount('parity-ns', step[1], 'tmpfs', 0, 'size=1m,mode=0755')\n            for name in names:\n                if name == step[2]:\n                    continue\n                held = os.path.join(STASH, name)\n                os.symlink(os.readlink(held) if os.path.islink(held) else held, os.path.join(step[1], name))\n        else:\n            raise AssertionError(kind)\n\n\ndef check(spec):\n    for step in spec:\n        kind = step[0]\n        if kind == 'tmpfs':\n            parent = os.path.dirname(os.path.abspath(step[1]))\n            ok = os.stat(step[1]).st_dev != os.stat(parent).st_dev\n            ok = ok and bool(os.statvfs(step[1]).f_flag & os.ST_RDONLY) == bool(step[2])\n        elif kind == 'bind':\n            with open(step[1], 'rb') as a, open(step[2], 'rb') as b:\n                ok = a.read() == b.read()\n        elif kind == 'symlink':\n            ok = os.readlink(step[2]) == step[1]\n        elif kind == 'shadow':\n            ok = (not os.path.lexists(os.path.join(step[1], step[2]))\n                  and set(os.listdir(step[1])) == set(os.listdir(STASH)) - {step[2]})\n        else:\n            ok = os.path.isdir(step[1])\n        if not ok:\n            print('CONTROL-FAILED namespace step %r did not take effect' % (step,))\n            sys.exit(98)\n    print('namespace control ok')\n\n\ndef main():\n    if os.geteuid() != 0:\n        print('SETUP-INVALID ns_build.py must run as user-namespace root')\n        sys.exit(97)\n    if sys.argv[1] == 'check':\n        with open(sys.argv[2]) as handle:\n            check(json.load(handle))\n        return\n    with open(sys.argv[1]) as handle:\n        apply(json.load(handle))\n    os.execv(sys.argv[2], sys.argv[2:])\n\n\nif __name__ == '__main__':\n    main()\n",
+    "spec.json": "[[\"shadow\", \"/etc\", \"hostid\"]]",
+    "hostid.cur": "",
+    "bad.txt": "xyz12345\n",
+    "short.txt": "abc\n",
+    "good.txt": "deadbeef\n",
+    "upper.txt": "DEADBEEF\n",
+    "hostid.sh": "mark() { printf '[%s]\\n' \"$1\"; printf '[%s]\\n' \"$1\" >&2; }\n/usr/bin/ln -s /tmp/parity-case/hostid.cur /etc/hostid || exit 96\nput() { /usr/bin/python3 -c 'import sys; open(\"/tmp/parity-case/hostid.cur\", \"wb\").write(bytes.fromhex(sys.argv[1]))' \"$1\"; }\nshow() { /usr/bin/python3 -c 'print(\"etc-hostid=\" + open(\"/etc/hostid\", \"rb\").read().hex())'; }\nrun() { mark \"$1\"; hostid; printf '[%s] status=%d\\n' \"$1\" \"$?\"; }\nput 01020304; show; run le-bytes\nput 0a000000; show; run leading-zero\nput ff000080; show; run high-bit\nput 01020304; show\nexport BASHHOSTID_MACHINE_ID_PATH=$PWD/bad.txt; run override-invalid\nexport BASHHOSTID_MACHINE_ID_PATH=$PWD/short.txt; run override-short\nexport BASHHOSTID_MACHINE_ID_PATH=$PWD/missing.txt; run override-missing\nexport BASHHOSTID_MACHINE_ID_PATH=; run override-empty\nunset BASHHOSTID_MACHINE_ID_PATH; run no-override\n"
+   },
+   "setup_script": "/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 ns_build.py spec.json /usr/bin/python3 ns_build.py check spec.json >/dev/null || { echo \"CONTROL-FAILED /etc/hostid namespace\"; exit 98; }\n",
+   "script": "/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 ns_build.py spec.json \"$BASH\" --noprofile --norc hostid.sh\nprintf 'namespace-shell-status=%d\\n' \"$?\"\n",
+   "expected_status": 0,
+   "stdout": "etc-hostid=01020304\n[le-bytes]\n04030201\n[le-bytes] status=0\netc-hostid=0a000000\n[leading-zero]\n0000000a\n[leading-zero] status=0\netc-hostid=ff000080\n[high-bit]\n800000ff\n[high-bit] status=0\netc-hostid=01020304\n[override-invalid]\n04030201\n[override-invalid] status=0\n[override-short]\n04030201\n[override-short] status=0\n[override-missing]\n04030201\n[override-missing] status=0\n[override-empty]\n04030201\n[override-empty] status=0\n[no-override]\n04030201\n[no-override] status=0\nnamespace-shell-status=0\n",
+   "stderr": "[le-bytes]\n[leading-zero]\n[high-bit]\n[override-invalid]\n[override-short]\n[override-missing]\n[override-empty]\n[no-override]\n",
+   "timeout": 30
+  },
+  {
+   "id": "migration-hostid-override-precedence-r2",
+   "loadable": "hostid",
+   "group": "shell",
+   "driver": "plain",
+   "kind": "contract",
+   "covers": [
+    "hostid/controlled-etc-hostid"
+   ],
+   "purpose": "With /etc/hostid present (01020304), a valid eight-hex-digit BASHHOSTID_MACHINE_ID_PATH file (lowercase or uppercase) wins over it, an invalid override falls back to the /etc/hostid value rather than a network-derived id, and removing the override restores the /etc/hostid value.",
+   "oracle": "loadables/hostid.c contract: \"BASHHOSTID_MACHINE_ID_PATH may name a test fixture of eight hex digits\" printed as 8 lowercase hex chars, otherwise gethostid(3) (glibc reads /etc/hostid; little-endian bytes 01 02 03 04 are 0x04030201)",
+   "comparison": "Contract: exact stdout, stderr (markers only) and status. Same user+mount namespace /etc/hostid fixture and setup control as migration-hostid-etc-hostid.",
+   "requires": [
+    "unshare",
+    "python3"
+   ],
+   "features": [
+    "userns"
+   ],
+   "files": {
+    "ns_build.py": "# SPDX-License-Identifier: MIT\n# Trusted mount-namespace builder for table-driven fixtures (pane 214). Runs\n# as uid 0 of a fresh user+mount namespace (unshare --user --map-root-user\n# --mount), applies SPEC in order with mount(2), then executes PROGRAM. The\n# \"check\" form applies nothing: it verifies, inside an identically built\n# namespace, that every step took effect (setup control).\n# SPEC is a JSON list of steps:\n#   [\"tmpfs\", PATH, READONLY]   private tmpfs (size=1m) at PATH, optionally MS_RDONLY\n#   [\"bind\", SOURCE, TARGET]    bind SOURCE over TARGET (file or directory)\n#   [\"symlink\", TARGET, LINK]   create LINK -> TARGET (inside a mounted tmpfs)\n#   [\"mkdir\", PATH]             create a directory (inside a mounted tmpfs)\n#   [\"shadow\", DIR, NAME]       bind DIR to ./shadow-stash, mount a tmpfs over DIR and\n#                               relink every entry except NAME (symlinks copied as-is,\n#                               others point into the stash), so DIR/NAME is absent\n# Usage: ns_build.py SPEC PROGRAM [ARG...] | ns_build.py check SPEC\nimport ctypes, json, os, sys\n\nMS_RDONLY, MS_REMOUNT, MS_BIND = 1, 32, 4096\nlib = ctypes.CDLL(None, use_errno=True)\nSTASH = os.path.abspath('shadow-stash')\n\n\ndef mount(source, target, fstype, flags, data):\n    if lib.mount(source.encode(), target.encode(), fstype.encode() if fstype else None, ctypes.c_ulong(flags),\n                 data.encode() if data else None) != 0:\n        print('SETUP-INVALID mount %s on %r: %s' % (fstype or 'bind', target, os.strerror(ctypes.get_errno())))\n        sys.exit(97)\n\n\ndef apply(spec):\n    for step in spec:\n        kind = step[0]\n        if kind == 'tmpfs':\n            mount('parity-ns', step[1], 'tmpfs', MS_RDONLY if step[2] else 0, 'size=1m,mode=0755')\n        elif kind == 'bind':\n            mount(step[1], step[2], None, MS_BIND, None)\n        elif kind == 'symlink':\n            os.symlink(step[1], step[2])\n        elif kind == 'mkdir':\n            os.mkdir(step[1])\n        elif kind == 'shadow':\n            os.makedirs(STASH, exist_ok=True)\n            mount(step[1], STASH, None, MS_BIND, None)\n            names = os.listdir(STASH)\n            mount('parity-ns', step[1], 'tmpfs', 0, 'size=1m,mode=0755')\n            for name in names:\n                if name == step[2]:\n                    continue\n                held = os.path.join(STASH, name)\n                os.symlink(os.readlink(held) if os.path.islink(held) else held, os.path.join(step[1], name))\n        else:\n            raise AssertionError(kind)\n\n\ndef check(spec):\n    for step in spec:\n        kind = step[0]\n        if kind == 'tmpfs':\n            parent = os.path.dirname(os.path.abspath(step[1]))\n            ok = os.stat(step[1]).st_dev != os.stat(parent).st_dev\n            ok = ok and bool(os.statvfs(step[1]).f_flag & os.ST_RDONLY) == bool(step[2])\n        elif kind == 'bind':\n            with open(step[1], 'rb') as a, open(step[2], 'rb') as b:\n                ok = a.read() == b.read()\n        elif kind == 'symlink':\n            ok = os.readlink(step[2]) == step[1]\n        elif kind == 'shadow':\n            ok = (not os.path.lexists(os.path.join(step[1], step[2]))\n                  and set(os.listdir(step[1])) == set(os.listdir(STASH)) - {step[2]})\n        else:\n            ok = os.path.isdir(step[1])\n        if not ok:\n            print('CONTROL-FAILED namespace step %r did not take effect' % (step,))\n            sys.exit(98)\n    print('namespace control ok')\n\n\ndef main():\n    if os.geteuid() != 0:\n        print('SETUP-INVALID ns_build.py must run as user-namespace root')\n        sys.exit(97)\n    if sys.argv[1] == 'check':\n        with open(sys.argv[2]) as handle:\n            check(json.load(handle))\n        return\n    with open(sys.argv[1]) as handle:\n        apply(json.load(handle))\n    os.execv(sys.argv[2], sys.argv[2:])\n\n\nif __name__ == '__main__':\n    main()\n",
+    "spec.json": "[[\"shadow\", \"/etc\", \"hostid\"]]",
+    "hostid.cur": "",
+    "bad.txt": "xyz12345\n",
+    "short.txt": "abc\n",
+    "good.txt": "deadbeef\n",
+    "upper.txt": "DEADBEEF\n",
+    "hostid.sh": "mark() { printf '[%s]\\n' \"$1\"; printf '[%s]\\n' \"$1\" >&2; }\n/usr/bin/ln -s /tmp/parity-case/hostid.cur /etc/hostid || exit 96\nput() { /usr/bin/python3 -c 'import sys; open(\"/tmp/parity-case/hostid.cur\", \"wb\").write(bytes.fromhex(sys.argv[1]))' \"$1\"; }\nshow() { /usr/bin/python3 -c 'print(\"etc-hostid=\" + open(\"/etc/hostid\", \"rb\").read().hex())'; }\nrun() { mark \"$1\"; hostid; printf '[%s] status=%d\\n' \"$1\" \"$?\"; }\nput 01020304; show\nexport BASHHOSTID_MACHINE_ID_PATH=$PWD/good.txt; run override-valid\nexport BASHHOSTID_MACHINE_ID_PATH=$PWD/upper.txt; run override-uppercase\nexport BASHHOSTID_MACHINE_ID_PATH=$PWD/bad.txt; run override-invalid\nunset BASHHOSTID_MACHINE_ID_PATH; run no-override\n"
+   },
+   "setup_script": "/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 ns_build.py spec.json /usr/bin/python3 ns_build.py check spec.json >/dev/null || { echo \"CONTROL-FAILED /etc/hostid namespace\"; exit 98; }\n",
+   "script": "/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 ns_build.py spec.json \"$BASH\" --noprofile --norc hostid.sh\nprintf 'namespace-shell-status=%d\\n' \"$?\"\n",
+   "expected_status": 0,
+   "stdout": "etc-hostid=01020304\n[override-valid]\ndeadbeef\n[override-valid] status=0\n[override-uppercase]\ndeadbeef\n[override-uppercase] status=0\n[override-invalid]\n04030201\n[override-invalid] status=0\n[no-override]\n04030201\n[no-override] status=0\nnamespace-shell-status=0\n",
+   "stderr": "[override-valid]\n[override-uppercase]\n[override-invalid]\n[no-override]\n",
+   "timeout": 30
+  },
+  {
+   "id": "migration-free-meminfo-snapshots",
+   "loadable": "free",
+   "group": "shell",
+   "driver": "plain",
+   "kind": "parity",
+   "covers": [
+    "free/full-numeric-gnu-parity"
+   ],
+   "purpose": "procps free and the candidate read the same immutable /proc/meminfo snapshot (bind-mounted in a private mount namespace): default KiB table and -b/-k/-m/-g/--si/-h/-h --si/-w/-t/-L modes for a small snapshot, a snapshot without MemAvailable (legacy available/used calculation) and a multi-TiB snapshot, plus -c 2 -s 0.1 repetition.",
+   "oracle": "procps-ng free(1) from the sealed reference image reading the identical bind-mounted file",
+   "comparison": "Byte parity of status, stdout and stderr with markers on both streams. Each side runs as user-namespace root in a private mount namespace where the trusted ns_build.py binds a case file over /proc/meminfo; a trusted cp rewrites that file in place (same inode) between snapshots. Setup proves the bind takes effect. Without MemAvailable both implementations may consult the live /proc/zoneinfo and /proc/sys/vm values of the same guest. No normalisation.",
+   "requires": [
+    "unshare",
+    "python3",
+    "free",
+    "cp"
+   ],
+   "features": [
+    "userns"
+   ],
+   "files": {
+    "ns_build.py": "# SPDX-License-Identifier: MIT\n# Trusted mount-namespace builder for table-driven fixtures (pane 214). Runs\n# as uid 0 of a fresh user+mount namespace (unshare --user --map-root-user\n# --mount), applies SPEC in order with mount(2), then executes PROGRAM. The\n# \"check\" form applies nothing: it verifies, inside an identically built\n# namespace, that every step took effect (setup control).\n# SPEC is a JSON list of steps:\n#   [\"tmpfs\", PATH, READONLY]   private tmpfs (size=1m) at PATH, optionally MS_RDONLY\n#   [\"bind\", SOURCE, TARGET]    bind SOURCE over TARGET (file or directory)\n#   [\"symlink\", TARGET, LINK]   create LINK -> TARGET (inside a mounted tmpfs)\n#   [\"mkdir\", PATH]             create a directory (inside a mounted tmpfs)\n#   [\"shadow\", DIR, NAME]       bind DIR to ./shadow-stash, mount a tmpfs over DIR and\n#                               relink every entry except NAME (symlinks copied as-is,\n#                               others point into the stash), so DIR/NAME is absent\n# Usage: ns_build.py SPEC PROGRAM [ARG...] | ns_build.py check SPEC\nimport ctypes, json, os, sys\n\nMS_RDONLY, MS_REMOUNT, MS_BIND = 1, 32, 4096\nlib = ctypes.CDLL(None, use_errno=True)\nSTASH = os.path.abspath('shadow-stash')\n\n\ndef mount(source, target, fstype, flags, data):\n    if lib.mount(source.encode(), target.encode(), fstype.encode() if fstype else None, ctypes.c_ulong(flags),\n                 data.encode() if data else None) != 0:\n        print('SETUP-INVALID mount %s on %r: %s' % (fstype or 'bind', target, os.strerror(ctypes.get_errno())))\n        sys.exit(97)\n\n\ndef apply(spec):\n    for step in spec:\n        kind = step[0]\n        if kind == 'tmpfs':\n            mount('parity-ns', step[1], 'tmpfs', MS_RDONLY if step[2] else 0, 'size=1m,mode=0755')\n        elif kind == 'bind':\n            mount(step[1], step[2], None, MS_BIND, None)\n        elif kind == 'symlink':\n            os.symlink(step[1], step[2])\n        elif kind == 'mkdir':\n            os.mkdir(step[1])\n        elif kind == 'shadow':\n            os.makedirs(STASH, exist_ok=True)\n            mount(step[1], STASH, None, MS_BIND, None)\n            names = os.listdir(STASH)\n            mount('parity-ns', step[1], 'tmpfs', 0, 'size=1m,mode=0755')\n            for name in names:\n                if name == step[2]:\n                    continue\n                held = os.path.join(STASH, name)\n                os.symlink(os.readlink(held) if os.path.islink(held) else held, os.path.join(step[1], name))\n        else:\n            raise AssertionError(kind)\n\n\ndef check(spec):\n    for step in spec:\n        kind = step[0]\n        if kind == 'tmpfs':\n            parent = os.path.dirname(os.path.abspath(step[1]))\n            ok = os.stat(step[1]).st_dev != os.stat(parent).st_dev\n            ok = ok and bool(os.statvfs(step[1]).f_flag & os.ST_RDONLY) == bool(step[2])\n        elif kind == 'bind':\n            with open(step[1], 'rb') as a, open(step[2], 'rb') as b:\n                ok = a.read() == b.read()\n        elif kind == 'symlink':\n            ok = os.readlink(step[2]) == step[1]\n        elif kind == 'shadow':\n            ok = (not os.path.lexists(os.path.join(step[1], step[2]))\n                  and set(os.listdir(step[1])) == set(os.listdir(STASH)) - {step[2]})\n        else:\n            ok = os.path.isdir(step[1])\n        if not ok:\n            print('CONTROL-FAILED namespace step %r did not take effect' % (step,))\n            sys.exit(98)\n    print('namespace control ok')\n\n\ndef main():\n    if os.geteuid() != 0:\n        print('SETUP-INVALID ns_build.py must run as user-namespace root')\n        sys.exit(97)\n    if sys.argv[1] == 'check':\n        with open(sys.argv[2]) as handle:\n            check(json.load(handle))\n        return\n    with open(sys.argv[1]) as handle:\n        apply(json.load(handle))\n    os.execv(sys.argv[2], sys.argv[2:])\n\n\nif __name__ == '__main__':\n    main()\n",
+    "spec.json": "[[\"bind\", \"/tmp/parity-case/meminfo.live\", \"/proc/meminfo\"]]",
+    "free.sh": "mark() { printf '[%s]\\n' \"$1\"; printf '[%s]\\n' \"$1\" >&2; }\nload() { /usr/bin/cp \"$1\" /tmp/parity-case/meminfo.live; }\nfor snap in meminfo-small meminfo-legacy meminfo-large; do\n  load \"$snap\"\n  printf '== %s\\n' \"$snap\"\n  for opts in \"\" -b -k -m -g \"--si -m\" -h \"-h --si\" -w -t -L \"-w -t -h\"; do\n    label=\"$snap free${opts:+ $opts}\"\n    mark \"$label\"\n    free $opts\n    printf '[%s] status=%d\\n' \"$label\" \"$?\"\n  done\ndone\nmark 'count free -c 2 -s 0.1'\nfree -c 2 -s 0.1\nprintf '[count] status=%d\\n' \"$?\"\n",
+    "meminfo.live": "MemTotal:        2014468 kB\nMemFree:            1023 kB\nMemAvailable:    1048576 kB\nBuffers:           52428 kB\nCached:           734003 kB\nSwapCached:            1 kB\nActive:           400000 kB\nInactive:         500000 kB\nActive(anon):          0 kB\nInactive(anon):        0 kB\nActive(file):          0 kB\nInactive(file):        0 kB\nUnevictable:           0 kB\nMlocked:               0 kB\nSwapTotal:       1048572 kB\nSwapFree:         524287 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:                 0 kB\nWriteback:             0 kB\nAnonPages:             0 kB\nMapped:                0 kB\nShmem:             10239 kB\nKReclaimable:     102400 kB\nSlab:             150000 kB\nSReclaimable:     102400 kB\nSUnreclaim:        47600 kB\nKernelStack:           0 kB\nPageTables:            0 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     2055804 kB\nCommitted_AS:     999999 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:           0 kB\nVmallocChunk:          0 kB\nPercpu:                0 kB\nHardwareCorrupted:       0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nUnaccepted:            0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:      100000 kB\nDirectMap2M:     2000000 kB\nDirectMap1G:           0 kB\n",
+    "meminfo-small": "MemTotal:        2014468 kB\nMemFree:            1023 kB\nMemAvailable:    1048576 kB\nBuffers:           52428 kB\nCached:           734003 kB\nSwapCached:            1 kB\nActive:           400000 kB\nInactive:         500000 kB\nActive(anon):          0 kB\nInactive(anon):        0 kB\nActive(file):          0 kB\nInactive(file):        0 kB\nUnevictable:           0 kB\nMlocked:               0 kB\nSwapTotal:       1048572 kB\nSwapFree:         524287 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:                 0 kB\nWriteback:             0 kB\nAnonPages:             0 kB\nMapped:                0 kB\nShmem:             10239 kB\nKReclaimable:     102400 kB\nSlab:             150000 kB\nSReclaimable:     102400 kB\nSUnreclaim:        47600 kB\nKernelStack:           0 kB\nPageTables:            0 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     2055804 kB\nCommitted_AS:     999999 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:           0 kB\nVmallocChunk:          0 kB\nPercpu:                0 kB\nHardwareCorrupted:       0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nUnaccepted:            0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:      100000 kB\nDirectMap2M:     2000000 kB\nDirectMap1G:           0 kB\n",
+    "meminfo-legacy": "MemTotal:        2014468 kB\nMemFree:            1023 kB\nBuffers:           52428 kB\nCached:           734003 kB\nSwapCached:            1 kB\nActive:           400000 kB\nInactive:         500000 kB\nActive(anon):          0 kB\nInactive(anon):        0 kB\nActive(file):          0 kB\nInactive(file):        0 kB\nUnevictable:           0 kB\nMlocked:               0 kB\nSwapTotal:       1048572 kB\nSwapFree:         524287 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:                 0 kB\nWriteback:             0 kB\nAnonPages:             0 kB\nMapped:                0 kB\nShmem:             10239 kB\nKReclaimable:     102400 kB\nSlab:             150000 kB\nSReclaimable:     102400 kB\nSUnreclaim:        47600 kB\nKernelStack:           0 kB\nPageTables:            0 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     2055804 kB\nCommitted_AS:     999999 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:           0 kB\nVmallocChunk:          0 kB\nPercpu:                0 kB\nHardwareCorrupted:       0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nUnaccepted:            0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:      100000 kB\nDirectMap2M:     2000000 kB\nDirectMap1G:           0 kB\n",
+    "meminfo-large": "MemTotal:       17179869184 kB\nMemFree:        1099511627 kB\nMemAvailable:   8589934592 kB\nBuffers:        1073741824 kB\nCached:         4294967296 kB\nSwapCached:            0 kB\nActive:                0 kB\nInactive:              0 kB\nActive(anon):          0 kB\nInactive(anon):        0 kB\nActive(file):          0 kB\nInactive(file):        0 kB\nUnevictable:           0 kB\nMlocked:               0 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:                 0 kB\nWriteback:             0 kB\nAnonPages:             0 kB\nMapped:                0 kB\nShmem:           1048576 kB\nKReclaimable:   536870912 kB\nSlab:           600000000 kB\nSReclaimable:   536870912 kB\nSUnreclaim:     63129088 kB\nKernelStack:           0 kB\nPageTables:            0 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:           0 kB\nCommitted_AS:          0 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:           0 kB\nVmallocChunk:          0 kB\nPercpu:                0 kB\nHardwareCorrupted:       0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nUnaccepted:            0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:           0 kB\nDirectMap2M:           0 kB\nDirectMap1G:           0 kB\n"
+   },
+   "setup_script": "/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 ns_build.py spec.json /usr/bin/python3 ns_build.py check spec.json >/dev/null || { echo \"CONTROL-FAILED /proc/meminfo bind\"; exit 98; }\n",
+   "script": "/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 ns_build.py spec.json \"$BASH\" --noprofile --norc free.sh\nprintf 'namespace-shell-status=%d\\n' \"$?\"\n",
+   "expected_status": 0,
+   "timeout": 40
+  },
+  {
+   "id": "migration-sleep-sigint-group-r2",
+   "loadable": "sleep",
+   "group": "shell",
+   "driver": "plain",
+   "kind": "parity",
+   "covers": [
+    "sleep/sleep_signal_interruption"
+   ],
+   "purpose": "SIGINT delivered to the process group of a sleeping background job (set -m) terminates sleep with the default disposition and wait status 130 while a separately grouped sibling sleep keeps sleeping; with a trapped SIGINT in the job, the trap runs and the job continues, and its reported statuses are compared with GNU sleep.",
+   "oracle": "GNU coreutils 9.7 sleep(1) driven by the identical GNU Bash 5.3.15 job-control script",
+   "comparison": "Byte parity of status, stdout and stderr. Readiness is a process of the target group in state S with a sleep/select/poll/hrtimer wchan, read from /proc before any signal (r2 of takeover-a-54: wchan has no trailing newline and is now read with $(<file)); groups are verified from /proc/PID/stat (pgrp == job leader) and the sibling must still be sleeping after delivery. Signals go to the job process group only (kill -- -PGID). Shell job-control diagnostics go to a retained HOME log, so compared stderr is empty on both sides.",
+   "requires": [
+    "mkfifo"
+   ],
+   "setup_script": "/usr/bin/mkfifo pace.fifo\n",
+   "script": "exec 2>>\"$HOME/shell-stderr.log\"\nset -m\nexec 9<>pace.fifo\npause() { read -r -t 0.02 -u 9 _; return 0; }\nstat_fields() { local line; read -r line <\"/proc/$1/stat\" 2>/dev/null || return 1; printf '%s' \"${line##*) }\"; }\nmember_sleeping() {\n  local f pid w a\n  for f in /proc/[0-9]*/stat; do\n    pid=${f#/proc/}; pid=${pid%/stat}\n    a=($(stat_fields \"$pid\")) || continue\n    [[ ${a[2]} == \"$1\" && ${a[0]} == S ]] || continue\n    w=$(<\"/proc/$pid/wchan\") 2>/dev/null || continue\n    [[ $w == *sleep* || $w == *select* || $w == *poll* || $w == *hrtimer* ]] && return 0\n  done\n  return 1\n}\nawait() { local i; for ((i = 0; i < 250; i++)); do member_sleeping \"$1\" && return 0; pause; done; return 1; }\nown_group() { local a; a=($(stat_fields \"$1\")); [[ ${a[2]} == \"$1\" ]]; }\nprintf '[default-int]\\n'\nsleep 20 &\nsib=$!\nawait \"$sib\" && printf 'sibling-ready\\n' || printf 'sibling-not-ready\\n'\nsleep 20 &\ntarget=$!\nawait \"$target\" && printf 'target-ready\\n' || printf 'target-not-ready\\n'\nown_group \"$target\" && own_group \"$sib\" && [[ $target != \"$sib\" ]] && printf 'separate-groups=yes\\n' || printf 'separate-groups=no\\n'\nbuiltin kill -INT -- \"-$target\"\nwait \"$target\"\nprintf 'target-status=%d\\n' \"$?\"\nmember_sleeping \"$sib\" && printf 'sibling-unaffected\\n' || printf 'sibling-disturbed\\n'\nbuiltin kill -TERM -- \"-$sib\"\nwait \"$sib\"\nprintf 'sibling-status=%d\\n' \"$?\"\nprintf '[trapped]\\n'\n( trap 'printf \"trap-ran\\n\"' INT; sleep 15; printf 'sleep-returned=%d\\n' \"$?\"; exit 7 ) &\ntarget=$!\nawait \"$target\" && printf 'target-ready\\n' || printf 'target-not-ready\\n'\nbuiltin kill -INT -- \"-$target\"\nwait \"$target\"\nprintf 'target-status=%d\\n' \"$?\"\nprintf 'done\\n'\n",
+   "expected_status": 0,
+   "diagnostic_files": [
+    "shell-stderr.log"
+   ],
+   "timeout": 60
+  },
+  {
+   "id": "migration-tee-sigint-blocked-read",
+   "loadable": "tee",
+   "group": "shell",
+   "driver": "plain",
+   "kind": "parity",
+   "covers": [
+    "tee/interrupt-ignore-deferred"
+   ],
+   "purpose": "SIGINT sent only to the tee process while it is blocked reading a private pipe after copying a first line: plain tee terminates (wait status 130, later bytes never copied), tee -i keeps running and copies the later line to both files and stdout, exiting 0 at EOF.",
+   "oracle": "GNU coreutils 9.7 tee(1) driven by the identical GNU Bash 5.3.15 script",
+   "comparison": "Byte parity of status, stdout and stderr. The producer writes \"first\", then blocks on a control FIFO held open by the script; tee is ready when both files hold \"first\" and its /proc state is S. SIGINT targets the tee PID only (not the job group, so the producer is not signalled); tee liveness is read from /proc 0.5 s later before the producer is released. Output files and the redirected stdout file are printed per run. Shell job-control diagnostics go to a retained HOME log.",
+   "requires": [
+    "mkfifo"
+   ],
+   "setup_script": "/usr/bin/mkfifo pace.fifo prod.ctl\n",
+   "script": "exec 2>>\"$HOME/shell-stderr.log\"\nset -m\nexec 9<>pace.fifo\npause() { read -r -t 0.02 -u 9 _; return 0; }\nstat_fields() { local line; read -r line <\"/proc/$1/stat\" 2>/dev/null || return 1; printf '%s' \"${line##*) }\"; }\nexec 8<>prod.ctl\nstate_of() { local a; a=($(stat_fields \"$1\")) || return 1; printf '%s' \"${a[0]}\"; }\nhas_first() { local f l; for f in \"$@\"; do IFS= read -r l <\"$f\" 2>/dev/null || return 1; [[ $l == first ]] || return 1; done; }\nrun() {\n  local label=$1 t i st f\n  shift\n  printf '[%s]\\n' \"$label\"\n  : >o1; : >o2; : >o3\n  { printf 'first\\n'; IFS= read -r _ <prod.ctl; printf 'second\\n'; } | tee \"$@\" o1 o2 >o3 &\n  t=$!\n  for ((i = 0; i < 250; i++)); do has_first o1 o2 && [[ $(state_of \"$t\") == S ]] && break; pause; done\n  has_first o1 o2 && printf 'copied-first=yes\\n' || printf 'copied-first=no\\n'\n  builtin kill -INT \"$t\"\n  for ((i = 0; i < 25; i++)); do st=$(state_of \"$t\") || break; [[ $st == Z ]] && break; pause; done\n  st=$(state_of \"$t\") && [[ $st != Z ]] && printf 'tee-after-int=running\\n' || printf 'tee-after-int=gone\\n'\n  printf 'go\\n' >&8\n  wait \"$t\"\n  printf 'tee-status=%d\\n' \"$?\"\n  wait\n  for f in o1 o2 o3; do mapfile -t L <\"$f\"; printf '%s=%s\\n' \"$f\" \"${L[*]}\"; done\n}\nrun plain\nrun ignore -i\nprintf 'done\\n'\n",
+   "expected_status": 0,
+   "diagnostic_files": [
+    "shell-stderr.log"
+   ],
+   "timeout": 40
+  }
+ ]
+}

@@ -43,21 +43,71 @@
     },
     {
       "id": "child-priority-and-status",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Future operation comparison for priority adjustment on a child and isolation of the calling shell.",
-      "reason": "Requires a disposable Linux VM with an independent getpriority observer for the exact child PID. Compare GNU nice(1) and bash-os for the default +10 adjustment, positive -n/--adjustment values, the documented -N form, saturation at the ordinary upper niceness bound, literal arguments and child exit status; verify the parent priority is unchanged. No fork or setpriority call is run here."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/nice/query-current-priority"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nice-child-default"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nice-child-long-equals"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nice-child-long-value"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nice-child-obsolete"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nice-child-saturated"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nice-child-short"
+        }
+      ]
     },
     {
       "id": "denied-priority-adjustment",
       "kind": "deferred",
       "purpose": "Future check of negative adjustments and the documented nonfatal handling of setpriority failure.",
-      "reason": "Requires an isolated disposable VM with CAP_SYS_NICE for any successful negative adjustment, plus an independently reviewed syscall mock that can force child setpriority to fail with EPERM. Check the warning, unchanged child priority, continued command execution, and status propagation. No privileged adjustment or syscall mock is attempted here."
+      "reason": "Remaining obligations: r3: Requires a privileged side: every guest fixture runs as uid 2000 with no capabilities and hard RLIMIT_NICE 0, so lowering niceness cannot succeed; a root-run case is the only way to observe it."
     },
     {
       "id": "command-dispatch-and-errors",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Future operation comparison for child command lookup, builtin dispatch, execution errors, and parent-shell state.",
-      "reason": "Requires a disposable VM and private relative executable fixtures. Compare GNU and candidate behavior for builtin versus explicit-path dispatch, missing and non-executable commands (127/126), literal argv/environment propagation, and child exit/signal status while confirming the parent shell remains usable. These checks invoke nice and are not run under the current safety boundary."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-nice-builtin-dispatch"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nice-child-default"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nice-child-signal"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nice-exec-missing"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nice-exec-nonexecutable"
+        }
+      ]
     },
     {
       "id": "missing-adjustment",

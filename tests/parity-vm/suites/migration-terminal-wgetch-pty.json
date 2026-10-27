@@ -1,0 +1,69 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "id": "migration-wgetch-pty-esc-grace",
+   "loadable": "wgetch",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Private PTY feed: lone ESC then 300 ms then 'q' reads esc 27 and char 113; ESC then '[A' 20 ms later reads key_up; ESC then '[A' 300 ms later reads esc, '[' and 'A'; the master close gives none 0.",
+   "script": "/usr/bin/python3 tfeed.py \"$BASH\" lone 3 'wgetch read 0' ':' 1b s300 71 > lone/helper\n/usr/bin/python3 tfeed.py \"$BASH\" within 2 'wgetch read 0' ':' 1b s20 5b41 > within/helper\n/usr/bin/python3 tfeed.py \"$BASH\" after 4 'wgetch read 0' ':' 1b s300 5b41 > after/helper\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "wgetch/escape-timing"
+   ],
+   "oracle": "wgetch help text and wgetch.c bw_read_key_fd: ESC grace BASHESCDELAY (default 50 ms), later bytes within 50 ms slices, 'NAME CODE' records (key_up 257, esc 27, char N, none 0 at end of input); read HANDLE|FD.",
+   "comparison": "contract: exact decoded records per feed; Real-clock timing on a private PTY with margins of at least 2.5x around the grace (no mock clock: see the batch-6 assessment); bytes are written by the helper only after the reader is observed blocked.",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "timeout": 40,
+   "files": {
+    "tfeed.py": "import os, select, signal, subprocess, sys, time, tty\n# Timed private-PTY feeder: SHELL runs CHILD with stdin/stdout/stderr on the raw slave of a pty this helper\n# owns (child stays in this session and ignores SIGHUP). After the shell's FEED-READY marker and 5 consecutive\n# sleeping samples, the helper writes TOKENS to the master (hex bytes, or sNNN to wait NNN ms while draining).\n# It then waits for NREADS-1 'K' markers (one per decoded key), checks the shell is blocked in its last read,\n# and closes the master so that read sees end of input.\nCHILD = r\"\"\"\ncd \"$1\" || exit 1\neval \"$4\"\nprintf 'FEED-READY\\n'\nfor (( i = 0; i < $2; i++ )); do eval \"$3\" >> keys; printf 'K\\n'; done\nprintf 'end\\n' > done\n\"\"\"\nshell, where, nreads, reader, pre = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5]\ntokens = sys.argv[6:]\nseen, out = b'', []\ndef pump(until):\n    global seen\n    while True:\n        left = until - time.monotonic()\n        if left <= 0:\n            return\n        if select.select([master], [], [], min(left, 0.005))[0]:\n            try:\n                seen += os.read(master, 4096)\n            except OSError:\n                return\ndef blocked_for(samples, deadline):\n    run = 0\n    while run < samples and time.monotonic() < deadline:\n        try:\n            st = open('/proc/%d/stat' % child.pid).read().rsplit(')', 1)[1].split()[0]\n        except OSError:\n            return False\n        run = run + 1 if st == 'S' else 0\n        pump(time.monotonic() + 0.02)\n    return run >= samples\nmaster, slave = os.openpty()\ntty.setraw(slave)\nchild = subprocess.Popen([shell, '--noprofile', '--norc', '-c', CHILD, 'tfeed', where, str(nreads), reader, pre],\n                         stdin=slave, stdout=slave, stderr=slave, close_fds=True,\n                         preexec_fn=lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN))\nos.close(slave)\ndeadline = time.monotonic() + 20\nwhile b'FEED-READY' not in seen and time.monotonic() < deadline:\n    pump(time.monotonic() + 0.05)\nready = b'FEED-READY' in seen and blocked_for(5, deadline)\nout.append('ready blocked' if ready else 'not-ready')\nif ready:\n    for t in tokens:\n        if t.startswith('s'):\n            pump(time.monotonic() + int(t[1:]) / 1000)\n        else:\n            os.write(master, bytes.fromhex(t))\n    while seen.count(b'K\\n') < nreads - 1 and time.monotonic() < deadline:\n        pump(time.monotonic() + 0.05)\n    n = seen.count(b'K\\n')\n    out.append('all-read' if n == nreads - 1 and blocked_for(5, deadline) else 'read-count %d' % n)\nos.close(master)\nout.append('master-closed')\ntry:\n    status = child.wait(timeout=10)\nexcept subprocess.TimeoutExpired:\n    child.kill(); status = child.wait(); out.append('killed-after-timeout')\nout.append('child-exit %d' % status)\nprint('\\n'.join(out))\n",
+    "lone/.keep": "",
+    "within/.keep": "",
+    "after/.keep": ""
+   },
+   "expected_files": {
+    "lone/keys": "esc 27\nchar 113\nnone 0\n",
+    "lone/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "within/keys": "key_up 257\nnone 0\n",
+    "within/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n",
+    "after/keys": "esc 27\nchar 91\nchar 65\nnone 0\n",
+    "after/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n"
+   }
+  },
+  {
+   "id": "migration-wgetch-pty-handle-timing",
+   "loadable": "wgetch",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Private PTY feed through a screen handle opened on fd 0 (wgetch open 0 tty): split Up within the grace decodes, an ESC followed by 300 ms of silence and a late '[A' splits into three keys.",
+   "script": "/usr/bin/python3 tfeed.py \"$BASH\" h 5 'wgetch read \"$h\"' 'wgetch open 0 tty > hfile; read -r h < hfile' 1b s20 5b41 s300 1b s300 5b41 > h/helper\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "wgetch/escape-timing"
+   ],
+   "oracle": "wgetch help text and wgetch.c bw_read_key_fd: ESC grace BASHESCDELAY (default 50 ms), later bytes within 50 ms slices, 'NAME CODE' records (key_up 257, esc 27, char N, none 0 at end of input); read HANDLE|FD.",
+   "comparison": "contract: exact decoded records; Real-clock timing on a private PTY with margins of at least 2.5x around the grace (no mock clock: see the batch-6 assessment); bytes are written by the helper only after the reader is observed blocked.",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "timeout": 30,
+   "files": {
+    "tfeed.py": "import os, select, signal, subprocess, sys, time, tty\n# Timed private-PTY feeder: SHELL runs CHILD with stdin/stdout/stderr on the raw slave of a pty this helper\n# owns (child stays in this session and ignores SIGHUP). After the shell's FEED-READY marker and 5 consecutive\n# sleeping samples, the helper writes TOKENS to the master (hex bytes, or sNNN to wait NNN ms while draining).\n# It then waits for NREADS-1 'K' markers (one per decoded key), checks the shell is blocked in its last read,\n# and closes the master so that read sees end of input.\nCHILD = r\"\"\"\ncd \"$1\" || exit 1\neval \"$4\"\nprintf 'FEED-READY\\n'\nfor (( i = 0; i < $2; i++ )); do eval \"$3\" >> keys; printf 'K\\n'; done\nprintf 'end\\n' > done\n\"\"\"\nshell, where, nreads, reader, pre = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5]\ntokens = sys.argv[6:]\nseen, out = b'', []\ndef pump(until):\n    global seen\n    while True:\n        left = until - time.monotonic()\n        if left <= 0:\n            return\n        if select.select([master], [], [], min(left, 0.005))[0]:\n            try:\n                seen += os.read(master, 4096)\n            except OSError:\n                return\ndef blocked_for(samples, deadline):\n    run = 0\n    while run < samples and time.monotonic() < deadline:\n        try:\n            st = open('/proc/%d/stat' % child.pid).read().rsplit(')', 1)[1].split()[0]\n        except OSError:\n            return False\n        run = run + 1 if st == 'S' else 0\n        pump(time.monotonic() + 0.02)\n    return run >= samples\nmaster, slave = os.openpty()\ntty.setraw(slave)\nchild = subprocess.Popen([shell, '--noprofile', '--norc', '-c', CHILD, 'tfeed', where, str(nreads), reader, pre],\n                         stdin=slave, stdout=slave, stderr=slave, close_fds=True,\n                         preexec_fn=lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN))\nos.close(slave)\ndeadline = time.monotonic() + 20\nwhile b'FEED-READY' not in seen and time.monotonic() < deadline:\n    pump(time.monotonic() + 0.05)\nready = b'FEED-READY' in seen and blocked_for(5, deadline)\nout.append('ready blocked' if ready else 'not-ready')\nif ready:\n    for t in tokens:\n        if t.startswith('s'):\n            pump(time.monotonic() + int(t[1:]) / 1000)\n        else:\n            os.write(master, bytes.fromhex(t))\n    while seen.count(b'K\\n') < nreads - 1 and time.monotonic() < deadline:\n        pump(time.monotonic() + 0.05)\n    n = seen.count(b'K\\n')\n    out.append('all-read' if n == nreads - 1 and blocked_for(5, deadline) else 'read-count %d' % n)\nos.close(master)\nout.append('master-closed')\ntry:\n    status = child.wait(timeout=10)\nexcept subprocess.TimeoutExpired:\n    child.kill(); status = child.wait(); out.append('killed-after-timeout')\nout.append('child-exit %d' % status)\nprint('\\n'.join(out))\n",
+    "h/.keep": ""
+   },
+   "expected_files": {
+    "h/keys": "key_up 257\nesc 27\nchar 91\nchar 65\nnone 0\n",
+    "h/helper": "ready blocked\nall-read\nmaster-closed\nchild-exit 0\n"
+   }
+  }
+ ]
+}

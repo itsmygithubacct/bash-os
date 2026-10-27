@@ -76,27 +76,87 @@
     },
     {
       "id": "owned_pid_absolute_priority",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check -n as an absolute priority, including POSIXLY_CORRECT behavior, on a short-lived owned child; independently query the child's final priority and confirm the shell parent is unchanged.",
-      "reason": "Requires a future disposable VM with an owned child and independent getpriority verification. Run the same operation through GNU util-linux renice and the candidate, with POSIXLY_CORRECT=1, and never target the invoking shell or an unrelated PID."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-renice-owned-absolute"
+        },
+        {
+          "group": "shell",
+          "id": "migration-renice-owned-posix-relative"
+        },
+        {
+          "group": "shell",
+          "id": "migration-renice-owned-short"
+        }
+      ]
     },
     {
       "id": "selector_and_user_resolution_mock",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify -p, -g, and -u selection, selector transitions, selectors before the priority, numeric and named users, and zero-ID interpretation.",
-      "reason": "Requires an independently reviewed setpriority interception plus deterministic passwd lookup fixture. Record each (which, id, priority) request and prove the mock never forwards calls to the kernel; all-user selection must remain mock-only."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/renice/unknown_username"
+        },
+        {
+          "group": "shell",
+          "id": "migration-renice-selectors-users-zero"
+        }
+      ]
     },
     {
       "id": "priority_boundaries_and_permission",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check signed-int boundary parsing, Linux upper-priority clamping, and denial of negative priority without changing the parent.",
-      "reason": "Requires a future disposable VM with one owned child, RLIMIT_NICE=0, no effective CAP_SYS_NICE, and independent getpriority checks before and after each call. The child must be the only target and must exit during fixture cleanup."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-renice-boundary-clamp"
+        },
+        {
+          "group": "shell",
+          "id": "migration-renice-boundary-denied"
+        },
+        {
+          "group": "shell",
+          "id": "migration-renice-boundary-int-max"
+        },
+        {
+          "group": "shell",
+          "id": "migration-renice-boundary-int-min"
+        },
+        {
+          "group": "shell",
+          "id": "migration-renice-boundary-overflow"
+        }
+      ]
     },
     {
       "id": "target_failure_continuation",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify that invalid targets and injected ESRCH/EPERM failures set a failing status while later targets are still attempted, and that usage errors make no calls.",
-      "reason": "Requires a reviewed setpriority mock that returns deterministic per-target errors and records all requests without forwarding them. Compare request order, final status, and silent-success output against GNU renice; do not use real process targets."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/renice/malformed_pid"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/renice/malformed_priority"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/renice/missing_operands"
+        },
+        {
+          "group": "shell",
+          "id": "migration-renice-target-failures"
+        }
+      ]
     }
   ]
 }

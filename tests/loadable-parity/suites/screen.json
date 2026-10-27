@@ -36,49 +36,49 @@
       "id": "session-lifecycle",
       "kind": "deferred",
       "purpose": "Create a live named session with a deterministic child, verify list/status state after the creating shell exits, then kill it and verify broker and child cleanup.",
-      "reason": "Requires a disposable Linux VM with /proc, PTYs, Unix SOCK_SEQPACKET, pidfd and subreaper support, plus the ptybroker companion and a private 0700 state directory. Use only a fixture-owned child and verify cleanup before the VM is discarded."
+      "reason": "Never executed. The plain driver in the VM provides /proc, PTYs, SOCK_SEQPACKET and subreaper-based stray detection, so it is directly implementable."
     },
     {
       "id": "pane-layout-geometry",
       "kind": "deferred",
       "purpose": "Create windows and split panes, switch/select focus, resize and swap panes, and compare each fixture child's observed TIOCGWINSZ geometry with screen's reported layout.",
-      "reason": "Requires a disposable Linux VM with the screen and ptybroker services, private PTYs, and owned fixture children that report their terminal geometry. No host terminal or existing session may be used."
+      "reason": "Never executed. It is implementable in the plain driver: the pane children report geometry with trusted /usr/bin/stty size on their own PTY into private files."
     },
     {
       "id": "literal-child-argv",
       "kind": "deferred",
       "purpose": "Pass empty, spaced, quoted, wildcard, newline, and shell-looking arguments after -- through run, win-create, and pane-split; compare the child's argv byte-for-byte and confirm no shell interpretation.",
-      "reason": "Requires a disposable Linux VM with ptybroker and private PTYs plus a fixture child that records argv. Keep all commands and files within the fixture directory; no real commands or host paths."
+      "reason": "Never executed. A plain-driver contract with a child that records its argv to a private file is enough."
     },
     {
       "id": "attach-relay-detach",
       "kind": "deferred",
       "purpose": "Use a private frontend terminal driver to compare deterministic binary child output, exercise quoted Ctrl-A input and the Ctrl-A then d detach sequence, and verify frontend terminal settings are restored.",
-      "reason": "Requires a disposable Linux VM with ptybroker, an owned raw-mode child, and a private controlling PTY/terminal driver capable of checking termios restoration. Do not attach to a user or host terminal."
+      "reason": "Never executed. The PTY driver is the private frontend terminal; it can send ^A sequences, match raw bytes and check termios restoration. No new capability is needed."
     },
     {
       "id": "capture-raw-history",
       "kind": "deferred",
       "purpose": "Have an owned child emit deterministic text, binary bytes, and a terminal query sequence; verify capture returns raw history and a later attach does not replay the old query or claim a parsed terminal grid.",
-      "reason": "Requires a disposable Linux VM with ptybroker, a private PTY, and an owned child that records query replies. Use a small bounded fixture and a private terminal driver; no physical terminal or history replay into a real display."
+      "reason": "Never executed. The plain and PTY drivers suffice: the child is the candidate shell writing deterministic bytes and recording any reply in a private file."
     },
     {
       "id": "controller-observer-roles",
       "kind": "deferred",
       "purpose": "With a small deterministic stream, verify one controller and an observer receive the expected live bytes while observer input is suppressed and neither role terminates the pane on disconnect.",
-      "reason": "Requires a disposable Linux VM with ptybroker, one owned child, and private attach clients. Keep the stream small and bounded; this case does not induce queue saturation or run a backpressure stress test."
+      "reason": "Never executed. Two simultaneous attach clients with terminal stdio are needed. The PTY driver supplies one terminal, and a trusted /usr/bin/python3 helper inside the VM can allocate the second pty pair for the observer. Implementation work, not a capability gap."
     },
     {
       "id": "operation-errors-rollback",
       "kind": "deferred",
       "purpose": "Check invalid names, malformed pane geometry, missing-session mutations, and controlled child-start failure for documented nonzero outcomes and absence of partial layout or leaked broker state.",
-      "reason": "Requires a disposable Linux VM with ptybroker and a private state root. To check partial-start rollback, use an owned fixture executable or a reviewed spawn-failure mock; inspect only fixture-owned processes and files."
+      "reason": "Never executed. The plain driver plus a fixture-owned nonexecutable file covers it; no mock is needed."
     },
     {
       "id": "remote-attach-mock",
       "kind": "deferred",
       "purpose": "Check remote attach/roam command construction and framed byte exchange against an independent protocol encoder, including short, malformed, and valid bounded frames.",
-      "reason": "Requires a disposable Linux VM with a mocked SSH/transport boundary and an independent BSCR frame encoder/decoder. No network activity, installed credentials, or real remote target is allowed."
+      "reason": "Only offline frame encode/decode ran. r1, r2 and r4 are offline and implementable now. The live framed exchange is implementation work: an unprivileged sshd running as the fixture uid in the VM is enough, and openssh-server is already in the reference image lock."
     },
     {
       "id": "encode-pty",

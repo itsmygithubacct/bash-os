@@ -45,19 +45,19 @@
       "id": "ctrl-list",
       "kind": "deferred",
       "purpose": "Exercise CTRL_CMD_GETFAMILY dump formatting across registered families, their command capability flags, and multicast groups.",
-      "reason": "Requires a disposable VM with isolated generic-netlink state or a reviewed NETLINK_GENERIC mock returning deterministic multipart controller responses. Running the query here would perform prohibited network activity and use environment-dependent kernel state."
+      "reason": "Unprivileged and implementable in the legacy runner with an existing CLI oracle. No fixture exists. Kernel family state is environment-dependent but constant across the two sides of one run."
     },
     {
       "id": "ctrl-get-name",
       "kind": "deferred",
       "purpose": "Look up one known fixture family by name and check the returned family metadata and optional operation/group sections.",
-      "reason": "Requires a disposable VM or reviewed generic-netlink mock that registers a known family name and returns deterministic CTRL_CMD_GETFAMILY attributes. No real NETLINK_GENERIC request is run in this suite."
+      "reason": "Unprivileged and implementable in the legacy runner against iproute2 genl. No fixture exists."
     },
     {
       "id": "ctrl-get-id",
       "kind": "deferred",
       "purpose": "Look up one known fixture family by numeric ID and check it formats the same family record as name lookup.",
-      "reason": "Requires a disposable VM or reviewed generic-netlink mock with a known family ID and deterministic controller response. No real NETLINK_GENERIC request is run in this suite."
+      "reason": "Unprivileged and implementable in the legacy runner. No fixture exists."
     }
   ]
 }

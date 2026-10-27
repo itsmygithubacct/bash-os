@@ -102,7 +102,7 @@
       "id": "terminal-rendering-deferred",
       "kind": "deferred",
       "purpose": "End-to-end verification that a Kitty-compatible terminal consumes the generated APC and renders the expected cell/pixel result.",
-      "reason": "Requires a disposable VM with a bounded Kitty graphics protocol PTY peer or terminal emulator that can accept APC input and report rendered pixels and cursor position. The supplied runner captures output bytes but has no terminal protocol consumer; this case is not executed or counted as a pass."
+      "reason": "Byte framing is independently verified, but no consumer exists that interprets Kitty graphics APCs and reports rendered pixels and cursor movement."
     }
   ]
 }

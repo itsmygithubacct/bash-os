@@ -100,19 +100,19 @@
       "id": "chown-deferred",
       "purpose": "Ownership changes are outside the permitted fixture operations for this run.",
       "kind": "deferred",
-      "reason": "Requires a future disposable VM or reviewed lchown syscall mock with synthetic passwd/group data and dedicated test IDs. Validate numeric and named UID/GID parsing plus symlink ownership there; do not modify host accounts or ownership during this suite."
+      "reason": "No bashio chown invocation has executed in any run. Identity-preserving and parsing/symlink obligations are reachable by the existing legacy runner; only distinct-id transfer needs CAP_CHOWN plus synthetic identities."
     },
     {
       "id": "set-addr-deferred",
       "purpose": "The command issues interface-address and interface-flag ioctls, which must not be attempted here.",
       "kind": "deferred",
-      "reason": "Requires a future disposable VM with a dedicated virtual interface and an ioctl mock/capture that verifies address, netmask, and flag requests without configuring any host or real interface."
+      "reason": "Never executed. All obligations are reachable without a new driver: an unprivileged user+network namespace gives the candidate CAP_NET_ADMIN over its own private netns only."
     },
     {
       "id": "set-route-deferred",
       "purpose": "The command issues a route-add ioctl and must not alter network routing in this run.",
       "kind": "deferred",
-      "reason": "Requires a future disposable VM with an isolated routing table and a reviewed ioctl mock/capture that verifies the default-route fields and optional interface without changing host or real network state."
+      "reason": "Never executed. A private user+network namespace provides the needed CAP_NET_ADMIN over an isolated routing table; no guest routing changes."
     },
     {
       "id": "raw-binary-output",

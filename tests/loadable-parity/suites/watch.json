@@ -125,7 +125,7 @@
       "id": "watch-terminal-parity",
       "kind": "deferred",
       "purpose": "Compare real terminal rendering, interactive errors, and terminal interaction with Procps-ng watch.",
-      "reason": "Requires a reviewed bounded PTY driver and independent terminal-frame oracle. The current submit helper provides pipes rather than a PTY. Cadence and interactive signals are outside this review."
+      "reason": "No terminal comparison ran. procps 4.0.4 watch is in the VM, and the PTY driver can drive it (screen rows, keys, ^C, resize, termios restore). Cadence timing stays out of scope by the topic's own terms."
     },
     {
       "id": "watch-exec-literal-argv",

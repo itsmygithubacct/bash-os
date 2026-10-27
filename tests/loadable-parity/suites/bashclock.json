@@ -72,19 +72,19 @@
       "id": "clock_domain_reads",
       "kind": "deferred",
       "purpose": "Verify deterministic clock-domain sentinels and special timestamp boundaries using injected readings.",
-      "reason": "Requires a disposable VM or reviewed clock_gettime mock returning distinct fixed REALTIME/MONOTONIC/BOOTTIME sentinels and boundary nanoseconds. Live domain reads execute with independent Python bounds separately; injected-sample results remain deferred."
+      "reason": "clock_gettime is served by the vDSO in both builds, so seccomp cannot intercept it; deterministic sample injection needs a build-time test hook or ptrace/vDSO interposition. A user+time namespace (unprivileged in the VM plain driver if user namespaces are enabled) can offset CLOCK_MONOTONIC and CLOCK_BOOTTIME by chosen amounts but not CLOCK_REALTIME. Domain identity is closable unprivileged with a time namespace; boundary sentinels need a clock-injection capability."
     },
     {
       "id": "since_arithmetic",
       "kind": "deferred",
       "purpose": "Force since subtraction boundary values and nanosecond borrow using injected monotonic samples; live independent bounds and ordinary argument errors execute separately.",
-      "reason": "Requires a disposable VM or reviewed non-forwarding clock_gettime mock supplying fixed monotonic samples to force borrow, exact zero and clock-read errors. Live since arithmetic has separate independent bracket coverage; no injected-boundary result is claimed."
+      "reason": "Live brackets and argument errors execute. Borrow and future-START cases are forceable with crafted START values; exact zero and read errors need injection."
     },
     {
       "id": "sleep_interruption_errors",
       "kind": "deferred",
       "purpose": "Check clock_nanosleep EINTR handling and non-EINTR syscall error diagnostics.",
-      "reason": "Requires a disposable VM with a deterministic signal/timer driver or reviewed clock_nanosleep mock to inject EINTR and a distinct syscall failure. The successful GNU-parity cases do not cover these error paths, and this suite does not execute or claim them passed."
+      "reason": "EINTR is observable now, and a distinct clock_nanosleep failure is reachable with a stateless per-side seccomp RET_ERRNO filter. Neither needs a new driver."
     },
     {
       "id": "since-missing",

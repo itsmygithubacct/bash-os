@@ -150,7 +150,7 @@
       "id": "jq-wrapper-integration",
       "kind": "deferred",
       "purpose": "Exercise the documented jq.sh wrapper's raw-string and filter integration with bashjson.",
-      "reason": "The pinned /source tree contains no jq.sh source or wrapper fixture. A future disposable rootfs must include the exact pinned bash-os jq.sh and bash-os binary, keep candidate PATH empty, and compare at least jq.sh -r string output and one nested filter against host jq. This case has no execution result."
+      "reason": "The scenario names a component the candidate does not ship. The jq builtin has its own executed parity cases for similar behaviour, but that is a different program, so it cannot stand in for this compound scenario."
     },
     {
       "id": "escaped-key-and-empty-root",

@@ -95,7 +95,7 @@
       "id": "concurrent-file-locking",
       "kind": "deferred",
       "purpose": "Record the unsupported concurrent-writer/lock-contention scenario without making concurrent writes to the unlocked VFS.",
-      "reason": "Requires a future disposable VM with two explicitly synchronized writer processes and a lock-capable SQLite reference VFS or syscall-level SQLite VFS mock. The documented unix-none VFS supplies no interprocess locking, so this suite does not execute the scenario."
+      "reason": "This is an implementation limitation, not a missing driver: the candidate's SQLite build has no locking VFS. Executing concurrent writers would test documented non-support and risks corrupting only a private file."
     },
     {
       "id": "separate-databases-and-stale-handle",

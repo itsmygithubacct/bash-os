@@ -95,7 +95,7 @@
       "id": "allocator-rollback-faults",
       "kind": "deferred",
       "purpose": "Validate the all-or-nothing buffer and ring guarantee when cut, copy, or paste allocation fails.",
-      "reason": "Requires a disposable build of buf and clip with a test-only allocator fault hook and an independent snapshot checker. The supplied static candidate runner exposes no allocation hook. In that environment, fail each allocation point for representative line/byte cuts, copies, and line/column pastes; verify buffer bytes, dirty state, every ring slot, and active position remain unchanged before confirming the next non-failing operation. No operation is executed in this deferred case."
+      "reason": "Per-allocation-point failure needs a test build with an allocator fault hook; an unprivileged fixture can only force large-allocation failure through `ulimit -v`, which covers one point."
     },
     {
       "id": "copy-survives-source-free",

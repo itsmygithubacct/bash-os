@@ -65,9 +65,18 @@
     },
     {
       "id": "broadcast-mock",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify wall's operational broadcast behavior only in a disposable environment where every utmp entry and destination is controlled.",
-      "reason": "Requires a disposable VM or reviewed PTY/syscall mock. Provide only synthetic USER_PROCESS utmp records and private terminal endpoints, then verify recipient selection, per-terminal de-duplication, message escaping and CRLF handling, banner suppression, and the messages-disabled gate. No broadcast was executed in this suite."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-wall-group-filter"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-wall-utmp-delivery-escaping"
+        }
+      ]
     },
     {
       "id": "missing-timeout",

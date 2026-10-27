@@ -130,7 +130,7 @@
       "id": "distinct_identity_transfer",
       "kind": "deferred",
       "purpose": "Successful change to ownership IDs distinct from the fixture identity, with a resulting UID/GID check.",
-      "reason": "Requires a disposable VM with CAP_CHOWN and an isolated throwaway user/group database, or a reviewed syscall mock that can safely grant the operation. The mandatory fixture runner drops capabilities, so this transition cannot be honestly exercised there."
+      "reason": "Identity-preserving chown paths are all executed (14 parity cases PASS); a transfer to distinct ids requires CAP_CHOWN and a second synthetic identity, which no current driver provides."
     },
     {
       "id": "invalid-identity-0",

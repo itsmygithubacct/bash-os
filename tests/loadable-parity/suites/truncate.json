@@ -138,7 +138,7 @@
       "id": "block_special_file_behavior",
       "kind": "deferred",
       "purpose": "Exercise behavior when truncate is given a block-special-file operand.",
-      "reason": "Requires a disposable VM with a safely created loop-backed block device and an isolated disposable filesystem. The namespace fixture runner exposes no such fixture, and host devices are outside scope."
+      "reason": "The block-special operand itself is the missing fixture object. A loop device needs CAP_SYS_ADMIN to attach. Once it exists, it can be chowned to uid 2000 so the side itself runs unprivileged."
     },
     {
       "id": "links-and-private-modes",

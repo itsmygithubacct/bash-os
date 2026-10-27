@@ -96,9 +96,30 @@
     },
     {
       "id": "save-faults-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify rollback when save encounters data-write, data-sync, close, or rename failures.",
-      "reason": "Requires an independently reviewed syscall fault-injection mock or a disposable VM that can deterministically fail write, fdatasync, close, and rename while checking the destination, temporary files, retained filename, and dirty state. The supplied runner provides no syscall shim, so ordinary save success must not be counted as coverage of these failure paths."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-buf-save-fault-close-eio"
+        },
+        {
+          "group": "shell",
+          "id": "migration-buf-save-fault-enospc"
+        },
+        {
+          "group": "shell",
+          "id": "migration-buf-save-fault-fdatasync-eio"
+        },
+        {
+          "group": "shell",
+          "id": "migration-buf-save-fault-rename-eio"
+        },
+        {
+          "group": "shell",
+          "id": "migration-buf-save-fault-short-write-efbig"
+        }
+      ]
     },
     {
       "id": "journal-mutation-records",

@@ -94,13 +94,13 @@
       "id": "argv-memory-deferred",
       "purpose": "Future coverage should verify argv label truncation and zero-padding only within a disposable test shell process.",
       "kind": "deferred",
-      "reason": "Requires a disposable VM or narrowly scoped /proc fixture that supplies this test process's /proc/self/stat and writable /proc/self/mem, and independently inspects only the child fixture's argv bytes. The current runner's proc mount is read-only; this suite must not mutate host or runner process memory."
+      "reason": "Never executed. The earlier blocker was the read-only proc in the bubblewrap runner; the VM plain driver runs each side as its own process, so self-memory rewriting stays fixture-owned."
     },
     {
       "id": "live-history-deferred",
       "purpose": "Future coverage should verify pruning of curated in-memory history and PROMPT_COMMAND installation/restoration under a controlled prompt cycle.",
       "kind": "deferred",
-      "reason": "Requires a future disposable VM providing the following prerequisite: Requires a dedicated disposable PTY/readline harness with synthetic history and a bounded prompt cycle to verify pruning, dropped counts, and PROMPT_COMMAND save/restore. The declarative runner has no PTY interaction and must not touch a real login history."
+      "reason": "Never executed. The existing PTY driver supports interactive shells (interactive_shell, expect PROMPT, send), so the previous no-PTY blocker no longer applies."
     },
     {
       "id": "empty-and-disabled-history",

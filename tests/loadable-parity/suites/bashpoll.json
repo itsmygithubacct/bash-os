@@ -70,37 +70,37 @@
       "id": "tcp-stream-api",
       "kind": "deferred",
       "purpose": "Exercise TCP listen, accept, connect, data exchange, timeout and close behavior with a bounded private peer.",
-      "reason": "Requires a future disposable VM or reviewed loopback socket fixture that allocates a private free port and runs a controlled peer. This suite does not attempt network activity or contact a real target."
+      "reason": "The existing tcp and tcp-client peers can drive all of this on 127.0.0.1; only cases are missing."
     },
     {
       "id": "unix-socket-lifecycle",
       "kind": "deferred",
       "purpose": "Exercise listen-unix and accept, relative socket-path creation and cleanup, stale socket replacement, and refusal to unlink a non-socket entry.",
-      "reason": "Requires a future disposable VM with a reviewed socket syscall mock and a controlled local client/server driver so socket creation, accept and cleanup are observable as one bounded operation."
+      "reason": "Everything except cleanup is observable with a python3 AF_UNIX client helper inside one per-side script; cleanup on close is not implemented by the candidate."
     },
     {
       "id": "udp-datagram-api",
       "kind": "deferred",
       "purpose": "Exercise listen-udp, send-udp and recv-udp with empty and binary datagrams, timeout, source-address reporting, and hex output.",
-      "reason": "Requires a future disposable VM with a reviewed UDP syscall mock and a controlled sender/receiver providing deterministic payload, source address and port; no real network traffic is authorized."
+      "reason": "The existing udp (echo) and udp-client peers cover send/receive on loopback; no cases exist."
     },
     {
       "id": "signalfd-ownership",
       "kind": "deferred",
       "purpose": "Exercise signalfd delivery, accepted signal names, overlapping masks, close/unload restoration, preblocked signals, and invalid signal handling.",
-      "reason": "Requires a future disposable VM with a signal syscall mock that records mask ownership, selected delivery and descriptor cleanup for only the fixture shell; no host signals are authorized."
+      "reason": "No fixture sends signals; the fixture shell can signal itself inside the disposable VM and read SigBlk from /proc/$BASHPID/status. Unload restoration is unreachable for the compiled-in builtin."
     },
     {
       "id": "descriptor-flags-and-close",
       "kind": "deferred",
       "purpose": "Socket/PTY descriptor behavior and failure injection beyond the runnable private FIFO flag, inheritance and close coverage.",
-      "reason": "Requires a future disposable VM with a reviewed socket/PTY descriptor injector and fault mock to cover non-FIFO flags, failed operations, and lifetime cleanup beyond the runnable private FIFO checks."
+      "reason": "FIFO behavior is covered; socket and PTY descriptors are creatable in the VM (loopback peers, python3 pty helper) but no fixture exists."
     },
     {
       "id": "multi-fd-readiness",
       "kind": "deferred",
       "purpose": "Socket half-close/error and PTY readiness beyond the runnable simultaneous private FIFO readiness contract.",
-      "reason": "Requires a future disposable VM with a reviewed socketpair/PTY fixture whose controlled peer generates half-close/error states; simultaneous private FIFO readiness already has a runnable contract."
+      "reason": "FIFO readiness is covered; socket half-close/RST and PTY readiness need a controlled peer, which loopback helpers can provide."
     },
     {
       "id": "private-fifo-descriptor-lifecycle",

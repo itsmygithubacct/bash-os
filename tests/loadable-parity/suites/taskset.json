@@ -74,21 +74,56 @@
     },
     {
       "id": "deferred-query-mask-and-list",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Query one controlled process in both hexadecimal-mask and CPU-list forms, then verify both describe the same affinity.",
-      "reason": "Requires a disposable VM or reviewed syscall mock with a fixed allowed CPU set, a live owned fixture process, and GNU util-linux taskset. The future fixture should verify exact PID-tagged output and independently encode mask/list equivalence; the controller's ambient CPU set is not a stable expected value."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-taskset-query-list"
+        },
+        {
+          "group": "shell",
+          "id": "migration-taskset-query-mask"
+        }
+      ]
     },
     {
       "id": "deferred-set-owned-pid",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Set affinity on an owned helper process with -p and verify its reported and effective affinity afterward.",
-      "reason": "Requires a disposable VM or reviewed syscall mock with a helper child owned by the fixture and at least two known permitted CPUs. The future comparison must check GNU taskset's old/new output and independently query the child's resulting affinity; this suite does not mutate a process affinity."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-taskset-set-impossible"
+        },
+        {
+          "group": "shell",
+          "id": "migration-taskset-set-list"
+        },
+        {
+          "group": "shell",
+          "id": "migration-taskset-set-mask"
+        }
+      ]
     },
     {
       "id": "deferred-command-wrapper",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise mask and CPU-list command-wrapper forms with a controlled executable, including argv/stdout and child exit-status propagation.",
-      "reason": "Requires a disposable VM or reviewed sched_setaffinity mock with a deterministic permitted CPU set and a controlled executable probe. The future fixture should cover hexadecimal and -c list inputs, successful and rejected affinity requests, preserved arguments/output, and the child's exit status. No affinity-setting wrapper operation is claimed to have passed here."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-taskset-wrapper-impossible"
+        },
+        {
+          "group": "shell",
+          "id": "migration-taskset-wrapper-list"
+        },
+        {
+          "group": "shell",
+          "id": "migration-taskset-wrapper-mask"
+        }
+      ]
     }
   ]
 }

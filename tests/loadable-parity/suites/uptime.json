@@ -110,7 +110,7 @@
       "id": "default-format-deferred",
       "kind": "deferred",
       "purpose": "Compare the complete default uptime row, including wall clock, user count, and load averages.",
-      "reason": "Requires a disposable VM or reviewed mock that fixes time, proc uptime/loadavg/stat, and /var/run/utmp for both GNU uptime and the loadable. The runner cannot redirect GNU uptime to the relative proc fixture, and live clock/load/session fields are not stable parity inputs."
+      "reason": "A semantic live comparison is possible in the VM (both tools read the same /proc and clock within a bracket); byte equality is not, because the clock advances between runs. Duration/user formatting for chosen values needs the fixture proc root the candidate already supports, but GNU cannot read it."
     }
   ]
 }

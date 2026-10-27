@@ -1,0 +1,129 @@
+{
+  "schema": 1,
+  "corpus": "ietf-rfc",
+  "retrieved": "2026-10-26",
+  "license": "IETF Trust Legal Provisions (BCP 78/79); RFC texts stay outside the repository. Extracted test-vector values are factual data with RFC provenance; RFC code components are Revised BSD.",
+  "generator": "references/rfc_vectors.py",
+  "files": [
+    {
+      "rfc": 1321,
+      "name": "rfc1321.txt",
+      "url": "https://www.rfc-editor.org/rfc/rfc1321.txt",
+      "sha256": "284a79d148400d9cd2a423211d1103b5cef0fb9256a4cbe6d7ebe5197c3149dd",
+      "bytes": 35222,
+      "role": "MD5 test suite (A.5)"
+    },
+    {
+      "rfc": 2202,
+      "name": "rfc2202.txt",
+      "url": "https://www.rfc-editor.org/rfc/rfc2202.txt",
+      "sha256": "c19effeca47e801be304460da3b2fb05f595e2309abceb050e40e024868fe483",
+      "bytes": 11942,
+      "role": "HMAC-MD5/HMAC-SHA-1 test cases"
+    },
+    {
+      "rfc": 3174,
+      "name": "rfc3174.txt",
+      "url": "https://www.rfc-editor.org/rfc/rfc3174.txt",
+      "sha256": "aa0ca4ef21609e64897980488c5555109266c29cd814fe97680c916566d29332",
+      "bytes": 35525,
+      "role": "SHA-1 (superseded by 6234 tables; kept for provenance)"
+    },
+    {
+      "rfc": 4231,
+      "name": "rfc4231.txt",
+      "url": "https://www.rfc-editor.org/rfc/rfc4231.txt",
+      "sha256": "72178527ce93500e730bc8eb182b857e583096d652b64ece0879c52ba1df973b",
+      "bytes": 17725,
+      "role": "HMAC-SHA-256/512 test cases"
+    },
+    {
+      "rfc": 4648,
+      "name": "rfc4648.txt",
+      "url": "https://www.rfc-editor.org/rfc/rfc4648.txt",
+      "sha256": "84e14418f795d503be5f34bf23ce4ebaa119e9ec7c9f667d8caeb111385b178f",
+      "bytes": 35491,
+      "role": "base64/base64url test vectors (section 10)"
+    },
+    {
+      "rfc": 5297,
+      "name": "rfc5297.txt",
+      "url": "https://www.rfc-editor.org/rfc/rfc5297.txt",
+      "sha256": "498a200ee427a67b27d643b3837ac04b1122755d2337b3cbe68de9c52e86a8cd",
+      "bytes": 50374,
+      "role": "AES-SIV-CMAC examples (A.1, A.2)"
+    },
+    {
+      "rfc": 5869,
+      "name": "rfc5869.txt",
+      "url": "https://www.rfc-editor.org/rfc/rfc5869.txt",
+      "sha256": "7a40eb3835b35fc947eb12a2ed614db079d43b26e50dbc537c31fba16397089c",
+      "bytes": 25854,
+      "role": "HKDF-SHA-256 test cases (A.1-A.3)"
+    },
+    {
+      "rfc": 6070,
+      "name": "rfc6070.txt",
+      "url": "https://www.rfc-editor.org/rfc/rfc6070.txt",
+      "sha256": "e8cb0810032ad90f0fbd2001e7a42a079b6551064225e12b2a1ad4a7cb9105ea",
+      "bytes": 7334,
+      "role": "PBKDF2-HMAC-SHA1 vectors"
+    },
+    {
+      "rfc": 6234,
+      "name": "rfc6234.txt",
+      "url": "https://www.rfc-editor.org/rfc/rfc6234.txt",
+      "sha256": "8f39f02a57bfd1da15634706724a585766e6223f77ecdaf243cad16cd3a1aa1b",
+      "bytes": 236573,
+      "role": "SHA-1/SHA-2 test tables (section 8.4)"
+    },
+    {
+      "rfc": 6238,
+      "name": "rfc6238.txt",
+      "url": "https://www.rfc-editor.org/rfc/rfc6238.txt",
+      "sha256": "82947ed9064450850547f55959dc79d2de775f0fa33f7b3f9622fb6c93e69a7a",
+      "bytes": 32174,
+      "role": "TOTP Appendix A seeds and Appendix B table"
+    },
+    {
+      "rfc": 7693,
+      "name": "rfc7693.txt",
+      "url": "https://www.rfc-editor.org/rfc/rfc7693.txt",
+      "sha256": "c943754888364fe29bbd0bb3c71c6658ef392371497eaa4a9d9dde015b0721e5",
+      "bytes": 55532,
+      "role": "BLAKE2b-512 Appendix A"
+    },
+    {
+      "rfc": 7748,
+      "name": "rfc7748.txt",
+      "url": "https://www.rfc-editor.org/rfc/rfc7748.txt",
+      "sha256": "279ca0ecc5e92e2962e27b846986aeb74729d9dd34bd4a04a362f80dcb596ad3",
+      "bytes": 39298,
+      "role": "X25519 vectors (5.2, 6.1)"
+    },
+    {
+      "rfc": 7914,
+      "name": "rfc7914.txt",
+      "url": "https://www.rfc-editor.org/rfc/rfc7914.txt",
+      "sha256": "df55932f8b6a5d271f36a634d91a25903724e189ba6c120bf7257cd47f10b197",
+      "bytes": 29222,
+      "role": "PBKDF2-HMAC-SHA-256 vectors (section 11)"
+    },
+    {
+      "rfc": 8032,
+      "name": "rfc8032.txt",
+      "url": "https://www.rfc-editor.org/rfc/rfc8032.txt",
+      "sha256": "ed63657ff389301282b169b0abde9b5dd2c7e4d524fdfa5da6ff3094fc93c4c3",
+      "bytes": 103210,
+      "role": "Ed25519 (7.1) and Ed448 (7.4) vectors"
+    },
+    {
+      "rfc": 8439,
+      "name": "rfc8439.txt",
+      "url": "https://www.rfc-editor.org/rfc/rfc8439.txt",
+      "sha256": "25bef70fbf7a07ff45c2fe4cb7c6ce954eac687413d8610603268b4e4415324c",
+      "bytes": 88847,
+      "role": "ChaCha20-Poly1305 AEAD (2.8.2)"
+    }
+  ]
+}

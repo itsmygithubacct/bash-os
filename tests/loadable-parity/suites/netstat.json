@@ -43,31 +43,31 @@
       "id": "defer-inet-snapshot",
       "kind": "deferred",
       "purpose": "Compare numeric TCP, UDP, and IPv6 rows, headers, and state labels from an independently encoded deterministic socket snapshot.",
-      "reason": "Requires a future disposable VM with an independently reviewed sock_diag syscall mock or isolated proc socket-table fixture; the production operation reads host kernel socket state and must not be invoked in this run."
+      "reason": "No socket fixture; there is no net-tools netstat in the image, so expected rows must be written from the helper's known sockets."
     },
     {
       "id": "defer-family-options",
       "kind": "deferred",
       "purpose": "Compare short and long family aliases, listen-only filtering, all-state selection, default families, and per-call option reset behavior against known fixture rows.",
-      "reason": "Requires the deterministic sock_diag/proc fixtures above and a future disposable VM. Executing these netstat options now would enter the live socket backend, which is outside the allowed operation scope."
+      "reason": "No deterministic socket table fixture; a script-created private netns gives one in the VM."
     },
     {
       "id": "defer-unix-sockets",
       "kind": "deferred",
       "purpose": "Compare Unix listener and connected rows, legacy state labels, and queue fields using an independently encoded Unix diagnostic fixture.",
-      "reason": "Requires a future disposable VM with a Unix sock_diag mock and a private proc Unix table. No socket operation or backend read is run here."
+      "reason": "No unix-socket fixture; unix sockets are scoped to the network namespace, so a private netns gives a deterministic table."
     },
     {
       "id": "defer-process-ownership",
       "kind": "deferred",
       "purpose": "Compare -p annotations using controlled inode-to-PID/FD ownership, including an inaccessible fixture directory.",
-      "reason": "Requires a future disposable VM with a private proc tree or reviewed proc-reader mock so ownership results are deterministic and cannot inspect host processes."
+      "reason": "No fixture; as VM root everything is readable, so r2 needs the query to run as a non-root uid, which setpriv in the side script can do."
     },
     {
       "id": "defer-transport-errors",
       "kind": "deferred",
       "purpose": "Exercise malformed and interrupted sock_diag dumps, per-family proc fallback, denied transports, and output-write failure recovery while checking exact status and rows.",
-      "reason": "Requires a future disposable VM with an independently reviewed syscall/proc mock and controlled failing-output fixture. These paths invoke the live backend and are not run under the current safety restrictions."
+      "reason": "r4 is implementable now. r1 cannot be produced by a bounded script: the kernel builds the sock_diag reply for a static binary and nothing in the VM lets a fixture forge or truncate those netlink messages. r2/r3 need the netlink socket to be refused, which needs a seccomp filter around the candidate."
     }
   ]
 }

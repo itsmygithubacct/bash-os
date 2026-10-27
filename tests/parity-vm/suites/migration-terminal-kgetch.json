@@ -1,0 +1,123 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "id": "migration-kgetch-lone-esc-and-incomplete-csi",
+   "loadable": "kgetch",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "A lone ESC followed by a pause longer than the grace returns 'esc 27' and does not absorb the next key; an incomplete CSI prefix (ESC [ with nothing after it) also returns 'esc 27' at the grace boundary, its '[' is consumed, and the following key decodes on its own.",
+   "script": "bashtermraw raw; kgetch read > esc; kgetch read > k1; kgetch read > partial; kgetch read > k2; bashtermraw cooked",
+   "steps": [
+    {
+     "settle_ms": 200
+    },
+    {
+     "send": "\u001b"
+    },
+    {
+     "settle_ms": 300
+    },
+    {
+     "send": "q"
+    },
+    {
+     "settle_ms": 200
+    },
+    {
+     "send": "\u001b["
+    },
+    {
+     "settle_ms": 300
+    },
+    {
+     "send": "w"
+    },
+    {
+     "settle_ms": 150
+    }
+   ],
+   "expected_status": 0,
+   "covers": [
+    "kgetch/read-esc-grace-and-partial-sequence"
+   ],
+   "oracle": "kgetch help text (kgetch.c kgetch_doc): ESC grace is 50 ms; ESC-prefixed matching has total cap max(400 ms, ESCDELAY*8); BASHESCDELAY or BASHKGETCH_ESCDELAY sets ESCDELAY; BASHKGETCH_TERMINFO names a key_*=sequence fixture layered over the ANSI table; read prints 'NAME CODE' (esc 27, char N, none 0 at EOF). The handling of an incomplete prefix (return esc 27 at the first 50 ms gap, prefix bytes dropped) is implementation-defined in kgetch.c bk_read_key, not stated in the help text.",
+   "comparison": "contract: decoded key names written by kgetch read on the private PTY; no external reference",
+   "kind": "contract",
+   "expected_files": {
+    "esc": "esc 27\n",
+    "k1": "char 113\n",
+    "partial": "esc 27\n",
+    "k2": "char 119\n"
+   }
+  },
+  {
+   "id": "migration-kgetch-total-cap-default",
+   "loadable": "kgetch",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "Prefix bytes that keep arriving every 20 ms (inside the 50 ms slice) cannot extend one read beyond the default 400 ms cap: the first read returns 'esc 27' after 380-750 ms; the remaining dripped bytes and the final 'Z' are decoded by later reads (not lost or merged), and EOF gives 'none 0'.",
+   "script": "unset BASHESCDELAY BASHKGETCH_ESCDELAY\nexport BASHKGETCH_TERMINFO=$PWD/long.ti\n/usr/bin/python3 drip.py 0.02 40 | {\n  cd run || exit 1\n  t0=$EPOCHREALTIME; kgetch read > first; t1=$EPOCHREALTIME\n  : > rest; i=0\n  while (( i < 100 )); do\n    kgetch read > one; IFS= read -r line < one\n    printf '%s\\n' \"$line\" >> rest\n    [[ $line == 'none 0' ]] && break\n    i=$((i+1))\n  done\n  ms=$(( (${t1/./} - ${t0/./}) / 1000 ))\n  if (( ms >= 380 && ms <= 750 )); then echo window-ok; else echo \"window-bad $ms\"; fi > elapsed\n  ones=0 other=''\n  while IFS= read -r line; do\n    if [[ $line == 'char 49' && -z $other ]]; then ones=$((ones+1)); else other+=\"$line;\"; fi\n  done < rest\n  if (( ones >= 5 && ones + 2 <= 40 )); then echo ones-after-cap-ok; else echo \"ones-bad $ones\"; fi > remainder\n  printf '%s\\n' \"$other\" > tail\n}\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "kgetch/read-sequence-total-cap"
+   ],
+   "oracle": "kgetch help text (kgetch.c kgetch_doc): ESC grace is 50 ms; ESC-prefixed matching has total cap max(400 ms, ESCDELAY*8); BASHESCDELAY or BASHKGETCH_ESCDELAY sets ESCDELAY; BASHKGETCH_TERMINFO names a key_*=sequence fixture layered over the ANSI table; read prints 'NAME CODE' (esc 27, char N, none 0 at EOF). The handling of an incomplete prefix (return esc 27 at the first 50 ms gap, prefix bytes dropped) is implementation-defined in kgetch.c bk_read_key, not stated in the help text.",
+   "comparison": "contract, semantic timing predicate: exact first-read token; elapsed window 380-750 ms around the 400 ms cap (scheduler tolerance); later reads give at least 5 'char 49' then exactly 'char 90' and 'none 0'. The split point between capped and later bytes depends on timing and is not compared.",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "files": {
+    "drip.py": "import os, sys, time\ngap, n = float(sys.argv[1]), int(sys.argv[2])\nos.write(1, b\"\\x1b[\")\nfor _ in range(n):\n    time.sleep(gap)\n    os.write(1, b\"1\")\ntime.sleep(0.3)\nos.write(1, b\"Z\")\n",
+    "long.ti": "# private fixture: a 63-byte sequence so a slow prefix cannot complete before the cap\nkey_f5=\\E[111111111111111111111111111111111111111111111111111111111111~\n",
+    "run/.keep": ""
+   },
+   "expected_files": {
+    "run/first": "esc 27\n",
+    "run/elapsed": "window-ok\n",
+    "run/remainder": "ones-after-cap-ok\n",
+    "run/tail": "char 90;none 0;\n"
+   }
+  },
+  {
+   "id": "migration-kgetch-total-cap-escdelay",
+   "loadable": "kgetch",
+   "group": "shell",
+   "driver": "plain",
+   "purpose": "BASHESCDELAY=100 raises the cap to 800 ms (ESCDELAY*8): with bytes dripping every 20 ms the first read returns 'esc 27' after 780-1150 ms and later reads decode the rest. BASHKGETCH_ESCDELAY=100 does the same when BASHESCDELAY is unset (second invocation).",
+   "script": "export BASHESCDELAY=100\nexport BASHKGETCH_TERMINFO=$PWD/long.ti\n/usr/bin/python3 drip.py 0.02 60 | {\n  cd a || exit 1\n  t0=$EPOCHREALTIME; kgetch read > first; t1=$EPOCHREALTIME\n  : > rest; i=0\n  while (( i < 100 )); do\n    kgetch read > one; IFS= read -r line < one\n    printf '%s\\n' \"$line\" >> rest\n    [[ $line == 'none 0' ]] && break\n    i=$((i+1))\n  done\n  ms=$(( (${t1/./} - ${t0/./}) / 1000 ))\n  if (( ms >= 780 && ms <= 1150 )); then echo window-ok; else echo \"window-bad $ms\"; fi > elapsed\n  ones=0 other=''\n  while IFS= read -r line; do\n    if [[ $line == 'char 49' && -z $other ]]; then ones=$((ones+1)); else other+=\"$line;\"; fi\n  done < rest\n  if (( ones >= 5 && ones + 2 <= 60 )); then echo ones-after-cap-ok; else echo \"ones-bad $ones\"; fi > remainder\n  printf '%s\\n' \"$other\" > tail\n}\nunset BASHESCDELAY; export BASHKGETCH_ESCDELAY=100\nexport BASHKGETCH_TERMINFO=$PWD/long.ti\n/usr/bin/python3 drip.py 0.02 60 | {\n  cd b || exit 1\n  t0=$EPOCHREALTIME; kgetch read > first; t1=$EPOCHREALTIME\n  : > rest; i=0\n  while (( i < 100 )); do\n    kgetch read > one; IFS= read -r line < one\n    printf '%s\\n' \"$line\" >> rest\n    [[ $line == 'none 0' ]] && break\n    i=$((i+1))\n  done\n  ms=$(( (${t1/./} - ${t0/./}) / 1000 ))\n  if (( ms >= 780 && ms <= 1150 )); then echo window-ok; else echo \"window-bad $ms\"; fi > elapsed\n  ones=0 other=''\n  while IFS= read -r line; do\n    if [[ $line == 'char 49' && -z $other ]]; then ones=$((ones+1)); else other+=\"$line;\"; fi\n  done < rest\n  if (( ones >= 5 && ones + 2 <= 60 )); then echo ones-after-cap-ok; else echo \"ones-bad $ones\"; fi > remainder\n  printf '%s\\n' \"$other\" > tail\n}\n",
+   "expected_status": 0,
+   "stdout": "",
+   "stderr": "",
+   "covers": [
+    "kgetch/read-sequence-total-cap"
+   ],
+   "oracle": "kgetch help text (kgetch.c kgetch_doc): ESC grace is 50 ms; ESC-prefixed matching has total cap max(400 ms, ESCDELAY*8); BASHESCDELAY or BASHKGETCH_ESCDELAY sets ESCDELAY; BASHKGETCH_TERMINFO names a key_*=sequence fixture layered over the ANSI table; read prints 'NAME CODE' (esc 27, char N, none 0 at EOF). The handling of an incomplete prefix (return esc 27 at the first 50 ms gap, prefix bytes dropped) is implementation-defined in kgetch.c bk_read_key, not stated in the help text.",
+   "comparison": "contract, semantic timing predicate: as the default-cap case with an 800 ms cap for each variable",
+   "kind": "contract",
+   "requires": [
+    "python3"
+   ],
+   "timeout": 20,
+   "files": {
+    "drip.py": "import os, sys, time\ngap, n = float(sys.argv[1]), int(sys.argv[2])\nos.write(1, b\"\\x1b[\")\nfor _ in range(n):\n    time.sleep(gap)\n    os.write(1, b\"1\")\ntime.sleep(0.3)\nos.write(1, b\"Z\")\n",
+    "long.ti": "# private fixture: a 63-byte sequence so a slow prefix cannot complete before the cap\nkey_f5=\\E[111111111111111111111111111111111111111111111111111111111111~\n",
+    "a/.keep": "",
+    "b/.keep": ""
+   },
+   "expected_files": {
+    "b/first": "esc 27\n",
+    "b/elapsed": "window-ok\n",
+    "b/remainder": "ones-after-cap-ok\n",
+    "b/tail": "char 90;none 0;\n",
+    "a/first": "esc 27\n",
+    "a/elapsed": "window-ok\n",
+    "a/remainder": "ones-after-cap-ok\n",
+    "a/tail": "char 90;none 0;\n"
+   }
+  }
+ ]
+}

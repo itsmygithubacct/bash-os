@@ -1,0 +1,144 @@
+{
+ "schema": 1,
+ "cases": [
+  {
+   "group": "shell",
+   "driver": "plain",
+   "timeout": 30,
+   "id": "migration-index-fault-rename-onto-nonempty-dir",
+   "loadable": "index",
+   "kind": "contract",
+   "purpose": "The destination PATH is a non-empty directory, so the final rename of the temp file fails (EISDIR) without any injection: index write fails with a diagnostic, the directory and its member are untouched, PATH.lock and PATH.tmp* are removed, and a write after the directory is removed succeeds.",
+   "oracle": "The documented atomic-replacement contract of index write (help: 'Atomic write'; _git/index.c mkstemp, write loop, fdatasync, close, rename) and git's lock semantics: on any failure the destination keeps its previous state, PATH.lock and PATH.tmp* are removed, the status is 1 with a diagnostic, and a later write succeeds. Expected listing is the independently written entries in index read's 'mode sha stage path' form. setup_script proves with Python that rename(file, non-empty directory) fails EISDIR and keeps both.",
+   "comparison": "Exact status, diagnostic presence, destination directory and member intact, residue count, recovery status and listing.",
+   "files": {
+    "control.py": "# SPDX-License-Identifier: MIT\n# Trusted mechanism controls for setup_script; each mode proves one kernel\n# behaviour with direct system calls and exits 1 (failing setup, so the case\n# is ERROR) when the behaviour is absent.\nimport errno, os, stat, sys\nmode, args = sys.argv[1], sys.argv[2:]\nNAME = errno.errorcode\n\n\ndef say(text):\n    print(mode + \": \" + text)\n\n\ndef die(text):\n    say(\"CONTROL FAILED: \" + text)\n    sys.exit(1)\n\n\nif mode == \"rename-onto-dir\":\n    src = os.path.join(os.path.dirname(args[0]), \".rename-probe\")\n    open(src, \"w\").close()\n    try:\n        os.rename(src, args[0])\n    except OSError as exc:\n        if exc.errno != errno.EISDIR:\n            die(\"rename gave %s\" % NAME.get(exc.errno))\n    else:\n        die(\"rename succeeded\")\n    if not os.path.exists(src) or not os.path.isdir(args[0]):\n        die(\"source or directory changed\")\n    os.unlink(src)\n    say(\"rename(file, non-empty directory) -> EISDIR, both kept\")\nelif mode == \"devfull\":\n    fd = os.open(\"/dev/full\", os.O_WRONLY)\n    try:\n        os.write(fd, b\"x\")\n    except OSError as exc:\n        if exc.errno != errno.ENOSPC:\n            die(\"write gave %s\" % NAME.get(exc.errno))\n    else:\n        die(\"write succeeded\")\n    say(\"write(/dev/full) -> ENOSPC\")\nelif mode == \"open\":\n    os.close(os.open(args[0], os.O_RDONLY))\n    say(\"opened \" + args[0])\nelif mode == \"procmem\":\n    fd = os.open(\"/proc/self/mem\", os.O_RDONLY)\n    if not stat.S_ISREG(os.fstat(fd).st_mode):\n        die(\"/proc/self/mem is not a regular file\")\n    try:\n        os.read(fd, 32768)\n    except OSError as exc:\n        if exc.errno != errno.EIO:\n            die(\"read gave %s\" % NAME.get(exc.errno))\n    else:\n        die(\"read at offset 0 succeeded\")\n    os.close(fd)\n    say(\"open(/proc/self/mem) ok, S_ISREG, read at offset 0 -> EIO\")\nelse:\n    die(\"unknown mode\")\n"
+   },
+   "setup_script": ": > \"$HOME/control.txt\"\n/usr/bin/mkdir -p probe/dest; : > probe/dest/occupant\n/usr/bin/python3 -I control.py rename-onto-dir \"$PWD/probe/dest\" >> \"$HOME/control.txt\"\n/usr/bin/rm -rf probe\n",
+   "script": "[[ $(type -t index) == builtin ]] || { printf 'candidate index builtin missing\\n'; exit 99; }\nprintf '100644 2222222222222222222222222222222222222222 0\\tbeta\\n100755 3333333333333333333333333333333333333333 0\\tgamma\\n' > e2\n/usr/bin/mkdir -p w/idx; printf 'keep\\n' > w/idx/occupant\nindex write w/idx < e2 2> \"$HOME/err.rename-dir\"; rc=$?\n[[ -s $HOME/err.rename-dir ]] && d=yes || d=no\n[[ -d w/idx && $(< w/idx/occupant) == keep && $(/usr/bin/ls -A w/idx) == occupant ]] && dest=directory-intact || dest=changed\nn=0; for f in w/* w/.[!.]*; do [[ -e $f && ${f##*/} != idx ]] && n=$((n + 1)); done\nprintf 'fault=rename-onto-dir rc=%d diag=%s dest=%s residue=%d\\n' \"$rc\" \"$d\" \"$dest\" \"$n\"\n/usr/bin/rm -rf w/idx\nindex write w/idx < e2; printf 'recovery=%d\\n' \"$?\"\nindex read w/idx\n/usr/bin/rm -rf w e2\n",
+   "expected_status": 0,
+   "stdout": "fault=rename-onto-dir rc=1 diag=yes dest=directory-intact residue=0\nrecovery=0\n100644 2222222222222222222222222222222222222222 0 beta\n100755 3333333333333333333333333333333333333333 0 gamma\n",
+   "requires": [
+    "python3",
+    "mkdir",
+    "ls",
+    "rm"
+   ],
+   "diagnostic_files": [
+    "control.txt",
+    "err.rename-dir"
+   ],
+   "covers": [
+    "index/deferred-atomic-faults"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "timeout": 40,
+   "id": "migration-unexpand-later-operand-not-opened",
+   "loadable": "unexpand",
+   "purpose": "After an output failure (stdout is /dev/full) while the first operand is still being processed, the later operand, which exists, is never opened: the openat log of the whole command shows the first operand opened and the later one not.",
+   "oracle": "GNU coreutils 9.7 unexpand under the identical seccomp notify filter (openat paths logged, every call continued); unexpand exits on the first write error before advancing to the next operand. setup_script proves /dev/full gives ENOSPC and that a Python open under the identical filter appears in the log.",
+   "comparison": "Exact status, diagnostic presence and per-path openat observations (first operand opened, later operand not).",
+   "files": {
+    "control.py": "# SPDX-License-Identifier: MIT\n# Trusted mechanism controls for setup_script; each mode proves one kernel\n# behaviour with direct system calls and exits 1 (failing setup, so the case\n# is ERROR) when the behaviour is absent.\nimport errno, os, stat, sys\nmode, args = sys.argv[1], sys.argv[2:]\nNAME = errno.errorcode\n\n\ndef say(text):\n    print(mode + \": \" + text)\n\n\ndef die(text):\n    say(\"CONTROL FAILED: \" + text)\n    sys.exit(1)\n\n\nif mode == \"rename-onto-dir\":\n    src = os.path.join(os.path.dirname(args[0]), \".rename-probe\")\n    open(src, \"w\").close()\n    try:\n        os.rename(src, args[0])\n    except OSError as exc:\n        if exc.errno != errno.EISDIR:\n            die(\"rename gave %s\" % NAME.get(exc.errno))\n    else:\n        die(\"rename succeeded\")\n    if not os.path.exists(src) or not os.path.isdir(args[0]):\n        die(\"source or directory changed\")\n    os.unlink(src)\n    say(\"rename(file, non-empty directory) -> EISDIR, both kept\")\nelif mode == \"devfull\":\n    fd = os.open(\"/dev/full\", os.O_WRONLY)\n    try:\n        os.write(fd, b\"x\")\n    except OSError as exc:\n        if exc.errno != errno.ENOSPC:\n            die(\"write gave %s\" % NAME.get(exc.errno))\n    else:\n        die(\"write succeeded\")\n    say(\"write(/dev/full) -> ENOSPC\")\nelif mode == \"open\":\n    os.close(os.open(args[0], os.O_RDONLY))\n    say(\"opened \" + args[0])\nelif mode == \"procmem\":\n    fd = os.open(\"/proc/self/mem\", os.O_RDONLY)\n    if not stat.S_ISREG(os.fstat(fd).st_mode):\n        die(\"/proc/self/mem is not a regular file\")\n    try:\n        os.read(fd, 32768)\n    except OSError as exc:\n        if exc.errno != errno.EIO:\n            die(\"read gave %s\" % NAME.get(exc.errno))\n    else:\n        die(\"read at offset 0 succeeded\")\n    os.close(fd)\n    say(\"open(/proc/self/mem) ok, S_ISREG, read at offset 0 -> EIO\")\nelse:\n    die(\"unknown mode\")\n",
+    "opened.py": "# SPDX-License-Identifier: MIT\n# Report whether each NAME appears as the path of a logged openat in a\n# system-seccomp.py notify log (one JSON object per call).\nimport json, sys\nlog, names = sys.argv[1], sys.argv[2:]\npaths = set()\nfor line in open(log):\n    if line.strip():\n        r = json.loads(line)\n        if r.get(\"syscall\") == \"openat\":\n            paths.update(str(v) for k, v in r.items() if k.startswith(\"string\"))\nprint(\" \".join(\"%s=%s\" % (n, \"yes\" if n in paths else \"no\") for n in names))\n"
+   },
+   "setup_script": ": > \"$HOME/control.txt\"\n/usr/bin/python3 -I control.py devfull >> \"$HOME/control.txt\"\n: > probe.txt\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify openat --log-string openat=1 --log \"$HOME/control.jsonl\" -- /usr/bin/python3 -I \"$PWD/control.py\" open probe.txt >> \"$HOME/control.txt\"\n[[ $(/usr/bin/python3 -I opened.py \"$HOME/control.jsonl\" probe.txt) == probe.txt=yes ]]\nprintf 'log: control open of probe.txt recorded\\n' >> \"$HOME/control.txt\"\n/usr/bin/rm -f probe.txt\n",
+   "script": "/usr/bin/yes '        x' | /usr/bin/head -c 1048576 > big\nprintf '        y\\n' > later-present\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --notify openat --log-string openat=1 --log \"$HOME/open.jsonl\" -- \"$BASH\" --noprofile --norc -c 'unexpand big later-present > /dev/full; printf \"%d\" \"$?\" > \"$HOME/rc.full\"' 2> \"$HOME/err.full\"\n[[ -s $HOME/err.full ]] && d=yes || d=no\nprintf 'enospc rc=%s diag=%s\\n' \"$(< \"$HOME/rc.full\")\" \"$d\"\nprintf 'opened %s\\n' \"$(/usr/bin/python3 -I opened.py \"$HOME/open.jsonl\" big later-present)\"\n/usr/bin/rm -f big later-present\n",
+   "expected_status": 0,
+   "stdout": "enospc rc=1 diag=yes\nopened big=yes later-present=no\n",
+   "requires": [
+    "python3",
+    "unexpand",
+    "yes",
+    "head"
+   ],
+   "diagnostic_files": [
+    "control.txt",
+    "control.jsonl",
+    "open.jsonl",
+    "err.full",
+    "rc.full"
+   ],
+   "helpers_sha256": {
+    "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+   },
+   "features": [
+    "seccomp-notify"
+   ],
+   "covers": [
+    "unexpand/partial-write-error-injection"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "timeout": 30,
+   "id": "migration-setfacl-invalid-entries-and-dashdash",
+   "loadable": "setfacl",
+   "purpose": "Invalid ACL text (bad permission letter, unknown tag, unknown user, missing permissions, empty spec, -x with permissions, a list mixing valid and invalid entries), unknown options and missing or absent file operands are refused without changing the ACL; '--' ends option parsing so '-b' and '-x' after it are file operands.",
+   "oracle": "GNU acl setfacl on tmpfs files owned by uid 2000 in the initial user namespace; the trusted GNU getfacl -n reads both files on both sides after every step. setup_script proves tmpfs ACL support with GNU setfacl/getfacl.",
+   "comparison": "Exact per-step status, diagnostic presence, octal modes and getfacl listings of both files; identical tree.",
+   "setup_script": ": > \"$HOME/control.txt\"\n: > \"$HOME/acl-probe\"\n/usr/bin/setfacl -m u:2001:r \"$HOME/acl-probe\"\n/usr/bin/getfacl -n \"$HOME/acl-probe\" 2> /dev/null | /usr/bin/grep -qx 'user:2001:r--'\n/usr/bin/rm \"$HOME/acl-probe\"\nprintf 'acl: named user entry stored and read back on tmpfs\\n' >> \"$HOME/control.txt\"\n",
+   "script": "umask 022\n: > f; : > ./-b\nsetfacl -m u:2001:rw f || exit 98\nshow() { printf '%s mode=%s\\n' \"$1\" \"$(/usr/bin/stat -c %a -- \"$1\")\"; /usr/bin/getfacl -n --absolute-names -- \"$1\"; }\nstep() {\n  local label=$1; shift\n  eval \"setfacl $*\" < /dev/null 2> \"$HOME/err.$label\"; local rc=$?\n  [[ -s $HOME/err.$label ]] && d=yes || d=no\n  printf '== %s rc=%d diag=%s\\n' \"$label\" \"$rc\" \"$d\"\n  show f; show -b\n}\nstep invalid-perm -m u:2001:rwz f\nstep invalid-tag -m x:2001:r f\nstep unknown-user -m u:no_such_user_zz:r f\nstep missing-perms -m u:2001 f\nstep empty-spec -m \"''\" f\nstep remove-with-perms -x u:2001:r f\nstep remove-absent-entry -x u:2009 f\nstep mixed-valid-invalid -m u:2002:r,u:2003:q f\nstep unknown-option -Z f\nstep no-file-operand -m u:2002:r\nstep missing-file -m u:2002:r nofile\nstep dashdash-file -m u:2002:r -- -b\nstep dashdash-only-file -m u:2002:rw -- f\nstep option-after-dashdash -m u:2004:r -- -b -x\n/usr/bin/rm -f f ./-b\n",
+   "expected_status": 0,
+   "requires": [
+    "setfacl",
+    "getfacl",
+    "grep",
+    "stat"
+   ],
+   "diagnostic_files": [
+    "control.txt",
+    "err.invalid-perm",
+    "err.invalid-tag",
+    "err.unknown-user",
+    "err.missing-perms",
+    "err.empty-spec",
+    "err.remove-with-perms",
+    "err.remove-absent-entry",
+    "err.mixed-valid-invalid",
+    "err.unknown-option",
+    "err.no-file-operand",
+    "err.missing-file",
+    "err.dashdash-file",
+    "err.dashdash-only-file",
+    "err.option-after-dashdash"
+   ],
+   "covers": [
+    "setfacl/extended_acl_semantics_deferred"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "timeout": 30,
+   "id": "migration-sha256sum-named-operand-read-eio",
+   "loadable": "sha256sum",
+   "purpose": "A named operand that opens as a regular file but whose first read fails with EIO (/proc/self/mem at offset 0, reported S_ISREG with st_size 0) prints no checksum and a diagnostic; the operands before and after it are still checksummed and the status is 1.",
+   "oracle": "GNU coreutils 9.7 sha256sum on the same operands (each side reads its own process's /proc/self/mem); expected digest of 'second\\n' computed independently. setup_script proves with Python that /proc/self/mem opens, is S_ISREG and fails the first read with EIO.",
+   "comparison": "Exact stdout lines, status, diagnostic presence and absence of a /proc/self/mem line.",
+   "files": {
+    "control.py": "# SPDX-License-Identifier: MIT\n# Trusted mechanism controls for setup_script; each mode proves one kernel\n# behaviour with direct system calls and exits 1 (failing setup, so the case\n# is ERROR) when the behaviour is absent.\nimport errno, os, stat, sys\nmode, args = sys.argv[1], sys.argv[2:]\nNAME = errno.errorcode\n\n\ndef say(text):\n    print(mode + \": \" + text)\n\n\ndef die(text):\n    say(\"CONTROL FAILED: \" + text)\n    sys.exit(1)\n\n\nif mode == \"rename-onto-dir\":\n    src = os.path.join(os.path.dirname(args[0]), \".rename-probe\")\n    open(src, \"w\").close()\n    try:\n        os.rename(src, args[0])\n    except OSError as exc:\n        if exc.errno != errno.EISDIR:\n            die(\"rename gave %s\" % NAME.get(exc.errno))\n    else:\n        die(\"rename succeeded\")\n    if not os.path.exists(src) or not os.path.isdir(args[0]):\n        die(\"source or directory changed\")\n    os.unlink(src)\n    say(\"rename(file, non-empty directory) -> EISDIR, both kept\")\nelif mode == \"devfull\":\n    fd = os.open(\"/dev/full\", os.O_WRONLY)\n    try:\n        os.write(fd, b\"x\")\n    except OSError as exc:\n        if exc.errno != errno.ENOSPC:\n            die(\"write gave %s\" % NAME.get(exc.errno))\n    else:\n        die(\"write succeeded\")\n    say(\"write(/dev/full) -> ENOSPC\")\nelif mode == \"open\":\n    os.close(os.open(args[0], os.O_RDONLY))\n    say(\"opened \" + args[0])\nelif mode == \"procmem\":\n    fd = os.open(\"/proc/self/mem\", os.O_RDONLY)\n    if not stat.S_ISREG(os.fstat(fd).st_mode):\n        die(\"/proc/self/mem is not a regular file\")\n    try:\n        os.read(fd, 32768)\n    except OSError as exc:\n        if exc.errno != errno.EIO:\n            die(\"read gave %s\" % NAME.get(exc.errno))\n    else:\n        die(\"read at offset 0 succeeded\")\n    os.close(fd)\n    say(\"open(/proc/self/mem) ok, S_ISREG, read at offset 0 -> EIO\")\nelse:\n    die(\"unknown mode\")\n"
+   },
+   "setup_script": ": > \"$HOME/control.txt\"\n/usr/bin/python3 -I control.py procmem >> \"$HOME/control.txt\"\n",
+   "script": "printf 'second\\n' > file2\nsha256sum file2 /proc/self/mem file2 > out 2> \"$HOME/err.mem\"; rc=$?\n[[ -s $HOME/err.mem ]] && d=yes || d=no\nprintf '%s\\n' \"$(< out)\"\n/usr/bin/grep -q 'proc/self/mem' out && m=present || m=absent\nprintf 'rc=%d diag=%s mem-line=%s\\n' \"$rc\" \"$d\" \"$m\"\n/usr/bin/rm -f out file2\n",
+   "expected_status": 0,
+   "stdout": "480c2336b410f1ad5f8bf1b28944490255804b65350c527787e74ebdd511e3a4  file2\n480c2336b410f1ad5f8bf1b28944490255804b65350c527787e74ebdd511e3a4  file2\nrc=1 diag=yes mem-line=absent\n",
+   "requires": [
+    "python3",
+    "sha256sum",
+    "grep"
+   ],
+   "diagnostic_files": [
+    "control.txt",
+    "err.mem"
+   ],
+   "covers": [
+    "sha256sum/read-error-after-open"
+   ]
+  }
+ ]
+}
