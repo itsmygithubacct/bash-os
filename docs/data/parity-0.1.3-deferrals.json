@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "7e3e9b8534d5377098f77c9357e822705af1debb9d33fe503c60858c433571d2",
+  "ledger_sha256": "12ab66e626db7d412419a77359b34fb8e6f784d35f8c2eecb951cfba9ee05056",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 106,
+    "partial": 104,
     "none": 307,
-    "full": 187
+    "full": 189
   },
   "migrations": {
-    "deferred": 413,
-    "replacement": 187
+    "deferred": 411,
+    "replacement": 189
   },
   "pending_full_topics": [],
   "builds": {
@@ -1705,6 +1705,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793144679.7641323
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "takeover-h-static-75",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "bdaa9d7a3cc29eeb1051ca08a73fafacc50219f5e80ddbb7e8ef304c59f095c9",
+            "provenance.json": "ba6ba2f9293c8e166a580ad5843923fef27676bbaa9a8eea68fb3942185daec8",
+            "payload.tar": "17fe84485e5d4c74f5ecf59323dae8de30e093811541462e782612bf9b5498a8",
+            "evidence.tar": "8087826dc5bfca94c6b37a115f9da70691439b5ddde4925c3ec1cdd3f9fd8f1d"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793145200.6293797
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -27138,43 +27164,64 @@
         },
         {
           "topic": "ps/live-table-and-aux-snapshot",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Default full-table enumeration (-e / -A) lists every process in the namespace.",
-              "coverage": "missing",
-              "gap": "Not executed against live procfs.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ps-live-pidns-tables",
+                  "status": "FAIL",
+                  "run": "takeover-h-static-75"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "aux layout: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ps-live-pidns-tables",
+                  "status": "FAIL",
+                  "run": "takeover-h-static-75"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "%CPU/%MEM percentages and START/TIME values consistent with procps for the same snapshot.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ps-live-pidns-tables",
+                  "status": "FAIL",
+                  "run": "takeover-h-static-75"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Column parsing on real records (comm with spaces/parentheses, threads, STAT flags).",
-              "coverage": "partial",
-              "gap": "Not compared with procps on live records.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -27187,10 +27234,16 @@
                   "id": "legacy/ps/full-format-pid-list-and-empty-cmdline",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-ps-live-pidns-tables",
+                  "status": "FAIL",
+                  "run": "takeover-h-static-75"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -37831,25 +37884,32 @@
         },
         {
           "topic": "uptime/default-format-deferred",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Default row: current wall-clock time HH:MM:SS.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-uptime-default-row-timens",
+                  "status": "FAIL",
+                  "run": "takeover-h-static-75"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "'up' duration formatted like procps (minutes, hours, days).",
-              "coverage": "partial",
-              "gap": "The default-row duration format (e.g. 'up 1 day,  2:03') differs from -p and is not executed.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -37862,28 +37922,48 @@
                   "id": "legacy/uptime/pretty-day-forms",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-uptime-default-row-timens",
+                  "status": "FAIL",
+                  "run": "takeover-h-static-75"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "User count from session records.",
-              "coverage": "missing",
-              "gap": "Not executed; procps 4.0.4 may count logind sessions rather than utmp.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-uptime-default-row-timens",
+                  "status": "FAIL",
+                  "run": "takeover-h-static-75"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Load averages from /proc/loadavg with two decimals.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-uptime-default-row-timens",
+                  "status": "FAIL",
+                  "run": "takeover-h-static-75"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -40286,8 +40366,8 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 413,
-        "FAIL": 84,
+        "UNRESOLVED": 411,
+        "FAIL": 86,
         "PASS": 103
       },
       "migration_without_complete_evidence": []
@@ -41983,6 +42063,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793144674.815614
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "takeover-h-dynamic-75",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "d50458a5f6cefa1ac611f10ef83eed6989b7cca8006dd49c26ffe819cb3d1c78",
+            "provenance.json": "296674095d3dca36a7d56d929079d99ff73e42438058ec0815b9baf25316180d",
+            "payload.tar": "c29fadae9200a0bc49275b5f125bb7754aa75e5e9fa63e7c5c985baaf8e5dcac",
+            "evidence.tar": "9d3f9a0c960988e80bd21272e2eba5c7ecf0d1a52bbf97e730fa10a1615367f3"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793145197.3767352
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -67416,43 +67522,64 @@
         },
         {
           "topic": "ps/live-table-and-aux-snapshot",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Default full-table enumeration (-e / -A) lists every process in the namespace.",
-              "coverage": "missing",
-              "gap": "Not executed against live procfs.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ps-live-pidns-tables",
+                  "status": "FAIL",
+                  "run": "takeover-h-dynamic-75"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "aux layout: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ps-live-pidns-tables",
+                  "status": "FAIL",
+                  "run": "takeover-h-dynamic-75"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "%CPU/%MEM percentages and START/TIME values consistent with procps for the same snapshot.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ps-live-pidns-tables",
+                  "status": "FAIL",
+                  "run": "takeover-h-dynamic-75"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Column parsing on real records (comm with spaces/parentheses, threads, STAT flags).",
-              "coverage": "partial",
-              "gap": "Not compared with procps on live records.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -67465,10 +67592,16 @@
                   "id": "legacy/ps/full-format-pid-list-and-empty-cmdline",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-ps-live-pidns-tables",
+                  "status": "FAIL",
+                  "run": "takeover-h-dynamic-75"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -78109,25 +78242,32 @@
         },
         {
           "topic": "uptime/default-format-deferred",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Default row: current wall-clock time HH:MM:SS.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-uptime-default-row-timens",
+                  "status": "FAIL",
+                  "run": "takeover-h-dynamic-75"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "'up' duration formatted like procps (minutes, hours, days).",
-              "coverage": "partial",
-              "gap": "The default-row duration format (e.g. 'up 1 day,  2:03') differs from -p and is not executed.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -78140,28 +78280,48 @@
                   "id": "legacy/uptime/pretty-day-forms",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-uptime-default-row-timens",
+                  "status": "FAIL",
+                  "run": "takeover-h-dynamic-75"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "User count from session records.",
-              "coverage": "missing",
-              "gap": "Not executed; procps 4.0.4 may count logind sessions rather than utmp.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-uptime-default-row-timens",
+                  "status": "FAIL",
+                  "run": "takeover-h-dynamic-75"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Load averages from /proc/loadavg with two decimals.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-uptime-default-row-timens",
+                  "status": "FAIL",
+                  "run": "takeover-h-dynamic-75"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -80564,8 +80724,8 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 413,
-        "FAIL": 84,
+        "UNRESOLVED": 411,
+        "FAIL": 86,
         "PASS": 103
       },
       "migration_without_complete_evidence": []

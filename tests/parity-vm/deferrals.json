@@ -24556,35 +24556,56 @@
         "purpose": "Validate default full-table enumeration and aux layout, percentages, and start times against a stable real procfs process set.",
         "reason": "Requires a disposable Linux VM with a private procfs mount, a controlled process tree, fixed locale/time settings, and GNU procps ps observing the same snapshot. The provided runner's live process table is intentionally nondeterministic, and GNU ps cannot consume the candidate's BASHOS_PROC_ROOT fixture."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "The legacy runner's bwrap private PID namespace inside the VM contains only bwrap's init, the case shell and its children, giving a stable process set; GNU ps sees one extra process (itself), which the comparison must account for.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Default full-table enumeration (-e / -A) lists every process in the namespace.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed against live procfs."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ps-live-pidns-tables",
+              "assertion": "In a private user+pid namespace with its own /proc, ps -e, -A, aux and -ef each list exactly the 8 live processes (shell, sleeps, renamed, threaded, stopped, zombie and post-busy children). The -e/-A/-ef layouts differ from procps throughout (candidate 'PID S TIME CMD' with full command lines vs procps 'PID TTY TIME CMD' with comm; -ef lacks UID/C/STIME/TTY columns).",
+              "definition_sha256": "92851e58fb003b861b85eae37af0c2295b3e04e7340e9284ad08b1f484c598b8"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "aux layout: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ps-live-pidns-tables",
+              "assertion": "The aux header equals procps's; USER, PID, VSZ, TTY, STAT, START, TIME and COMMAND columns of the children equal procps for the same snapshot, except the zombie lacks ' <defunct>' and a command line with embedded newlines is printed raw across several lines (procps shows them as spaces).",
+              "definition_sha256": "92851e58fb003b861b85eae37af0c2295b3e04e7340e9284ad08b1f484c598b8"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "%CPU/%MEM percentages and START/TIME values consistent with procps for the same snapshot.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ps-live-pidns-tables",
+              "assertion": "START and TIME equal procps (TIME 0:01 for the child that burned 1.2 s). %CPU is the documented 0.0 placeholder (procps 96.7 for that child, 0.8 for the threaded one); RSS is about 100-170 kB lower than procps on every live child, so %MEM differs (0.1 vs 0.0 on sleeps). Contract FAIL.",
+              "definition_sha256": "92851e58fb003b861b85eae37af0c2295b3e04e7340e9284ad08b1f484c598b8"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Column parsing on real records (comm with spaces/parentheses, threads, STAT flags).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -24597,12 +24618,18 @@
               "id": "legacy/ps/full-format-pid-list-and-empty-cmdline",
               "assertion": "synthetic -f layout and [comm] fallback",
               "definition_sha256": "02353d07ff513ebe5a922784d5ffd63ac4bf846235caab8b1c8cead2a4246d9a"
+            },
+            {
+              "group": "shell",
+              "id": "migration-ps-live-pidns-tables",
+              "assertion": "Live records: the comm 'a b (c)' child, the threaded child (STAT 'Sl'), the stopped child ('T') and the zombie ('Z') are parsed and placed in the right aux columns; differences are only those listed for r2/r3. Contract FAIL.",
+              "definition_sha256": "92851e58fb003b861b85eae37af0c2295b3e04e7340e9284ad08b1f484c598b8"
             }
           ],
-          "gap": "Not compared with procps on live records."
+          "gap": ""
         }
       ],
-      "notes": "ps.c honours BASHOS_PROC_ROOT; live default /proc used otherwise."
+      "notes": "takeover-h-75 on both builds (run 74's oracle crashed on the candidate's multi-line command row and is not used). Fixture race: SIGSTOP can reach the backgrounded child before it execs sleep, so the stopped row is sometimes the shell image ('candidate/T'); the row is still compared with procps for the same process."
     },
     {
       "topic": "pty/pty-serial-ldisc-deferred",
@@ -34882,21 +34909,28 @@
         "purpose": "Compare the complete default uptime row, including wall clock, user count, and load averages.",
         "reason": "Requires a disposable VM or reviewed mock that fixes time, proc uptime/loadavg/stat, and /var/run/utmp for both GNU uptime and the loadable. The runner cannot redirect GNU uptime to the relative proc fixture, and live clock/load/session fields are not stable parity inputs."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "A semantic live comparison is possible in the VM (both tools read the same /proc and clock within a bracket); byte equality is not, because the clock advances between runs. Duration/user formatting for chosen values needs the fixture proc root the candidate already supports, but GNU cannot read it.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Default row: current wall-clock time HH:MM:SS.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-uptime-default-row-timens",
+              "assertion": "In 24 rows on each side the HH:MM:SS field lies between /usr/bin/date +%T read just before and after (clock=ok) for both procps uptime and the candidate.",
+              "definition_sha256": "81cbb71882a2b8dd238d163a25ba7e2febadefe6cc1e1b51e694da9a811163a2"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "'up' duration formatted like procps (minutes, hours, days).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -34909,26 +34943,46 @@
               "id": "legacy/uptime/pretty-day-forms",
               "assertion": "-p day forms",
               "definition_sha256": "12995d2c889edc1b676ee01c38325e7eefc8abb7f9dacd798ef26c7a981651f8"
+            },
+            {
+              "group": "shell",
+              "id": "migration-uptime-default-row-timens",
+              "assertion": "With /proc/uptime pinned by a time-namespace boottime offset: ' 1:00', ' 2:03' and '1 day,  2:03' agree with procps 4.0.4; under an hour the candidate prints ' 0:05' where procps prints '5 min', and with days and zero hours '2 days,  0:05' / '10 days,  0:05' where procps prints '2 days, 5 min' / '10 days, 5 min'. Parity FAIL.",
+              "definition_sha256": "81cbb71882a2b8dd238d163a25ba7e2febadefe6cc1e1b51e694da9a811163a2"
             }
           ],
-          "gap": "The default-row duration format (e.g. 'up 1 day,  2:03') differs from -p and is not executed."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "User count from session records.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed; procps 4.0.4 may count logind sessions rather than utmp."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-uptime-default-row-timens",
+              "assertion": "With a private tmpfs /run (no /run/systemd, so procps counts utmp) holding 0, 1 or 12 sessions: '0 users' and '1 user' agree; 12 sessions print ',  12 users' where procps prints ', 12 users' (%2d); a USER_PROCESS record with an empty name is counted by the candidate ('2 users') but not by procps ('1 user'). Parity FAIL.",
+              "definition_sha256": "81cbb71882a2b8dd238d163a25ba7e2febadefe6cc1e1b51e694da9a811163a2"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Load averages from /proc/loadavg with two decimals.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-uptime-default-row-timens",
+              "assertion": "The three load averages equal /proc/loadavg read just before or after, formatted with two decimals (load=ok), on both sides in every row.",
+              "definition_sha256": "81cbb71882a2b8dd238d163a25ba7e2febadefe6cc1e1b51e694da9a811163a2"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "uptime.c honours BASHOS_PROC_ROOT; procps uptime reads /proc directly."
+      "notes": "takeover-h-74/75 on both builds, identical outputs; upcheck.py control confirmed each pinned /proc/uptime."
     },
     {
       "topic": "userdb/defer-ldap-password-fd",

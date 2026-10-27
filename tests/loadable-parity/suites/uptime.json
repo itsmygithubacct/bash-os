@@ -108,9 +108,22 @@
     },
     {
       "id": "default-format-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare the complete default uptime row, including wall clock, user count, and load averages.",
-      "reason": "A semantic live comparison is possible in the VM (both tools read the same /proc and clock within a bracket); byte equality is not, because the clock advances between runs. Duration/user formatting for chosen values needs the fixture proc root the candidate already supports, but GNU cannot read it."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/uptime/pretty-day-forms"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/uptime/pretty-unit-boundaries"
+        },
+        {
+          "group": "shell",
+          "id": "migration-uptime-default-row-timens"
+        }
+      ]
     }
   ]
 }

@@ -150,9 +150,22 @@
     },
     {
       "id": "live-table-and-aux-snapshot",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate default full-table enumeration and aux layout, percentages, and start times against a stable real procfs process set.",
-      "reason": "The legacy runner's bwrap private PID namespace inside the VM contains only bwrap's init, the case shell and its children, giving a stable process set; GNU ps sees one extra process (itself), which the comparison must account for."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/ps/full-format-pid-list-and-empty-cmdline"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/ps/proc-columns-and-stat-flags"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ps-live-pidns-tables"
+        }
+      ]
     }
   ]
 }
