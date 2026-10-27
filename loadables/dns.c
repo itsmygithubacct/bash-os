@@ -256,6 +256,14 @@ static int        bd_trust_count = 0;
 
 static int bd_tc_bit (const unsigned char *reply, size_t rlen);
 static int bd_validate_reply (const unsigned char *reply, size_t rlen, uint16_t id);
+static void bd_note_final_rcode (const unsigned char *reply, size_t rlen,
+                                 uint16_t id, const char *verify_qname);
+
+/* Set when the last fetch failed on an authoritative NXDOMAIN (RFC 1035
+ * 4.1.1, RFC 2308): a final answer, so it is neither retried nor sent to
+ * the next nameserver. Only a reply whose ID and 0x20 question case
+ * matched counts, so a spoofed or mismatched reply is still retried. */
+static int bd_final_rcode;
 static int bd_query_tcp (const unsigned char *query, size_t qlen, const char *server,
                          int timeout_ms, unsigned char *reply, size_t reply_sz);
 static int bd_query_dot (const unsigned char *query, size_t qlen, const char *dot_host,
@@ -2071,13 +2079,15 @@ bd_query (const char *qname, uint16_t qtype, const char *server,
   n = recvfrom (s, reply, reply_sz, 0, NULL, NULL);
   close (s);
   if (n < 0) { builtin_error ("recvfrom: %s", strerror (errno)); return -1; }
-  if (bd_validate_reply (reply, (size_t) n, id) < 0) return -1;
+  if (bd_validate_reply (reply, (size_t) n, id) < 0)
+    { bd_note_final_rcode (reply, (size_t) n, id, verify_qname); return -1; }
   if (bd_0x20_verify (reply, (size_t) n, verify_qname) < 0) return -1;
   if (bd_tc_bit (reply, (size_t) n))
     {
       int tn = bd_query_tcp (query, (size_t) qlen, server, timeout_ms, reply, reply_sz);
       if (tn < 0) return -1;
-      if (bd_validate_reply (reply, (size_t) tn, id) < 0) return -1;
+      if (bd_validate_reply (reply, (size_t) tn, id) < 0)
+        { bd_note_final_rcode (reply, (size_t) tn, id, verify_qname); return -1; }
       if (bd_0x20_verify (reply, (size_t) tn, verify_qname) < 0) return -1;
       return tn;
     }
@@ -2113,6 +2123,15 @@ bd_validate_reply (const unsigned char *reply, size_t rlen, uint16_t id)
       return -1;
     }
   return 0;
+}
+
+static void
+bd_note_final_rcode (const unsigned char *reply, size_t rlen, uint16_t id,
+                     const char *verify_qname)
+{
+  if (rlen >= 12 && bd_rd16 (reply) == id && (reply[2] & 0x80)
+      && (reply[3] & 0xf) == 3 && bd_0x20_verify (reply, rlen, verify_qname) == 0)
+    bd_final_rcode = 3;
 }
 
 static int
@@ -3461,7 +3480,8 @@ bd_fetch (const char *qname, uint16_t qtype, const char *server,
                                ? bd_dot_ctx.ca_path : NULL,
                              timeout_ms, reply, reply_sz);
       if (dn < 0) return -1;
-      if (bd_validate_reply (reply, (size_t) dn, id) < 0) return -1;
+      if (bd_validate_reply (reply, (size_t) dn, id) < 0)
+        { bd_note_final_rcode (reply, (size_t) dn, id, verify_qname); return -1; }
       if (bd_0x20_verify (reply, (size_t) dn, verify_qname) < 0) return -1;
       return dn;
     }
@@ -3481,7 +3501,8 @@ bd_fetch (const char *qname, uint16_t qtype, const char *server,
       int hn = bd_query_doh (query, (size_t) qlen, bd_doh_ctx.url,
                              timeout_ms, reply, reply_sz);
       if (hn < 0) return -1;
-      if (bd_validate_reply (reply, (size_t) hn, id) < 0) return -1;
+      if (bd_validate_reply (reply, (size_t) hn, id) < 0)
+        { bd_note_final_rcode (reply, (size_t) hn, id, verify_qname); return -1; }
       if (bd_0x20_verify (reply, (size_t) hn, verify_qname) < 0) return -1;
       return hn;
     }
@@ -3496,11 +3517,12 @@ bd_fetch_attempts (const char *qname, uint16_t qtype, const char *server,
 {
   if (attempts < 1) attempts = 1;
   int rlen = -1;
+  bd_final_rcode = 0;
   for (int a = 0; a < attempts; a++)
     {
       rlen = bd_fetch (qname, qtype, server, dnssec, timeout_ms,
                        reply, reply_sz);
-      if (rlen >= 0)
+      if (rlen >= 0 || bd_final_rcode)
         break;
     }
   return rlen;
@@ -5615,6 +5637,9 @@ bd_query_cmd (WORD_LIST *args, const char *forced_type)
                                         dnssec, timeout_ms,
                                         resolver_conf.attempts,
                                         reply, sizeof reply);
+          /* NXDOMAIN is final for this name on every server; the next
+           * search-list candidate is still tried, as glibc does. */
+          if (rlen < 0 && bd_final_rcode) break;
           if (rlen < 0) continue;
           if (bd_tc_bit (reply, (size_t) rlen))
             {

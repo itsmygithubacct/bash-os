@@ -12,7 +12,9 @@
  *     -H "K: V" | --header "K: V"
  *                         add request header (repeatable)
  *     -d DATA | --data DATA | --data-raw DATA | --data-ascii DATA
- *                         request body (POST default unless -X set)
+ *                         request body (POST default unless -X set); repeats
+ *                         join with '&'; -d @FILE/@- strips CR and LF, and
+ *                         the body defaults to x-www-form-urlencoded
  *     --data-binary DATA  request body; @- reads bytes from stdin
  *     -o FILE | --output FILE | -
  *                         output to FILE or stdout (default stdout)
@@ -72,6 +74,7 @@
 #endif
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -141,6 +144,7 @@ typedef struct {
   int         connect_time;    /* --connect-timeout SEC */
   int         max_time;        /* --max-time SEC */
   int         max_redirs;      /* --max-redirs N (0 = use BCURL_MAX_REDIRECTS) */
+  int         method_set;      /* -X/--request given: keep it across redirects */
   int         features;        /* --features */
 } bc_opts;
 
@@ -152,7 +156,30 @@ typedef struct {
   size_t blen;
   char  location[BCURL_URL_MAX]; /* extracted Location: header if 3xx */
   int   location_too_long;     /* the Location: header did not fit */
+  long  missing;               /* Content-Length bytes the peer never sent */
 } bc_response;
+
+/* Transfer-phase state for one invocation. -s without -S silences the
+ * diagnostics curl would also silence; bc_errcode carries curl's exit
+ * code (CURLE_*) out of the transport, 0 meaning a plain failure. */
+static int bc_quiet;
+static int bc_errcode;
+#define bc_error(...) do { if (!bc_quiet) builtin_error (__VA_ARGS__); } while (0)
+
+/* curl(1)-shaped "curl: (N) message" diagnostic, shown unless silenced. */
+static void bc_curl_error (int code, const char *fmt, ...)
+  __attribute__ ((format (printf, 2, 3)));
+static void
+bc_curl_error (int code, const char *fmt, ...)
+{
+  if (bc_quiet) return;
+  va_list ap;
+  va_start (ap, fmt);
+  fprintf (stderr, "curl: (%d) ", code);
+  vfprintf (stderr, fmt, ap);
+  fputc ('\n', stderr);
+  va_end (ap);
+}
 
 /* ---- url parser (mirrors http's, with bigger path buffer) ---- */
 static int
@@ -233,22 +260,26 @@ bc_hdr_append (char *buf, size_t cap, const char *line)
   return 0;
 }
 
+/* ---- request framing ---- */
+
+/* Does the -H value H name header NAME ("Name: v", "Name:" or "Name;")? */
 static int
-bc_hdr_has (const char *buf, const char *prefix)
+bc_header_is (const char *h, const char *name)
 {
-  size_t plen = strlen (prefix);
-  const char *p = buf;
-  while (p && *p)
-    {
-      if (strncasecmp (p, prefix, plen) == 0) return 1;
-      p = strstr (p, "\r\n");
-      if (!p) break;
-      p += 2;
-    }
+  size_t n = strlen (name);
+  return strncasecmp (h, name, n) == 0 && (h[n] == ':' || h[n] == ';');
+}
+
+/* Any -H for NAME replaces curl's own header; an empty one removes it. */
+static int
+bc_user_header (const bc_opts *o, const char *name)
+{
+  for (int i = 0; i < o->nheaders; i++)
+    if (bc_header_is (o->headers[i], name))
+      return 1;
   return 0;
 }
 
-/* ---- request framing ---- */
 static char *
 bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
 {
@@ -256,65 +287,108 @@ bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
   hdrs[0] = '\0';
 
   for (int i = 0; i < o->nheaders; i++)
-    if (bc_hdr_append (hdrs, sizeof hdrs, o->headers[i]) < 0)
-      { builtin_error ("-H aggregate exceeds %d bytes", BCURL_HDRBUF_MAX); return NULL; }
+    {
+      const char *h = o->headers[i];
+      const char *colon = strchr (h, ':');
+      const char *semi = strchr (h, ';');
+      char empty[BCURL_HDRBUF_MAX];
+      if (colon)
+        {
+          /* "Name:" with no value removes the header instead of sending it. */
+          const char *v = colon + 1;
+          while (*v == ' ' || *v == '\t') v++;
+          if (!*v) continue;
+        }
+      else if (semi && semi[1] == '\0' && semi > h)
+        {
+          /* "Name;" sends the header with an empty value. */
+          snprintf (empty, sizeof empty, "%.*s:", (int) (semi - h), h);
+          h = empty;
+        }
+      if (bc_hdr_append (hdrs, sizeof hdrs, h) < 0)
+        { bc_error ("-H aggregate exceeds %d bytes", BCURL_HDRBUF_MAX); return NULL; }
+    }
+
+  /* Like curl, request data defaults to a form submission. */
+  if (o->body_set && !bc_user_header (o, "Content-Type")
+      && bc_hdr_append (hdrs, sizeof hdrs, "Content-Type: application/x-www-form-urlencoded") < 0)
+    { bc_error ("header buffer exceeded"); return NULL; }
 
   /* Basic auth: only injected when -u is set and the caller did not
    * already supply an Authorization header. */
-  if (o->userpass && !bc_hdr_has (hdrs, "Authorization:"))
+  if (o->userpass && !bc_user_header (o, "Authorization"))
     {
       char *b64 = bc_b64encode ((const unsigned char *) o->userpass,
                                 strlen (o->userpass));
-      if (!b64) { builtin_error ("out of memory"); return NULL; }
+      if (!b64) { bc_error ("out of memory"); return NULL; }
       char line[BCURL_HDRBUF_MAX];
       snprintf (line, sizeof line, "Authorization: Basic %s", b64);
       free (b64);
       if (bc_hdr_append (hdrs, sizeof hdrs, line) < 0)
-        { builtin_error ("header buffer exceeded"); return NULL; }
+        { bc_error ("header buffer exceeded"); return NULL; }
     }
 
   /* curl -b/--cookie accepts either a literal cookie string or a cookie
    * jar path. curl's bounded v1 implements the literal request-header
    * form only; a caller-supplied Cookie: via -H wins. */
-  if (o->cookie && !bc_hdr_has (hdrs, "Cookie:"))
+  if (o->cookie && !bc_user_header (o, "Cookie"))
     {
       char line[BCURL_HDRBUF_MAX];
       snprintf (line, sizeof line, "Cookie: %s", o->cookie);
       if (bc_hdr_append (hdrs, sizeof hdrs, line) < 0)
-        { builtin_error ("header buffer exceeded"); return NULL; }
+        { bc_error ("header buffer exceeded"); return NULL; }
     }
 
+  /* RFC 9110 7.2: Host carries the port unless it is the scheme default. */
+  char host[sizeof u->host + sizeof u->port + 1];
+  int is_https = strcasecmp (u->scheme, "https") == 0;
+  if (strcmp (u->port, is_https ? "443" : "80") != 0)
+    snprintf (host, sizeof host, "%s:%s", u->host, u->port);
+  else
+    snprintf (host, sizeof host, "%s", u->host);
+
+  /* A -H header of the same name replaces (or, when empty, removes) these. */
+  char builtin_hdrs[BCURL_HDRBUF_MAX + 64];
+  builtin_hdrs[0] = '\0';
   const char *ua = o->user_agent ? o->user_agent : "curl/" BCURL_VERSION;
+  char line[BCURL_HDRBUF_MAX + 16];
+  if (!bc_user_header (o, "Host"))
+    { snprintf (line, sizeof line, "Host: %s", host); bc_hdr_append (builtin_hdrs, sizeof builtin_hdrs, line); }
+  if (!bc_user_header (o, "User-Agent"))
+    {
+      snprintf (line, sizeof line, "User-Agent: %s", ua);
+      if (bc_hdr_append (builtin_hdrs, sizeof builtin_hdrs, line) < 0)
+        { bc_error ("header buffer exceeded"); return NULL; }
+    }
+  if (!bc_user_header (o, "Accept"))
+    bc_hdr_append (builtin_hdrs, sizeof builtin_hdrs, "Accept: */*");
+
   size_t body_len = o->body_set ? o->body_len : 0;
-  size_t need = strlen (hdrs) + strlen (u->path) + strlen (u->host)
-              + body_len + strlen (ua) + 512;
+  size_t need = strlen (builtin_hdrs) + strlen (hdrs) + strlen (u->path)
+              + body_len + 512;
   char *req = malloc (need);
-  if (!req) { builtin_error ("out of memory"); return NULL; }
+  if (!req) { bc_error ("out of memory"); return NULL; }
 
   int n;
-  if (body_len)
+  if (o->body_set)
     n = snprintf (req, need,
                   "%s %s HTTP/1.1\r\n"
-                  "Host: %s\r\n"
-                  "User-Agent: %s\r\n"
-                  "Accept: */*\r\n"
+                  "%s"
                   "%s"
                   "Content-Length: %zu\r\n"
                   "Connection: close\r\n"
                   "\r\n",
-                  o->method, u->path, u->host, ua, hdrs, body_len);
+                  o->method, u->path, builtin_hdrs, hdrs, body_len);
   else
     n = snprintf (req, need,
                   "%s %s HTTP/1.1\r\n"
-                  "Host: %s\r\n"
-                  "User-Agent: %s\r\n"
-                  "Accept: */*\r\n"
+                  "%s"
                   "%s"
                   "Connection: close\r\n"
                   "\r\n",
-                  o->method, u->path, u->host, ua, hdrs);
+                  o->method, u->path, builtin_hdrs, hdrs);
   if (n < 0 || (size_t) n >= need)
-    { free (req); builtin_error ("request framing overflow"); return NULL; }
+    { free (req); bc_error ("request framing overflow"); return NULL; }
   if (body_len)
     {
       memcpy (req + n, o->body, body_len);
@@ -329,23 +403,23 @@ bc_slurp_fd_string (int fd, char **out, size_t *out_len)
 {
   size_t cap = 4096, len = 0;
   char *buf = malloc (cap + 1);
-  if (!buf) { builtin_error ("out of memory"); return -1; }
+  if (!buf) { bc_error ("out of memory"); return -1; }
   for (;;)
     {
       if (len == cap)
         {
           if (cap >= BCURL_MAX_RESPONSE)
-            { free (buf); builtin_error ("stdin body exceeds %d bytes", BCURL_MAX_RESPONSE); return -1; }
+            { free (buf); bc_error ("stdin body exceeds %d bytes", BCURL_MAX_RESPONSE); return -1; }
           size_t ncap = cap * 2;
           if (ncap > BCURL_MAX_RESPONSE) ncap = BCURL_MAX_RESPONSE;
           char *nb = realloc (buf, ncap + 1);
-          if (!nb) { free (buf); builtin_error ("out of memory"); return -1; }
+          if (!nb) { free (buf); bc_error ("out of memory"); return -1; }
           buf = nb; cap = ncap;
         }
       ssize_t r = read (fd, buf + len, cap - len);
       if (r < 0)
         { if (errno == EINTR) continue;
-          free (buf); builtin_error ("read stdin: %s", strerror (errno)); return -1; }
+          free (buf); bc_error ("read stdin: %s", strerror (errno)); return -1; }
       if (r == 0) break;
       len += (size_t) r;
     }
@@ -511,7 +585,7 @@ bc_cookie_from_jar (const char *path, const bc_url *u,
   close (fd);
 
   char *scan = malloc (len + 1);
-  if (!scan) { free (buf); builtin_error ("out of memory"); return NULL; }
+  if (!scan) { free (buf); bc_error ("out of memory"); return NULL; }
   memcpy (scan, buf, len + 1);
 
   bc_samesite_meta meta[64];
@@ -535,7 +609,7 @@ bc_cookie_from_jar (const char *path, const bc_url *u,
   free (scan);
 
   char *out = malloc (len + 1);
-  if (!out) { free (buf); builtin_error ("out of memory"); return NULL; }
+  if (!out) { free (buf); bc_error ("out of memory"); return NULL; }
   out[0] = '\0';
   size_t out_len = 0;
   char *save = NULL;
@@ -663,7 +737,7 @@ bc_save_cookie_jar (const char *path, const bc_url *u, const char *hdrs)
   if (!path) return 0;
   FILE *fp = fopen (path, "wb");
   if (!fp)
-    { builtin_error ("%s: %s", path, strerror (errno)); return -1; }
+    { bc_error ("%s: %s", path, strerror (errno)); return -1; }
   fprintf (fp, "# Netscape HTTP Cookie File\n");
   fprintf (fp, "# Generated by curl; domain/path/secure/HttpOnly/Max-Age/Expires/SameSite parsing is implemented.\n");
 
@@ -759,7 +833,7 @@ next_line:
     }
 
   if (fclose (fp) != 0)
-    { builtin_error ("%s: %s", path, strerror (errno)); return -1; }
+    { bc_error ("%s: %s", path, strerror (errno)); return -1; }
   return wrote >= 0 ? 0 : -1;
 }
 
@@ -788,10 +862,12 @@ bc_connect_tcp (const char *host, const char *port, int timeout_s)
     }
   if (rc != 0)
     {
-      builtin_error ("getaddrinfo %s:%s: %s", host, port, gai_strerror (rc));
+      bc_error ("getaddrinfo %s:%s: %s", host, port, gai_strerror (rc));
+      bc_errcode = 6;                     /* CURLE_COULDNT_RESOLVE_HOST */
       return -1;
     }
   int fd = -1;
+  int timed_out = 0;
   for (p = ai; p; p = p->ai_next)
     {
       fd = socket (p->ai_family, SOCK_STREAM | SOCK_CLOEXEC, 0);
@@ -807,7 +883,7 @@ bc_connect_tcp (const char *host, const char *port, int timeout_s)
       FD_ZERO (&wfds); FD_SET (fd, &wfds);
       struct timeval tv = { .tv_sec = timeout_s, .tv_usec = 0 };
       int sr = select (fd + 1, NULL, &wfds, NULL, &tv);
-      if (sr <= 0) { close (fd); fd = -1; continue; }
+      if (sr <= 0) { timed_out |= sr == 0; close (fd); fd = -1; continue; }
 
       int err = 0; socklen_t el = sizeof err;
       if (getsockopt (fd, SOL_SOCKET, SO_ERROR, &err, &el) < 0 || err != 0)
@@ -817,7 +893,10 @@ bc_connect_tcp (const char *host, const char *port, int timeout_s)
     }
   freeaddrinfo (ai);
   if (fd < 0)
-    builtin_error ("cannot connect to %s:%s", host, port);
+    {
+      bc_error ("cannot connect to %s:%s", host, port);
+      bc_errcode = timed_out ? 28 : 7;    /* CURLE_OPERATION_TIMEDOUT / CURLE_COULDNT_CONNECT */
+    }
   return fd;
 }
 
@@ -840,38 +919,38 @@ bc_read_until_close (int fd, int timeout_s, size_t *out_len)
   size_t cap = BCURL_READ_CHUNK;
   size_t got = 0;
   unsigned char *buf = malloc (cap);
-  if (!buf) { builtin_error ("out of memory"); return NULL; }
+  if (!buf) { bc_error ("out of memory"); return NULL; }
 
   time_t deadline = time (NULL) + timeout_s;
   for (;;)
     {
       time_t now = time (NULL);
       if (now >= deadline)
-        { builtin_error ("timeout reading response"); free (buf); return NULL; }
+        { bc_error ("timeout reading response"); bc_errcode = 28; free (buf); return NULL; }
       struct timeval tv = { .tv_sec = deadline - now, .tv_usec = 0 };
       fd_set rfds;
       FD_ZERO (&rfds); FD_SET (fd, &rfds);
       int sr = select (fd + 1, &rfds, NULL, NULL, &tv);
       if (sr < 0)  { if (errno == EINTR) continue;
-                     builtin_error ("select: %s", strerror (errno));
+                     bc_error ("select: %s", strerror (errno));
                      free (buf); return NULL; }
-      if (sr == 0) { builtin_error ("timeout reading response");
-                     free (buf); return NULL; }
+      if (sr == 0) { bc_error ("timeout reading response");
+                     bc_errcode = 28; free (buf); return NULL; }
 
       if (got + BCURL_READ_CHUNK > cap)
         {
           if (cap >= BCURL_MAX_RESPONSE)
-            { builtin_error ("response exceeds %d bytes", BCURL_MAX_RESPONSE);
+            { bc_error ("response exceeds %d bytes", BCURL_MAX_RESPONSE);
               free (buf); return NULL; }
           size_t ncap = cap * 2;
           if (ncap > BCURL_MAX_RESPONSE) ncap = BCURL_MAX_RESPONSE;
           unsigned char *nb = realloc (buf, ncap);
-          if (!nb) { builtin_error ("out of memory"); free (buf); return NULL; }
+          if (!nb) { bc_error ("out of memory"); free (buf); return NULL; }
           buf = nb; cap = ncap;
         }
       ssize_t r = read (fd, buf + got, cap - got);
       if (r < 0) { if (errno == EINTR) continue;
-                   builtin_error ("read: %s", strerror (errno));
+                   bc_error ("read: %s", strerror (errno));
                    free (buf); return NULL; }
       if (r == 0) break;                       /* clean EOF */
       got += (size_t) r;
@@ -898,9 +977,9 @@ bc_https_exchange (const bc_url *u, const char *req, size_t reqlen,
    * internally (its own connect()); we re-check the read clock on the
    * parent side via select() in the read loop below. */
   int in_pipe[2], out_pipe[2];
-  if (pipe (in_pipe) < 0)  { builtin_error ("pipe: %s", strerror (errno)); return NULL; }
+  if (pipe (in_pipe) < 0)  { bc_error ("pipe: %s", strerror (errno)); return NULL; }
   if (pipe (out_pipe) < 0) { close (in_pipe[0]); close (in_pipe[1]);
-                             builtin_error ("pipe: %s", strerror (errno)); return NULL; }
+                             bc_error ("pipe: %s", strerror (errno)); return NULL; }
   struct sigaction chld_dfl, chld_save;
   memset (&chld_dfl, 0, sizeof chld_dfl);
   chld_dfl.sa_handler = SIG_DFL;
@@ -917,7 +996,7 @@ bc_https_exchange (const bc_url *u, const char *req, size_t reqlen,
     { close (in_pipe[0]); close (in_pipe[1]); close (out_pipe[0]); close (out_pipe[1]);
       sigprocmask (SIG_SETMASK, &prev_mask, NULL);
       sigaction (SIGCHLD, &chld_save, NULL);
-      builtin_error ("fork: %s", strerror (errno)); return NULL; }
+      bc_error ("fork: %s", strerror (errno)); return NULL; }
   if (pid == 0)
     {
       sigprocmask (SIG_SETMASK, &prev_mask, NULL);
@@ -975,7 +1054,7 @@ bc_https_exchange (const bc_url *u, const char *req, size_t reqlen,
   /* Push request to child stdin. */
   if (bc_write_all (in_pipe[1], req, reqlen) < 0)
     {
-      builtin_error ("write to tls subshell: %s", strerror (errno));
+      bc_error ("write to tls subshell: %s", strerror (errno));
       close (in_pipe[1]); close (out_pipe[0]);
       while (waitpid (pid, NULL, 0) < 0 && errno == EINTR) ;
       sigprocmask (SIG_SETMASK, &prev_mask, NULL);
@@ -996,7 +1075,7 @@ bc_https_exchange (const bc_url *u, const char *req, size_t reqlen,
    * the response was already piped through and is usable. */
   if (*out_len == 0 && WIFEXITED (wstat) && WEXITSTATUS (wstat) != 0)
     {
-      builtin_error ("tls subshell failed (rc=%d)", WEXITSTATUS (wstat));
+      bc_error ("tls subshell failed (rc=%d)", WEXITSTATUS (wstat));
       free (resp);
       return NULL;
     }
@@ -1103,11 +1182,13 @@ bc_dechunk (unsigned char *body, size_t blen)
 }
 
 static int
-bc_parse_response (unsigned char *raw, size_t rawlen, bc_response *r)
+bc_parse_response (unsigned char *raw, size_t rawlen, int head_request, bc_response *r)
 {
   memset (r, 0, sizeof *r);
+  if (rawlen == 0)
+    { bc_error ("empty reply from server"); bc_errcode = 52; return -1; }
   if (rawlen < 12 || memcmp (raw, "HTTP/", 5) != 0)
-    { builtin_error ("malformed response (no HTTP/ status line)"); return -1; }
+    { bc_error ("malformed response (no HTTP/ status line)"); bc_errcode = 8; return -1; }
   r->status = atoi ((char *) raw + 9);
 
   /* find header/body separator */
@@ -1118,25 +1199,25 @@ bc_parse_response (unsigned char *raw, size_t rawlen, bc_response *r)
     if (raw[i] == '\r' && raw[i+1] == '\n' && raw[i+2] == '\r' && raw[i+3] == '\n')
       { body = i + 4; found = 1; break; }
   if (!found)
-    { builtin_error ("no header/body separator"); return -1; }
+    { bc_error ("no header/body separator"); bc_errcode = 8; return -1; }
 
   size_t hlen = body - 2;       /* keep trailing \r\n before the blank line */
   r->headers = malloc (hlen + 1);
-  if (!r->headers) { builtin_error ("out of memory"); return -1; }
+  if (!r->headers) { bc_error ("out of memory"); return -1; }
   memcpy (r->headers, raw, hlen);
   r->headers[hlen] = '\0';
   r->hlen = hlen;
 
   size_t blen = rawlen - body;
   r->body = malloc (blen ? blen : 1);
-  if (!r->body) { free (r->headers); builtin_error ("out of memory"); return -1; }
+  if (!r->body) { free (r->headers); bc_error ("out of memory"); return -1; }
   if (blen) memcpy (r->body, raw + body, blen);
   r->blen = blen;
 
   if (bc_chunked (r->headers))
     {
       long n = bc_dechunk (r->body, r->blen);
-      if (n < 0) { builtin_error ("malformed chunked body");
+      if (n < 0) { bc_error ("malformed chunked body");
                    free (r->headers); free (r->body); return -1; }
       r->blen = (size_t) n;
     }
@@ -1145,6 +1226,12 @@ bc_parse_response (unsigned char *raw, size_t rawlen, bc_response *r)
       long cl = bc_content_length (r->headers);
       if (cl >= 0 && (size_t) cl < r->blen)
         r->blen = (size_t) cl;
+      /* RFC 9110 6.4.1/9.3.2: HEAD, 1xx, 204 and 304 responses have no
+       * content, whatever Content-Length says; otherwise a short body
+       * means the peer closed early (CURLE_PARTIAL_FILE). */
+      else if (cl >= 0 && (size_t) cl > r->blen && !head_request
+               && r->status >= 200 && r->status != 204 && r->status != 304)
+        r->missing = cl - (long) r->blen;
     }
 
   if (r->status >= 300 && r->status < 400)
@@ -1184,7 +1271,7 @@ bc_emit (const bc_opts *o, const bc_url *u, const bc_response *r)
     {
       fp = fopen (out, "wb");
       if (!fp)
-        { builtin_error ("%s: %s", out, strerror (errno)); return -1; }
+        { bc_error ("%s: %s", out, strerror (errno)); return -1; }
     }
   size_t w = fwrite (r->body, 1, r->blen, fp);
   if (fp != stdout) fclose (fp);
@@ -1203,7 +1290,7 @@ bc_emit_headers (const bc_opts *o, const bc_response *r)
     {
       fp = fopen (o->dump_headers, "wb");
       if (!fp)
-        { builtin_error ("%s: %s", o->dump_headers, strerror (errno)); return -1; }
+        { bc_error ("%s: %s", o->dump_headers, strerror (errno)); return -1; }
     }
   size_t w = fwrite (r->headers, 1, r->hlen, fp);
   if (w == r->hlen)
@@ -1256,12 +1343,12 @@ bc_one_request (const bc_opts *o, const char *url_override, bc_response *out_res
   bc_url u;
   const char *use_url = url_override ? url_override : o->url;
   if (bc_parse_url (use_url, &u) < 0)
-    { builtin_error ("invalid URL: %s", use_url); return -1; }
+    { bc_error ("invalid URL: %s", use_url); bc_errcode = 3; return -1; }
 
   int is_https = (strcasecmp (u.scheme, "https") == 0);
   int is_http  = (strcasecmp (u.scheme, "http")  == 0);
   if (!is_http && !is_https)
-    { builtin_error ("unsupported scheme: %s", u.scheme); return -1; }
+    { bc_error ("unsupported scheme: %s", u.scheme); return -1; }
 
   size_t reqlen = 0;
   char *req = bc_build_request (o, &u, &reqlen);
@@ -1281,14 +1368,14 @@ bc_one_request (const bc_opts *o, const char *url_override, bc_response *out_res
       int fd = bc_connect_tcp (u.host, u.port, connect_timeout);
       if (fd < 0) { free (req); return -1; }
       if (bc_write_all (fd, req, reqlen) < 0)
-        { builtin_error ("write: %s", strerror (errno)); close (fd); free (req); return -1; }
+        { bc_error ("write: %s", strerror (errno)); close (fd); free (req); return -1; }
       raw = bc_read_until_close (fd, timeout, &raw_len);
       close (fd);
     }
   free (req);
   if (!raw) return -1;
 
-  int rc = bc_parse_response (raw, raw_len, out_resp);
+  int rc = bc_parse_response (raw, raw_len, strcmp (o->method, "HEAD") == 0, out_resp);
   free (raw);
   return rc;
 }
@@ -1392,48 +1479,74 @@ bc_add_header_opt (bc_opts *o, const char *arg)
   return EXECUTION_SUCCESS;
 }
 
-static void
-bc_set_data_opt (bc_opts *o, const char *arg)
+/* Append one data option. Like curl, several are joined with '&'. */
+static int
+bc_add_data (bc_opts *o, const char *data, size_t n)
 {
-  o->body = arg;
-  o->body_len = strlen (o->body);
+  size_t sep = o->body_set ? 1 : 0;
+  char *nb = malloc (o->body_len + sep + n + 1);
+  if (!nb) { builtin_error ("out of memory"); return EXECUTION_FAILURE; }
+  if (o->body_set) memcpy (nb, o->body, o->body_len);
+  if (sep) nb[o->body_len] = '&';
+  memcpy (nb + o->body_len + sep, data, n);
+  o->body_len += sep + n;
+  nb[o->body_len] = '\0';
+  free (o->body_alloc);
+  o->body_alloc = nb;
+  o->body = nb;
   o->body_set = 1;
-  if (!strcmp (o->method, "GET")) o->method = "POST";
+  if (!o->method_set && !strcmp (o->method, "GET")) o->method = "POST";
+  return EXECUTION_SUCCESS;
+}
+
+/* Read the bytes named by @- (stdin) or @FILE. */
+static int
+bc_read_data_file (const char *arg, char **out, size_t *out_len)
+{
+  if (!strcmp (arg, "@-"))
+    return bc_slurp_fd_string (STDIN_FILENO, out, out_len) < 0 ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+  int fd = open (arg + 1, O_RDONLY | O_CLOEXEC);
+  if (fd < 0)
+    {
+      builtin_error ("%s: %s", arg + 1, strerror (errno));
+      return EXECUTION_FAILURE;
+    }
+  int rc = bc_slurp_fd_string (fd, out, out_len) < 0 ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+  close (fd);
+  return rc;
+}
+
+/* -d/--data/--data-ascii read @FILE with carriage returns and newlines
+ * stripped; --data-raw (allow_file 0) sends a leading '@' literally. */
+static int
+bc_set_data_opt (bc_opts *o, const char *arg, int allow_file)
+{
+  if (!allow_file || arg[0] != '@')
+    return bc_add_data (o, arg, strlen (arg));
+  char *buf;
+  size_t len, kept = 0;
+  if (bc_read_data_file (arg, &buf, &len) != EXECUTION_SUCCESS)
+    return EXECUTION_FAILURE;
+  for (size_t i = 0; i < len; i++)
+    if (buf[i] != '\r' && buf[i] != '\n')
+      buf[kept++] = buf[i];
+  int rc = bc_add_data (o, buf, kept);
+  free (buf);
+  return rc;
 }
 
 static int
 bc_set_data_binary_opt (bc_opts *o, const char *arg)
 {
-  if (!strcmp (arg, "@-"))
-    {
-      if (bc_slurp_fd_string (STDIN_FILENO, &o->body_alloc, &o->body_len) < 0)
-        return EXECUTION_FAILURE;
-      o->body = o->body_alloc;
-    }
-  else if (arg[0] == '@')
-    {
-      int fd = open (arg + 1, O_RDONLY | O_CLOEXEC);
-      if (fd < 0)
-        {
-          builtin_error ("%s: %s", arg + 1, strerror (errno));
-          return EXECUTION_FAILURE;
-        }
-      if (bc_slurp_fd_string (fd, &o->body_alloc, &o->body_len) < 0)
-        {
-          close (fd);
-          return EXECUTION_FAILURE;
-        }
-      close (fd);
-      o->body = o->body_alloc;
-    }
-  else
-    {
-      o->body = arg;
-      o->body_len = strlen (arg);
-    }
-  o->body_set = 1;
-  if (!strcmp (o->method, "GET")) o->method = "POST";
-  return EXECUTION_SUCCESS;
+  if (arg[0] != '@')
+    return bc_add_data (o, arg, strlen (arg));
+  char *buf;
+  size_t len;
+  if (bc_read_data_file (arg, &buf, &len) != EXECUTION_SUCCESS)
+    return EXECUTION_FAILURE;
+  int rc = bc_add_data (o, buf, len);
+  free (buf);
+  return rc;
 }
 
 static int
@@ -1454,6 +1567,7 @@ bc_apply_short_options (bc_opts *o, const char *w, WORD_LIST **pp)
           arg = p[1] ? p + 1 : NULL;
           if (!arg && bc_next_arg (pp, "-X", &arg) != EXECUTION_SUCCESS) return EX_USAGE;
           o->method = arg;
+          o->method_set = 1;
           return EXECUTION_SUCCESS;
         case 'H':
           arg = p[1] ? p + 1 : NULL;
@@ -1462,8 +1576,7 @@ bc_apply_short_options (bc_opts *o, const char *w, WORD_LIST **pp)
         case 'd':
           arg = p[1] ? p + 1 : NULL;
           if (!arg && bc_next_arg (pp, "-d", &arg) != EXECUTION_SUCCESS) return EX_USAGE;
-          bc_set_data_opt (o, arg);
-          return EXECUTION_SUCCESS;
+          return bc_set_data_opt (o, arg, 1);
         case 'o':
           arg = p[1] ? p + 1 : NULL;
           if (!arg && bc_next_arg (pp, "-o", &arg) != EXECUTION_SUCCESS) return EX_USAGE;
@@ -1518,82 +1631,93 @@ curl_builtin (WORD_LIST *list)
 {
   bc_opts o; memset (&o, 0, sizeof o);
   o.method = "GET";
+  bc_quiet = 0;
+  bc_errcode = 0;
+  /* Parse-time exits (errors, --help, --version) release what -d read. */
+#define BC_PARSE_FAIL(rc) do { free (o.cookie_alloc); free (o.body_alloc); return (rc); } while (0)
 
   for (WORD_LIST *p = list; p; p = p->next)
     {
       const char *w = p->word->word;
       const char *v = NULL;
-      if (!strcmp (w, "--request"))                  { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) return EX_USAGE; o.method = v; }
-      else if ((v = bc_long_eq (w, "--request")))     { o.method = v; }
-      else if (!strcmp (w, "--header"))              { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) return EX_USAGE; int hrc = bc_add_header_opt (&o, v); if (hrc != EXECUTION_SUCCESS) return hrc; }
-      else if ((v = bc_long_eq (w, "--header")))      { int hrc = bc_add_header_opt (&o, v); if (hrc != EXECUTION_SUCCESS) return hrc; }
+      if (!strcmp (w, "--request"))                  { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.method = v; o.method_set = 1; }
+      else if ((v = bc_long_eq (w, "--request")))     { o.method = v; o.method_set = 1; }
+      else if (!strcmp (w, "--header"))              { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); int hrc = bc_add_header_opt (&o, v); if (hrc != EXECUTION_SUCCESS) BC_PARSE_FAIL (hrc); }
+      else if ((v = bc_long_eq (w, "--header")))      { int hrc = bc_add_header_opt (&o, v); if (hrc != EXECUTION_SUCCESS) BC_PARSE_FAIL (hrc); }
       else if (!strcmp (w, "--data") || !strcmp (w, "--data-raw") || !strcmp (w, "--data-ascii"))
-        { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) return EX_USAGE; bc_set_data_opt (&o, v); }
-      else if ((v = bc_long_eq (w, "--data")) || (v = bc_long_eq (w, "--data-raw")) || (v = bc_long_eq (w, "--data-ascii")))
-        { bc_set_data_opt (&o, v); }
+        {
+          if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE);
+          if (bc_set_data_opt (&o, v, strcmp (w, "--data-raw") != 0) != EXECUTION_SUCCESS)
+            BC_PARSE_FAIL (EXECUTION_FAILURE);
+        }
+      else if ((v = bc_long_eq (w, "--data")) || (v = bc_long_eq (w, "--data-ascii")))
+        { if (bc_set_data_opt (&o, v, 1) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EXECUTION_FAILURE); }
+      else if ((v = bc_long_eq (w, "--data-raw")))
+        { if (bc_set_data_opt (&o, v, 0) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EXECUTION_FAILURE); }
       else if (!strcmp (w, "--data-binary"))
         {
-          if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) return EX_USAGE;
+          if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE);
           if (bc_set_data_binary_opt (&o, v) != EXECUTION_SUCCESS)
-            { free (o.body_alloc); return EXECUTION_FAILURE; }
+            BC_PARSE_FAIL (EXECUTION_FAILURE);
         }
-      else if ((v = bc_long_eq (w, "--data-binary"))) { if (bc_set_data_binary_opt (&o, v) != EXECUTION_SUCCESS) { free (o.body_alloc); return EXECUTION_FAILURE; } }
-      else if (!strcmp (w, "--output"))              { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) return EX_USAGE; o.outfile = v; }
+      else if ((v = bc_long_eq (w, "--data-binary"))) { if (bc_set_data_binary_opt (&o, v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EXECUTION_FAILURE); }
+      else if (!strcmp (w, "--output"))              { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.outfile = v; }
       else if ((v = bc_long_eq (w, "--output")))      { o.outfile = v; }
-      else if (!strcmp (w, "--dump-header"))         { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) return EX_USAGE; o.dump_headers = v; }
+      else if (!strcmp (w, "--dump-header"))         { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.dump_headers = v; }
       else if ((v = bc_long_eq (w, "--dump-header"))) { o.dump_headers = v; }
-      else if (!strcmp (w, "--write-out"))           { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) return EX_USAGE; o.write_out = v; }
+      else if (!strcmp (w, "--write-out"))           { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.write_out = v; }
       else if ((v = bc_long_eq (w, "--write-out")))   { o.write_out = v; }
-      else if (!strcmp (w, "--user"))                { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) return EX_USAGE; o.userpass = v; }
+      else if (!strcmp (w, "--user"))                { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.userpass = v; }
       else if ((v = bc_long_eq (w, "--user")))        { o.userpass = v; }
-      else if (!strcmp (w, "--user-agent"))          { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) return EX_USAGE; o.user_agent = v; }
+      else if (!strcmp (w, "--user-agent"))          { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.user_agent = v; }
       else if ((v = bc_long_eq (w, "--user-agent")))  { o.user_agent = v; }
-      else if (!strcmp (w, "--cookie"))              { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) return EX_USAGE; o.cookie = v; o.cookie_input = v; }
+      else if (!strcmp (w, "--cookie"))              { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.cookie = v; o.cookie_input = v; }
       else if ((v = bc_long_eq (w, "--cookie")))      { o.cookie = v; o.cookie_input = v; }
-      else if (!strcmp (w, "--cookie-jar"))          { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) return EX_USAGE; o.cookie_jar = v; }
+      else if (!strcmp (w, "--cookie-jar"))          { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.cookie_jar = v; }
       else if ((v = bc_long_eq (w, "--cookie-jar")))  { o.cookie_jar = v; }
-      else if (!strcmp (w, "--cacert"))              { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) return EX_USAGE; o.cacert = v; }
+      else if (!strcmp (w, "--cacert"))              { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.cacert = v; }
       else if ((v = bc_long_eq (w, "--cacert")))      { o.cacert = v; }
       else if (!strcmp (w, "-k") || !strcmp (w, "--insecure"))   o.insecure = 1;
       else if (!strcmp (w, "-f") || !strcmp (w, "--fail"))       o.fail_on_error = 1;
       else if (!strcmp (w, "-s") || !strcmp (w, "--silent"))     o.silent = 1;
       else if (!strcmp (w, "-S") || !strcmp (w, "--show-error")) o.show_error = 1;
       else if (!strcmp (w, "-L") || !strcmp (w, "--location"))   o.follow = 1;
-      else if (!strcmp (w, "--connect-timeout"))      { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) return EX_USAGE; o.connect_time = atoi (v); }
+      else if (!strcmp (w, "--connect-timeout"))      { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.connect_time = atoi (v); }
       else if ((v = bc_long_eq (w, "--connect-timeout"))) { o.connect_time = atoi (v); }
-      else if (!strcmp (w, "--max-time"))             { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) return EX_USAGE; o.max_time = atoi (v); }
+      else if (!strcmp (w, "--max-time"))             { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.max_time = atoi (v); }
       else if ((v = bc_long_eq (w, "--max-time")))     { o.max_time = atoi (v); }
-      else if (!strcmp (w, "--max-redirs"))           { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) return EX_USAGE; o.max_redirs = atoi (v); }
+      else if (!strcmp (w, "--max-redirs"))           { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.max_redirs = atoi (v); }
       else if ((v = bc_long_eq (w, "--max-redirs")))   { o.max_redirs = atoi (v); }
       else if (!strcmp (w, "--features"))              o.features = 1;
-      else if (!strcmp (w, "--version") || !strcmp (w, "-V")) { bc_version (); free (o.body_alloc); return EXECUTION_SUCCESS; }
-      else if (!strcmp (w, "-h") || !strcmp (w, "--help"))       { bc_usage (); return EXECUTION_SUCCESS; }
+      else if (!strcmp (w, "--version") || !strcmp (w, "-V")) { bc_version (); BC_PARSE_FAIL (EXECUTION_SUCCESS); }
+      else if (!strcmp (w, "-h") || !strcmp (w, "--help"))       { bc_usage (); BC_PARSE_FAIL (EXECUTION_SUCCESS); }
       else if (w[0] == '-' && w[1] != '-' && w[1] != '\0')
         {
           int brc = bc_apply_short_options (&o, w, &p);
-          if (brc != EXECUTION_SUCCESS) return brc;
+          if (brc != EXECUTION_SUCCESS) BC_PARSE_FAIL (brc);
         }
       else if (w[0] == '-' && w[1] != '\0')
-        { builtin_error ("unknown option: %s", w); return EX_USAGE; }
+        { builtin_error ("unknown option: %s", w); BC_PARSE_FAIL (EX_USAGE); }
       else
         {
-          if (o.url) { builtin_error ("extra URL: %s", w); return EX_USAGE; }
+          if (o.url) { builtin_error ("extra URL: %s", w); BC_PARSE_FAIL (EX_USAGE); }
           o.url = w;
         }
     }
-  if (o.features) { bc_features (); free (o.body_alloc); return EXECUTION_SUCCESS; }
-  if (!o.url) { bc_usage (); return EX_USAGE; }
+  if (o.features) { bc_features (); BC_PARSE_FAIL (EXECUTION_SUCCESS); }
+  if (!o.url) { bc_usage (); BC_PARSE_FAIL (EX_USAGE); }
 
   /* Coalesce silent/show_error: -s -S keeps error diagnostics, -s alone
    * suppresses them. The bash builtin_error path always goes to stderr;
    * we just gate the call. */
   int show_errs = (!o.silent) || o.show_error;
+  bc_quiet = !show_errs;
 
   char cur_url[BCURL_URL_MAX];
   if (snprintf (cur_url, sizeof cur_url, "%s", o.url) >= (int) sizeof cur_url)
     {
       builtin_error ("URL is longer than %d bytes", BCURL_URL_MAX - 1);
-      return EX_USAGE;
+      BC_PARSE_FAIL (EX_USAGE);
     }
   bc_url start_url;
   int have_start_url = bc_parse_url (cur_url, &start_url) == 0;
@@ -1620,21 +1744,22 @@ curl_builtin (WORD_LIST *list)
                 o.cookie = o.cookie_alloc;
             }
         }
+      bc_errcode = 0;
       rc = bc_one_request (&o, cur_url, &r);
       if (rc < 0)
         {
-          if (!show_errs)
-            { /* swallow the builtin_error diagnostic by not adding more */ }
+          /* bc_error already honoured -s; report curl's code when known. */
           free (o.cookie_alloc);
           free (o.body_alloc);
-          return EXECUTION_FAILURE;
+          return bc_errcode ? bc_errcode : EXECUTION_FAILURE;
         }
       if (o.follow && r.status >= 300 && r.status < 400 && (r.location[0] || r.location_too_long))
         {
           int rcap = o.max_redirs > 0 ? o.max_redirs : BCURL_MAX_REDIRECTS;
           if (++redirects > rcap)
-            { if (show_errs) builtin_error ("too many redirects (>%d)", rcap);
-              bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc); return EXECUTION_FAILURE; }
+            { bc_curl_error (47, "Maximum (%d) redirects followed", rcap);
+              bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc);
+              return 47; /* CURLE_TOO_MANY_REDIRECTS */ }
           if (r.location_too_long)
             { if (show_errs) builtin_error ("redirect target is longer than %d bytes", BCURL_URL_MAX - 1);
               bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc); return EXECUTION_FAILURE; }
@@ -1643,6 +1768,17 @@ curl_builtin (WORD_LIST *list)
             { if (show_errs) builtin_error ("bad redirect target: %s", r.location);
               bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc); return EXECUTION_FAILURE; }
           snprintf (cur_url, sizeof cur_url, "%s", next);
+          /* RFC 9110 15.4: 303 is retrieved with GET, and curl also turns a
+           * POST into GET on 301/302. 307/308 and an explicit -X keep the
+           * method and content. */
+          if (!o.method_set && strcmp (o.method, "HEAD") != 0
+              && (r.status == 303
+                  || ((r.status == 301 || r.status == 302) && !strcmp (o.method, "POST"))))
+            {
+              o.method = "GET";
+              o.body_set = 0;
+              o.body_len = 0;
+            }
           bc_response_free (&r);
           continue;
         }
@@ -1651,8 +1787,7 @@ curl_builtin (WORD_LIST *list)
 
   if (o.fail_on_error && r.status >= 400)
     {
-      if (show_errs)
-        builtin_error ("HTTP %d", r.status);
+      bc_curl_error (22, "The requested URL returned error: %d", r.status);
       bc_response_free (&r);
       free (o.cookie_alloc);
       free (o.body_alloc);
@@ -1673,14 +1808,14 @@ curl_builtin (WORD_LIST *list)
       bc_response_free (&r);
       free (o.cookie_alloc);
       free (o.body_alloc);
-      return EXECUTION_FAILURE;
+      return 23; /* CURLE_WRITE_ERROR */
     }
   if (bc_emit (&o, &eu, &r) < 0)
     {
       bc_response_free (&r);
       free (o.cookie_alloc);
       free (o.body_alloc);
-      return EXECUTION_FAILURE;
+      return 23; /* CURLE_WRITE_ERROR */
     }
   if (bc_emit_write_out (&o, &r) < 0)
     {
@@ -1690,10 +1825,18 @@ curl_builtin (WORD_LIST *list)
       return EXECUTION_FAILURE;
     }
 
+  /* The received part was written, as curl does, before reporting it. */
+  long missing = r.missing;
   bc_response_free (&r);
   free (o.cookie_alloc);
   free (o.body_alloc);
+  if (missing > 0)
+    {
+      bc_curl_error (18, "end of response with %ld bytes missing", missing);
+      return 18; /* CURLE_PARTIAL_FILE */
+    }
   return EXECUTION_SUCCESS;
+#undef BC_PARSE_FAIL
 }
 
 char *curl_doc[] = {
