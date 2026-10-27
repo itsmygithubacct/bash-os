@@ -104,9 +104,18 @@
     },
     {
       "id": "default-system-roots",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise the implicit /bin, /bash-os, and /etc/bash-os roots against a controlled installed-system image.",
-      "reason": "No privilege is needed. Default roots resolve under --root (loadables/integrity.c:592-596, :643), so a relative fixture tree covers them in the legacy runner. The implicit-/ variant needs a per-side chroot built by a USERNS in the plain driver. No fixture exists."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-integrity-default-roots-chroot"
+        },
+        {
+          "group": "shell",
+          "id": "migration-integrity-default-roots-relative"
+        }
+      ]
     },
     {
       "id": "verify-independent-manifest",

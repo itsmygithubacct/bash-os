@@ -93,9 +93,30 @@
     },
     {
       "id": "default_accounting_paths_deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise login/logout and boot/shutdown against the loadable's default accounting locations and validate effects on the operating-system session databases.",
-      "reason": "Default-path integration never executed; the candidate hard-codes absolute paths, but a private user+mount namespace can substitute driver/fixture-owned files without touching the VM's real accounting databases."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/utmp/boot_shutdown_relative_wtmp"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/utmp/btmp_record_relative_path_roundtrip"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/utmp/dump_independent_fixed_width_records"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/utmp/login_logout_relative_path_lifecycle"
+        },
+        {
+          "group": "shell",
+          "id": "migration-utmp-default-accounting-paths"
+        }
+      ]
     }
   ]
 }

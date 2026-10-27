@@ -12734,32 +12734,53 @@
         "purpose": "Check -i, -I, and -A formatting, token order, duplicate handling, and empty-result behavior with deterministic resolver and interface data.",
         "reason": "Live resolver and interface discovery requires a future disposable VM with reviewed resolver/getifaddrs mocks and independent expected discovery results. The runnable text-file hooks cover rendering only and do not establish live discovery or deduplication behavior."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Discovery and deduplication never executed; all obligations are reachable with an unprivileged user+net+mount+uts namespace in the plain driver and Debian hostname 3.25 as reference.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-I enumerates UP, non-loopback AF_INET/AF_INET6 addresses (skipping IPv6 link-local) from getifaddrs in interface order with GNU's trailing-space format.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The fixture hook cases only render supplied tokens. Deterministic interfaces need CAP_NET_ADMIN only over a private netns: reachable unprivileged with a user+net namespace in the plain driver (dummy interfaces with fixed addresses).",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-hostname-discovery-netns",
+              "assertion": "In a user+net+uts+mount namespace, -I prints '192.0.2.10 198.51.100.7 203.0.113.77 2001:db8::10 ' (UP d0 and tun t0; DOWN d1, loopback and the fe80::10 link-local skipped; trailing space) for every hostname under both nsswitch configurations, and an empty line after d0 is flushed and t0 is down, identical to Debian hostname 3.25.",
+              "definition_sha256": "d70f68206c7bbc321cb953a45358a1b608e4fa2fd1bf063bada69c694b8760af"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r2",
           "behavior": "-i resolves the current hostname via getaddrinfo against a deterministic /etc/hosts, deduplicating addresses, no trailing space; empty line on resolver failure.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs a controlled /etc/hosts and UTS name: user+mount+uts namespace (bind-mount a fixture hosts file, set the private hostname).",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-hostname-discovery-netns",
+              "assertion": "-i for fx prints 192.0.2.10 on both. For 'multi' GNU prints '2001:db8::10 192.0.2.10 198.51.100.7 192.0.2.10' (no deduplication) where the candidate drops the repeated address; for an unresolvable name GNU prints 'hostname: Name or service not known' with status 1 where the candidate prints an empty line with status 0; with myhostname GNU prints the link-local as 'fe80::10%d0' and the candidate 'fe80::10'. Parity FAIL (the requirement's 'deduplicating' and 'empty line on failure' describe the candidate, not GNU).",
+              "definition_sha256": "d70f68206c7bbc321cb953a45358a1b608e4fa2fd1bf063bada69c694b8760af"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r3",
           "behavior": "-A prints FQDNs from canonical names / reverse lookups (names containing a dot), deduplicated; empty when none.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same namespace fixture; reverse lookup through the fixture /etc/hosts.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-hostname-discovery-netns",
+              "assertion": "GNU -A reverse-resolves every configured interface address ('fx.example.test alias.example.test tun.example.test fx6.example.test ', trailing space; empty line with no addresses) regardless of the hostname; the candidate resolves the hostname instead ('fx.example.test', 'fx6.example.test fx.example.test alias.example.test', empty for an unresolvable name, and 'fx.example.test' with no interface addresses). With nsswitch 'files myhostname' and an unresolvable hostname the static build's -A segfaults (namespace status 139, reproduced in runs 72 and 73); the dynamic build prints four names. Parity FAIL.",
+              "definition_sha256": "d70f68206c7bbc321cb953a45358a1b608e4fa2fd1bf063bada69c694b8760af"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
@@ -12778,7 +12799,7 @@
           "scope_note": "Hook-only rendering; not discovery or deduplication."
         }
       ],
-      "notes": "Source: loadables/hostname.c:138-262 (dry-run :251-254 stderr audit, length check :242 rejects nlen >= HOST_NAME_MAX (64), slash :247, sethostname :256), -I getifaddrs :266-308, -i getaddrinfo :310-352, -A :354-420. Unprivileged user namespaces are available in the image (legacy bwrap --unshare-user runs as uid 2000)."
+      "notes": "takeover-g-72/73 on both builds. Static-build crash: reverse lookup through the myhostname NSS module."
     },
     {
       "topic": "hostname/dry-run-syscall-proof",
@@ -13747,40 +13768,74 @@
         "purpose": "Exercise the implicit /bin, /bash-os, and /etc/bash-os roots against a controlled installed-system image.",
         "reason": "Requires a disposable VM image containing a deliberately small fixture tree at those absolute system paths and an independently prepared manifest with controlled metadata. The current fixture runner permits only relative fixture paths and must not inspect host/system paths."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No privilege is needed. Default roots resolve under --root (loadables/integrity.c:592-596, :643), so a relative fixture tree covers them in the legacy runner. The implicit-/ variant needs a per-side chroot built by a USERNS in the plain driver. No fixture exists.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "With no selectors, emit-manifest uses the implicit roots /bin, /bash-os, /etc/bash-os relative to --root and emits rows for files under them in lexical order",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case omits selectors; the defaults apply under an explicit relative --root, which the legacy runner can test now."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-integrity-default-roots-relative",
+              "assertion": "emit-manifest, snapshot, --no-header and a bare '--' under --root fx walk only /bin, /bash-os, /etc/bash-os (6 rows incl. a symlink, a nested file and a 4750 mode; usr/, etc/other/ and top.txt excluded) in bytewise order, byte-identical to the independent manifest renderer.",
+              "definition_sha256": "6a6b843a0727beb1b1650db93d6a208e410bd429b383db354e001affd28885fe"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Missing default roots are ignored (documented \"like the shell wrapper\"), a root whose parent is missing behaves as documented",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-integrity-default-roots-relative",
+              "assertion": "A tree with /etc but no /bash-os or /etc/bash-os emits its 2 /bin rows (status 0). A tree with no /etc at all fails: 'integrity: walk /etc/bash-os: No such file or directory', status 1, no output, although the source documents 'Missing paths are ignored like the shell wrapper' (bi_open_parent returns ENOENT for the missing parent). Contract FAIL.",
+              "definition_sha256": "6a6b843a0727beb1b1650db93d6a208e410bd429b383db354e001affd28885fe"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "With neither --root nor selectors, the implicit / root and the three system roots of an installed-system image are walked",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs a fixture system tree at /bin, /bash-os, /etc/bash-os. A USERNS can chroot (CAP_SYS_CHROOT in its user ns) into a tmpfs root holding those dirs plus ro binds of /usr and the candidate; unprivileged."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-integrity-default-roots-chroot",
+              "assertion": "In a user-namespace chroot with real /bin, /bash-os and /etc/bash-os directories, emit-manifest and snapshot with neither --root nor selectors print '# root=/' and the 6 default-root rows, identical to the oracle run inside the chroot. PASS.",
+              "definition_sha256": "c81e0a0e00d0f3b62c3bd6d3a7dd511fa8835b53c621808843adeeb11f18d802"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "verify with default roots reports changed/added/missing against an independently prepared manifest",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-integrity-default-roots-relative",
+              "assertion": "verify against an independently written manifest is silent with status 0, then after mutation reports 'changed /bin/link', 'changed /bin/one', 'missing /etc/bash-os/conf', 'added /bash-os/new' with status 1, exactly as computed by the oracle.",
+              "definition_sha256": "6a6b843a0727beb1b1650db93d6a208e410bd429b383db354e001affd28885fe"
+            },
+            {
+              "group": "shell",
+              "id": "migration-integrity-default-roots-chroot",
+              "assertion": "The same clean and mutated verify reports with neither --root nor selectors inside the chroot. PASS.",
+              "definition_sha256": "c81e0a0e00d0f3b62c3bd6d3a7dd511fa8835b53c621808843adeeb11f18d802"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Existing related contract evidence (relative --root with explicit selectors): legacy/integrity/sorted-exclusion, legacy/integrity/verify-independent-manifest; they do not omit selectors, so they do not cover the default roots. Candidate: bi_default_roots loadables/integrity.c:591-597, missing path ignore :327-331."
+      "notes": "takeover-g-72/73 on both builds: chroot contract PASS, relative contract FAIL only on the missing-parent tree."
     },
     {
       "topic": "ionice/argument-validation",
@@ -30042,33 +30097,54 @@
         "purpose": "Localized %b and %B parsing outside the C locale.",
         "reason": "Requires a future disposable image with a pinned non-C locale and its locale database installed on both reference and candidate sides. The runner forces LC_ALL=C, so this fixture cannot make a stable localized-name assertion here."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "The image installs the `locales` package (i18n sources under /usr/share/i18n) but generates no non-C locale. A fixture can run `localedef -i de_DE -f UTF-8 ./loc/de_DE.UTF-8` as uid 2000 into its own directory and point LOCPATH at it; whether the static candidate's setlocale honours LOCPATH must be recorded (a refusal is a visible FAIL, not a skip).",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "%b/%B parse localized month names in a non-C locale.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strptime-localized-de",
+              "assertion": "With de_DE.UTF-8 compiled by localedef into a private LOCPATH (shell and Python strftime controls print 'Januar Jan Donnerstag Do' on both sides), %B/%b parse M\u00e4rz, Okt, Dezember, lowercase m\u00e4rz and Mai to the same epoch seconds as Python datetime.strptime.",
+              "definition_sha256": "6f0dad575b58c3cf39352d136ba4f62c0df695e89b541780c0a0e3549fc07136"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "%a/%A localized weekday names.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strptime-localized-de",
+              "assertion": "%A/%a parse Freitag, Fr and Sonntag (with literal ', ' and '. ') to the same epoch seconds as Python.",
+              "definition_sha256": "6f0dad575b58c3cf39352d136ba4f62c0df695e89b541780c0a0e3549fc07136"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Non-matching (C-locale English) names fail under the localized locale.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strptime-localized-de",
+              "assertion": "English weekday names (Friday, Fri) fail on both sides, but the candidate (glibc strptime(3), which also matches C-locale month names) accepts '15 March 2024' and '03 Oct 2024' under de_DE where Python rejects them. Parity FAIL.",
+              "definition_sha256": "6f0dad575b58c3cf39352d136ba4f62c0df695e89b541780c0a0e3549fc07136"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Requires ~1 s of localedef in the case; output size well below the 1 MiB/8 MiB file limits."
+      "notes": "takeover-g-73 on both builds (run 72 was invalid: localedef needs gzip on PATH and an in-shell LOCPATH export does not reach glibc setlocale)."
     },
     {
       "topic": "su/argument-and-usage-behavior",
@@ -35132,32 +35208,53 @@
         "purpose": "Exercise login/logout and boot/shutdown against the loadable's default accounting locations and validate effects on the operating-system session databases.",
         "reason": "Requires a disposable VM with private /var/run/utmp, /var/log/wtmp, and /var/log/lastlog files, plus a controlled passwd entry and an independent utmpdump/who/last reader. Default paths are intentionally not opened in this suite."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Default-path integration never executed; the candidate hard-codes absolute paths, but a private user+mount namespace can substitute driver/fixture-owned files without touching the VM's real accounting databases.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "login/logout without -u/-w/-l write /var/run/utmp, /var/log/wtmp and /var/log/lastlog (compile-time defaults) with the same record contents verified for explicit paths.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case touches the default paths (absolute constants, loadables/utmp.c:67-70; no environment override). Reachable unprivileged in the modern plain driver with a user+mount namespace in which private tmpfs files are bind-mounted over /run/utmp, /var/log/wtmp, /var/log/lastlog, /var/log/btmp; the controlled passwd entry is a bind-mounted fixture /etc/passwd.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-utmp-default-accounting-paths",
+              "assertion": "In a user+mount namespace (tmpfs /run and /var/log, fixture /etc/passwd), login/logout without -u/-w/-l write /run/utmp (DEAD pts/7, USER bob pts/8), /var/log/wtmp (5 records) and /var/log/lastlog (uid 11 pts/7 host.example, uid 12 pts/8; 13 sparse slots) with pid = shell parent and times inside the run bracket; the same sequence on explicit paths yields identical records. PASS.",
+              "definition_sha256": "5c9cd67d7254d73a5737d7664bc5bf6885dd33baa33bc63f176b9609e92bcd5e"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r2",
           "behavior": "boot/shutdown without a path append reboot/shutdown records to /var/log/wtmp; dump and btmp read default to /var/run/utmp and /var/log/btmp.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same namespace fixture.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-utmp-default-accounting-paths",
+              "assertion": "boot and shutdown without a path append BOOT_TIME 'reboot' and RUN_LVL 'shutdown' to /var/log/wtmp; btmp record without -f appends to /var/log/btmp; dump, btmp read and lastlog dump without a path read /var/run/utmp, /var/log/btmp and /var/log/lastlog and match the documented listing formats exactly. PASS.",
+              "definition_sha256": "5c9cd67d7254d73a5737d7664bc5bf6885dd33baa33bc63f176b9609e92bcd5e"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r3",
           "behavior": "Effects are validated with an independent session-database reader (record layout decoder and, where available, coreutils who / util-linux utmpdump/last reading the same files).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The python struct decoder is available; Debian 13 uses wtmpdb/lastlog2, so whether a utmpdump/last binary that reads classic files is installed must be preflighted; coreutils 'who FILE' may read the file argument. Same namespace fixture.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-utmp-default-accounting-paths",
+              "assertion": "Independent struct utmp/lastlog decoder (uobs.py) checks type, line, id, user, host, pid and time of every record; GNU who -q reads byte copies of utmp (bob), wtmp (alice bob) and btmp (mallory). util-linux utmpdump/last are not installed on the image. PASS.",
+              "definition_sha256": "5c9cd67d7254d73a5737d7664bc5bf6885dd33baa33bc63f176b9609e92bcd5e"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
@@ -35194,7 +35291,7 @@
           "scope_note": "Explicit-path behaviour only; distinct from the default-path obligation."
         }
       ],
-      "notes": "Source: loadables/utmp.c:67-70 (BU_UTMP /var/run/utmp, BU_WTMP, BU_BTMP, BU_LASTLOG), options -u/-w/-l at :300-320. All 8 executed utmp cases PASS on both builds."
+      "notes": "takeover-g-72/73 contract PASS on both builds."
     },
     {
       "topic": "uudecode/dev-stdout-alias",
@@ -36654,26 +36751,52 @@
         "purpose": "Compare discovery and reporting of live login records through the default /var/run/utmp path.",
         "reason": "Requires a future disposable VM with a synthetic /var/run/utmp image or a safely injected utmp path and GNU who reading the same controlled sessions. The isolated runner intentionally does not expose the host login database."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Both GNU who and the candidate default to /var/run/utmp. uid 2000 cannot write /run/utmp or mount over it in the initial namespaces, and the VM's own /run/utmp (whatever systemd wrote, possibly absent) is not a representative fixture. Inside an unprivileged user+mount namespace a case can bind its own utmp fixture over /run/utmp for both sides, so no root capability is needed.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Without a FILE operand who reads the default database /var/run/utmp.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case reads the default path."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-who-default-utmp-contract",
+              "assertion": "In a user+mount namespace with a synthetic /run/utmp, who without FILE prints exactly what it prints for an explicit byte copy for all 13 option sets (default, -q, -b, -H, -s, -l, -d, -r, -p, -a, -T, -u, -Hu), with the expected record counts and no diagnostics.",
+              "definition_sha256": "2e5e6d69ffbfc123176c507d27527285be0a4efedff6debcff7a3a5b00f21e17"
+            },
+            {
+              "group": "shell",
+              "id": "migration-who-default-utmp-namespace",
+              "assertion": "The candidate lists alice and bob from the default path, /var/run/utmp and /run/utmp.",
+              "definition_sha256": "b4e6afcef696617a983f6eeb87401a80fe8d2cf100c40ed54eb0c03e5d80d746"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Live login records are discovered and reported identically to GNU who.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The VM's own /run/utmp content is whatever systemd/sshd wrote (possibly absent on Debian 13), so it is not a representative fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-who-default-utmp-contract",
+              "assertion": "Against GNU who reading the same records from a copy at a non-default path: 11 of 13 option sets identical; -r and -a differ only on the run-level record, where GNU prints 'last=S' for a previous run level 'N' and the candidate 'last=N'. Contract FAIL.",
+              "definition_sha256": "2e5e6d69ffbfc123176c507d27527285be0a4efedff6debcff7a3a5b00f21e17"
+            },
+            {
+              "group": "shell",
+              "id": "migration-who-default-utmp-namespace",
+              "assertion": "GNU who 9.7 (Debian, linked with libsystemd) does not read user records from the utmp file at the default path, even when /var/run/utmp is named explicitly: it reports logind sessions (none in the namespace), so default/-q/-H/-a/'who /var/run/utmp' print no users while the candidate lists the file's two users; both print the file's boot record for -b; 'who /run/utmp' (a different string) makes GNU read the file and both agree. 'who am i' is rejected by the candidate ('extra operand: i', status 1). Parity FAIL.",
+              "definition_sha256": "b4e6afcef696617a983f6eeb87401a80fe8d2cf100c40ed54eb0c03e5d80d746"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "who.c:21 BW_DEFAULT_PATH /var/run/utmp (symlink to /run)."
+      "notes": "takeover-g-72/73 on both builds. The parity case records a reference-model divergence: on this image GNU who's default path means logind, not /var/run/utmp."
     },
     {
       "topic": "who/terminal-state",
@@ -36683,33 +36806,54 @@
         "purpose": "Qualify actual idle durations, writable-terminal signs, and positive current-terminal matching.",
         "reason": "Requires reviewed stat/clock/ttyname mocks or a disposable PTY setup with private synthetic session records. Current fixtures exercise unknown-terminal markers and the no-matching-terminal case only; no live terminal or session database is inspected."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "The PTY driver gives the case a real /dev/pts/N owned by uid 2000 (terminal.py fchown of the slave), so the case can chmod g+w/g-w it and set its atime with touch -a, and a private utmp FILE can name that line. GNU who reads the same FILE.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-T/-w message status '+' or '-' from the terminal's group-write bit.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Only unknown-terminal '?' markers execute (field-boundaries/selection-and-headers use lines with no device)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-who-terminal-state-pty",
+              "assertion": "who -T over real ptys owned by the side (devpts gid 5): mode 0620 prints '+', 0600 '-', /dev/null '+', missing pts/999 '?', identical to GNU who 9.7. who -w (GNU alias of -T) is rejected by the candidate ('invalid option: -w', status 1). Parity FAIL.",
+              "definition_sha256": "9c9530a6a4492b9fe6dbe763f753a2d30bd6979eec7554e2762c2f0aa7a73363"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "-u idle durations computed from the terminal's access time ('.' when active, HH:MM, 'old').",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed with a real terminal."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-who-terminal-state-pty",
+              "assertion": "who -u/-Tu/-a: access time 10 s ago prints '  .', 3725 s '01:02', 90000 s ' old' and a missing line '  ?', identical to GNU. Differences: a future access time prints '  .' (GNU ' old'), and an access time older than a preceding BOOT_TIME record prints '00:33' (GNU ' old', which compares against the boot record). Parity FAIL.",
+              "definition_sha256": "9c9530a6a4492b9fe6dbe763f753a2d30bd6979eec7554e2762c2f0aa7a73363"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "-m positive match: only the record for the current terminal (ttyname(stdin)).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Only the no-match -m case executes."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-who-terminal-state-pty",
+              "assertion": "With stdin redirected from a given pty (in a subshell), who -m, -mT, -mu and -mH select only that terminal's records, identical to GNU; without a terminal on stdin -m prints nothing on both. who -q -m filters to the terminal (u3, users=1) where GNU ignores -m under -q (all five names). Parity FAIL.",
+              "definition_sha256": "9c9530a6a4492b9fe6dbe763f753a2d30bd6979eec7554e2762c2f0aa7a73363"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "who.c:124 ttyname(STDIN_FILENO); :150-152 stat of the terminal for '+'/'-' and idle."
+      "notes": "takeover-g-72/73 on both builds, identical outputs. LC_ALL=C: under the harness default C.UTF-8, GNU who 9.7 prints ISO times (2023-11-14 22:13) while the candidate always prints '%b %e %H:%M' (seen in probe-g-71; not part of this topic)."
     },
     {
       "topic": "whoami/unmapped-effective-uid",

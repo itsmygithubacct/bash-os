@@ -135,9 +135,14 @@
     },
     {
       "id": "localized-month-names",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Localized %b and %B parsing outside the C locale.",
-      "reason": "The image installs the `locales` package (i18n sources under /usr/share/i18n) but generates no non-C locale. A fixture can run `localedef -i de_DE -f UTF-8 ./loc/de_DE.UTF-8` as uid 2000 into its own directory and point LOCPATH at it; whether the static candidate's setlocale honours LOCPATH must be recorded (a refusal is a visible FAIL, not a skip)."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-strptime-localized-de"
+        }
+      ]
     },
     {
       "id": "iso-week-consumption",

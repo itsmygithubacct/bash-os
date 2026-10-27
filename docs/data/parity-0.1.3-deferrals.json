@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "5c890bbdd1794899e09b56797d872b1056e5040044286febbb610bb9633c2deb",
+  "ledger_sha256": "7e3e9b8534d5377098f77c9357e822705af1debb9d33fe503c60858c433571d2",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 108,
-    "none": 311,
-    "full": 181
+    "partial": 106,
+    "none": 307,
+    "full": 187
   },
   "migrations": {
-    "deferred": 419,
-    "replacement": 181
+    "deferred": 413,
+    "replacement": 187
   },
   "pending_full_topics": [],
   "builds": {
@@ -1679,6 +1679,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793124032.6172583
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "takeover-g-static-73",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 8,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "0d5430f6694a2be5120ccf4952f8d59f6f7eacb28031b0d6bf46c2e3b7f7cbf9",
+            "provenance.json": "6bc0b498ea1d5b5b75e24e9be3fc13a832ba4b83b6f041131b3159a9d40832f1",
+            "payload.tar": "2316ff31bf5fbed4eae92600d27236c78cbda941c5f6af3df5723057b4e0a48a",
+            "evidence.tar": "f998f9fcc5a4d08f74beaf4ce120c1b649b8deaf8098ec2abddefc93f2eedf51"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793144679.7641323
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -14925,37 +14951,58 @@
         },
         {
           "topic": "hostname/address-discovery-modes",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-I enumerates UP, non-loopback AF_INET/AF_INET6 addresses (skipping IPv6 link-local) from getifaddrs in interface order with GNU's trailing-space format.",
-              "coverage": "missing",
-              "gap": "The fixture hook cases only render supplied tokens. Deterministic interfaces need CAP_NET_ADMIN only over a private netns: reachable unprivileged with a user+net namespace in the plain driver (dummy interfaces with fixed addresses).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-hostname-discovery-netns",
+                  "status": "FAIL",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "-i resolves the current hostname via getaddrinfo against a deterministic /etc/hosts, deduplicating addresses, no trailing space; empty line on resolver failure.",
-              "coverage": "missing",
-              "gap": "Needs a controlled /etc/hosts and UTS name: user+mount+uts namespace (bind-mount a fixture hosts file, set the private hostname).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-hostname-discovery-netns",
+                  "status": "FAIL",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "-A prints FQDNs from canonical names / reverse lookups (names containing a dot), deduplicated; empty when none.",
-              "coverage": "missing",
-              "gap": "Same namespace fixture; reverse lookup through the fixture /etc/hosts.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-hostname-discovery-netns",
+                  "status": "FAIL",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -15921,46 +15968,80 @@
         },
         {
           "topic": "integrity/default-system-roots",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "With no selectors, emit-manifest uses the implicit roots /bin, /bash-os, /etc/bash-os relative to --root and emits rows for files under them in lexical order",
-              "coverage": "missing",
-              "gap": "No case omits selectors; the defaults apply under an explicit relative --root, which the legacy runner can test now.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-integrity-default-roots-relative",
+                  "status": "FAIL",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Missing default roots are ignored (documented \"like the shell wrapper\"), a root whose parent is missing behaves as documented",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-integrity-default-roots-relative",
+                  "status": "FAIL",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "With neither --root nor selectors, the implicit / root and the three system roots of an installed-system image are walked",
-              "coverage": "missing",
-              "gap": "Needs a fixture system tree at /bin, /bash-os, /etc/bash-os. A USERNS can chroot (CAP_SYS_CHROOT in its user ns) into a tmpfs root holding those dirs plus ro binds of /usr and the candidate; unprivileged.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-integrity-default-roots-chroot",
+                  "status": "PASS",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "verify with default roots reports changed/added/missing against an independently prepared manifest",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-integrity-default-roots-relative",
+                  "status": "FAIL",
+                  "run": "takeover-g-static-73"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-integrity-default-roots-chroot",
+                  "status": "PASS",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -32783,37 +32864,58 @@
         },
         {
           "topic": "strptime/localized-month-names",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "%b/%B parse localized month names in a non-C locale.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strptime-localized-de",
+                  "status": "FAIL",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "%a/%A localized weekday names.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strptime-localized-de",
+                  "status": "FAIL",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Non-matching (C-locale English) names fail under the localized locale.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strptime-localized-de",
+                  "status": "FAIL",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -38027,37 +38129,58 @@
         },
         {
           "topic": "utmp/default_accounting_paths_deferred",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "login/logout without -u/-w/-l write /var/run/utmp, /var/log/wtmp and /var/log/lastlog (compile-time defaults) with the same record contents verified for explicit paths.",
-              "coverage": "missing",
-              "gap": "No case touches the default paths (absolute constants, loadables/utmp.c:67-70; no environment override). Reachable unprivileged in the modern plain driver with a user+mount namespace in which private tmpfs files are bind-mounted over /run/utmp, /var/log/wtmp, /var/log/lastlog, /var/log/btmp; the controlled passwd entry is a bind-mounted fixture /etc/passwd.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-utmp-default-accounting-paths",
+                  "status": "PASS",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "boot/shutdown without a path append reboot/shutdown records to /var/log/wtmp; dump and btmp read default to /var/run/utmp and /var/log/btmp.",
-              "coverage": "missing",
-              "gap": "Same namespace fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-utmp-default-accounting-paths",
+                  "status": "PASS",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Effects are validated with an independent session-database reader (record layout decoder and, where available, coreutils who / util-linux utmpdump/last reading the same files).",
-              "coverage": "missing",
-              "gap": "The python struct decoder is available; Debian 13 uses wtmpdb/lastlog2, so whether a utmpdump/last binary that reads classic files is installed must be preflighted; coreutils 'who FILE' may read the file argument. Same namespace fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-utmp-default-accounting-paths",
+                  "status": "PASS",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -39583,64 +39706,111 @@
         },
         {
           "topic": "who/live_default_utmp",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Without a FILE operand who reads the default database /var/run/utmp.",
-              "coverage": "missing",
-              "gap": "No case reads the default path.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-who-default-utmp-contract",
+                  "status": "FAIL",
+                  "run": "takeover-g-static-73"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-who-default-utmp-namespace",
+                  "status": "FAIL",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Live login records are discovered and reported identically to GNU who.",
-              "coverage": "missing",
-              "gap": "The VM's own /run/utmp content is whatever systemd/sshd wrote (possibly absent on Debian 13), so it is not a representative fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-who-default-utmp-contract",
+                  "status": "FAIL",
+                  "run": "takeover-g-static-73"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-who-default-utmp-namespace",
+                  "status": "FAIL",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "who/terminal-state",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-T/-w message status '+' or '-' from the terminal's group-write bit.",
-              "coverage": "missing",
-              "gap": "Only unknown-terminal '?' markers execute (field-boundaries/selection-and-headers use lines with no device).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-who-terminal-state-pty",
+                  "status": "FAIL",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "-u idle durations computed from the terminal's access time ('.' when active, HH:MM, 'old').",
-              "coverage": "missing",
-              "gap": "Not executed with a real terminal.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-who-terminal-state-pty",
+                  "status": "FAIL",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "-m positive match: only the record for the current terminal (ttyname(stdin)).",
-              "coverage": "missing",
-              "gap": "Only the no-match -m case executes.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-who-terminal-state-pty",
+                  "status": "FAIL",
+                  "run": "takeover-g-static-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -40116,9 +40286,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 419,
-        "FAIL": 79,
-        "PASS": 102
+        "UNRESOLVED": 413,
+        "FAIL": 84,
+        "PASS": 103
       },
       "migration_without_complete_evidence": []
     },
@@ -41787,6 +41957,32 @@
             "forced_stop": false,
             "poweroff_request": 255,
             "stopped_at": 1793124028.4885397
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "takeover-g-dynamic-73",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 8,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "4595703c243479665eebd3c6eebe8bf11edbfa46685c2a60e8484db497c66839",
+            "provenance.json": "bef5bbedf8580591ea78542a877f0fd8dfbcc8e25224e740f12ac47a5cbb5d55",
+            "payload.tar": "1966185ff28cb4a453770d258e8cdad64842e0c40e7046153f5d7fa232d61beb",
+            "evidence.tar": "abfdb55ab9e8ccfc0943bd0db5e499bc2e4a1b6371776eb0ba63583836c4088f"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793144674.815614
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -55033,37 +55229,58 @@
         },
         {
           "topic": "hostname/address-discovery-modes",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-I enumerates UP, non-loopback AF_INET/AF_INET6 addresses (skipping IPv6 link-local) from getifaddrs in interface order with GNU's trailing-space format.",
-              "coverage": "missing",
-              "gap": "The fixture hook cases only render supplied tokens. Deterministic interfaces need CAP_NET_ADMIN only over a private netns: reachable unprivileged with a user+net namespace in the plain driver (dummy interfaces with fixed addresses).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-hostname-discovery-netns",
+                  "status": "FAIL",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "-i resolves the current hostname via getaddrinfo against a deterministic /etc/hosts, deduplicating addresses, no trailing space; empty line on resolver failure.",
-              "coverage": "missing",
-              "gap": "Needs a controlled /etc/hosts and UTS name: user+mount+uts namespace (bind-mount a fixture hosts file, set the private hostname).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-hostname-discovery-netns",
+                  "status": "FAIL",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "-A prints FQDNs from canonical names / reverse lookups (names containing a dot), deduplicated; empty when none.",
-              "coverage": "missing",
-              "gap": "Same namespace fixture; reverse lookup through the fixture /etc/hosts.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-hostname-discovery-netns",
+                  "status": "FAIL",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -56029,46 +56246,80 @@
         },
         {
           "topic": "integrity/default-system-roots",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "With no selectors, emit-manifest uses the implicit roots /bin, /bash-os, /etc/bash-os relative to --root and emits rows for files under them in lexical order",
-              "coverage": "missing",
-              "gap": "No case omits selectors; the defaults apply under an explicit relative --root, which the legacy runner can test now.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-integrity-default-roots-relative",
+                  "status": "FAIL",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Missing default roots are ignored (documented \"like the shell wrapper\"), a root whose parent is missing behaves as documented",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-integrity-default-roots-relative",
+                  "status": "FAIL",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "With neither --root nor selectors, the implicit / root and the three system roots of an installed-system image are walked",
-              "coverage": "missing",
-              "gap": "Needs a fixture system tree at /bin, /bash-os, /etc/bash-os. A USERNS can chroot (CAP_SYS_CHROOT in its user ns) into a tmpfs root holding those dirs plus ro binds of /usr and the candidate; unprivileged.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-integrity-default-roots-chroot",
+                  "status": "PASS",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "verify with default roots reports changed/added/missing against an independently prepared manifest",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-integrity-default-roots-relative",
+                  "status": "FAIL",
+                  "run": "takeover-g-dynamic-73"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-integrity-default-roots-chroot",
+                  "status": "PASS",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -72891,37 +73142,58 @@
         },
         {
           "topic": "strptime/localized-month-names",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "%b/%B parse localized month names in a non-C locale.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strptime-localized-de",
+                  "status": "FAIL",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "%a/%A localized weekday names.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strptime-localized-de",
+                  "status": "FAIL",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Non-matching (C-locale English) names fail under the localized locale.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strptime-localized-de",
+                  "status": "FAIL",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -78135,37 +78407,58 @@
         },
         {
           "topic": "utmp/default_accounting_paths_deferred",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "login/logout without -u/-w/-l write /var/run/utmp, /var/log/wtmp and /var/log/lastlog (compile-time defaults) with the same record contents verified for explicit paths.",
-              "coverage": "missing",
-              "gap": "No case touches the default paths (absolute constants, loadables/utmp.c:67-70; no environment override). Reachable unprivileged in the modern plain driver with a user+mount namespace in which private tmpfs files are bind-mounted over /run/utmp, /var/log/wtmp, /var/log/lastlog, /var/log/btmp; the controlled passwd entry is a bind-mounted fixture /etc/passwd.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-utmp-default-accounting-paths",
+                  "status": "PASS",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "boot/shutdown without a path append reboot/shutdown records to /var/log/wtmp; dump and btmp read default to /var/run/utmp and /var/log/btmp.",
-              "coverage": "missing",
-              "gap": "Same namespace fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-utmp-default-accounting-paths",
+                  "status": "PASS",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Effects are validated with an independent session-database reader (record layout decoder and, where available, coreutils who / util-linux utmpdump/last reading the same files).",
-              "coverage": "missing",
-              "gap": "The python struct decoder is available; Debian 13 uses wtmpdb/lastlog2, so whether a utmpdump/last binary that reads classic files is installed must be preflighted; coreutils 'who FILE' may read the file argument. Same namespace fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-utmp-default-accounting-paths",
+                  "status": "PASS",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -79691,64 +79984,111 @@
         },
         {
           "topic": "who/live_default_utmp",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Without a FILE operand who reads the default database /var/run/utmp.",
-              "coverage": "missing",
-              "gap": "No case reads the default path.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-who-default-utmp-contract",
+                  "status": "FAIL",
+                  "run": "takeover-g-dynamic-73"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-who-default-utmp-namespace",
+                  "status": "FAIL",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Live login records are discovered and reported identically to GNU who.",
-              "coverage": "missing",
-              "gap": "The VM's own /run/utmp content is whatever systemd/sshd wrote (possibly absent on Debian 13), so it is not a representative fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-who-default-utmp-contract",
+                  "status": "FAIL",
+                  "run": "takeover-g-dynamic-73"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-who-default-utmp-namespace",
+                  "status": "FAIL",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "who/terminal-state",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-T/-w message status '+' or '-' from the terminal's group-write bit.",
-              "coverage": "missing",
-              "gap": "Only unknown-terminal '?' markers execute (field-boundaries/selection-and-headers use lines with no device).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-who-terminal-state-pty",
+                  "status": "FAIL",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "-u idle durations computed from the terminal's access time ('.' when active, HH:MM, 'old').",
-              "coverage": "missing",
-              "gap": "Not executed with a real terminal.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-who-terminal-state-pty",
+                  "status": "FAIL",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "-m positive match: only the record for the current terminal (ttyname(stdin)).",
-              "coverage": "missing",
-              "gap": "Only the no-match -m case executes.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-who-terminal-state-pty",
+                  "status": "FAIL",
+                  "run": "takeover-g-dynamic-73"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -80224,9 +80564,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 419,
-        "FAIL": 79,
-        "PASS": 102
+        "UNRESOLVED": 413,
+        "FAIL": 84,
+        "PASS": 103
       },
       "migration_without_complete_evidence": []
     }

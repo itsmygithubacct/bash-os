@@ -44,9 +44,18 @@
     },
     {
       "id": "address-discovery-modes",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check -i, -I, and -A formatting, token order, duplicate handling, and empty-result behavior with deterministic resolver and interface data.",
-      "reason": "Discovery and deduplication never executed; all obligations are reachable with an unprivileged user+net+mount+uts namespace in the plain driver and Debian hostname 3.25 as reference."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/hostname/fixture-address-token-rendering"
+        },
+        {
+          "group": "shell",
+          "id": "migration-hostname-discovery-netns"
+        }
+      ]
     },
     {
       "id": "set-positional-name",
