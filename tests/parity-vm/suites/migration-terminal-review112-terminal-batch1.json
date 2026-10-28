@@ -1,0 +1,738 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terminal-review112-terminal-whip-yes",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Yes/Enter selects the default Yes with status 0.",
+      "script": "whiptail --output-fd 3 --yesno 'Choose now' 9 40 3>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-input-widgets"
+      ],
+      "requires": [
+        "whiptail"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 with a private controlling PTY; its documented key semantics, result fd and exit statuses.",
+      "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored.",
+      "expected_files": {
+        "result": ""
+      }
+    },
+    {
+      "id": "migration-terminal-review112-terminal-whip-no",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Tab then Enter selects No with status 1.",
+      "script": "whiptail --output-fd 3 --yesno 'Choose now' 9 40 3>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "key": "tab"
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "expected_status": 1,
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-input-widgets"
+      ],
+      "requires": [
+        "whiptail"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 with a private controlling PTY; its documented key semantics, result fd and exit statuses.",
+      "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored.",
+      "expected_files": {
+        "result": ""
+      }
+    },
+    {
+      "id": "migration-terminal-review112-terminal-whip-yes-escape",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Escape cancels the yes/no widget with status 255.",
+      "script": "whiptail --output-fd 3 --yesno 'Choose now' 9 40 3>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "key": "escape"
+        },
+        {
+          "quiet_ms": 400
+        }
+      ],
+      "expected_status": 255,
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-input-widgets"
+      ],
+      "requires": [
+        "whiptail"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 with a private controlling PTY; its documented key semantics, result fd and exit statuses.",
+      "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored.",
+      "expected_files": {
+        "result": ""
+      }
+    },
+    {
+      "id": "migration-terminal-review112-terminal-whip-input-edit",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Backspace and Left followed by insertion return abXc on the selected result fd.",
+      "script": "whiptail --output-fd 3 --inputbox 'Choose text' 9 40 3>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "send": "abcd"
+        },
+        {
+          "key": "backspace"
+        },
+        {
+          "key": "left"
+        },
+        {
+          "send": "X"
+        },
+        {
+          "screen": {
+            "contains": [
+              "abXc"
+            ]
+          }
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-input-widgets"
+      ],
+      "requires": [
+        "whiptail"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 with a private controlling PTY; its documented key semantics, result fd and exit statuses.",
+      "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored.",
+      "expected_files": {
+        "result": "abXc"
+      }
+    },
+    {
+      "id": "migration-terminal-review112-terminal-whip-input-escape",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Escape cancels inputbox without a result.",
+      "script": "whiptail --output-fd 3 --inputbox 'Choose text' 9 40 3>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "send": "edited"
+        },
+        {
+          "screen": {
+            "contains": [
+              "edited"
+            ]
+          }
+        },
+        {
+          "key": "escape"
+        },
+        {
+          "quiet_ms": 400
+        }
+      ],
+      "expected_status": 255,
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-input-widgets"
+      ],
+      "requires": [
+        "whiptail"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 with a private controlling PTY; its documented key semantics, result fd and exit statuses.",
+      "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored.",
+      "expected_files": {
+        "result": ""
+      }
+    },
+    {
+      "id": "migration-terminal-review112-terminal-whip-password",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Password input is not rendered and the full value is returned on the result fd.",
+      "script": "whiptail --output-fd 3 --passwordbox 'Choose password' 9 40 3>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "send": "p4ssW0rd!"
+        },
+        {
+          "quiet_ms": 300
+        },
+        {
+          "screen": {
+            "lacks": [
+              "p4ssW0rd!"
+            ]
+          }
+        },
+        {
+          "output_lacks": "p4ssW0rd!"
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-input-widgets"
+      ],
+      "requires": [
+        "whiptail"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 with a private controlling PTY; its documented key semantics, result fd and exit statuses.",
+      "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored.",
+      "expected_files": {
+        "result": "p4ssW0rd!"
+      }
+    },
+    {
+      "id": "migration-terminal-review112-terminal-whip-menu-down",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Down followed by Enter selects the second menu tag.",
+      "script": "whiptail --output-fd 3 --menu 'Choose item' 12 50 3 alpha First beta Second gamma Third 3>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "key": "down"
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-list-widgets"
+      ],
+      "requires": [
+        "whiptail"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 with a private controlling PTY; its documented key semantics, result fd and exit statuses.",
+      "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored.",
+      "expected_files": {
+        "result": "beta"
+      }
+    },
+    {
+      "id": "migration-terminal-review112-terminal-whip-menu-default",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "--default-item beta preselects the second menu tag.",
+      "script": "whiptail --output-fd 3 --default-item beta --menu 'Choose item' 12 50 3 alpha First beta Second gamma Third 3>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-list-widgets"
+      ],
+      "requires": [
+        "whiptail"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 with a private controlling PTY; its documented key semantics, result fd and exit statuses.",
+      "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored.",
+      "expected_files": {
+        "result": "beta"
+      }
+    },
+    {
+      "id": "migration-terminal-review112-terminal-whip-checklist-quoted",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Space switches initial alpha off, then beta on; untouched gamma stays on and selected tags are quoted.",
+      "script": "whiptail --output-fd 3 --checklist 'Choose items' 14 50 3 alpha First ON beta Second OFF gamma Third ON 3>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "send": " "
+        },
+        {
+          "key": "down"
+        },
+        {
+          "send": " "
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-list-widgets"
+      ],
+      "requires": [
+        "whiptail"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 with a private controlling PTY; its documented key semantics, result fd and exit statuses.",
+      "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored.",
+      "expected_files": {
+        "result": "\"beta\" \"gamma\""
+      }
+    },
+    {
+      "id": "migration-terminal-review112-terminal-whip-checklist-lines",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "The same toggles with --separate-output yield one unquoted tag per line.",
+      "script": "whiptail --output-fd 3 --separate-output --checklist 'Choose items' 14 50 3 alpha First ON beta Second OFF gamma Third ON 3>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "send": " "
+        },
+        {
+          "key": "down"
+        },
+        {
+          "send": " "
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-list-widgets"
+      ],
+      "requires": [
+        "whiptail"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 with a private controlling PTY; its documented key semantics, result fd and exit statuses.",
+      "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored.",
+      "expected_files": {
+        "result": "beta\ngamma\n"
+      }
+    },
+    {
+      "id": "migration-terminal-review112-terminal-whip-radio",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Down and Space select beta instead of initially ON alpha; Enter returns beta only.",
+      "script": "whiptail --output-fd 3 --radiolist 'Choose item' 14 50 3 alpha First ON beta Second OFF gamma Third OFF 3>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "key": "down"
+        },
+        {
+          "send": " "
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-list-widgets"
+      ],
+      "requires": [
+        "whiptail"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 with a private controlling PTY; its documented key semantics, result fd and exit statuses.",
+      "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored.",
+      "expected_files": {
+        "result": "beta"
+      }
+    },
+    {
+      "id": "migration-terminal-review112-terminal-whip-menu-escape",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Escape on the list exits 255 without selection output.",
+      "script": "whiptail --output-fd 3 --menu 'Choose item' 12 50 3 alpha First beta Second 3>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "key": "escape"
+        },
+        {
+          "quiet_ms": 400
+        }
+      ],
+      "expected_status": 255,
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-list-widgets"
+      ],
+      "requires": [
+        "whiptail"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 with a private controlling PTY; its documented key semantics, result fd and exit statuses.",
+      "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored.",
+      "expected_files": {
+        "result": ""
+      }
+    },
+    {
+      "id": "migration-terminal-review112-terminal-whip-treeview-contract",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Treeview Down/Space selects a child over the initially selected root.",
+      "script": "whiptail --output-fd 3 --treeview 'Choose item' 14 50 3 root Root ON 0 child Child OFF 1 3>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "key": "down"
+        },
+        {
+          "send": " "
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-list-widgets"
+      ],
+      "requires": [],
+      "oracle": "BashOS dialog/whiptail documented treeview and inputmenu tuple and selection contract (loadables/dialog.c help and documented interactive keyboard semantics); no newt reference implements these dialog-only widgets.",
+      "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored.",
+      "expected_files": {
+        "result": "child\n"
+      }
+    },
+    {
+      "id": "migration-terminal-review112-terminal-whip-inputmenu-contract",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Inputmenu Down/Enter selects the second tag.",
+      "script": "whiptail --output-fd 3 --inputmenu 'Choose item' 12 50 3 alpha First beta Second 3>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "key": "down"
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-list-widgets"
+      ],
+      "requires": [],
+      "oracle": "BashOS dialog/whiptail documented treeview and inputmenu tuple and selection contract (loadables/dialog.c help and documented interactive keyboard semantics); no newt reference implements these dialog-only widgets.",
+      "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored.",
+      "expected_files": {
+        "result": "beta\n"
+      }
+    }
+  ]
+}

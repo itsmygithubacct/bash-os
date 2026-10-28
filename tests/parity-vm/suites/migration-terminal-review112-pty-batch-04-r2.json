@@ -1,0 +1,110 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terminal-review112-pty-b04r2-frontend-attach",
+      "loadable": "screen",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe raw live relay, literal Ctrl-A quoting, detach and restored frontend termios.",
+      "covers": [
+        "screen/attach-relay-detach"
+      ],
+      "expected_status": 0,
+      "timeout": 45,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-pty-frontend-r2-50358e98b03a.py": "3f94ab2577e0b80618c6b580cc89fd4aca414d4cc7feed562d45314c0005f671"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-pty-frontend-r2-50358e98b03a.py control\n",
+      "setup_timeout": 8,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-pty-frontend-r2-50358e98b03a.py observe attach \"$BASH\"\n",
+      "stdout": "history-control=PASS\nfrontend-ready=PASS\nlive-binary-bytes=PASS\nquoted-prefix-reaches-child=PASS\ndetach-keeps-session-live=PASS\nterminal-restored=PASS\ncleanup=PASS\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "frontend-events.json",
+        "frontend-controller.raw",
+        "frontend-observer.raw",
+        "frontend-child-input",
+        "frontend-child-pid",
+        "frontend-controller-termios.json",
+        "frontend-observer-termios.json"
+      ],
+      "oracle": "A trusted Python controller owns independent PTYs and records exact bytes, tty flags, screen status and the fixed child\u2019s input. A VM-only control first verifies private-PTY raw mode and restoration.",
+      "comparison": "Pre-attach captured history is verified before attachment, the child emits fixed new binary bytes only after readiness, and every named outcome is asserted separately with bounded raw diagnostics. Raw initial, active and final termios fields, control characters, status and forced-cleanup state are retained per frontend."
+    },
+    {
+      "id": "migration-terminal-review112-pty-b04r2-frontend-capture",
+      "loadable": "screen",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Capture exact binary history, suppress replay of an embedded terminal query and prove no reply reached the child.",
+      "covers": [
+        "screen/capture-raw-history"
+      ],
+      "expected_status": 0,
+      "timeout": 45,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-pty-frontend-r2-50358e98b03a.py": "3f94ab2577e0b80618c6b580cc89fd4aca414d4cc7feed562d45314c0005f671"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-pty-frontend-r2-50358e98b03a.py control\n",
+      "setup_timeout": 8,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-pty-frontend-r2-50358e98b03a.py observe capture \"$BASH\"\n",
+      "stdout": "captured-raw-history=PASS\nfrontend-ready=PASS\nlate-attach-no-query-replay=PASS\nno-query-reply-reaches-child=PASS\nlive-input-control=PASS\ndetach-and-terminal-restored=PASS\ncleanup=PASS\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "frontend-events.json",
+        "frontend-controller.raw",
+        "frontend-observer.raw",
+        "frontend-child-input",
+        "frontend-child-pid",
+        "frontend-controller-termios.json",
+        "frontend-observer-termios.json"
+      ],
+      "oracle": "A trusted Python controller owns independent PTYs and records exact bytes, tty flags, screen status and the fixed child\u2019s input. A VM-only control first verifies private-PTY raw mode and restoration.",
+      "comparison": "Pre-attach captured history is verified before attachment, the child emits fixed new binary bytes only after readiness, and every named outcome is asserted separately with bounded raw diagnostics. Raw initial, active and final termios fields, control characters, status and forced-cleanup state are retained per frontend."
+    },
+    {
+      "id": "migration-terminal-review112-pty-b04r2-frontend-roles",
+      "loadable": "screen",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Use two independent frontend PTYs to observe controller and observer delivery and input suppression.",
+      "covers": [
+        "screen/controller-observer-roles"
+      ],
+      "expected_status": 0,
+      "timeout": 45,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-pty-frontend-r2-50358e98b03a.py": "3f94ab2577e0b80618c6b580cc89fd4aca414d4cc7feed562d45314c0005f671"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-pty-frontend-r2-50358e98b03a.py control\n",
+      "setup_timeout": 8,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-pty-frontend-r2-50358e98b03a.py observe roles \"$BASH\"\n",
+      "stdout": "history-ready=PASS\nboth-frontends-ready=PASS\nidentical-live-bytes=PASS\nobserver-input-suppressed=PASS\nobserver-disconnect-keeps-pane=PASS\ncontroller-disconnect-keeps-pane=PASS\nboth-terminals-restored=PASS\ncleanup=PASS\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "frontend-events.json",
+        "frontend-controller.raw",
+        "frontend-observer.raw",
+        "frontend-child-input",
+        "frontend-child-pid",
+        "frontend-controller-termios.json",
+        "frontend-observer-termios.json"
+      ],
+      "oracle": "A trusted Python controller owns independent PTYs and records exact bytes, tty flags, screen status and the fixed child\u2019s input. A VM-only control first verifies private-PTY raw mode and restoration.",
+      "comparison": "Pre-attach captured history is verified before attachment, the child emits fixed new binary bytes only after readiness, and every named outcome is asserted separately with bounded raw diagnostics. Raw initial, active and final termios fields, control characters, status and forced-cleanup state are retained per frontend."
+    }
+  ]
+}

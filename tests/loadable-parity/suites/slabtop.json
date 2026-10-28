@@ -107,9 +107,102 @@
     },
     {
       "id": "deferred-gnu-batch-parity",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Full GNU comparison of batch arithmetic, ordering, and malformed-row handling against the same controlled slabinfo data.",
-      "reason": "Never executed against procps slabtop. GNU slabtop reads /proc/slabinfo only (root-readable 0400 on the live kernel) and takes no input path. A per-side unprivileged user+mount namespace with a fixture bind-mounted over /proc/slabinfo gives both implementations the same readable data without guest root. Precondition for root: confirm unprivileged user namespaces in the guest's case context. The evaluation runs under systemd-run plus unshare --mount --pid --net --mount-proc as root and drops to uid 2000. The case must belong to a modern VM group, not the legacy bubblewrap runner, which passes --disable-userns. user.max_user_namespaces must be nonzero (it is on the Debian default kernel)."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-batch-default"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-batch-malformed-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-batch-rounding"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-batch-sort-a"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-batch-sort-b"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-batch-sort-c"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-batch-sort-l"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-batch-sort-n"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-batch-sort-o"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-batch-sort-p"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-batch-sort-s"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-batch-sort-u"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-batch-sort-v"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-batch-zero"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-equal-key-a"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-equal-key-b"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-equal-key-c"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-equal-key-l"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-equal-key-o"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-equal-key-p"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-equal-key-s"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-equal-key-u"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-slab-equal-key-v"
+        }
+      ]
     },
     {
       "id": "deferred-interactive-pty",

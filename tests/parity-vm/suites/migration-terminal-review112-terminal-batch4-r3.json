@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terminal-review112-terminal-slab-batch-malformed-r3",
+      "loadable": "slabtop",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Full procps/candidate slabtop batch bytes on the identical bind-mounted fixture: batch-malformed.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91; slabtop -o'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91\n/usr/bin/cmp slabinfo /proc/slabinfo || exit 92\n/usr/bin/slabtop -o > \"$HOME/slab-control.out\" 2> \"$HOME/slab-control.err\"\nresult=$?\nprintf \"%s\\n\" \"$result\" > \"$HOME/slab-control.status\"\n[[ $result == 1 ]] || exit 93\n[[ $(< \"$HOME/slab-control.err\") == *\"Numerical result out of range\"* ]] || exit 94\n' ",
+      "expected_status": 1,
+      "timeout": 25,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "cmp",
+        "slabtop"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name active_objs num_objs objsize objperslab pagesperslab : tunables limit batchcount sharedfactor : slabdata active_slabs num_slabs sharedavail\nfxalpha 2 4 512 4 2 : tunables 0 0 0 : slabdata 1 1 0\nfxbeta 1 8 1024 2 1 : tunables 0 0 0 : slabdata 1 4 0\nfxcharlie 2 4 512 4 1 : tunables 0 0 0 : slabdata 1 1 0\nthis is a malformed slab row\n"
+      },
+      "diagnostic_files": [
+        "slab-control.out",
+        "slab-control.err",
+        "slab-control.status"
+      ],
+      "covers": [
+        "slabtop/deferred-gnu-batch-parity"
+      ],
+      "oracle": "The preserved independent procps qualification control rejected this malformed slabinfo with Numerical result out of range. The revised setup requires procps exit 1 and the diagnostic on the exact bind-mounted data, and retains the raw status/output. The reference body is then run independently and must match the fixed status. Procps 4.0.4 source uses EXIT_FAILURE for this initialization error: https://sources.debian.org/src/procps/2%3A4.0.4-9/src/slabtop.c/",
+      "comparison": "The candidate and pinned procps reference each process identical malformed slabinfo; both must return status 1, and complete stdout and stderr are compared. The setup status and error are retained; if the reference status hypothesis is wrong this is a setup error, never coverage."
+    }
+  ]
+}

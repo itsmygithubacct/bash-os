@@ -52,21 +52,48 @@
     },
     {
       "id": "attach-relay-detach",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Use a private frontend terminal driver to compare deterministic binary child output, exercise quoted Ctrl-A input and the Ctrl-A then d detach sequence, and verify frontend terminal settings are restored.",
-      "reason": "Never executed. The PTY driver is the private frontend terminal; it can send ^A sequences, match raw bytes and check termios restoration. No new capability is needed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-pty-b04-frontend-attach"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-pty-b04r2-frontend-attach"
+        }
+      ]
     },
     {
       "id": "capture-raw-history",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Have an owned child emit deterministic text, binary bytes, and a terminal query sequence; verify capture returns raw history and a later attach does not replay the old query or claim a parsed terminal grid.",
-      "reason": "Never executed. The plain and PTY drivers suffice: the child is the candidate shell writing deterministic bytes and recording any reply in a private file."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-pty-b04-frontend-capture"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-pty-b04r2-frontend-capture"
+        }
+      ]
     },
     {
       "id": "controller-observer-roles",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "With a small deterministic stream, verify one controller and an observer receive the expected live bytes while observer input is suppressed and neither role terminates the pane on disconnect.",
-      "reason": "Never executed. Two simultaneous attach clients with terminal stdio are needed. The PTY driver supplies one terminal, and a trusted /usr/bin/python3 helper inside the VM can allocate the second pty pair for the observer. Implementation work, not a capability gap."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-pty-b04-frontend-roles"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-pty-b04r2-frontend-roles"
+        }
+      ]
     },
     {
       "id": "operation-errors-rollback",

@@ -4301,40 +4301,191 @@
         "purpose": "Interactive game controls and terminal redraw behavior need a real bounded terminal session.",
         "reason": "The declarative runner supplies stdin from /dev/null and has no PTY or terminal driver mode. A future disposable VM test needs a private PTY, fixed TERM and terminal dimensions, scripted key input, deterministic seed, and captured exit/output checks for a short tetris session. This operation was not executed and is not claimed as passed."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No executed evidence. The headless scripted and --frames paths in legacy cases do not exercise the TTY renderer or input. The existing PTY driver is sufficient: send, screen, termios, terminal_restored, a ^C send, and hangup.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "on a TTY, tetris enters raw mode and draws the well with a fixed TERM and size",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No PTY case runs bsdgames/tetris."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-geometry-left",
+              "assertion": "Original requirement: on a TTY, tetris enters raw mode and draws the well with a fixed TERM and size Fresh raw analysis: 24x80 seeded raw output contains the complete well and legend. Independently sampled live termios in the r3 signal cases establishes raw mode; original terminal-driver results retained only pass markers for their intermediate samples. The separately selected r3 signal cases directly record the child PID and live raw-mode termios; they are included here because the direct game-driver samples do not retain live values. migration-terminal-review112-terminal-tetris-geometry-left: static FAIL, dynamic FAIL.",
+              "definition_sha256": "cab455816903bdd8d7ceda4a620e1fa4cb02488d1b883c074be994f404374593"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-geometry-left-r3",
+              "assertion": "Original requirement: on a TTY, tetris enters raw mode and draws the well with a fixed TERM and size Fresh raw analysis: 24x80 seeded raw output contains the complete well and legend. Independently sampled live termios in the r3 signal cases establishes raw mode; original terminal-driver results retained only pass markers for their intermediate samples. The separately selected r3 signal cases directly record the child PID and live raw-mode termios; they are included here because the direct game-driver samples do not retain live values. migration-terminal-review112-terminal-tetris-geometry-left-r3: static FAIL, dynamic FAIL.",
+              "definition_sha256": "b8cb74012748b2fb4b7c1af749de17d2b1cd91ccc4aa922b2b2e0177d84f53a4"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-tetris-quit",
+              "assertion": "Original requirement: on a TTY, tetris enters raw mode and draws the well with a fixed TERM and size Fresh raw analysis: 24x80 seeded raw output contains the complete well and legend. Independently sampled live termios in the r3 signal cases establishes raw mode; original terminal-driver results retained only pass markers for their intermediate samples. The separately selected r3 signal cases directly record the child PID and live raw-mode termios; they are included here because the direct game-driver samples do not retain live values. migration-terminal-review112-terminal-tetris-quit: static FAIL, dynamic FAIL.",
+              "definition_sha256": "c70fe6929e475e8117cfb75389594c1087f3bca868cb7ae06ab0463328411805"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-signal-sighup-r3",
+              "assertion": "Original requirement: on a TTY, tetris enters raw mode and draws the well with a fixed TERM and size Fresh raw analysis: 24x80 seeded raw output contains the complete well and legend. Independently sampled live termios in the r3 signal cases establishes raw mode; original terminal-driver results retained only pass markers for their intermediate samples. The separately selected r3 signal cases directly record the child PID and live raw-mode termios; they are included here because the direct game-driver samples do not retain live values. migration-terminal-review112-terminal-tetris-signal-sighup-r3: static PASS, dynamic PASS.",
+              "definition_sha256": "8b8865495342c23424e4e790c757261d526decf4cbe07137fb1e0e062abdbafe"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-signal-sigint-r3",
+              "assertion": "Original requirement: on a TTY, tetris enters raw mode and draws the well with a fixed TERM and size Fresh raw analysis: 24x80 seeded raw output contains the complete well and legend. Independently sampled live termios in the r3 signal cases establishes raw mode; original terminal-driver results retained only pass markers for their intermediate samples. The separately selected r3 signal cases directly record the child PID and live raw-mode termios; they are included here because the direct game-driver samples do not retain live values. migration-terminal-review112-terminal-tetris-signal-sigint-r3: static PASS, dynamic PASS.",
+              "definition_sha256": "da58caa13ba0e4aaa5e3fb215246f98d7c8e0899e078f3b818dfd391875a6e23"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-signal-sigterm-r3",
+              "assertion": "Original requirement: on a TTY, tetris enters raw mode and draws the well with a fixed TERM and size Fresh raw analysis: 24x80 seeded raw output contains the complete well and legend. Independently sampled live termios in the r3 signal cases establishes raw mode; original terminal-driver results retained only pass markers for their intermediate samples. The separately selected r3 signal cases directly record the child PID and live raw-mode termios; they are included here because the direct game-driver samples do not retain live values. migration-terminal-review112-terminal-tetris-signal-sigterm-r3: static PASS, dynamic PASS.",
+              "definition_sha256": "a1e3588975860599d57b71bbf68c9f5b2f2692d9dc6f4b073672bf370b69e404"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "scripted keys (j/k/l move/rotate, space hard drop, p pause) change the game as documented, using a deterministic seed",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised. Gravity follows the wall clock on a TTY (bsdgames.c:21150-21152). Assertions have to use states that do not depend on timing, e.g. an immediate hard drop of the seeded first piece."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-tetris-drop",
+              "assertion": "Original requirement: scripted keys (j/k/l move/rotate, space hard drop, p pause) change the game as documented, using a deterministic seed Fresh raw analysis: Raw frame reconstruction shows j and l shifting the four cells, k rotating after visible gravity, and space changing score 0 to 18. After p, the piece moved from rows 1/2 to 2/3 before the second p: genuine pause FAIL on both builds; later resume was reached. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-tetris-geometry-left, migration-terminal-review112-terminal-tetris-geometry-pause, migration-terminal-review112-terminal-tetris-geometry-right. The r3 raw frames and recorded input bytes, plus the separate drop case, establish key-stage coverage; older geometry observations are not used to infer sent bytes. For the drop case the direct PTY event saves a one-byte count, while its frozen case supplies the space byte; the next saved frame independently shows the score change. Geometry observers do not save their child PID. migration-terminal-review112-terminal-tetris-drop: static FAIL, dynamic FAIL.",
+              "definition_sha256": "3670f9a318fc6b85388affe11e0f41f489a0c2ff00de44611d9dc424927e84a8"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-geometry-left-r3",
+              "assertion": "Original requirement: scripted keys (j/k/l move/rotate, space hard drop, p pause) change the game as documented, using a deterministic seed Fresh raw analysis: Raw frame reconstruction shows j and l shifting the four cells, k rotating after visible gravity, and space changing score 0 to 18. After p, the piece moved from rows 1/2 to 2/3 before the second p: genuine pause FAIL on both builds; later resume was reached. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-tetris-geometry-left, migration-terminal-review112-terminal-tetris-geometry-pause, migration-terminal-review112-terminal-tetris-geometry-right. The r3 raw frames and recorded input bytes, plus the separate drop case, establish key-stage coverage; older geometry observations are not used to infer sent bytes. For the drop case the direct PTY event saves a one-byte count, while its frozen case supplies the space byte; the next saved frame independently shows the score change. Geometry observers do not save their child PID. migration-terminal-review112-terminal-tetris-geometry-left-r3: static FAIL, dynamic FAIL.",
+              "definition_sha256": "b8cb74012748b2fb4b7c1af749de17d2b1cd91ccc4aa922b2b2e0177d84f53a4"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-geometry-pause-r3",
+              "assertion": "Original requirement: scripted keys (j/k/l move/rotate, space hard drop, p pause) change the game as documented, using a deterministic seed Fresh raw analysis: Raw frame reconstruction shows j and l shifting the four cells, k rotating after visible gravity, and space changing score 0 to 18. After p, the piece moved from rows 1/2 to 2/3 before the second p: genuine pause FAIL on both builds; later resume was reached. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-tetris-geometry-left, migration-terminal-review112-terminal-tetris-geometry-pause, migration-terminal-review112-terminal-tetris-geometry-right. The r3 raw frames and recorded input bytes, plus the separate drop case, establish key-stage coverage; older geometry observations are not used to infer sent bytes. For the drop case the direct PTY event saves a one-byte count, while its frozen case supplies the space byte; the next saved frame independently shows the score change. Geometry observers do not save their child PID. migration-terminal-review112-terminal-tetris-geometry-pause-r3: static FAIL, dynamic FAIL.",
+              "definition_sha256": "da6a5e19157482ea0b312b0af84ed9fc461a13689bfaf46b515604bba7ccf984"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-geometry-right-r3",
+              "assertion": "Original requirement: scripted keys (j/k/l move/rotate, space hard drop, p pause) change the game as documented, using a deterministic seed Fresh raw analysis: Raw frame reconstruction shows j and l shifting the four cells, k rotating after visible gravity, and space changing score 0 to 18. After p, the piece moved from rows 1/2 to 2/3 before the second p: genuine pause FAIL on both builds; later resume was reached. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-tetris-geometry-left, migration-terminal-review112-terminal-tetris-geometry-pause, migration-terminal-review112-terminal-tetris-geometry-right. The r3 raw frames and recorded input bytes, plus the separate drop case, establish key-stage coverage; older geometry observations are not used to infer sent bytes. For the drop case the direct PTY event saves a one-byte count, while its frozen case supplies the space byte; the next saved frame independently shows the score change. Geometry observers do not save their child PID. migration-terminal-review112-terminal-tetris-geometry-right-r3: static FAIL, dynamic FAIL.",
+              "definition_sha256": "43547b036e7c0888ec7fe8e91585aff8ebc4ee30f429d349cf25c308f49401c6"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-geometry-rotate-r3",
+              "assertion": "Original requirement: scripted keys (j/k/l move/rotate, space hard drop, p pause) change the game as documented, using a deterministic seed Fresh raw analysis: Raw frame reconstruction shows j and l shifting the four cells, k rotating after visible gravity, and space changing score 0 to 18. After p, the piece moved from rows 1/2 to 2/3 before the second p: genuine pause FAIL on both builds; later resume was reached. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-tetris-geometry-left, migration-terminal-review112-terminal-tetris-geometry-pause, migration-terminal-review112-terminal-tetris-geometry-right. The r3 raw frames and recorded input bytes, plus the separate drop case, establish key-stage coverage; older geometry observations are not used to infer sent bytes. For the drop case the direct PTY event saves a one-byte count, while its frozen case supplies the space byte; the next saved frame independently shows the score change. Geometry observers do not save their child PID. migration-terminal-review112-terminal-tetris-geometry-rotate-r3: static FAIL, dynamic FAIL.",
+              "definition_sha256": "4da3298908d05dacecc5bc254c23baa4d3c9c0d29ff4073243fa3aa11fc333da"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "q quits with exit status 0 and prints the final 'Your score' line",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-geometry-left",
+              "assertion": "Original requirement: q quits with exit status 0 and prints the final 'Your score' line Fresh raw analysis: After q, both builds returned 0 and showed the cursor, but the raw output contains no Your score line. This is a reached candidate FAIL. migration-terminal-review112-terminal-tetris-geometry-left: static FAIL, dynamic FAIL.",
+              "definition_sha256": "cab455816903bdd8d7ceda4a620e1fa4cb02488d1b883c074be994f404374593"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-geometry-left-r3",
+              "assertion": "Original requirement: q quits with exit status 0 and prints the final 'Your score' line Fresh raw analysis: After q, both builds returned 0 and showed the cursor, but the raw output contains no Your score line. This is a reached candidate FAIL. migration-terminal-review112-terminal-tetris-geometry-left-r3: static FAIL, dynamic FAIL.",
+              "definition_sha256": "b8cb74012748b2fb4b7c1af749de17d2b1cd91ccc4aa922b2b2e0177d84f53a4"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-geometry-pause",
+              "assertion": "Original requirement: q quits with exit status 0 and prints the final 'Your score' line Fresh raw analysis: After q, both builds returned 0 and showed the cursor, but the raw output contains no Your score line. This is a reached candidate FAIL. migration-terminal-review112-terminal-tetris-geometry-pause: static FAIL, dynamic FAIL.",
+              "definition_sha256": "d7bfe96a6c693cb525d2f41d15374c6dfea82a444f25a38bb1d3806ea90dc773"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-geometry-pause-r3",
+              "assertion": "Original requirement: q quits with exit status 0 and prints the final 'Your score' line Fresh raw analysis: After q, both builds returned 0 and showed the cursor, but the raw output contains no Your score line. This is a reached candidate FAIL. migration-terminal-review112-terminal-tetris-geometry-pause-r3: static FAIL, dynamic FAIL.",
+              "definition_sha256": "da6a5e19157482ea0b312b0af84ed9fc461a13689bfaf46b515604bba7ccf984"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-geometry-right",
+              "assertion": "Original requirement: q quits with exit status 0 and prints the final 'Your score' line Fresh raw analysis: After q, both builds returned 0 and showed the cursor, but the raw output contains no Your score line. This is a reached candidate FAIL. migration-terminal-review112-terminal-tetris-geometry-right: static FAIL, dynamic FAIL.",
+              "definition_sha256": "172eac923a7bec69e716fcbdcd027e37a8c96f7309917c2cc4794ac239ae5724"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-geometry-right-r3",
+              "assertion": "Original requirement: q quits with exit status 0 and prints the final 'Your score' line Fresh raw analysis: After q, both builds returned 0 and showed the cursor, but the raw output contains no Your score line. This is a reached candidate FAIL. migration-terminal-review112-terminal-tetris-geometry-right-r3: static FAIL, dynamic FAIL.",
+              "definition_sha256": "43547b036e7c0888ec7fe8e91585aff8ebc4ee30f429d349cf25c308f49401c6"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-geometry-rotate-r3",
+              "assertion": "Original requirement: q quits with exit status 0 and prints the final 'Your score' line Fresh raw analysis: After q, both builds returned 0 and showed the cursor, but the raw output contains no Your score line. This is a reached candidate FAIL. migration-terminal-review112-terminal-tetris-geometry-rotate-r3: static FAIL, dynamic FAIL.",
+              "definition_sha256": "4da3298908d05dacecc5bc254c23baa4d3c9c0d29ff4073243fa3aa11fc333da"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-tetris-quit",
+              "assertion": "Original requirement: q quits with exit status 0 and prints the final 'Your score' line Fresh raw analysis: After q, both builds returned 0 and showed the cursor, but the raw output contains no Your score line. This is a reached candidate FAIL. migration-terminal-review112-terminal-tetris-quit: static FAIL, dynamic FAIL.",
+              "definition_sha256": "c70fe6929e475e8117cfb75389594c1087f3bca868cb7ae06ab0463328411805"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "on quit and on SIGINT/SIGTERM/SIGHUP the terminal returns to cooked mode with the cursor shown",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-tetris-int",
+              "assertion": "Original requirement: on quit and on SIGINT/SIGTERM/SIGHUP the terminal returns to cooked mode with the cursor shown Fresh raw analysis: Normal quit and separately delivered INT, TERM and HUP were observed on fixture-owned processes. The r3 signal records retain the before, live, and after termios and the show-cursor bytes; no forced cleanup. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-tetris-signal-sighup, migration-terminal-review112-terminal-tetris-signal-sigint, migration-terminal-review112-terminal-tetris-signal-sigterm. migration-terminal-review112-terminal-tetris-int: static PASS, dynamic PASS.",
+              "definition_sha256": "1b7bd229ec7fbb8ceb63f3cc3e24aade14d024fd1f4fec4969dca0a10df7d7b8"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-tetris-quit",
+              "assertion": "Original requirement: on quit and on SIGINT/SIGTERM/SIGHUP the terminal returns to cooked mode with the cursor shown Fresh raw analysis: Normal quit and separately delivered INT, TERM and HUP were observed on fixture-owned processes. The r3 signal records retain the before, live, and after termios and the show-cursor bytes; no forced cleanup. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-tetris-signal-sighup, migration-terminal-review112-terminal-tetris-signal-sigint, migration-terminal-review112-terminal-tetris-signal-sigterm. migration-terminal-review112-terminal-tetris-quit: static FAIL, dynamic FAIL.",
+              "definition_sha256": "c70fe6929e475e8117cfb75389594c1087f3bca868cb7ae06ab0463328411805"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-signal-sighup-r3",
+              "assertion": "Original requirement: on quit and on SIGINT/SIGTERM/SIGHUP the terminal returns to cooked mode with the cursor shown Fresh raw analysis: Normal quit and separately delivered INT, TERM and HUP were observed on fixture-owned processes. The r3 signal records retain the before, live, and after termios and the show-cursor bytes; no forced cleanup. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-tetris-signal-sighup, migration-terminal-review112-terminal-tetris-signal-sigint, migration-terminal-review112-terminal-tetris-signal-sigterm. migration-terminal-review112-terminal-tetris-signal-sighup-r3: static PASS, dynamic PASS.",
+              "definition_sha256": "8b8865495342c23424e4e790c757261d526decf4cbe07137fb1e0e062abdbafe"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-signal-sigint-r3",
+              "assertion": "Original requirement: on quit and on SIGINT/SIGTERM/SIGHUP the terminal returns to cooked mode with the cursor shown Fresh raw analysis: Normal quit and separately delivered INT, TERM and HUP were observed on fixture-owned processes. The r3 signal records retain the before, live, and after termios and the show-cursor bytes; no forced cleanup. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-tetris-signal-sighup, migration-terminal-review112-terminal-tetris-signal-sigint, migration-terminal-review112-terminal-tetris-signal-sigterm. migration-terminal-review112-terminal-tetris-signal-sigint-r3: static PASS, dynamic PASS.",
+              "definition_sha256": "da58caa13ba0e4aaa5e3fb215246f98d7c8e0899e078f3b818dfd391875a6e23"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-tetris-signal-sigterm-r3",
+              "assertion": "Original requirement: on quit and on SIGINT/SIGTERM/SIGHUP the terminal returns to cooked mode with the cursor shown Fresh raw analysis: Normal quit and separately delivered INT, TERM and HUP were observed on fixture-owned processes. The r3 signal records retain the before, live, and after termios and the show-cursor bytes; no forced cleanup. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-tetris-signal-sighup, migration-terminal-review112-terminal-tetris-signal-sigint, migration-terminal-review112-terminal-tetris-signal-sigterm. migration-terminal-review112-terminal-tetris-signal-sigterm-r3: static PASS, dynamic PASS.",
+              "definition_sha256": "a1e3588975860599d57b71bbf68c9f5b2f2692d9dc6f4b073672bf370b69e404"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Command entry: bsdgames.c tetris adapter at :21124+, with documented keys 'jkl pq' and -k/-l/-p options. The headless scripted mode at :21157 is the same code, so its output is not an independent oracle."
+      "notes": [
+        "Fresh paired runs only for new case IDs; reached candidate failures remain failures. Existing legacy companions retain their established baseline bindings.",
+        "The six older signal or escape observers without raw PID, live termios, and delivered event details are withheld; newer r3 companion cases supply those records."
+      ]
     },
     {
       "topic": "buf/save-faults-deferred",
@@ -21280,40 +21431,107 @@
         "purpose": "Exercise enable/decode/disable against terminal input and verify mode cleanup across a bounded consumer lifecycle.",
         "reason": "Requires a future disposable test VM or isolated private-PTY emulator that can negotiate DEC mouse modes, inject SGR/1015/X10 input, observe terminal mode state, and verify cleanup on normal exit and interruption. No real terminal or host device is used by this suite."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "There is no PTY case. The driver can now inject mouse report bytes as ordinary input and observe the emitted mode sequences with expect, so no real mouse device is needed.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "mouse enable writes the selected DEC private-mode set sequence to the terminal (not just stdout capture) before the consumer reads input",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Mode bytes are covered only as captured stdout (legacy/mouse/selective-mode-toggles and default-and-all-modes, contract PASS both builds)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-mouse-pty-sgr",
+              "assertion": "Original requirement: mouse enable writes the selected DEC private-mode set sequence to the terminal (not just stdout capture) before the consumer reads input Fresh raw analysis: Raw private-PTY output emits the appropriate DEC mode set before READY-READ and before injected bytes. migration-terminal-review112-terminal-mouse-pty-sgr: static PASS, dynamic PASS.",
+              "definition_sha256": "ec304c393bcd0e9cbbd80fa08ff717ded3311bc2553eddacfb20027be6844afe"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-mouse-pty-urxvt",
+              "assertion": "Original requirement: mouse enable writes the selected DEC private-mode set sequence to the terminal (not just stdout capture) before the consumer reads input Fresh raw analysis: Raw private-PTY output emits the appropriate DEC mode set before READY-READ and before injected bytes. migration-terminal-review112-terminal-mouse-pty-urxvt: static PASS, dynamic PASS.",
+              "definition_sha256": "e5b3501c21fa04121c574c64e0f968d9c5c8921412c529a5923d7168519dc85d"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-mouse-pty-x10",
+              "assertion": "Original requirement: mouse enable writes the selected DEC private-mode set sequence to the terminal (not just stdout capture) before the consumer reads input Fresh raw analysis: Raw private-PTY output emits the appropriate DEC mode set before READY-READ and before injected bytes. migration-terminal-review112-terminal-mouse-pty-x10: static PASS, dynamic PASS.",
+              "definition_sha256": "01e8b8ccdde268432266f8b11fd13b2f94edba2ffb9274108ab5fb3ba90ce661"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Mouse reports injected as terminal input (SGR, 1015, X10) are read by a consumer and decode to the documented records",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Decoding is covered only from hex arguments (legacy/mouse/sgr-events, 1015-buttons, x10-offsets PASS). No terminal input path is exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-mouse-pty-sgr",
+              "assertion": "Original requirement: Mouse reports injected as terminal input (SGR, 1015, X10) are read by a consumer and decode to the documented records Fresh raw analysis: The three injected SGR, 1015 and X10 byte sequences produce button1 x=4 y=6 press records. migration-terminal-review112-terminal-mouse-pty-sgr: static PASS, dynamic PASS.",
+              "definition_sha256": "ec304c393bcd0e9cbbd80fa08ff717ded3311bc2553eddacfb20027be6844afe"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-mouse-pty-urxvt",
+              "assertion": "Original requirement: Mouse reports injected as terminal input (SGR, 1015, X10) are read by a consumer and decode to the documented records Fresh raw analysis: The three injected SGR, 1015 and X10 byte sequences produce button1 x=4 y=6 press records. migration-terminal-review112-terminal-mouse-pty-urxvt: static PASS, dynamic PASS.",
+              "definition_sha256": "e5b3501c21fa04121c574c64e0f968d9c5c8921412c529a5923d7168519dc85d"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-mouse-pty-x10",
+              "assertion": "Original requirement: Mouse reports injected as terminal input (SGR, 1015, X10) are read by a consumer and decode to the documented records Fresh raw analysis: The three injected SGR, 1015 and X10 byte sequences produce button1 x=4 y=6 press records. migration-terminal-review112-terminal-mouse-pty-x10: static PASS, dynamic PASS.",
+              "definition_sha256": "01e8b8ccdde268432266f8b11fd13b2f94edba2ffb9274108ab5fb3ba90ce661"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "mouse disable restores the modes at the end of a normal consumer lifecycle",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised on a terminal."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-mouse-pty-sgr",
+              "assertion": "Original requirement: mouse disable restores the modes at the end of a normal consumer lifecycle Fresh raw analysis: Raw normal transcripts emit the corresponding disable sequence and their recorded initial/final termios agree. migration-terminal-review112-terminal-mouse-pty-sgr: static PASS, dynamic PASS.",
+              "definition_sha256": "ec304c393bcd0e9cbbd80fa08ff717ded3311bc2553eddacfb20027be6844afe"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-mouse-pty-urxvt",
+              "assertion": "Original requirement: mouse disable restores the modes at the end of a normal consumer lifecycle Fresh raw analysis: Raw normal transcripts emit the corresponding disable sequence and their recorded initial/final termios agree. migration-terminal-review112-terminal-mouse-pty-urxvt: static PASS, dynamic PASS.",
+              "definition_sha256": "e5b3501c21fa04121c574c64e0f968d9c5c8921412c529a5923d7168519dc85d"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-mouse-pty-x10",
+              "assertion": "Original requirement: mouse disable restores the modes at the end of a normal consumer lifecycle Fresh raw analysis: Raw normal transcripts emit the corresponding disable sequence and their recorded initial/final termios agree. migration-terminal-review112-terminal-mouse-pty-x10: static PASS, dynamic PASS.",
+              "definition_sha256": "01e8b8ccdde268432266f8b11fd13b2f94edba2ffb9274108ab5fb3ba90ce661"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Mode cleanup on interruption (^C) of the consumer",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised. The mouse builtin has no automatic cleanup; it only emits sequences (mouse.c:192-199), so the contract is the consumer's trap. Document that or add cleanup."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-mouse-pty-interrupt",
+              "assertion": "Original requirement: Mode cleanup on interruption (^C) of the consumer Fresh raw analysis: Both builds emitted 1000l, 1015l and 1006l and exited 130 on interruption; terminal lflag changed from 35387 to 35377, leaving ECHO and ICANON clear. Retain the reported FAIL. migration-terminal-review112-terminal-mouse-pty-interrupt: static FAIL, dynamic FAIL.",
+              "definition_sha256": "93abeebe8923f58f0c2fdc6b2f09f05ec6b887069654321b93b7af9c88f9482d"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "mouse.c surface: decode, enable and disable only; there is no stream reader. printf output on a tty is line-buffered, and mode sequences have no newline, so the expect also tests that Bash flushes stdout after the builtin. Interruption cleanup is not a candidate feature."
+      "notes": [
+        "Fresh paired runs only for new case IDs; reached candidate failures remain failures. Existing legacy companions retain their established baseline bindings.",
+        "The six older signal or escape observers without raw PID, live termios, and delivered event details are withheld; newer r3 companion cases supply those records."
+      ]
     },
     {
       "topic": "mouse/terminal-device-integration",
@@ -21323,33 +21541,75 @@
         "purpose": "End-to-end terminal reporting and mode negotiation remain outside pure-byte decoding.",
         "reason": "Requires a future disposable VM with a private PTY emulator and controlled terminal/mouse input. Pure stdout mode-sequence emission is covered separately and establishes no live terminal state."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "There is no PTY fixture. A physical device is unnecessary because the private PTY plus injected report bytes exercise the whole software path. The candidate never queries the terminal (no DECRQM), so 'negotiation' reduces to emitting modes and decoding the reports that follow.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "End-to-end: the terminal reports mouse events in the negotiated encoding after enable, and the shell-side decoder turns the reported bytes into event records",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised. Only pure-byte decoding (legacy hex contracts, PASS) and stdout mode capture (PASS) are covered."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-mouse-device-switch",
+              "assertion": "Original requirement: End-to-end: the terminal reports mouse events in the negotiated encoding after enable, and the shell-side decoder turns the reported bytes into event records Fresh raw analysis: Reparsed private-emulator output and injected records show negotiated SGR, 1015 and X10 press decoding; positive stub control completed separately. migration-terminal-review112-terminal-mouse-device-switch: static PASS, dynamic PASS.",
+              "definition_sha256": "94a73d21105fd2a6bd4db8b333862909ecbb62e009d22f46038a34a71b2fb5d8"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-mouse-device-switch-r2",
+              "assertion": "Original requirement: End-to-end: the terminal reports mouse events in the negotiated encoding after enable, and the shell-side decoder turns the reported bytes into event records Fresh raw analysis: Reparsed private-emulator output and injected records show negotiated SGR, 1015 and X10 press decoding; positive stub control completed separately. migration-terminal-review112-terminal-mouse-device-switch-r2: static PASS, dynamic PASS.",
+              "definition_sha256": "e6cd9f45e2449044ddbde9ce733028be68dbc1a5d5bce96ffe223c1fc89b28c1"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Mode negotiation: the negotiated mode set (1000, 1015, 1006) is the one actually in effect on the terminal, and an encoding switch changes the report format the consumer must decode",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised. pyte tracks DEC private modes, but the driver's screen step does not expose them."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-mouse-device-switch",
+              "assertion": "Original requirement: Mode negotiation: the negotiated mode set (1000, 1015, 1006) is the one actually in effect on the terminal, and an encoding switch changes the report format the consumer must decode Fresh raw analysis: Independent parsing yields mode sets [1000,1006,1015], [1000,1015], [1000], and [] at the recorded markers; generated reports have hex 1b5b3c303b343b364d, 1b5b33323b343b364d and 1b5b4d202426. migration-terminal-review112-terminal-mouse-device-switch: static PASS, dynamic PASS.",
+              "definition_sha256": "94a73d21105fd2a6bd4db8b333862909ecbb62e009d22f46038a34a71b2fb5d8"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-mouse-device-switch-r2",
+              "assertion": "Original requirement: Mode negotiation: the negotiated mode set (1000, 1015, 1006) is the one actually in effect on the terminal, and an encoding switch changes the report format the consumer must decode Fresh raw analysis: Independent parsing yields mode sets [1000,1006,1015], [1000,1015], [1000], and [] at the recorded markers; generated reports have hex 1b5b3c303b343b364d, 1b5b33323b343b364d and 1b5b4d202426. migration-terminal-review112-terminal-mouse-device-switch-r2: static PASS, dynamic PASS.",
+              "definition_sha256": "e6cd9f45e2449044ddbde9ce733028be68dbc1a5d5bce96ffe223c1fc89b28c1"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "No real input device or host terminal is used",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "This is a constraint of the fixture to build, not a behavior to observe."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-mouse-device-switch",
+              "assertion": "Original requirement: No real input device or host terminal is used Fresh raw analysis: The frozen helper opens its own PTY and uses an owned subprocess; no host mouse or terminal device is used. Return code 0 and before/after terminal attributes are recorded. migration-terminal-review112-terminal-mouse-device-switch: static PASS, dynamic PASS.",
+              "definition_sha256": "94a73d21105fd2a6bd4db8b333862909ecbb62e009d22f46038a34a71b2fb5d8"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-mouse-device-switch-r2",
+              "assertion": "Original requirement: No real input device or host terminal is used Fresh raw analysis: The frozen helper opens its own PTY and uses an owned subprocess; no host mouse or terminal device is used. Return code 0 and before/after terminal attributes are recorded. migration-terminal-review112-terminal-mouse-device-switch-r2: static PASS, dynamic PASS.",
+              "definition_sha256": "e6cd9f45e2449044ddbde9ce733028be68dbc1a5d5bce96ffe223c1fc89b28c1"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Same fixture as mouse/pty-terminal-interoperability. The two topics can migrate together once both are executed."
+      "notes": [
+        "Fresh paired runs only for new case IDs; reached candidate failures remain failures. Existing legacy companions retain their established baseline bindings.",
+        "The six older signal or escape observers without raw PID, live termios, and delivered event details are withheld; newer r3 companion cases supply those records."
+      ]
     },
     {
       "topic": "mv/exdev-copy-remove",
@@ -27883,47 +28143,103 @@
         "purpose": "Exercise spawn and waitpid with bounded child output, exit status, and descriptor cleanup.",
         "reason": "Requires a future disposable VM with a private PTY driver and process namespace, or a reviewed syscall mock for PTY allocation and child handoff. A bounded fixture should run only a fixed harmless child, check master/slave wiring, captured output, exit-status propagation, repeated waits, and cleanup. This suite must not start pty spawn or waitpid operations here."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Never executed. Fully implementable with existing drivers: pty spawn creates its own PTY in the VM, and the candidate itself ($BASH -c ...) can be the fixed harmless child.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "pty spawn FDVAR PIDVAR CMD allocates a PTY, runs CMD with the slave as its controlling tty and 0/1/2, binds the master fd and child pid.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; runnable in any VM driver because spawn allocates its own PTY."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01r2-spawn-io",
+              "assertion": "Original requirement: pty spawn FDVAR PIDVAR CMD allocates a PTY, runs CMD with the slave as its controlling tty and 0/1/2, binds the master fd and child pid. Fresh raw analysis: Returned target PID equals its saved child PID, SID, pgrp, terminal SID and foreground pgrp; three descriptor identities agree and are TTYs. migration-terminal-review112-pty-b01r2-spawn-io: static PASS, dynamic PASS.",
+              "definition_sha256": "164d26c61bd35e439df2c5e021f3d21e8ef368f27484213e1705ed674478e99b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Bounded child output is readable from the master (read -u \"$FDVAR\"), and input written to the master reaches the child.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01r2-spawn-io",
+              "assertion": "Original requirement: Bounded child output is readable from the master (read -u \"$FDVAR\"), and input written to the master reaches the child. Fresh raw analysis: READY and REPLY=ping-fixed are present as independent raw child I/O. migration-terminal-review112-pty-b01r2-spawn-io: static PASS, dynamic PASS.",
+              "definition_sha256": "164d26c61bd35e439df2c5e021f3d21e8ef368f27484213e1705ed674478e99b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "pty waitpid PID [STATUSVAR] propagates the exit status (including 128+signal) and a second wait on the same PID fails.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01r2-spawn-io",
+              "assertion": "Original requirement: pty waitpid PID [STATUSVAR] propagates the exit status (including 128+signal) and a second wait on the same PID fails. Fresh raw analysis: Saved wait return/status pairs are 7/7 and 143/143; repeated waits fail. Reference records exit 7 and signal 15. migration-terminal-review112-pty-b01r2-spawn-io: static PASS, dynamic PASS.",
+              "definition_sha256": "164d26c61bd35e439df2c5e021f3d21e8ef368f27484213e1705ed674478e99b"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01r2-spawn-signal",
+              "assertion": "Original requirement: pty waitpid PID [STATUSVAR] propagates the exit status (including 128+signal) and a second wait on the same PID fails. Fresh raw analysis: Saved wait return/status pairs are 7/7 and 143/143; repeated waits fail. Reference records exit 7 and signal 15. migration-terminal-review112-pty-b01r2-spawn-signal: static PASS, dynamic PASS.",
+              "definition_sha256": "f6026c515da2e3e56f97cf96d51e5ec8b006c92d9e33140983678ca4bdbd4891"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Descriptor cleanup: after pty close FD the master is closed (/proc/self/fd/N absent) and no child outlives the case.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; the driver's stray-process check covers leaks."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01r2-spawn-io",
+              "assertion": "Original requirement: Descriptor cleanup: after pty close FD the master is closed (/proc/self/fd/N absent) and no child outlives the case. Fresh raw analysis: The saved values and process/FD records show close success, repeat close failure, absent master after close, and absent child after wait. migration-terminal-review112-pty-b01r2-spawn-io: static PASS, dynamic PASS.",
+              "definition_sha256": "164d26c61bd35e439df2c5e021f3d21e8ef368f27484213e1705ed674478e99b"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01r2-spawn-signal",
+              "assertion": "Original requirement: Descriptor cleanup: after pty close FD the master is closed (/proc/self/fd/N absent) and no child outlives the case. Fresh raw analysis: The saved values and process/FD records show close success, repeat close failure, absent master after close, and absent child after wait. migration-terminal-review112-pty-b01r2-spawn-signal: static PASS, dynamic PASS.",
+              "definition_sha256": "f6026c515da2e3e56f97cf96d51e5ec8b006c92d9e33140983678ca4bdbd4891"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "The child's controlling terminal is the spawned slave (the child is a session leader; tty is /dev/pts/*).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01r2-spawn-io",
+              "assertion": "Original requirement: The child's controlling terminal is the spawned slave (the child is a session leader; tty is /dev/pts/*). Fresh raw analysis: Child PID=SID=pgrp=terminal SID=foreground pgrp and all three descriptors name the same /dev/pts slave. migration-terminal-review112-pty-b01r2-spawn-io: static PASS, dynamic PASS.",
+              "definition_sha256": "164d26c61bd35e439df2c5e021f3d21e8ef368f27484213e1705ed674478e99b"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01r2-spawn-signal",
+              "assertion": "Original requirement: The child's controlling terminal is the spawned slave (the child is a session leader; tty is /dev/pts/*). Fresh raw analysis: Child PID=SID=pgrp=terminal SID=foreground pgrp and all three descriptors name the same /dev/pts slave. migration-terminal-review112-pty-b01r2-spawn-signal: static PASS, dynamic PASS.",
+              "definition_sha256": "f6026c515da2e3e56f97cf96d51e5ec8b006c92d9e33140983678ca4bdbd4891"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "pty.c 42-51, 355, 480-500, 559. No external program is needed except the candidate itself."
+      "notes": [
+        "Fresh paired runs only for new case IDs; reached candidate failures remain failures. Existing legacy companions retain their established baseline bindings.",
+        "The six older signal or escape observers without raw PID, live termios, and delivered event details are withheld; newer r3 companion cases supply those records."
+      ]
     },
     {
       "topic": "pty/pty-terminal-io-deferred",
@@ -27933,35 +28249,60 @@
         "purpose": "Exercise isatty, tty-name, close, echo, and resize on a private PTY pair.",
         "reason": "Requires a future disposable VM or reviewed PTY mock that provides a private master/slave pair, stable tty-name, and observable termios and winsize state. It must verify terminal classification, descriptor closure, echo toggling, geometry updates, and any SIGWINCH effect without using a host terminal. No terminal state mutation is invoked."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Only regular-file descriptor cases ran. The PTY driver can exercise every remaining obligation; no capability is missing.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "pty isatty FD returns 0 for a terminal fd (the driver PTY) and nonzero for a regular file.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/pty/regular-file-is-not-terminal",
               "assertion": "nonterminal classification of a private regular file",
               "definition_sha256": "7b80f37acf05fb415490fc231e8b4dc567ef58865849b8e2f4b6a6dc983f86f7"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-pty-b01-tty-classification",
+              "assertion": "Original requirement: pty isatty FD returns 0 for a terminal fd (the driver PTY) and nonzero for a regular file. Fresh raw analysis: PTY vs /dev/null is checked in both new runs; retained legacy regular-file result has status 1 and matching original definition. migration-terminal-review112-pty-b01-tty-classification: static PASS, dynamic PASS.",
+              "definition_sha256": "7675fe3ee08436ab0e29e1e843e55522fcf1010934e7a00d82560df72f416e26"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-pty-b01r2-tty-classification",
+              "assertion": "Original requirement: pty isatty FD returns 0 for a terminal fd (the driver PTY) and nonzero for a regular file. Fresh raw analysis: PTY vs /dev/null is checked in both new runs; retained legacy regular-file result has status 1 and matching original definition. migration-terminal-review112-pty-b01r2-tty-classification: static PASS, dynamic PASS.",
+              "definition_sha256": "71fddbaee21d4414b3526f2c94343ef8375dbaf6aaadce198ba9419816d6e16f"
             }
           ],
-          "gap": "The positive classification on a real PTY is not exercised."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "pty tty-name FD prints the PTY path (matches /dev/pts/N and equals the driver's recorded tty_name).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-pty-b01-tty-classification",
+              "assertion": "Original requirement: pty tty-name FD prints the PTY path (matches /dev/pts/N and equals the driver's recorded tty_name). Fresh raw analysis: Raw TTY=/dev/pts/0 agrees with tty_name from each saved PTY driver result. migration-terminal-review112-pty-b01-tty-classification: static PASS, dynamic PASS.",
+              "definition_sha256": "7675fe3ee08436ab0e29e1e843e55522fcf1010934e7a00d82560df72f416e26"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-pty-b01r2-tty-classification",
+              "assertion": "Original requirement: pty tty-name FD prints the PTY path (matches /dev/pts/N and equals the driver's recorded tty_name). Fresh raw analysis: Raw TTY=/dev/pts/0 agrees with tty_name from each saved PTY driver result. migration-terminal-review112-pty-b01r2-tty-classification: static PASS, dynamic PASS.",
+              "definition_sha256": "71fddbaee21d4414b3526f2c94343ef8375dbaf6aaadce198ba9419816d6e16f"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "pty close FD closes the descriptor; a second close fails.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -27974,26 +28315,67 @@
               "id": "legacy/pty/invalid-close-operand",
               "assertion": "nonnumeric fd rejected",
               "definition_sha256": "76595231e24496118fbf204e9cb6b40ad21aa66ead8d5f1bb5655f25356574bb"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-pty-b01-tty-classification",
+              "assertion": "Original requirement: pty close FD closes the descriptor; a second close fails. Fresh raw analysis: Actual terminal FD close and duplicate close were reached; legacy private-descriptor and invalid-operand evidence is retained. migration-terminal-review112-pty-b01-tty-classification: static PASS, dynamic PASS.",
+              "definition_sha256": "7675fe3ee08436ab0e29e1e843e55522fcf1010934e7a00d82560df72f416e26"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-pty-b01r2-tty-classification",
+              "assertion": "Original requirement: pty close FD closes the descriptor; a second close fails. Fresh raw analysis: Actual terminal FD close and duplicate close were reached; legacy private-descriptor and invalid-operand evidence is retained. migration-terminal-review112-pty-b01r2-tty-classification: static PASS, dynamic PASS.",
+              "definition_sha256": "71fddbaee21d4414b3526f2c94343ef8375dbaf6aaadce198ba9419816d6e16f"
             }
           ],
-          "gap": "Not exercised on a PTY fd."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "pty echo FD off clears ECHO/ECHOE/ECHOK/ECHONL (typed input is not echoed); on restores them.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Observable with the termios and output_lacks steps."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-pty-b01-tty-echo",
+              "assertion": "Original requirement: pty echo FD off clears ECHO/ECHOE/ECHOK/ECHONL (typed input is not echoed); on restores them. Fresh raw analysis: Saved off/on termios integers and flags, hidden and visible bytes, and matching before/after state support all four echo masks. The older echo case independently proves suppressed/visible input and restoration; the r2 case supplies actual live bitmasks for all four flags. migration-terminal-review112-pty-b01-tty-echo: static PASS, dynamic PASS.",
+              "definition_sha256": "5bea52f8da06585399816cf0763482297edd2a9c9b70fe962ed5d36f436d8594"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-pty-b01r2-tty-echo",
+              "assertion": "Original requirement: pty echo FD off clears ECHO/ECHOE/ECHOK/ECHONL (typed input is not echoed); on restores them. Fresh raw analysis: Saved off/on termios integers and flags, hidden and visible bytes, and matching before/after state support all four echo masks. The older echo case independently proves suppressed/visible input and restoration; the r2 case supplies actual live bitmasks for all four flags. migration-terminal-review112-pty-b01r2-tty-echo: static PASS, dynamic PASS.",
+              "definition_sha256": "5edcf5b50d411e80ba6a9389ecb0cd28ff6e328750a472c00f099ca0964d4efe"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "pty resize FD -W COLS -H ROWS sets the window size and the kernel delivers SIGWINCH to the foreground group.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "SIGWINCH is observable via 'trap \"echo winch\" WINCH'. Geometry is observable via /usr/bin/stty size (independent coreutils), or with a new driver 'winsize' assertion."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-pty-b01-tty-resize",
+              "assertion": "Original requirement: pty resize FD -W COLS -H ROWS sets the window size and the kernel delivers SIGWINCH to the foreground group. Fresh raw analysis: Raw terminal output contains SIGNAL=WINCH and GEOMETRY=37 113; independent stty reference reaches the same events. migration-terminal-review112-pty-b01-tty-resize: static PASS, dynamic PASS.",
+              "definition_sha256": "b54fdf154379f61ebe6a79ef04118ebd509a75ba620e68e8d12f0b0bd11ea24f"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-pty-b01r2-tty-resize",
+              "assertion": "Original requirement: pty resize FD -W COLS -H ROWS sets the window size and the kernel delivers SIGWINCH to the foreground group. Fresh raw analysis: Raw terminal output contains SIGNAL=WINCH and GEOMETRY=37 113; independent stty reference reaches the same events. migration-terminal-review112-pty-b01r2-tty-resize: static PASS, dynamic PASS.",
+              "definition_sha256": "dd09acb57aff1b09f8f60ed9ba1d9730775c4adb6eb3f77af363e8a87f4eac7c"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "pty.c 1087-1092 (echo and resize documented semantics). The geometry check uses trusted /usr/bin/stty inside the VM as an independent observer."
+      "notes": [
+        "Fresh paired runs only for new case IDs; reached candidate failures remain failures. Existing legacy companions retain their established baseline bindings.",
+        "The six older signal or escape observers without raw PID, live termios, and delivered event details are withheld; newer r3 companion cases supply those records."
+      ]
     },
     {
       "topic": "ptybroker/binary_stream_roundtrip",
@@ -28003,33 +28385,57 @@
         "purpose": "Verify send-fd count limits and byte-exact receive delivery for a deterministic payload containing NUL and high-bit bytes, including continuation across the documented 16384-byte input chunk boundary.",
         "reason": "Requires a disposable Linux VM with a private PTY and a fixed in-tree echo child; compare the received bytes to an independently generated byte sequence and check each accepted count. No broker operation was executed here."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "There is no fixture. The broker allocates its own PTYs, so the driver needs no extra PTY. The VM supplies /proc, pidfd, SOCK_SEQPACKET and subreaper; only the case scripts and their helpers are missing.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "send-fd ROOT ID INFD reads at most 16384 bytes per call, and COUNT_VAR reports the accepted chunk size",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b02r2-binary",
+              "assertion": "Original requirement: send-fd ROOT ID INFD reads at most 16384 bytes per call, and COUNT_VAR reports the accepted chunk size Fresh raw analysis: Raw counts are 16384 16384 45 0, each with status 0. migration-terminal-review112-pty-b02r2-binary: static PASS, dynamic PASS.",
+              "definition_sha256": "4a858c672ebf55335426db90dbeb0b735d6bfb45711dc1781eb6d3f1e0bcebc3"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "A deterministic payload with NUL and high-bit bytes, longer than 16384 bytes, is delivered byte-exact to a raw-mode echo child and comes back through receive HANDLE OUTFD",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b02r2-binary",
+              "assertion": "Original requirement: A deterministic payload with NUL and high-bit bytes, longer than 16384 bytes, is delivered byte-exact to a raw-mode echo child and comes back through receive HANDLE OUTFD Fresh raw analysis: Data-only regeneration of (73*i+19)%256 exactly equals both saved 32,813-byte child-input and receive streams, including NUL and high-bit bytes; SHA-256 d5b60ff71ffd82d71e5cda06bb82482785283d64a95c7144049a61ed1d96cdb9. migration-terminal-review112-pty-b02r2-binary: static PASS, dynamic PASS.",
+              "definition_sha256": "4a858c672ebf55335426db90dbeb0b735d6bfb45711dc1781eb6d3f1e0bcebc3"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Continuation across the 16384-byte chunk boundary loses or duplicates no bytes",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b02r2-binary",
+              "assertion": "Original requirement: Continuation across the 16384-byte chunk boundary loses or duplicates no bytes Fresh raw analysis: Reparsed output offsets are contiguous from 0 through 32813, and both independently compared streams equal the complete fixture. migration-terminal-review112-pty-b02r2-binary: static PASS, dynamic PASS.",
+              "definition_sha256": "4a858c672ebf55335426db90dbeb0b735d6bfb45711dc1781eb6d3f1e0bcebc3"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/ptybroker.c:494-515 (contract text); _ptybroker/server.c and client.c (0700 root checks at client.c:48-70, observer limit at server.c:202, PB_CHUNK 16384 in ptybroker.h:10). No GNU equivalent exists, so these are contract cases. All of them fit a new VM suite: the shell or terminal group with ROOT=$(pwd)/root at mode 0700 and children that are fixed in-tree helpers (trusted /usr/bin/python3 or /bin/sh)."
+      "notes": [
+        "Fresh paired runs only for new case IDs; reached candidate failures remain failures. Existing legacy companions retain their established baseline bindings.",
+        "The six older signal or escape observers without raw PID, live termios, and delivered event details are withheld; newer r3 companion cases supply those records."
+      ]
     },
     {
       "topic": "ptybroker/bounded_io_errors",
@@ -28118,40 +28524,95 @@
         "purpose": "Verify create, status, list, and terminate for a bounded harmless child, including 0700 session ownership and removal after termination.",
         "reason": "Requires a controller-approved disposable Linux VM with /proc, Unix SOCK_SEQPACKET, pidfd and subreaper support, plus a private PTY and a short private runtime root. The current suite does not start a broker or child process."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "There is no fixture. The broker allocates its own PTYs, so the driver needs no extra PTY. The VM supplies /proc, pidfd, SOCK_SEQPACKET and subreaper; only the case scripts and their helpers are missing.",
+      "current_reason": "Remaining obligations: r3: Wrong-owner rejection remains unproved: the /root test retained EACCES but not target owner/mode or proof that the error arose from the ownership condition.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "create ROOT ID -- CMD starts a bounded harmless child, and status ROOT ID reports it running with its geometry",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed operation. The legacy suite has only the two metadata contracts."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01-broker-lifecycle",
+              "assertion": "Original requirement: create ROOT ID -- CMD starts a bounded harmless child, and status ROOT ID reports it running with its geometry Fresh raw analysis: Create/status records identify the owned sleep child and report running=1, rows=24, cols=80; before-child /proc stat is retained. migration-terminal-review112-pty-b01-broker-lifecycle: static PASS, dynamic PASS.",
+              "definition_sha256": "cb76f1e576596ecc3faca6ec9757372934069cd8c511c3ba1417202766f9cfa2"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01r2-broker-lifecycle",
+              "assertion": "Original requirement: create ROOT ID -- CMD starts a bounded harmless child, and status ROOT ID reports it running with its geometry Fresh raw analysis: Create/status records identify the owned sleep child and report running=1, rows=24, cols=80; before-child /proc stat is retained. migration-terminal-review112-pty-b01r2-broker-lifecycle: static PASS, dynamic PASS.",
+              "definition_sha256": "01ced11a3eef155e45b5bae158e48bbe7fe31fe054cdc8557e581c24f5c2ae67"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "list ROOT lists the session ID",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01-broker-lifecycle",
+              "assertion": "Original requirement: list ROOT lists the session ID Fresh raw analysis: Saved list-before is one and list-after is empty with status 0. migration-terminal-review112-pty-b01-broker-lifecycle: static PASS, dynamic PASS.",
+              "definition_sha256": "cb76f1e576596ecc3faca6ec9757372934069cd8c511c3ba1417202766f9cfa2"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01r2-broker-lifecycle",
+              "assertion": "Original requirement: list ROOT lists the session ID Fresh raw analysis: Saved list-before is one and list-after is empty with status 0. migration-terminal-review112-pty-b01r2-broker-lifecycle: static PASS, dynamic PASS.",
+              "definition_sha256": "01ced11a3eef155e45b5bae158e48bbe7fe31fe054cdc8557e581c24f5c2ae67"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "The session directory and ROOT are 0700 and owned by the caller; a ROOT with wrong mode or owner is rejected (EACCES)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01-broker-lifecycle",
+              "assertion": "Original requirement: The session directory and ROOT are 0700 and owned by the caller; a ROOT with wrong mode or owner is rejected (EACCES) Fresh raw analysis: Both directories were recorded 0700 owned by UID 2000 and a wrong-mode directory produced EACCES. The proposed wrong-owner call used /root, but the saved record does not capture that target's uid/mode or separate owner rejection from filesystem access denial. migration-terminal-review112-pty-b01-broker-lifecycle: static PASS, dynamic PASS.",
+              "definition_sha256": "cb76f1e576596ecc3faca6ec9757372934069cd8c511c3ba1417202766f9cfa2"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01r2-broker-lifecycle",
+              "assertion": "Original requirement: The session directory and ROOT are 0700 and owned by the caller; a ROOT with wrong mode or owner is rejected (EACCES) Fresh raw analysis: Both directories were recorded 0700 owned by UID 2000 and a wrong-mode directory produced EACCES. The proposed wrong-owner call used /root, but the saved record does not capture that target's uid/mode or separate owner rejection from filesystem access denial. migration-terminal-review112-pty-b01r2-broker-lifecycle: static PASS, dynamic PASS.",
+              "definition_sha256": "01ced11a3eef155e45b5bae158e48bbe7fe31fe054cdc8557e581c24f5c2ae67"
+            }
+          ],
+          "gap": "Wrong-owner rejection remains unproved: the /root test retained EACCES but not target owner/mode or proof that the error arose from the ownership condition."
         },
         {
           "id": "r4",
           "behavior": "terminate ROOT ID ends the child, after which status and list no longer report it and the session directory is removed",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01-broker-lifecycle",
+              "assertion": "Original requirement: terminate ROOT ID ends the child, after which status and list no longer report it and the session directory is removed Fresh raw analysis: Terminate returns 0; status then reports no such file, list is empty, session path absent, and the recorded child PID is absent after termination. migration-terminal-review112-pty-b01-broker-lifecycle: static PASS, dynamic PASS.",
+              "definition_sha256": "cb76f1e576596ecc3faca6ec9757372934069cd8c511c3ba1417202766f9cfa2"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01r2-broker-lifecycle",
+              "assertion": "Original requirement: terminate ROOT ID ends the child, after which status and list no longer report it and the session directory is removed Fresh raw analysis: Terminate returns 0; status then reports no such file, list is empty, session path absent, and the recorded child PID is absent after termination. migration-terminal-review112-pty-b01r2-broker-lifecycle: static PASS, dynamic PASS.",
+              "definition_sha256": "01ced11a3eef155e45b5bae158e48bbe7fe31fe054cdc8557e581c24f5c2ae67"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/ptybroker.c:494-515 (contract text); _ptybroker/server.c and client.c (0700 root checks at client.c:48-70, observer limit at server.c:202, PB_CHUNK 16384 in ptybroker.h:10). No GNU equivalent exists, so these are contract cases. All of them fit a new VM suite: the shell or terminal group with ROOT=$(pwd)/root at mode 0700 and children that are fixed in-tree helpers (trusted /usr/bin/python3 or /bin/sh)."
+      "notes": [
+        "Fresh paired runs only for new case IDs; reached candidate failures remain failures. Existing legacy companions retain their established baseline bindings.",
+        "The six older signal or escape observers without raw PID, live termios, and delivered event details are withheld; newer r3 companion cases supply those records."
+      ]
     },
     {
       "topic": "ptybroker/pty_geometry_resize",
@@ -28161,33 +28622,57 @@
         "purpose": "Verify requested initial rows and columns, resize propagation, and the corresponding bounded child geometry notification.",
         "reason": "Requires a disposable Linux VM with a private PTY and a deterministic child fixture that reports its PTY geometry and resize notification. No physical terminal or existing session should be involved."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "There is no fixture. The broker allocates its own PTYs, so the driver needs no extra PTY. The VM supplies /proc, pidfd, SOCK_SEQPACKET and subreaper; only the case scripts and their helpers are missing.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "create --rows R --cols C sets the child's initial PTY size (TIOCGWINSZ seen by the child)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b02r2-geometry",
+              "assertion": "Original requirement: create --rows R --cols C sets the child's initial PTY size (TIOCGWINSZ seen by the child) Fresh raw analysis: Child geometry-initial raw file is 31 97, matching the create record. migration-terminal-review112-pty-b02r2-geometry: static PASS, dynamic PASS.",
+              "definition_sha256": "69739092ad5693b422724f3829adcc1f5e0456fe7cbc43868b38bc20dec85644"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "resize ROOT ID ROWS COLS changes the child's PTY size and delivers SIGWINCH to the child",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b02r2-geometry",
+              "assertion": "Original requirement: resize ROOT ID ROWS COLS changes the child's PTY size and delivers SIGWINCH to the child Fresh raw analysis: Child WINCH raw file is 37 119 after the requested resize. migration-terminal-review112-pty-b02r2-geometry: static PASS, dynamic PASS.",
+              "definition_sha256": "69739092ad5693b422724f3829adcc1f5e0456fe7cbc43868b38bc20dec85644"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "An attached handle receives a 'geometry' event that reports the new size",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b02r2-geometry",
+              "assertion": "Original requirement: An attached handle receives a 'geometry' event that reports the new size Fresh raw analysis: Attached-handle raw event is geometry rows=37 cols=119. migration-terminal-review112-pty-b02r2-geometry: static PASS, dynamic PASS.",
+              "definition_sha256": "69739092ad5693b422724f3829adcc1f5e0456fe7cbc43868b38bc20dec85644"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/ptybroker.c:494-515 (contract text); _ptybroker/server.c and client.c (0700 root checks at client.c:48-70, observer limit at server.c:202, PB_CHUNK 16384 in ptybroker.h:10). No GNU equivalent exists, so these are contract cases. All of them fit a new VM suite: the shell or terminal group with ROOT=$(pwd)/root at mode 0700 and children that are fixed in-tree helpers (trusted /usr/bin/python3 or /bin/sh)."
+      "notes": [
+        "Fresh paired runs only for new case IDs; reached candidate failures remain failures. Existing legacy companions retain their established baseline bindings.",
+        "The six older signal or escape observers without raw PID, live termios, and delivered event details are withheld; newer r3 companion cases supply those records."
+      ]
     },
     {
       "topic": "ptybroker/raw_history_and_late_attach",
@@ -29914,40 +30399,89 @@
         "purpose": "Use a private frontend terminal driver to compare deterministic binary child output, exercise quoted Ctrl-A input and the Ctrl-A then d detach sequence, and verify frontend terminal settings are restored.",
         "reason": "Requires a disposable Linux VM with ptybroker, an owned raw-mode child, and a private controlling PTY/terminal driver capable of checking termios restoration. Do not attach to a user or host terminal."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Never executed. The PTY driver is the private frontend terminal; it can send ^A sequences, match raw bytes and check termios restoration. No new capability is needed.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "attach relays a deterministic binary child output to the frontend terminal byte for byte (new bytes only).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04-frontend-attach",
+              "assertion": "Original requirement: attach relays a deterministic binary child output to the frontend terminal byte for byte (new bytes only). Fresh raw analysis: The frontend raw stream is exactly 4e455700fe1b5b33316d210a followed by its frontend end marker, with old history absent. migration-terminal-review112-pty-b04-frontend-attach: static PASS, dynamic PASS.",
+              "definition_sha256": "5241ded4b9c7e0f6c49eb5ba99337a26f2eb10770f5eb54ec5edb4c0f23702eb"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04r2-frontend-attach",
+              "assertion": "Original requirement: attach relays a deterministic binary child output to the frontend terminal byte for byte (new bytes only). Fresh raw analysis: The frontend raw stream is exactly 4e455700fe1b5b33316d210a followed by its frontend end marker, with old history absent. migration-terminal-review112-pty-b04r2-frontend-attach: static PASS, dynamic PASS.",
+              "definition_sha256": "6489e8620588305982732ca676c487d89025c30e6dfea7f90eb9b14125e18d7b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Quoted Ctrl-A (prefix then a, or the documented quoting) delivers a literal 0x01 to the child.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04-frontend-attach",
+              "assertion": "Original requirement: Quoted Ctrl-A (prefix then a, or the documented quoting) delivers a literal 0x01 to the child. Fresh raw analysis: The fixture sends the prefix quote and the owned child-input file contains exactly 01. migration-terminal-review112-pty-b04-frontend-attach: static PASS, dynamic PASS.",
+              "definition_sha256": "5241ded4b9c7e0f6c49eb5ba99337a26f2eb10770f5eb54ec5edb4c0f23702eb"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04r2-frontend-attach",
+              "assertion": "Original requirement: Quoted Ctrl-A (prefix then a, or the documented quoting) delivers a literal 0x01 to the child. Fresh raw analysis: The fixture sends the prefix quote and the owned child-input file contains exactly 01. migration-terminal-review112-pty-b04r2-frontend-attach: static PASS, dynamic PASS.",
+              "definition_sha256": "6489e8620588305982732ca676c487d89025c30e6dfea7f90eb9b14125e18d7b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Ctrl-A then d detaches, attach returns, and the session and child keep running.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04-frontend-attach",
+              "assertion": "Original requirement: Ctrl-A then d detaches, attach returns, and the session and child keep running. Fresh raw analysis: After detach frontend returned 0 and relay-status still reports the same child running with zero controllers. migration-terminal-review112-pty-b04-frontend-attach: static PASS, dynamic PASS.",
+              "definition_sha256": "5241ded4b9c7e0f6c49eb5ba99337a26f2eb10770f5eb54ec5edb4c0f23702eb"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04r2-frontend-attach",
+              "assertion": "Original requirement: Ctrl-A then d detaches, attach returns, and the session and child keep running. Fresh raw analysis: After detach frontend returned 0 and relay-status still reports the same child running with zero controllers. migration-terminal-review112-pty-b04r2-frontend-attach: static PASS, dynamic PASS.",
+              "definition_sha256": "6489e8620588305982732ca676c487d89025c30e6dfea7f90eb9b14125e18d7b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Frontend termios settings are restored after detach.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The driver's terminal_restored check observes this directly."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04r2-frontend-attach",
+              "assertion": "Original requirement: Frontend termios settings are restored after detach. Fresh raw analysis: The r2 raw before/after termios fields match exactly, with frontend status 0 and forced_cleanup=false. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-pty-b04-frontend-attach. Only the newer frontend record retains independent before/during/after termios and frontend PID. migration-terminal-review112-pty-b04r2-frontend-attach: static PASS, dynamic PASS.",
+              "definition_sha256": "6489e8620588305982732ca676c487d89025c30e6dfea7f90eb9b14125e18d7b"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate CLI per loadables/screen.c screen_doc 3928-3967. Live services need an absolute BASHSCREEN_STATE_DIR (a private 0700 dir in the case workspace). Brokers are spawned from /proc/self/exe (bos_ptybroker_create), so on the candidate side the broker is the candidate binary itself. GNU screen 4.9.1 is installed in the reference image but is not a semantic oracle for this API: contract cases only. The quoting key for a literal ^A must be confirmed from screen.c's relay loop (BSCREEN_DEFAULT_DETACH_KEY) before the expectation is fixed."
+      "notes": [
+        "Fresh paired runs only for new case IDs; reached candidate failures remain failures. Existing legacy companions retain their established baseline bindings.",
+        "The six older signal or escape observers without raw PID, live termios, and delivered event details are withheld; newer r3 companion cases supply those records."
+      ]
     },
     {
       "topic": "screen/capture-raw-history",
@@ -29957,40 +30491,95 @@
         "purpose": "Have an owned child emit deterministic text, binary bytes, and a terminal query sequence; verify capture returns raw history and a later attach does not replay the old query or claim a parsed terminal grid.",
         "reason": "Requires a disposable Linux VM with ptybroker, a private PTY, and an owned child that records query replies. Use a small bounded fixture and a private terminal driver; no physical terminal or history replay into a real display."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Never executed. The plain and PTY drivers suffice: the child is the candidate shell writing deterministic bytes and recording any reply in a private file.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "capture-pane returns the owned child's deterministic text and binary bytes as raw history (bounded).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; plain driver."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04-frontend-capture",
+              "assertion": "Original requirement: capture-pane returns the owned child's deterministic text and binary bytes as raw history (bounded). Fresh raw analysis: capture-pane raw bytes are 6f6c6400ff1b5b366e0a72617780, including text, NUL and high-bit bytes. migration-terminal-review112-pty-b04-frontend-capture: static PASS, dynamic PASS.",
+              "definition_sha256": "20bfadd4e71fe8839505edfd30900718b5bd907bd2ff24a933301e4e357309a5"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04r2-frontend-capture",
+              "assertion": "Original requirement: capture-pane returns the owned child's deterministic text and binary bytes as raw history (bounded). Fresh raw analysis: capture-pane raw bytes are 6f6c6400ff1b5b366e0a72617780, including text, NUL and high-bit bytes. migration-terminal-review112-pty-b04r2-frontend-capture: static PASS, dynamic PASS.",
+              "definition_sha256": "cc1fb309e9ce2fd998e69a55206f2d48c456ded80c2fd5d8b3b977586b60bcad"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "A terminal query emitted by the child (for example ESC[6n or ESC[c) is kept in raw history but not replayed to a later attach.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; the PTY driver can check with output_lacks after attach."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04-frontend-capture",
+              "assertion": "Original requirement: A terminal query emitted by the child (for example ESC[6n or ESC[c) is kept in raw history but not replayed to a later attach. Fresh raw analysis: ESC[6n is present in captured history and absent from the later frontend stream; the live bytes arrive. migration-terminal-review112-pty-b04-frontend-capture: static PASS, dynamic PASS.",
+              "definition_sha256": "20bfadd4e71fe8839505edfd30900718b5bd907bd2ff24a933301e4e357309a5"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04r2-frontend-capture",
+              "assertion": "Original requirement: A terminal query emitted by the child (for example ESC[6n or ESC[c) is kept in raw history but not replayed to a later attach. Fresh raw analysis: ESC[6n is present in captured history and absent from the later frontend stream; the live bytes arrive. migration-terminal-review112-pty-b04r2-frontend-capture: static PASS, dynamic PASS.",
+              "definition_sha256": "cc1fb309e9ce2fd998e69a55206f2d48c456ded80c2fd5d8b3b977586b60bcad"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Capture does not claim a parsed terminal grid (raw bytes are returned, not rendered rows).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04-frontend-capture",
+              "assertion": "Original requirement: Capture does not claim a parsed terminal grid (raw bytes are returned, not rendered rows). Fresh raw analysis: The captured byte sequence preserves raw binary and query bytes; no parsed grid is represented. migration-terminal-review112-pty-b04-frontend-capture: static PASS, dynamic PASS.",
+              "definition_sha256": "20bfadd4e71fe8839505edfd30900718b5bd907bd2ff24a933301e4e357309a5"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04r2-frontend-capture",
+              "assertion": "Original requirement: Capture does not claim a parsed terminal grid (raw bytes are returned, not rendered rows). Fresh raw analysis: The captured byte sequence preserves raw binary and query bytes; no parsed grid is represented. migration-terminal-review112-pty-b04r2-frontend-capture: static PASS, dynamic PASS.",
+              "definition_sha256": "cc1fb309e9ce2fd998e69a55206f2d48c456ded80c2fd5d8b3b977586b60bcad"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "The child records whether it received a query reply (it must receive none from the broker on attach replay).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04-frontend-capture",
+              "assertion": "Original requirement: The child records whether it received a query reply (it must receive none from the broker on attach replay). Fresh raw analysis: The owned child input file records only Z; the frontend was set to respond if a query was replayed and no reply appeared. migration-terminal-review112-pty-b04-frontend-capture: static PASS, dynamic PASS.",
+              "definition_sha256": "20bfadd4e71fe8839505edfd30900718b5bd907bd2ff24a933301e4e357309a5"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04r2-frontend-capture",
+              "assertion": "Original requirement: The child records whether it received a query reply (it must receive none from the broker on attach replay). Fresh raw analysis: The owned child input file records only Z; the frontend was set to respond if a query was replayed and no reply appeared. migration-terminal-review112-pty-b04r2-frontend-capture: static PASS, dynamic PASS.",
+              "definition_sha256": "cc1fb309e9ce2fd998e69a55206f2d48c456ded80c2fd5d8b3b977586b60bcad"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate CLI per loadables/screen.c screen_doc 3928-3967. Live services need an absolute BASHSCREEN_STATE_DIR (a private 0700 dir in the case workspace). Brokers are spawned from /proc/self/exe (bos_ptybroker_create), so on the candidate side the broker is the candidate binary itself. GNU screen 4.9.1 is installed in the reference image but is not a semantic oracle for this API: contract cases only."
+      "notes": [
+        "Fresh paired runs only for new case IDs; reached candidate failures remain failures. Existing legacy companions retain their established baseline bindings.",
+        "The six older signal or escape observers without raw PID, live termios, and delivered event details are withheld; newer r3 companion cases supply those records."
+      ]
     },
     {
       "topic": "screen/controller-observer-roles",
@@ -30000,33 +30589,75 @@
         "purpose": "With a small deterministic stream, verify one controller and an observer receive the expected live bytes while observer input is suppressed and neither role terminates the pane on disconnect.",
         "reason": "Requires a disposable Linux VM with ptybroker, one owned child, and private attach clients. Keep the stream small and bounded; this case does not induce queue saturation or run a backpressure stress test."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Never executed. Two simultaneous attach clients with terminal stdio are needed. The PTY driver supplies one terminal, and a trusted /usr/bin/python3 helper inside the VM can allocate the second pty pair for the observer. Implementation work, not a capability gap.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A controller attach and an observer attach (-x) both receive the same small live byte stream.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; the observer runs on the helper-allocated second pty."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04-frontend-roles",
+              "assertion": "Original requirement: A controller attach and an observer attach (-x) both receive the same small live byte stream. Fresh raw analysis: Controller and observer raw frontend streams are byte-identical and contain the deterministic live payload. migration-terminal-review112-pty-b04-frontend-roles: static PASS, dynamic PASS.",
+              "definition_sha256": "8662efbaf69ba305879f338dc27f56070d49db30b762d85ae30d904623b9e6df"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04r2-frontend-roles",
+              "assertion": "Original requirement: A controller attach and an observer attach (-x) both receive the same small live byte stream. Fresh raw analysis: Controller and observer raw frontend streams are byte-identical and contain the deterministic live payload. migration-terminal-review112-pty-b04r2-frontend-roles: static PASS, dynamic PASS.",
+              "definition_sha256": "efaec7969b9f7a1b57066ed9f7765a4a3c80e3dc6234f76e57a5092297802b56"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Observer input is suppressed (bytes typed in the observer do not reach the child).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04-frontend-roles",
+              "assertion": "Original requirement: Observer input is suppressed (bytes typed in the observer do not reach the child). Fresh raw analysis: The observer sends O; the child input record contains only the controller's C. migration-terminal-review112-pty-b04-frontend-roles: static PASS, dynamic PASS.",
+              "definition_sha256": "8662efbaf69ba305879f338dc27f56070d49db30b762d85ae30d904623b9e6df"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04r2-frontend-roles",
+              "assertion": "Original requirement: Observer input is suppressed (bytes typed in the observer do not reach the child). Fresh raw analysis: The observer sends O; the child input record contains only the controller's C. migration-terminal-review112-pty-b04r2-frontend-roles: static PASS, dynamic PASS.",
+              "definition_sha256": "efaec7969b9f7a1b57066ed9f7765a4a3c80e3dc6234f76e57a5092297802b56"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Disconnecting either role does not terminate the pane or child.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04-frontend-roles",
+              "assertion": "Original requirement: Disconnecting either role does not terminate the pane or child. Fresh raw analysis: Successive relay-status records show running=1 with roles 1/1, 1/0, then 0/0; both frontends restored termios and exited normally. migration-terminal-review112-pty-b04-frontend-roles: static PASS, dynamic PASS.",
+              "definition_sha256": "8662efbaf69ba305879f338dc27f56070d49db30b762d85ae30d904623b9e6df"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b04r2-frontend-roles",
+              "assertion": "Original requirement: Disconnecting either role does not terminate the pane or child. Fresh raw analysis: Successive relay-status records show running=1 with roles 1/1, 1/0, then 0/0; both frontends restored termios and exited normally. migration-terminal-review112-pty-b04r2-frontend-roles: static PASS, dynamic PASS.",
+              "definition_sha256": "efaec7969b9f7a1b57066ed9f7765a4a3c80e3dc6234f76e57a5092297802b56"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate CLI per loadables/screen.c screen_doc 3928-3967. Live services need an absolute BASHSCREEN_STATE_DIR (a private 0700 dir in the case workspace). Brokers are spawned from /proc/self/exe (bos_ptybroker_create), so on the candidate side the broker is the candidate binary itself. GNU screen 4.9.1 is installed in the reference image but is not a semantic oracle for this API: contract cases only. Helper is trusted /usr/bin/python3 in the disposable VM (design-update.txt)."
+      "notes": [
+        "Fresh paired runs only for new case IDs; reached candidate failures remain failures. Existing legacy companions retain their established baseline bindings.",
+        "The six older signal or escape observers without raw PID, live termios, and delivered event details are withheld; newer r3 companion cases supply those records."
+      ]
     },
     {
       "topic": "screen/literal-child-argv",
@@ -31655,33 +32286,177 @@
         "purpose": "Full GNU comparison of batch arithmetic, ordering, and malformed-row handling against the same controlled slabinfo data.",
         "reason": "Requires a disposable VM or reviewed syscall/file-open mock that redirects both candidate and procps-ng slabtop reads of /proc/slabinfo to the same private fixture. GNU slabtop does not honor BASHOS_PROC_ROOT, while the provided runner cannot mount or interpose a shared mock. Future fixture should include ordinary rows, zero objects, equal sort keys, malformed lines, and rows whose slab/object rounding differs; compare full output and status. No operation parity is claimed here."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Never executed against procps slabtop. GNU slabtop reads /proc/slabinfo only (root-readable 0400 on the live kernel) and takes no input path. A per-side unprivileged user+mount namespace with a fixture bind-mounted over /proc/slabinfo gives both implementations the same readable data without guest root. Precondition for root: confirm unprivileged user namespaces in the guest's case context. The evaluation runs under systemd-run plus unshare --mount --pid --net --mount-proc as root and drops to uid 2000. The case must belong to a modern VM group, not the legacy bubblewrap runner, which passes --disable-userns. user.max_user_namespaces must be nonzero (it is on the Debian default kernel).",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "procps slabtop -o and candidate slabtop -o print byte-identical batch output from the same slabinfo data (summary, percentages, sizes, default order)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Never executed against procps. Only the Python model comparison (legacy/slabtop/batch-independent-summary, PASS both builds) and sort contracts (PASS) exist. Implementable with the unshare -Urm bind-mount fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-batch-default",
+              "assertion": "Original requirement: procps slabtop -o and candidate slabtop -o print byte-identical batch output from the same slabinfo data (summary, percentages, sizes, default order) Fresh raw analysis: Both status 0; candidate stdout is 526 bytes (sha256 ecb0ccaa58768021818ef9170072f23f72d1a5f163e52a1b03270af33bfde472), reference is 596 bytes (sha256 50b17ee9cd8f56f2a6deb72ae6443175b60ca2a1d9d3615bd4259e16ff36b280). Genuine FAIL on both builds. migration-terminal-review112-terminal-slab-batch-default: static FAIL, dynamic FAIL.",
+              "definition_sha256": "8db07c645c0126bab4a3195bf7edaa45d251ca987b5b26c3cd40a3132b5ae9cd"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "The same for every -s sort key, including equal-key tie ordering",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Contract only (legacy/slabtop/sort-fixture-orders PASS). Implementable with the unshare -Urm bind-mount fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-batch-sort-a",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-batch-sort-a: static FAIL, dynamic FAIL.",
+              "definition_sha256": "9fd674e2cdca0f8acdca82d676bfbd75737043f8c871dc792e6a26ab15c06e61"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-batch-sort-b",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-batch-sort-b: static FAIL, dynamic FAIL.",
+              "definition_sha256": "392dc991104bfb9703f18a4b1f855e30584453a7fb304babb3fcd6ae886111a9"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-batch-sort-c",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-batch-sort-c: static FAIL, dynamic FAIL.",
+              "definition_sha256": "9f7851f5b3db98e8fcfe7280781d2ca9ab87d9046ad6761355b6c68e88a536ee"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-batch-sort-l",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-batch-sort-l: static FAIL, dynamic FAIL.",
+              "definition_sha256": "e388d339873c4d81c0b668996fec71ac30d31801550906c08419ce2b49c29ed4"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-batch-sort-n",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-batch-sort-n: static FAIL, dynamic FAIL.",
+              "definition_sha256": "b8d998882c28a3502dc398d18a3d105611a955e3422a7e4d18492d955a719c25"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-batch-sort-o",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-batch-sort-o: static FAIL, dynamic FAIL.",
+              "definition_sha256": "2dcc699c9e4d4a55bb5f58dba265dfd910894a57ce6200bc11e6994680ccc131"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-batch-sort-p",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-batch-sort-p: static FAIL, dynamic FAIL.",
+              "definition_sha256": "b546d5ad3e599fbf767d8092618911ca08fdc4ce60496ff3a65e0fd4c93dc29e"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-batch-sort-s",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-batch-sort-s: static FAIL, dynamic FAIL.",
+              "definition_sha256": "444b9d27010836f2de9c3222da8162f7d8d2b71ed212d8835f2243491a294095"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-batch-sort-u",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-batch-sort-u: static FAIL, dynamic FAIL.",
+              "definition_sha256": "ae4791bda2552ad4e35b98a876179b60bf2f0cd4b42f3da541c4d065a016362d"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-batch-sort-v",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-batch-sort-v: static FAIL, dynamic FAIL.",
+              "definition_sha256": "43634d7477596c1cf4d33d8e3d842afd9411b43bd8587c8c56b1655aa43c0ae1"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-equal-key-a",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-equal-key-a: static FAIL, dynamic FAIL.",
+              "definition_sha256": "80a263d497b877357cbce2956834c7f2dcbf330541148b9c6b0c3ed7f1986ba9"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-equal-key-b",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-equal-key-b: static FAIL, dynamic FAIL.",
+              "definition_sha256": "49f30548e8556c37ce694ecb27edaa3b7809e614898a6159dc48d98962f0ba97"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-equal-key-c",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-equal-key-c: static FAIL, dynamic FAIL.",
+              "definition_sha256": "cefc33cffded66d364d4f39ca10c2f6b8ae3a1413c978e1acd8377130991ca41"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-equal-key-l",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-equal-key-l: static FAIL, dynamic FAIL.",
+              "definition_sha256": "28c9c16d095841e58eea386ac9a23f9758be73fc1961a63466113e991c2573e6"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-equal-key-o",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-equal-key-o: static FAIL, dynamic FAIL.",
+              "definition_sha256": "6890d4675eabe844ee561b6598a6023a33ae6681a41258c2632024be965ab014"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-equal-key-p",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-equal-key-p: static FAIL, dynamic FAIL.",
+              "definition_sha256": "3a0b9901da0849c3a11fca648fa4e2389ebe6b879ed6640a37ded08d3ac1e615"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-equal-key-s",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-equal-key-s: static FAIL, dynamic FAIL.",
+              "definition_sha256": "335b82dfe7d726082b6a512d01bfa475a3641eaf8a78a6e1df52024af31becf6"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-equal-key-u",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-equal-key-u: static FAIL, dynamic FAIL.",
+              "definition_sha256": "a729cd75cfa5579b465ac93dfd9987e407905325e4c01de606371337f0142d6c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-equal-key-v",
+              "assertion": "Original requirement: The same for every -s sort key, including equal-key tie ordering Fresh raw analysis: Each supported sort key and independent equal-numeric-key fixtures reached both candidate and pinned reference; stdout differs. All reported failures remain FAIL. migration-terminal-review112-terminal-slab-equal-key-v: static FAIL, dynamic FAIL.",
+              "definition_sha256": "d7de9fc0a79a4ca7c0b154ec64d98b73e25397a962114f3541bc64ca426ff376"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Zero-object rows, malformed lines and rows whose slab/object rounding differs are handled identically (status and output)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised. Implementable with the unshare -Urm bind-mount fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-batch-malformed-r3",
+              "assertion": "Original requirement: Zero-object rows, malformed lines and rows whose slab/object rounding differs are handled identically (status and output) Fresh raw analysis: Zero and rounding fixtures reached both sides; malformed case reference exits 1 with Numerical result out of range while candidate exits 0 and emits its table. This is a reached FAIL, not an invalid oracle. migration-terminal-review112-terminal-slab-batch-malformed-r3: static FAIL, dynamic FAIL.",
+              "definition_sha256": "2c880ec66dfd8aa9c45e90e1eb98baa951ff94d08c4cb49f67ccf49da20e7c7a"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-batch-rounding",
+              "assertion": "Original requirement: Zero-object rows, malformed lines and rows whose slab/object rounding differs are handled identically (status and output) Fresh raw analysis: Zero and rounding fixtures reached both sides; malformed case reference exits 1 with Numerical result out of range while candidate exits 0 and emits its table. This is a reached FAIL, not an invalid oracle. migration-terminal-review112-terminal-slab-batch-rounding: static FAIL, dynamic FAIL.",
+              "definition_sha256": "1efbb1a40dc8cc951206f86235ca3bcdfe28a742044699df9fb155bc37547d35"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-slab-batch-zero",
+              "assertion": "Original requirement: Zero-object rows, malformed lines and rows whose slab/object rounding differs are handled identically (status and output) Fresh raw analysis: Zero and rounding fixtures reached both sides; malformed case reference exits 1 with Numerical result out of range while candidate exits 0 and emits its table. This is a reached FAIL, not an invalid oracle. migration-terminal-review112-terminal-slab-batch-zero: static FAIL, dynamic FAIL.",
+              "definition_sha256": "7424ef6cb0e9525e9aaff6448600fc528661e56f292e2a554ef0987a78eb91e8"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "The legacy exclusions state this explicitly. slabtop.c reads BASHOS_PROC_ROOT/slabinfo. The candidate's default-root path is also exercised once the overlay exists. Kernel rules (fs/namespace.c, Linux 6.12): after unshare(CLONE_NEWUSER|CLONE_NEWNS) the copied mounts, including the guest's /proc, are MNT_LOCKED. Locking forbids unmounting or moving them and revealing what lies beneath. It does not forbid mounting on top. A bind mount goes through do_loopback, which requires only may_mount (CAP_SYS_ADMIN in the userns that owns the new mount namespace, which the unshare -U caller has) and a source in the caller's namespace. mount_too_revealing()/mnt_already_visible() is checked only in do_new_mount for new instances of SB_I_USERNS_VISIBLE filesystems (proc, sysfs), so it does not apply to a bind mount over one file such as /proc/meminfo or /proc/slabinfo. This is the mechanism unprivileged-container lxcfs overlays rely on. I did not run it on a host (kernel and namespace tests are VM-only). (b) procps slabtop opens /proc/slabinfo by path, so it reads the bind-mounted fixture. The fixture is mode 0644 and owned by the caller, so the root-only permission of the live file no longer matters. Earlier rating requires_capability, revised."
+      "notes": [
+        "Fresh paired runs only for new case IDs; reached candidate failures remain failures. Existing legacy companions retain their established baseline bindings.",
+        "The six older signal or escape observers without raw PID, live termios, and delivered event details are withheld; newer r3 companion cases supply those records."
+      ]
     },
     {
       "topic": "slabtop/deferred-interactive-pty",
@@ -36148,61 +36923,225 @@
         "purpose": "Exercise raw-mode setup/restoration, cursor hygiene, and ASCII/CSI arrow decoding using an isolated pseudo-terminal.",
         "reason": "Requires a future disposable VM with a private PTY and bounded terminal driver. The available runner supplies stdin/stdout as non-PTY streams and has no PTY attachment or terminal-driver fixture. A future disposable PTY harness is required to send bounded key sequences and independently inspect termios state and emitted cursor controls."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Only headless pipe decoding executes. Raw-mode entry/restoration, cursor controls and escape decoding on a PTY need only the existing PTY driver.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "key-read on a terminal enters non-canonical/no-echo mode (ICANON and ECHO cleared, ICRNL/INLCR cleared, ISIG kept, VMIN=VTIME=0) while waiting",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture. Observable with the PTY driver's termios step while key-read waits."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-printable",
+              "assertion": "Original requirement: key-read on a terminal enters non-canonical/no-echo mode (ICANON and ECHO cleared, ICRNL/INLCR cleared, ISIG kept, VMIN=VTIME=0) while waiting Fresh raw analysis: The r3 owned-child live sample records iflag=1024, lflag=35377 and VMIN=VTIME=0, independently establishing the requested raw-mode bits. migration-terminal-review112-terminal-pixel-printable: static PASS, dynamic PASS.",
+              "definition_sha256": "48a61ce8aa93bdf72eca88e2dbf89dc1459fa80c945595dff32dd47409025b8b"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-termpixel-signal-sigint-r3",
+              "assertion": "Original requirement: key-read on a terminal enters non-canonical/no-echo mode (ICANON and ECHO cleared, ICRNL/INLCR cleared, ISIG kept, VMIN=VTIME=0) while waiting Fresh raw analysis: The r3 owned-child live sample records iflag=1024, lflag=35377 and VMIN=VTIME=0, independently establishing the requested raw-mode bits. migration-terminal-review112-terminal-termpixel-signal-sigint-r3: static PASS, dynamic PASS.",
+              "definition_sha256": "5bbb69407cc1d790e30eb603fdce0aac6eea7d2a930c15a8ae9a763985cff3fd"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-termpixel-signal-sigterm-r3",
+              "assertion": "Original requirement: key-read on a terminal enters non-canonical/no-echo mode (ICANON and ECHO cleared, ICRNL/INLCR cleared, ISIG kept, VMIN=VTIME=0) while waiting Fresh raw analysis: The r3 owned-child live sample records iflag=1024, lflag=35377 and VMIN=VTIME=0, independently establishing the requested raw-mode bits. migration-terminal-review112-terminal-termpixel-signal-sigterm-r3: static PASS, dynamic PASS.",
+              "definition_sha256": "c02edec7c775c70a49f6d0061ba4bbe54effb8abd276bc7e1d1f34d1b4c5b4ed"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Cursor hygiene: emits ESC[?25l on entry and ESC[0m ESC[?25h on exit",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture (termpixel.c:271, :279); expect regexes on raw bytes."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-cursor-entry",
+              "assertion": "Original requirement: Cursor hygiene: emits ESC[?25l on entry and ESC[0m ESC[?25h on exit Fresh raw analysis: Entry raw output is TIMEOUT only; exit raw output is A followed by CRLF. Neither required cursor-control sequence appears. Both are reached FAILs. The entry case exited before sending its later key; the exit case separately sent the key and captured its result. No later entry-case branch is inferred. migration-terminal-review112-terminal-pixel-cursor-entry: static FAIL, dynamic FAIL.",
+              "definition_sha256": "a17112c4c2d8b0c3496afcb6c61d4e88563638cbe37755099cebdded17ff97f7"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-cursor-exit",
+              "assertion": "Original requirement: Cursor hygiene: emits ESC[?25l on entry and ESC[0m ESC[?25h on exit Fresh raw analysis: Entry raw output is TIMEOUT only; exit raw output is A followed by CRLF. Neither required cursor-control sequence appears. Both are reached FAILs. The entry case exited before sending its later key; the exit case separately sent the key and captured its result. No later entry-case branch is inferred. migration-terminal-review112-terminal-pixel-cursor-exit: static FAIL, dynamic FAIL.",
+              "definition_sha256": "2579a64b49ed9ed98fc2f2de94ea979de6a7c2dd4b38d87aece0c488f88b5f9d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Terminal modes are restored after key-read (and after SIGINT/SIGTERM during raw mode)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture; terminal_restored covers the normal path, while the signal path needs an INT sent via ^C (ISIG kept)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-printable",
+              "assertion": "Original requirement: Terminal modes are restored after key-read (and after SIGINT/SIGTERM during raw mode) Fresh raw analysis: Normal and SIGINT/SIGTERM cases record the owned child, signal delivery, initial/live/final termios and normal bounded cleanup. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-termpixel-signal-sigint, migration-terminal-review112-terminal-termpixel-signal-sigterm. migration-terminal-review112-terminal-pixel-printable: static PASS, dynamic PASS.",
+              "definition_sha256": "48a61ce8aa93bdf72eca88e2dbf89dc1459fa80c945595dff32dd47409025b8b"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-timeout",
+              "assertion": "Original requirement: Terminal modes are restored after key-read (and after SIGINT/SIGTERM during raw mode) Fresh raw analysis: Normal and SIGINT/SIGTERM cases record the owned child, signal delivery, initial/live/final termios and normal bounded cleanup. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-termpixel-signal-sigint, migration-terminal-review112-terminal-termpixel-signal-sigterm. migration-terminal-review112-terminal-pixel-timeout: static PASS, dynamic PASS.",
+              "definition_sha256": "a980f4d75c50d8fdadb592c9771cd21cfedc0a06d1907b7558b90738ebf6d682"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-termpixel-signal-sigint-r3",
+              "assertion": "Original requirement: Terminal modes are restored after key-read (and after SIGINT/SIGTERM during raw mode) Fresh raw analysis: Normal and SIGINT/SIGTERM cases record the owned child, signal delivery, initial/live/final termios and normal bounded cleanup. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-termpixel-signal-sigint, migration-terminal-review112-terminal-termpixel-signal-sigterm. migration-terminal-review112-terminal-termpixel-signal-sigint-r3: static PASS, dynamic PASS.",
+              "definition_sha256": "5bbb69407cc1d790e30eb603fdce0aac6eea7d2a930c15a8ae9a763985cff3fd"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-termpixel-signal-sigterm-r3",
+              "assertion": "Original requirement: Terminal modes are restored after key-read (and after SIGINT/SIGTERM during raw mode) Fresh raw analysis: Normal and SIGINT/SIGTERM cases record the owned child, signal delivery, initial/live/final termios and normal bounded cleanup. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-termpixel-signal-sigint, migration-terminal-review112-terminal-termpixel-signal-sigterm. migration-terminal-review112-terminal-termpixel-signal-sigterm-r3: static PASS, dynamic PASS.",
+              "definition_sha256": "c02edec7c775c70a49f6d0061ba4bbe54effb8abd276bc7e1d1f34d1b4c5b4ed"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "ASCII key decoding (printable, Enter/CR, space, tab, backspace, Ctrl-C byte)",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/termpixel/key-read-pipe-ascii",
               "assertion": "one ASCII key from pipe stdin (headless contract)",
               "definition_sha256": "e977aeed3e0fe8b6c9781f85779e4605ff399be3c3ba20eabdd652b950c0501f"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-backspace",
+              "assertion": "Original requirement: ASCII key decoding (printable, Enter/CR, space, tab, backspace, Ctrl-C byte) Fresh raw analysis: Saved PTY outputs cover printable, CR, space, tab, backspace and Ctrl-C byte; the legacy pipe ASCII case is retained. migration-terminal-review112-terminal-pixel-backspace: static PASS, dynamic PASS.",
+              "definition_sha256": "2ae3338444139d7fe520bab8a439b8a5c25648dc233c6126a03197c871fed642"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-ctrl-byte",
+              "assertion": "Original requirement: ASCII key decoding (printable, Enter/CR, space, tab, backspace, Ctrl-C byte) Fresh raw analysis: Saved PTY outputs cover printable, CR, space, tab, backspace and Ctrl-C byte; the legacy pipe ASCII case is retained. migration-terminal-review112-terminal-pixel-ctrl-byte: static PASS, dynamic PASS.",
+              "definition_sha256": "2c1e6ea094bea38854c6a8a94b0ad0d3170fc6bc665c01fd02f513227382a53b"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-enter",
+              "assertion": "Original requirement: ASCII key decoding (printable, Enter/CR, space, tab, backspace, Ctrl-C byte) Fresh raw analysis: Saved PTY outputs cover printable, CR, space, tab, backspace and Ctrl-C byte; the legacy pipe ASCII case is retained. migration-terminal-review112-terminal-pixel-enter: static PASS, dynamic PASS.",
+              "definition_sha256": "b6bca7687111588f636a118345305508c680a67a4450fe66cca2067f5ca3e9d4"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-printable",
+              "assertion": "Original requirement: ASCII key decoding (printable, Enter/CR, space, tab, backspace, Ctrl-C byte) Fresh raw analysis: Saved PTY outputs cover printable, CR, space, tab, backspace and Ctrl-C byte; the legacy pipe ASCII case is retained. migration-terminal-review112-terminal-pixel-printable: static PASS, dynamic PASS.",
+              "definition_sha256": "48a61ce8aa93bdf72eca88e2dbf89dc1459fa80c945595dff32dd47409025b8b"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-space",
+              "assertion": "Original requirement: ASCII key decoding (printable, Enter/CR, space, tab, backspace, Ctrl-C byte) Fresh raw analysis: Saved PTY outputs cover printable, CR, space, tab, backspace and Ctrl-C byte; the legacy pipe ASCII case is retained. migration-terminal-review112-terminal-pixel-space: static PASS, dynamic PASS.",
+              "definition_sha256": "b3d0cb358a1391431c6bae3df5a4a759342cda0cc770228d62f8946d2508b2f5"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-tab",
+              "assertion": "Original requirement: ASCII key decoding (printable, Enter/CR, space, tab, backspace, Ctrl-C byte) Fresh raw analysis: Saved PTY outputs cover printable, CR, space, tab, backspace and Ctrl-C byte; the legacy pipe ASCII case is retained. migration-terminal-review112-terminal-pixel-tab: static PASS, dynamic PASS.",
+              "definition_sha256": "c21dfddddec0bc077b7f7f5020f177087f51300f810b85def0b914c1635dbd15"
             }
           ],
-          "gap": "Not from a terminal."
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "CSI and SS3 arrow decoding (ESC [ A..D and ESC O A..D to UP_ARROW etc.), and a lone ESC to ESCAPE after 50 ms",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture; the driver key step sends either form."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-csi-down_arrow",
+              "assertion": "Original requirement: CSI and SS3 arrow decoding (ESC [ A..D and ESC O A..D to UP_ARROW etc.), and a lone ESC to ESCAPE after 50 ms Fresh raw analysis: All eight CSI/SS3 arrows and lone ESC are recorded. The r3 direct timing observation records approximately 50 ms and its delayed and immediate stubs are separate positive/negative controls. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-termpixel-escape-grace. migration-terminal-review112-terminal-pixel-csi-down_arrow: static PASS, dynamic PASS.",
+              "definition_sha256": "89226fbcf0181ad69e915a0da08db0511eff454500c68f5c343b1a32b6d11519"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-csi-left_arrow",
+              "assertion": "Original requirement: CSI and SS3 arrow decoding (ESC [ A..D and ESC O A..D to UP_ARROW etc.), and a lone ESC to ESCAPE after 50 ms Fresh raw analysis: All eight CSI/SS3 arrows and lone ESC are recorded. The r3 direct timing observation records approximately 50 ms and its delayed and immediate stubs are separate positive/negative controls. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-termpixel-escape-grace. migration-terminal-review112-terminal-pixel-csi-left_arrow: static PASS, dynamic PASS.",
+              "definition_sha256": "0eddda1d6204c43c8fe73fc95207b4c9f6a516891794c5ceabb91e5c6f86a31b"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-csi-right_arrow",
+              "assertion": "Original requirement: CSI and SS3 arrow decoding (ESC [ A..D and ESC O A..D to UP_ARROW etc.), and a lone ESC to ESCAPE after 50 ms Fresh raw analysis: All eight CSI/SS3 arrows and lone ESC are recorded. The r3 direct timing observation records approximately 50 ms and its delayed and immediate stubs are separate positive/negative controls. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-termpixel-escape-grace. migration-terminal-review112-terminal-pixel-csi-right_arrow: static PASS, dynamic PASS.",
+              "definition_sha256": "9705daa91c0b0d7bec49aaa5801464b96191f8c6dd29b25975bf4c0c25815aa1"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-csi-up_arrow",
+              "assertion": "Original requirement: CSI and SS3 arrow decoding (ESC [ A..D and ESC O A..D to UP_ARROW etc.), and a lone ESC to ESCAPE after 50 ms Fresh raw analysis: All eight CSI/SS3 arrows and lone ESC are recorded. The r3 direct timing observation records approximately 50 ms and its delayed and immediate stubs are separate positive/negative controls. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-termpixel-escape-grace. migration-terminal-review112-terminal-pixel-csi-up_arrow: static PASS, dynamic PASS.",
+              "definition_sha256": "0877e80ff7eea67f890e39003300b478fd21492138f30584bf1c387777a20cbd"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-escape",
+              "assertion": "Original requirement: CSI and SS3 arrow decoding (ESC [ A..D and ESC O A..D to UP_ARROW etc.), and a lone ESC to ESCAPE after 50 ms Fresh raw analysis: All eight CSI/SS3 arrows and lone ESC are recorded. The r3 direct timing observation records approximately 50 ms and its delayed and immediate stubs are separate positive/negative controls. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-termpixel-escape-grace. migration-terminal-review112-terminal-pixel-escape: static PASS, dynamic PASS.",
+              "definition_sha256": "20ef6db143aee67ee27917e09a39ff6ccf72a9ba0b0a403628da22d66f57134e"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-ss3-down_arrow",
+              "assertion": "Original requirement: CSI and SS3 arrow decoding (ESC [ A..D and ESC O A..D to UP_ARROW etc.), and a lone ESC to ESCAPE after 50 ms Fresh raw analysis: All eight CSI/SS3 arrows and lone ESC are recorded. The r3 direct timing observation records approximately 50 ms and its delayed and immediate stubs are separate positive/negative controls. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-termpixel-escape-grace. migration-terminal-review112-terminal-pixel-ss3-down_arrow: static PASS, dynamic PASS.",
+              "definition_sha256": "0b7c85d97218673d9099c79423fe6397e89cc3522cce9afe9c39f5eeb22e2f89"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-ss3-left_arrow",
+              "assertion": "Original requirement: CSI and SS3 arrow decoding (ESC [ A..D and ESC O A..D to UP_ARROW etc.), and a lone ESC to ESCAPE after 50 ms Fresh raw analysis: All eight CSI/SS3 arrows and lone ESC are recorded. The r3 direct timing observation records approximately 50 ms and its delayed and immediate stubs are separate positive/negative controls. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-termpixel-escape-grace. migration-terminal-review112-terminal-pixel-ss3-left_arrow: static PASS, dynamic PASS.",
+              "definition_sha256": "35ee8cc96fda84d1022ebb829ca7b39fbdd3dd0b1a3ef8b24b627bfa9513cc31"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-ss3-right_arrow",
+              "assertion": "Original requirement: CSI and SS3 arrow decoding (ESC [ A..D and ESC O A..D to UP_ARROW etc.), and a lone ESC to ESCAPE after 50 ms Fresh raw analysis: All eight CSI/SS3 arrows and lone ESC are recorded. The r3 direct timing observation records approximately 50 ms and its delayed and immediate stubs are separate positive/negative controls. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-termpixel-escape-grace. migration-terminal-review112-terminal-pixel-ss3-right_arrow: static PASS, dynamic PASS.",
+              "definition_sha256": "de4db2e668c34dfb7d9744d2f26789c04090fac8062990443f158a1a2818a8a7"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-ss3-up_arrow",
+              "assertion": "Original requirement: CSI and SS3 arrow decoding (ESC [ A..D and ESC O A..D to UP_ARROW etc.), and a lone ESC to ESCAPE after 50 ms Fresh raw analysis: All eight CSI/SS3 arrows and lone ESC are recorded. The r3 direct timing observation records approximately 50 ms and its delayed and immediate stubs are separate positive/negative controls. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-termpixel-escape-grace. migration-terminal-review112-terminal-pixel-ss3-up_arrow: static PASS, dynamic PASS.",
+              "definition_sha256": "0b2deb306558c281eb5954d0c561333c9a9501a6c8b59d630680ac1d855e5ed6"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-termpixel-escape-grace-r3",
+              "assertion": "Original requirement: CSI and SS3 arrow decoding (ESC [ A..D and ESC O A..D to UP_ARROW etc.), and a lone ESC to ESCAPE after 50 ms Fresh raw analysis: All eight CSI/SS3 arrows and lone ESC are recorded. The r3 direct timing observation records approximately 50 ms and its delayed and immediate stubs are separate positive/negative controls. Excluded from this requirement because its saved raw record does not establish the specific stage: migration-terminal-review112-terminal-termpixel-escape-grace. migration-terminal-review112-terminal-termpixel-escape-grace-r3: static PASS, dynamic PASS.",
+              "definition_sha256": "39c35de679e0775abbec1b94574fd45953b4e5e22dee749b54abe62d0a73de30"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "Timeout reports TIMEOUT",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture on a PTY."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-pixel-timeout",
+              "assertion": "Original requirement: Timeout reports TIMEOUT Fresh raw analysis: No-input PTY read returns TIMEOUT and exits normally. migration-terminal-review112-terminal-pixel-timeout: static PASS, dynamic PASS.",
+              "definition_sha256": "a980f4d75c50d8fdadb592c9771cd21cfedc0a06d1907b7558b90738ebf6d682"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/termpixel.c:254-345. key-read opens /dev/tty first, which is the controlling PTY in the driver. Because ICRNL is cleared, a CR byte arrives as '\\r' and maps to ENTER."
+      "notes": [
+        "Fresh paired runs only for new case IDs; reached candidate failures remain failures. Existing legacy companions retain their established baseline bindings.",
+        "The six older signal or escape observers without raw PID, live termios, and delivered event details are withheld; newer r3 companion cases supply those records."
+      ]
     },
     {
       "topic": "termpixel_pong/ai-and-terminal-loop",
@@ -37146,33 +38085,99 @@
         "kind": "deferred",
         "reason": "Requires a disposable VM/private PTY and a reviewed syscall mock that intercepts kill, getpriority, and setpriority, records arguments, and never forwards calls to the kernel."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Never executed. A syscall mock is unnecessary: per design, owned children are legitimate targets. Each side starts its own sleep child, gives top its PID, and verifies the effect (signal status via wait, nice via /proc/PID/stat). Raising niceness is unprivileged.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "k prompts for PID and signal, validates input (non-numeric/unknown PID/unknown signal) and reports errors",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-top-mock-invalid-pid",
+              "assertion": "Original requirement: k prompts for PID and signal, validates input (non-numeric/unknown PID/unknown signal) and reports errors Fresh raw analysis: Raw screens show the prompts and errors; nonnumeric PID and invalid signals produce empty syscall logs, unknown PID produces one synthetic ESRCH kill. migration-terminal-review112-terminal-top-mock-invalid-pid: static PASS, dynamic PASS.",
+              "definition_sha256": "455f078b06b5664e9efe354e287a5ec6a685889eddd2a30ee121c81bb060a6a8"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-top-mock-invalid-signal",
+              "assertion": "Original requirement: k prompts for PID and signal, validates input (non-numeric/unknown PID/unknown signal) and reports errors Fresh raw analysis: Raw screens show the prompts and errors; nonnumeric PID and invalid signals produce empty syscall logs, unknown PID produces one synthetic ESRCH kill. migration-terminal-review112-terminal-top-mock-invalid-signal: static PASS, dynamic PASS.",
+              "definition_sha256": "3e3004afb0ddde4ee8de08d62ae31298f9f727120dade068ec1ebb26976035e8"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-top-mock-invalid-signal-number",
+              "assertion": "Original requirement: k prompts for PID and signal, validates input (non-numeric/unknown PID/unknown signal) and reports errors Fresh raw analysis: Raw screens show the prompts and errors; nonnumeric PID and invalid signals produce empty syscall logs, unknown PID produces one synthetic ESRCH kill. migration-terminal-review112-terminal-top-mock-invalid-signal-number: static PASS, dynamic PASS.",
+              "definition_sha256": "947ddee22a429e6eca7d7cd0a70ce420b2f995d78cf6288b85092e6dec36510a"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-top-mock-unknown-pid",
+              "assertion": "Original requirement: k prompts for PID and signal, validates input (non-numeric/unknown PID/unknown signal) and reports errors Fresh raw analysis: Raw screens show the prompts and errors; nonnumeric PID and invalid signals produce empty syscall logs, unknown PID produces one synthetic ESRCH kill. migration-terminal-review112-terminal-top-mock-unknown-pid: static PASS, dynamic PASS.",
+              "definition_sha256": "e76e4e6cb560256eda12456c710576013a5cba605d709170f9988dfed5c8bbdd"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "k with valid input sends the signal to exactly that PID",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-top-mock-kill",
+              "assertion": "Original requirement: k with valid input sends the signal to exactly that PID Fresh raw analysis: The captured actual log is exactly kill(2147483647,15) with synthetic value 0; fixture config gives non-forwarding replies and positive/ESRCH controls. migration-terminal-review112-terminal-top-mock-kill: static PASS, dynamic PASS.",
+              "definition_sha256": "58979badf8244639443359c8eae9fd8e0278e6e89842774bb6dbc8d5d101172a"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "r prompts for PID and nice delta, validates input, and applies getpriority+delta via setpriority to exactly that PID",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-top-mock-renice",
+              "assertion": "Original requirement: r prompts for PID and nice delta, validates input, and applies getpriority+delta via setpriority to exactly that PID Fresh raw analysis: Invalid PID/delta produce no syscalls; unknown PID records getpriority ESRCH; valid case records getpriority(0,2147483647)=15 followed by setpriority(0,2147483647,8)=0, corresponding to nice 5 plus 3. migration-terminal-review112-terminal-top-mock-renice: static PASS, dynamic PASS.",
+              "definition_sha256": "ba8759cc9929b49e1d095ac8f750924ee4faf69018395c996ad1990eb28154df"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-top-mock-renice-invalid",
+              "assertion": "Original requirement: r prompts for PID and nice delta, validates input, and applies getpriority+delta via setpriority to exactly that PID Fresh raw analysis: Invalid PID/delta produce no syscalls; unknown PID records getpriority ESRCH; valid case records getpriority(0,2147483647)=15 followed by setpriority(0,2147483647,8)=0, corresponding to nice 5 plus 3. migration-terminal-review112-terminal-top-mock-renice-invalid: static PASS, dynamic PASS.",
+              "definition_sha256": "263fcca0be7a7d1132a41d1b620745e492f47cf6c9e7a8f58ebc2a28cbd7a2b6"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-top-mock-renice-invalid-delta",
+              "assertion": "Original requirement: r prompts for PID and nice delta, validates input, and applies getpriority+delta via setpriority to exactly that PID Fresh raw analysis: Invalid PID/delta produce no syscalls; unknown PID records getpriority ESRCH; valid case records getpriority(0,2147483647)=15 followed by setpriority(0,2147483647,8)=0, corresponding to nice 5 plus 3. migration-terminal-review112-terminal-top-mock-renice-invalid-delta: static PASS, dynamic PASS.",
+              "definition_sha256": "e0eef15624f085f808b9ffe7f7df97e7001eb8a8b67751c05c89e0632b1de084"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-top-mock-renice-invalid-pid",
+              "assertion": "Original requirement: r prompts for PID and nice delta, validates input, and applies getpriority+delta via setpriority to exactly that PID Fresh raw analysis: Invalid PID/delta produce no syscalls; unknown PID records getpriority ESRCH; valid case records getpriority(0,2147483647)=15 followed by setpriority(0,2147483647,8)=0, corresponding to nice 5 plus 3. migration-terminal-review112-terminal-top-mock-renice-invalid-pid: static PASS, dynamic PASS.",
+              "definition_sha256": "413afb7f06aab29a4dbbeee6cf5249906616a0203bdc24217bddcc22f20ad912"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-top-mock-renice-unknown",
+              "assertion": "Original requirement: r prompts for PID and nice delta, validates input, and applies getpriority+delta via setpriority to exactly that PID Fresh raw analysis: Invalid PID/delta produce no syscalls; unknown PID records getpriority ESRCH; valid case records getpriority(0,2147483647)=15 followed by setpriority(0,2147483647,8)=0, corresponding to nice 5 plus 3. migration-terminal-review112-terminal-top-mock-renice-unknown: static PASS, dynamic PASS.",
+              "definition_sha256": "3bc35f58de162af02ad4232abd7dd565022f035b3af12c60f38c9e5ebe5189a6"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "top.c hardcodes /proc (top.c:160-319) and has no BASHOS_PROC_ROOT override (vmstat.c:72 has one). A private snapshot can still be presented without a mock: inside '/usr/bin/unshare -Urm', bind a fixture directory over /proc ('mount --bind snap /proc'). Before that, bind the real /proc elsewhere if descriptor checks need it. This assumes unprivileged user namespaces in the guest kernel, which root should verify once. If they are unavailable, the missing capability is a root-controller per-case bind mount of a synthetic tree over /proc in the case's mount namespace. Alternatively, add an env override to top.c as vmstat has; that is a candidate change and needs root coordination. Mutation code: top.c:705-750. Fixed PIDs come from a fresh PID namespace (unshare -Urpf), so the typed PID is deterministic on both sides."
+      "notes": [
+        "Fresh paired runs only for new case IDs; reached candidate failures remain failures. Existing legacy companions retain their established baseline bindings.",
+        "The six older signal or escape observers without raw PID, live termios, and delivered event details are withheld; newer r3 companion cases supply those records."
+      ]
     },
     {
       "topic": "top/proc-record-and-pid-lifecycle",
@@ -40466,47 +41471,135 @@
         "purpose": "Exercise terminal keyboard behavior and result/cancel handling for yesno, inputbox, and passwordbox.",
         "reason": "Requires a disposable VM or reviewed PTY mock with a controlling terminal, fixed TERM and dimensions, and scripted key bytes to cover Tab/Enter/Esc, cursor editing, and password masking. The current fixture runner has no PTY input or terminal transcript facility."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Never executed on a terminal. The PTY driver (keys, screen, output_lacks, expected_files for --output-fd results) and the newt whiptail reference in the VM are sufficient.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "yesno: Enter on the default Yes gives status 0; Tab to No then Enter gives 1; Esc gives 255.",
-          "coverage": "missing",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/whiptail/yesno-pipe-results",
               "assertion": "pipe-mode Y/N mapping (no terminal)",
               "definition_sha256": "5c82926984bf8175029e0b937b65118ca3943b295fd7f46fba30afcbe2593efb"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-whip-no",
+              "assertion": "Original requirement: yesno: Enter on the default Yes gives status 0; Tab to No then Enter gives 1; Esc gives 255. Fresh raw analysis: Saved ordered input steps reach Yes, Tab/No and Escape with statuses 0, 1, 255. The legacy pipe case remains a companion. migration-terminal-review112-terminal-whip-no: static PASS, dynamic PASS.",
+              "definition_sha256": "95fcfde7929d3a3b73b530e91ad631cdb196f717b3f2546dc52d72bb21f1aacd"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-whip-no-r2",
+              "assertion": "Original requirement: yesno: Enter on the default Yes gives status 0; Tab to No then Enter gives 1; Esc gives 255. Fresh raw analysis: Saved ordered input steps reach Yes, Tab/No and Escape with statuses 0, 1, 255. The legacy pipe case remains a companion. migration-terminal-review112-terminal-whip-no-r2: static PASS, dynamic PASS.",
+              "definition_sha256": "627bf7c371ecf31e37691ca8ccde72b92c4f90d12c606c0401ecd8f0f1c34ada"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-whip-yes",
+              "assertion": "Original requirement: yesno: Enter on the default Yes gives status 0; Tab to No then Enter gives 1; Esc gives 255. Fresh raw analysis: Saved ordered input steps reach Yes, Tab/No and Escape with statuses 0, 1, 255. The legacy pipe case remains a companion. migration-terminal-review112-terminal-whip-yes: static PASS, dynamic PASS.",
+              "definition_sha256": "9c6873cf54e78bf91aefb98993bc121f3b6d357f8b88a9278824a6df489d2c16"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-whip-yes-escape",
+              "assertion": "Original requirement: yesno: Enter on the default Yes gives status 0; Tab to No then Enter gives 1; Esc gives 255. Fresh raw analysis: Saved ordered input steps reach Yes, Tab/No and Escape with statuses 0, 1, 255. The legacy pipe case remains a companion. migration-terminal-review112-terminal-whip-yes-escape: static PASS, dynamic PASS.",
+              "definition_sha256": "596f507b2ad6c29bf5dbf6982f90f52302be3cb059c6460e6dbe6ab16dcbc480"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-whip-yes-escape-r2",
+              "assertion": "Original requirement: yesno: Enter on the default Yes gives status 0; Tab to No then Enter gives 1; Esc gives 255. Fresh raw analysis: Saved ordered input steps reach Yes, Tab/No and Escape with statuses 0, 1, 255. The legacy pipe case remains a companion. migration-terminal-review112-terminal-whip-yes-escape-r2: static PASS, dynamic PASS.",
+              "definition_sha256": "9734f796cd0397e671b2c9777e8bd3bda11e4b80ee38eb6fca80c5f65d59990c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-whip-yes-r2",
+              "assertion": "Original requirement: yesno: Enter on the default Yes gives status 0; Tab to No then Enter gives 1; Esc gives 255. Fresh raw analysis: Saved ordered input steps reach Yes, Tab/No and Escape with statuses 0, 1, 255. The legacy pipe case remains a companion. migration-terminal-review112-terminal-whip-yes-r2: static PASS, dynamic PASS.",
+              "definition_sha256": "1dd49c7b013ef559d2da93c3db8f069e3fe0829719382d978307a8f6808b1985"
             }
           ],
-          "gap": "Terminal keys unexercised."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "inputbox: typed text with cursor editing (Backspace, Left then insert) is returned on stderr (or --output-fd) with status 0; Esc or Cancel gives 1/255 with no result.",
-          "coverage": "missing",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/whiptail/inputbox-result-channels",
               "assertion": "pipe-mode result channels",
               "definition_sha256": "a6c95781dffff7522529f05099373cc1524641dcb46a8b7460e1fcb6368eed04"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-whip-input-edit",
+              "assertion": "Original requirement: inputbox: typed text with cursor editing (Backspace, Left then insert) is returned on stderr (or --output-fd) with status 0; Esc or Cancel gives 1/255 with no result. Fresh raw analysis: The input-edit observer records all 8 steps and clean exit; reference result is abXc, candidate result is abXc plus newline, so preserve FAIL. Escape is reached with status 255 and no result. migration-terminal-review112-terminal-whip-input-edit: static FAIL, dynamic FAIL.",
+              "definition_sha256": "6920041f98331a37884941d69e0726855d210a60e20292f6d11702d46570dd36"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-whip-input-edit-r2",
+              "assertion": "Original requirement: inputbox: typed text with cursor editing (Backspace, Left then insert) is returned on stderr (or --output-fd) with status 0; Esc or Cancel gives 1/255 with no result. Fresh raw analysis: The input-edit observer records all 8 steps and clean exit; reference result is abXc, candidate result is abXc plus newline, so preserve FAIL. Escape is reached with status 255 and no result. migration-terminal-review112-terminal-whip-input-edit-r2: static FAIL, dynamic FAIL.",
+              "definition_sha256": "3419d4d1b968fd23e1f1970902b2128f3f9ab4081ea6692b18e2ba5d181b8692"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-whip-input-escape",
+              "assertion": "Original requirement: inputbox: typed text with cursor editing (Backspace, Left then insert) is returned on stderr (or --output-fd) with status 0; Esc or Cancel gives 1/255 with no result. Fresh raw analysis: The input-edit observer records all 8 steps and clean exit; reference result is abXc, candidate result is abXc plus newline, so preserve FAIL. Escape is reached with status 255 and no result. migration-terminal-review112-terminal-whip-input-escape: static PASS, dynamic PASS.",
+              "definition_sha256": "4378d1efa498ba65bda0479ffafbe8429081ef9f8253cf88bd3cc60ea3c6ebc7"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-whip-input-escape-r2",
+              "assertion": "Original requirement: inputbox: typed text with cursor editing (Backspace, Left then insert) is returned on stderr (or --output-fd) with status 0; Esc or Cancel gives 1/255 with no result. Fresh raw analysis: The input-edit observer records all 8 steps and clean exit; reference result is abXc, candidate result is abXc plus newline, so preserve FAIL. Escape is reached with status 255 and no result. migration-terminal-review112-terminal-whip-input-escape-r2: static PASS, dynamic PASS.",
+              "definition_sha256": "9f987a4cf209f2e09fdb2ccad9eff78776b7b185951d40609d85b521d9d24770"
             }
           ],
-          "gap": "Terminal editing unexercised."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "passwordbox: typed characters are masked on screen (never shown) and returned as the result.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-whip-password",
+              "assertion": "Original requirement: passwordbox: typed characters are masked on screen (never shown) and returned as the result. Fresh raw analysis: Mask/leak positive and negative controls and actual PTY frames were saved; actual result contains the secret plus newline while reference contains the secret without newline, a parity FAIL. migration-terminal-review112-terminal-whip-password: static FAIL, dynamic FAIL.",
+              "definition_sha256": "7e9844b599997bab2b00d68429aae10df2889464d7c9b63c2e44c3c6d12f5f14"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-whip-password-frames",
+              "assertion": "Original requirement: passwordbox: typed characters are masked on screen (never shown) and returned as the result. Fresh raw analysis: Mask/leak positive and negative controls and actual PTY frames were saved; actual result contains the secret plus newline while reference contains the secret without newline, a parity FAIL. migration-terminal-review112-terminal-whip-password-frames: static PASS, dynamic PASS.",
+              "definition_sha256": "95a5a336769d367f0414da3dbac62078779b79f95bc451c180c6e65ac2fa8e9c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-whip-password-frames-r2",
+              "assertion": "Original requirement: passwordbox: typed characters are masked on screen (never shown) and returned as the result. Fresh raw analysis: Mask/leak positive and negative controls and actual PTY frames were saved; actual result contains the secret plus newline while reference contains the secret without newline, a parity FAIL. migration-terminal-review112-terminal-whip-password-frames-r2: static PASS, dynamic PASS.",
+              "definition_sha256": "19728060ba6e38f745caa2a3ec520249e90f661013846b172ef75f8a6a074485"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-whip-password-r2",
+              "assertion": "Original requirement: passwordbox: typed characters are masked on screen (never shown) and returned as the result. Fresh raw analysis: Mask/leak positive and negative controls and actual PTY frames were saved; actual result contains the secret plus newline while reference contains the secret without newline, a parity FAIL. migration-terminal-review112-terminal-whip-password-r2: static FAIL, dynamic FAIL.",
+              "definition_sha256": "e1d936fa9a03d68f1514b4dc700fbc3afd967d233a021012147b70d9263cd0de"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate whiptail is dialog.c's interactive mode (tty raw at dialog.c 340). The reference whiptail is newt 0.52.25, installed in the VM (reference_packages whiptail 0.52.25-1), so result/status parity is possible. Screen bytes are not comparable (different renderers), so screen checks are semantic. Newt Esc handling may need a quiet_ms after Esc (ESC delay); keep it at 300 ms or more."
+      "notes": [
+        "Fresh paired runs only for new case IDs; reached candidate failures remain failures. Existing legacy companions retain their established baseline bindings.",
+        "The six older signal or escape observers without raw PID, live termios, and delivered event details are withheld; newer r3 companion cases supply those records."
+      ]
     },
     {
       "topic": "whiptail/deferred-keyed-list-widgets",
@@ -40516,61 +41609,163 @@
         "purpose": "Exercise terminal navigation, toggling, defaults, and selection output for menu, checklist, radiolist, treeview, and inputmenu.",
         "reason": "Requires a disposable VM or reviewed PTY mock with fixed TERM/terminfo and scripted arrow/space/Enter/Esc input, plus a pinned external whiptail release for the terminal transcript oracle. No PTY is provided by this fixture runner."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Never executed on a terminal. menu, checklist and radiolist have a newt reference in the VM. treeview and inputmenu are dialog-only widgets with no whiptail oracle, so they need contract expectations from documentation.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "menu: arrow navigation then Enter returns the selected tag; --default-item preselects.",
-          "coverage": "missing",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/whiptail/menu-tag-and-notags",
               "assertion": "pipe-mode menu tag and --notags",
               "definition_sha256": "d6334079d3bec2337feb67794cf3d2f66b4390d41f4b363e80cdb979a0965ede"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-whip-menu-default",
+              "assertion": "Original requirement: menu: arrow navigation then Enter returns the selected tag; --default-item preselects. Fresh raw analysis: Arrow and default-item cases reach Enter and clean exit; candidate result includes an extra newline relative to reference, so preserve the two FAILs. migration-terminal-review112-terminal-whip-menu-default: static FAIL, dynamic FAIL.",
+              "definition_sha256": "38d5e8a8ead42cd1477a63a55f513f988372d07fa059c62606739982e3578f90"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-whip-menu-default-r2",
+              "assertion": "Original requirement: menu: arrow navigation then Enter returns the selected tag; --default-item preselects. Fresh raw analysis: Arrow and default-item cases reach Enter and clean exit; candidate result includes an extra newline relative to reference, so preserve the two FAILs. migration-terminal-review112-terminal-whip-menu-default-r2: static FAIL, dynamic FAIL.",
+              "definition_sha256": "ac82cc268a63937288d46c10462f5b1ad6e09725ba5728c0579c34cc6ec0d2c1"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-whip-menu-down",
+              "assertion": "Original requirement: menu: arrow navigation then Enter returns the selected tag; --default-item preselects. Fresh raw analysis: Arrow and default-item cases reach Enter and clean exit; candidate result includes an extra newline relative to reference, so preserve the two FAILs. migration-terminal-review112-terminal-whip-menu-down: static FAIL, dynamic FAIL.",
+              "definition_sha256": "c2bd9c689aee570ef486a564b807e5342f74121f63f178338147c3af7f6588be"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-whip-menu-down-r2",
+              "assertion": "Original requirement: menu: arrow navigation then Enter returns the selected tag; --default-item preselects. Fresh raw analysis: Arrow and default-item cases reach Enter and clean exit; candidate result includes an extra newline relative to reference, so preserve the two FAILs. migration-terminal-review112-terminal-whip-menu-down-r2: static FAIL, dynamic FAIL.",
+              "definition_sha256": "4cb567b0b974509259986e3f7f4e3750d5ffe819f6ccf1f1172aa1714de2d196"
             }
           ],
-          "gap": "Terminal navigation unexercised."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "checklist: Space toggles items; defaults (ON/OFF) are honored; Enter returns the quoted selected tags (or one per line with --separate-output).",
-          "coverage": "missing",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/whiptail/checklist-separate-output",
               "assertion": "pipe-mode selected tags",
               "definition_sha256": "6eabef76befbff89d2e56f9c1cfd86d44f7052b4182f0b8e8669450d50ebbec2"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-whip-checklist-lines",
+              "assertion": "Original requirement: checklist: Space toggles items; defaults (ON/OFF) are honored; Enter returns the quoted selected tags (or one per line with --separate-output). Fresh raw analysis: Space toggle, defaults and Enter were reached for quoted and separate-output cases; quoted candidate/reference output differs and is a genuine FAIL; retained legacy pipe case remains. migration-terminal-review112-terminal-whip-checklist-lines: static PASS, dynamic PASS.",
+              "definition_sha256": "a03bdd409d9b05ec54089a96cc40348b7d04ac8bed2d0d90bd2bea62fb1c8400"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-whip-checklist-lines-r2",
+              "assertion": "Original requirement: checklist: Space toggles items; defaults (ON/OFF) are honored; Enter returns the quoted selected tags (or one per line with --separate-output). Fresh raw analysis: Space toggle, defaults and Enter were reached for quoted and separate-output cases; quoted candidate/reference output differs and is a genuine FAIL; retained legacy pipe case remains. migration-terminal-review112-terminal-whip-checklist-lines-r2: static PASS, dynamic PASS.",
+              "definition_sha256": "e55f1d1e2a5b3dd70c1ca38f10da49ccaaaf0b96f2d63031e03f250db6c7c097"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-whip-checklist-quoted",
+              "assertion": "Original requirement: checklist: Space toggles items; defaults (ON/OFF) are honored; Enter returns the quoted selected tags (or one per line with --separate-output). Fresh raw analysis: Space toggle, defaults and Enter were reached for quoted and separate-output cases; quoted candidate/reference output differs and is a genuine FAIL; retained legacy pipe case remains. migration-terminal-review112-terminal-whip-checklist-quoted: static FAIL, dynamic FAIL.",
+              "definition_sha256": "90b91f4ce1f5883c5af8215c6c37b00d279bc2473f2f3c61e34b2d45f8c08ef9"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-whip-checklist-quoted-r2",
+              "assertion": "Original requirement: checklist: Space toggles items; defaults (ON/OFF) are honored; Enter returns the quoted selected tags (or one per line with --separate-output). Fresh raw analysis: Space toggle, defaults and Enter were reached for quoted and separate-output cases; quoted candidate/reference output differs and is a genuine FAIL; retained legacy pipe case remains. migration-terminal-review112-terminal-whip-checklist-quoted-r2: static FAIL, dynamic FAIL.",
+              "definition_sha256": "12b1758f371d33c3922687b855bf47213fec4f2be5d8448ff72ffa0935bc13e4"
             }
           ],
-          "gap": "Space toggling, ON/OFF defaults and default quoted output are not exercised on a terminal; only pipe-mode --separate-output ran."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "radiolist: Space selects exactly one; Enter returns it.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case at all (pipe mode not covered either)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-whip-radio",
+              "assertion": "Original requirement: radiolist: Space selects exactly one; Enter returns it. Fresh raw analysis: Space and Enter reach result output and normal exit; candidate/reference result differs, so preserve FAIL. migration-terminal-review112-terminal-whip-radio: static FAIL, dynamic FAIL.",
+              "definition_sha256": "d9c6125e303b8c4a04879b0a4627b9cbf984e89421919d151f12ae017c9477f5"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-whip-radio-r2",
+              "assertion": "Original requirement: radiolist: Space selects exactly one; Enter returns it. Fresh raw analysis: Space and Enter reach result output and normal exit; candidate/reference result differs, so preserve FAIL. migration-terminal-review112-terminal-whip-radio-r2: static FAIL, dynamic FAIL.",
+              "definition_sha256": "d2e9157bd800c9a3d462ec856d02d4d7ef3cb00882c9a372c393eb31a84c5538"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "treeview and inputmenu navigation and selection output.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not supported by newt whiptail 0.52 (these are dialog widgets), so there is no reference oracle: contract-only for the candidate."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-whip-inputmenu-contract",
+              "assertion": "Original requirement: treeview and inputmenu navigation and selection output. Fresh raw analysis: Owned treeview and inputmenu sessions send navigation/selection keys and save result files child\\n and beta\\n, respectively; these are contract cases because pinned newt whiptail lacks those widgets. migration-terminal-review112-terminal-whip-inputmenu-contract: static PASS, dynamic PASS.",
+              "definition_sha256": "1e6cfc482f0eb6e148080a747bdaec7e6dc53921206dde6130e9852e3aea9763"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-whip-inputmenu-contract-r2",
+              "assertion": "Original requirement: treeview and inputmenu navigation and selection output. Fresh raw analysis: Owned treeview and inputmenu sessions send navigation/selection keys and save result files child\\n and beta\\n, respectively; these are contract cases because pinned newt whiptail lacks those widgets. migration-terminal-review112-terminal-whip-inputmenu-contract-r2: static PASS, dynamic PASS.",
+              "definition_sha256": "4ddd7f3d83a5aac3e0e4e6fcb1fcf0ec6296897895b412411f162893487ad8dc"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-whip-treeview-contract",
+              "assertion": "Original requirement: treeview and inputmenu navigation and selection output. Fresh raw analysis: Owned treeview and inputmenu sessions send navigation/selection keys and save result files child\\n and beta\\n, respectively; these are contract cases because pinned newt whiptail lacks those widgets. migration-terminal-review112-terminal-whip-treeview-contract: static PASS, dynamic PASS.",
+              "definition_sha256": "2bcbd6ff7ee902ce7dcca0d6e7b536c8ad9974cb26b3397c522985447ae03c70"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-whip-treeview-contract-r2",
+              "assertion": "Original requirement: treeview and inputmenu navigation and selection output. Fresh raw analysis: Owned treeview and inputmenu sessions send navigation/selection keys and save result files child\\n and beta\\n, respectively; these are contract cases because pinned newt whiptail lacks those widgets. migration-terminal-review112-terminal-whip-treeview-contract-r2: static PASS, dynamic PASS.",
+              "definition_sha256": "0acf2411e95ee7d2b767422b2d1b6233bb184542ac8350f8da138927f4b6c13c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Esc or Cancel on a list gives status 1/255 and no selection output.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terminal-review112-terminal-whip-menu-escape",
+              "assertion": "Original requirement: Esc or Cancel on a list gives status 1/255 and no selection output. Fresh raw analysis: Escape was sent and the list exited 255 without selection output. migration-terminal-review112-terminal-whip-menu-escape: static PASS, dynamic PASS.",
+              "definition_sha256": "90643414fba91f29b38726384c7f54ad029547a74d71cbafc8ccee5fc754a295"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-terminal-whip-menu-escape-r2",
+              "assertion": "Original requirement: Esc or Cancel on a list gives status 1/255 and no selection output. Fresh raw analysis: Escape was sent and the list exited 255 without selection output. migration-terminal-review112-terminal-whip-menu-escape-r2: static PASS, dynamic PASS.",
+              "definition_sha256": "516eabdbd2214fdbc81aced05671b43471acbd58e8181d2f8560e1a352fe3da7"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate whiptail is dialog.c's interactive mode (tty raw at dialog.c 340). The reference whiptail is newt 0.52.25, installed in the VM (reference_packages whiptail 0.52.25-1), so result/status parity is possible. Screen bytes are not comparable (different renderers), so screen checks are semantic."
+      "notes": [
+        "Fresh paired runs only for new case IDs; reached candidate failures remain failures. Existing legacy companions retain their established baseline bindings.",
+        "The six older signal or escape observers without raw PID, live termios, and delivered event details are withheld; newer r3 companion cases supply those records."
+      ]
     },
     {
       "topic": "whiptail/deferred-terminal-rendering",

@@ -1,0 +1,447 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terminal-review112-terminal-slab-batch-default",
+      "loadable": "slabtop",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Full procps/candidate slabtop batch bytes on the identical bind-mounted fixture: batch-default.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91; slabtop -o'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91\n/usr/bin/cmp slabinfo /proc/slabinfo || exit 92\n/usr/bin/slabtop -o > \"$HOME/slab-control.out\" 2> \"$HOME/slab-control.err\" || exit 93\ns=$(< \"$HOME/slab-control.out\")\n[[ $s == *fxalpha* && $s == *fxbeta* && $s == *fxcharlie* ]] || exit 94\n' ",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 25,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "cmp",
+        "slabtop"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name active_objs num_objs objsize objperslab pagesperslab : tunables limit batchcount sharedfactor : slabdata active_slabs num_slabs sharedavail\nfxalpha 2 4 512 4 2 : tunables 0 0 0 : slabdata 1 1 0\nfxbeta 1 8 1024 2 1 : tunables 0 0 0 : slabdata 1 4 0\nfxcharlie 2 4 512 4 1 : tunables 0 0 0 : slabdata 1 1 0\n"
+      },
+      "diagnostic_files": [
+        "slab-control.out",
+        "slab-control.err"
+      ],
+      "covers": [
+        "slabtop/deferred-gnu-batch-parity"
+      ],
+      "oracle": "Pinned procps 4.0.4 slabtop -o with the identical controlled /proc/slabinfo; a fresh unprivileged mount namespace and byte-equality control prove the bind, and the reference table must name all three distinctive fixture caches.",
+      "comparison": "Exact reference/candidate stdout, stderr, status and tree; default and every sort key have separate cases, and malformed/zero/rounding variants do not depend on a preceding case."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-slab-batch-sort-a",
+      "loadable": "slabtop",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Full procps/candidate slabtop batch bytes on the identical bind-mounted fixture: batch-sort-a.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91; slabtop -o -s a'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91\n/usr/bin/cmp slabinfo /proc/slabinfo || exit 92\n/usr/bin/slabtop -o > \"$HOME/slab-control.out\" 2> \"$HOME/slab-control.err\" || exit 93\ns=$(< \"$HOME/slab-control.out\")\n[[ $s == *fxalpha* && $s == *fxbeta* && $s == *fxcharlie* ]] || exit 94\n' ",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 25,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "cmp",
+        "slabtop"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name active_objs num_objs objsize objperslab pagesperslab : tunables limit batchcount sharedfactor : slabdata active_slabs num_slabs sharedavail\nfxalpha 2 4 512 4 2 : tunables 0 0 0 : slabdata 1 1 0\nfxbeta 1 8 1024 2 1 : tunables 0 0 0 : slabdata 1 4 0\nfxcharlie 2 4 512 4 1 : tunables 0 0 0 : slabdata 1 1 0\n"
+      },
+      "diagnostic_files": [
+        "slab-control.out",
+        "slab-control.err"
+      ],
+      "covers": [
+        "slabtop/deferred-gnu-batch-parity"
+      ],
+      "oracle": "Pinned procps 4.0.4 slabtop -o with the identical controlled /proc/slabinfo; a fresh unprivileged mount namespace and byte-equality control prove the bind, and the reference table must name all three distinctive fixture caches.",
+      "comparison": "Exact reference/candidate stdout, stderr, status and tree; default and every sort key have separate cases, and malformed/zero/rounding variants do not depend on a preceding case."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-slab-batch-sort-b",
+      "loadable": "slabtop",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Full procps/candidate slabtop batch bytes on the identical bind-mounted fixture: batch-sort-b.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91; slabtop -o -s b'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91\n/usr/bin/cmp slabinfo /proc/slabinfo || exit 92\n/usr/bin/slabtop -o > \"$HOME/slab-control.out\" 2> \"$HOME/slab-control.err\" || exit 93\ns=$(< \"$HOME/slab-control.out\")\n[[ $s == *fxalpha* && $s == *fxbeta* && $s == *fxcharlie* ]] || exit 94\n' ",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 25,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "cmp",
+        "slabtop"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name active_objs num_objs objsize objperslab pagesperslab : tunables limit batchcount sharedfactor : slabdata active_slabs num_slabs sharedavail\nfxalpha 2 4 512 4 2 : tunables 0 0 0 : slabdata 1 1 0\nfxbeta 1 8 1024 2 1 : tunables 0 0 0 : slabdata 1 4 0\nfxcharlie 2 4 512 4 1 : tunables 0 0 0 : slabdata 1 1 0\n"
+      },
+      "diagnostic_files": [
+        "slab-control.out",
+        "slab-control.err"
+      ],
+      "covers": [
+        "slabtop/deferred-gnu-batch-parity"
+      ],
+      "oracle": "Pinned procps 4.0.4 slabtop -o with the identical controlled /proc/slabinfo; a fresh unprivileged mount namespace and byte-equality control prove the bind, and the reference table must name all three distinctive fixture caches.",
+      "comparison": "Exact reference/candidate stdout, stderr, status and tree; default and every sort key have separate cases, and malformed/zero/rounding variants do not depend on a preceding case."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-slab-batch-sort-c",
+      "loadable": "slabtop",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Full procps/candidate slabtop batch bytes on the identical bind-mounted fixture: batch-sort-c.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91; slabtop -o -s c'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91\n/usr/bin/cmp slabinfo /proc/slabinfo || exit 92\n/usr/bin/slabtop -o > \"$HOME/slab-control.out\" 2> \"$HOME/slab-control.err\" || exit 93\ns=$(< \"$HOME/slab-control.out\")\n[[ $s == *fxalpha* && $s == *fxbeta* && $s == *fxcharlie* ]] || exit 94\n' ",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 25,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "cmp",
+        "slabtop"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name active_objs num_objs objsize objperslab pagesperslab : tunables limit batchcount sharedfactor : slabdata active_slabs num_slabs sharedavail\nfxalpha 2 4 512 4 2 : tunables 0 0 0 : slabdata 1 1 0\nfxbeta 1 8 1024 2 1 : tunables 0 0 0 : slabdata 1 4 0\nfxcharlie 2 4 512 4 1 : tunables 0 0 0 : slabdata 1 1 0\n"
+      },
+      "diagnostic_files": [
+        "slab-control.out",
+        "slab-control.err"
+      ],
+      "covers": [
+        "slabtop/deferred-gnu-batch-parity"
+      ],
+      "oracle": "Pinned procps 4.0.4 slabtop -o with the identical controlled /proc/slabinfo; a fresh unprivileged mount namespace and byte-equality control prove the bind, and the reference table must name all three distinctive fixture caches.",
+      "comparison": "Exact reference/candidate stdout, stderr, status and tree; default and every sort key have separate cases, and malformed/zero/rounding variants do not depend on a preceding case."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-slab-batch-sort-l",
+      "loadable": "slabtop",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Full procps/candidate slabtop batch bytes on the identical bind-mounted fixture: batch-sort-l.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91; slabtop -o -s l'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91\n/usr/bin/cmp slabinfo /proc/slabinfo || exit 92\n/usr/bin/slabtop -o > \"$HOME/slab-control.out\" 2> \"$HOME/slab-control.err\" || exit 93\ns=$(< \"$HOME/slab-control.out\")\n[[ $s == *fxalpha* && $s == *fxbeta* && $s == *fxcharlie* ]] || exit 94\n' ",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 25,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "cmp",
+        "slabtop"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name active_objs num_objs objsize objperslab pagesperslab : tunables limit batchcount sharedfactor : slabdata active_slabs num_slabs sharedavail\nfxalpha 2 4 512 4 2 : tunables 0 0 0 : slabdata 1 1 0\nfxbeta 1 8 1024 2 1 : tunables 0 0 0 : slabdata 1 4 0\nfxcharlie 2 4 512 4 1 : tunables 0 0 0 : slabdata 1 1 0\n"
+      },
+      "diagnostic_files": [
+        "slab-control.out",
+        "slab-control.err"
+      ],
+      "covers": [
+        "slabtop/deferred-gnu-batch-parity"
+      ],
+      "oracle": "Pinned procps 4.0.4 slabtop -o with the identical controlled /proc/slabinfo; a fresh unprivileged mount namespace and byte-equality control prove the bind, and the reference table must name all three distinctive fixture caches.",
+      "comparison": "Exact reference/candidate stdout, stderr, status and tree; default and every sort key have separate cases, and malformed/zero/rounding variants do not depend on a preceding case."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-slab-batch-sort-v",
+      "loadable": "slabtop",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Full procps/candidate slabtop batch bytes on the identical bind-mounted fixture: batch-sort-v.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91; slabtop -o -s v'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91\n/usr/bin/cmp slabinfo /proc/slabinfo || exit 92\n/usr/bin/slabtop -o > \"$HOME/slab-control.out\" 2> \"$HOME/slab-control.err\" || exit 93\ns=$(< \"$HOME/slab-control.out\")\n[[ $s == *fxalpha* && $s == *fxbeta* && $s == *fxcharlie* ]] || exit 94\n' ",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 25,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "cmp",
+        "slabtop"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name active_objs num_objs objsize objperslab pagesperslab : tunables limit batchcount sharedfactor : slabdata active_slabs num_slabs sharedavail\nfxalpha 2 4 512 4 2 : tunables 0 0 0 : slabdata 1 1 0\nfxbeta 1 8 1024 2 1 : tunables 0 0 0 : slabdata 1 4 0\nfxcharlie 2 4 512 4 1 : tunables 0 0 0 : slabdata 1 1 0\n"
+      },
+      "diagnostic_files": [
+        "slab-control.out",
+        "slab-control.err"
+      ],
+      "covers": [
+        "slabtop/deferred-gnu-batch-parity"
+      ],
+      "oracle": "Pinned procps 4.0.4 slabtop -o with the identical controlled /proc/slabinfo; a fresh unprivileged mount namespace and byte-equality control prove the bind, and the reference table must name all three distinctive fixture caches.",
+      "comparison": "Exact reference/candidate stdout, stderr, status and tree; default and every sort key have separate cases, and malformed/zero/rounding variants do not depend on a preceding case."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-slab-batch-sort-n",
+      "loadable": "slabtop",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Full procps/candidate slabtop batch bytes on the identical bind-mounted fixture: batch-sort-n.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91; slabtop -o -s n'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91\n/usr/bin/cmp slabinfo /proc/slabinfo || exit 92\n/usr/bin/slabtop -o > \"$HOME/slab-control.out\" 2> \"$HOME/slab-control.err\" || exit 93\ns=$(< \"$HOME/slab-control.out\")\n[[ $s == *fxalpha* && $s == *fxbeta* && $s == *fxcharlie* ]] || exit 94\n' ",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 25,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "cmp",
+        "slabtop"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name active_objs num_objs objsize objperslab pagesperslab : tunables limit batchcount sharedfactor : slabdata active_slabs num_slabs sharedavail\nfxalpha 2 4 512 4 2 : tunables 0 0 0 : slabdata 1 1 0\nfxbeta 1 8 1024 2 1 : tunables 0 0 0 : slabdata 1 4 0\nfxcharlie 2 4 512 4 1 : tunables 0 0 0 : slabdata 1 1 0\n"
+      },
+      "diagnostic_files": [
+        "slab-control.out",
+        "slab-control.err"
+      ],
+      "covers": [
+        "slabtop/deferred-gnu-batch-parity"
+      ],
+      "oracle": "Pinned procps 4.0.4 slabtop -o with the identical controlled /proc/slabinfo; a fresh unprivileged mount namespace and byte-equality control prove the bind, and the reference table must name all three distinctive fixture caches.",
+      "comparison": "Exact reference/candidate stdout, stderr, status and tree; default and every sort key have separate cases, and malformed/zero/rounding variants do not depend on a preceding case."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-slab-batch-sort-o",
+      "loadable": "slabtop",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Full procps/candidate slabtop batch bytes on the identical bind-mounted fixture: batch-sort-o.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91; slabtop -o -s o'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91\n/usr/bin/cmp slabinfo /proc/slabinfo || exit 92\n/usr/bin/slabtop -o > \"$HOME/slab-control.out\" 2> \"$HOME/slab-control.err\" || exit 93\ns=$(< \"$HOME/slab-control.out\")\n[[ $s == *fxalpha* && $s == *fxbeta* && $s == *fxcharlie* ]] || exit 94\n' ",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 25,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "cmp",
+        "slabtop"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name active_objs num_objs objsize objperslab pagesperslab : tunables limit batchcount sharedfactor : slabdata active_slabs num_slabs sharedavail\nfxalpha 2 4 512 4 2 : tunables 0 0 0 : slabdata 1 1 0\nfxbeta 1 8 1024 2 1 : tunables 0 0 0 : slabdata 1 4 0\nfxcharlie 2 4 512 4 1 : tunables 0 0 0 : slabdata 1 1 0\n"
+      },
+      "diagnostic_files": [
+        "slab-control.out",
+        "slab-control.err"
+      ],
+      "covers": [
+        "slabtop/deferred-gnu-batch-parity"
+      ],
+      "oracle": "Pinned procps 4.0.4 slabtop -o with the identical controlled /proc/slabinfo; a fresh unprivileged mount namespace and byte-equality control prove the bind, and the reference table must name all three distinctive fixture caches.",
+      "comparison": "Exact reference/candidate stdout, stderr, status and tree; default and every sort key have separate cases, and malformed/zero/rounding variants do not depend on a preceding case."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-slab-batch-sort-p",
+      "loadable": "slabtop",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Full procps/candidate slabtop batch bytes on the identical bind-mounted fixture: batch-sort-p.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91; slabtop -o -s p'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91\n/usr/bin/cmp slabinfo /proc/slabinfo || exit 92\n/usr/bin/slabtop -o > \"$HOME/slab-control.out\" 2> \"$HOME/slab-control.err\" || exit 93\ns=$(< \"$HOME/slab-control.out\")\n[[ $s == *fxalpha* && $s == *fxbeta* && $s == *fxcharlie* ]] || exit 94\n' ",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 25,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "cmp",
+        "slabtop"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name active_objs num_objs objsize objperslab pagesperslab : tunables limit batchcount sharedfactor : slabdata active_slabs num_slabs sharedavail\nfxalpha 2 4 512 4 2 : tunables 0 0 0 : slabdata 1 1 0\nfxbeta 1 8 1024 2 1 : tunables 0 0 0 : slabdata 1 4 0\nfxcharlie 2 4 512 4 1 : tunables 0 0 0 : slabdata 1 1 0\n"
+      },
+      "diagnostic_files": [
+        "slab-control.out",
+        "slab-control.err"
+      ],
+      "covers": [
+        "slabtop/deferred-gnu-batch-parity"
+      ],
+      "oracle": "Pinned procps 4.0.4 slabtop -o with the identical controlled /proc/slabinfo; a fresh unprivileged mount namespace and byte-equality control prove the bind, and the reference table must name all three distinctive fixture caches.",
+      "comparison": "Exact reference/candidate stdout, stderr, status and tree; default and every sort key have separate cases, and malformed/zero/rounding variants do not depend on a preceding case."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-slab-batch-sort-s",
+      "loadable": "slabtop",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Full procps/candidate slabtop batch bytes on the identical bind-mounted fixture: batch-sort-s.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91; slabtop -o -s s'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91\n/usr/bin/cmp slabinfo /proc/slabinfo || exit 92\n/usr/bin/slabtop -o > \"$HOME/slab-control.out\" 2> \"$HOME/slab-control.err\" || exit 93\ns=$(< \"$HOME/slab-control.out\")\n[[ $s == *fxalpha* && $s == *fxbeta* && $s == *fxcharlie* ]] || exit 94\n' ",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 25,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "cmp",
+        "slabtop"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name active_objs num_objs objsize objperslab pagesperslab : tunables limit batchcount sharedfactor : slabdata active_slabs num_slabs sharedavail\nfxalpha 2 4 512 4 2 : tunables 0 0 0 : slabdata 1 1 0\nfxbeta 1 8 1024 2 1 : tunables 0 0 0 : slabdata 1 4 0\nfxcharlie 2 4 512 4 1 : tunables 0 0 0 : slabdata 1 1 0\n"
+      },
+      "diagnostic_files": [
+        "slab-control.out",
+        "slab-control.err"
+      ],
+      "covers": [
+        "slabtop/deferred-gnu-batch-parity"
+      ],
+      "oracle": "Pinned procps 4.0.4 slabtop -o with the identical controlled /proc/slabinfo; a fresh unprivileged mount namespace and byte-equality control prove the bind, and the reference table must name all three distinctive fixture caches.",
+      "comparison": "Exact reference/candidate stdout, stderr, status and tree; default and every sort key have separate cases, and malformed/zero/rounding variants do not depend on a preceding case."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-slab-batch-sort-u",
+      "loadable": "slabtop",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Full procps/candidate slabtop batch bytes on the identical bind-mounted fixture: batch-sort-u.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91; slabtop -o -s u'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91\n/usr/bin/cmp slabinfo /proc/slabinfo || exit 92\n/usr/bin/slabtop -o > \"$HOME/slab-control.out\" 2> \"$HOME/slab-control.err\" || exit 93\ns=$(< \"$HOME/slab-control.out\")\n[[ $s == *fxalpha* && $s == *fxbeta* && $s == *fxcharlie* ]] || exit 94\n' ",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 25,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "cmp",
+        "slabtop"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name active_objs num_objs objsize objperslab pagesperslab : tunables limit batchcount sharedfactor : slabdata active_slabs num_slabs sharedavail\nfxalpha 2 4 512 4 2 : tunables 0 0 0 : slabdata 1 1 0\nfxbeta 1 8 1024 2 1 : tunables 0 0 0 : slabdata 1 4 0\nfxcharlie 2 4 512 4 1 : tunables 0 0 0 : slabdata 1 1 0\n"
+      },
+      "diagnostic_files": [
+        "slab-control.out",
+        "slab-control.err"
+      ],
+      "covers": [
+        "slabtop/deferred-gnu-batch-parity"
+      ],
+      "oracle": "Pinned procps 4.0.4 slabtop -o with the identical controlled /proc/slabinfo; a fresh unprivileged mount namespace and byte-equality control prove the bind, and the reference table must name all three distinctive fixture caches.",
+      "comparison": "Exact reference/candidate stdout, stderr, status and tree; default and every sort key have separate cases, and malformed/zero/rounding variants do not depend on a preceding case."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-slab-batch-zero",
+      "loadable": "slabtop",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Full procps/candidate slabtop batch bytes on the identical bind-mounted fixture: batch-zero.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91; slabtop -o'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91\n/usr/bin/cmp slabinfo /proc/slabinfo || exit 92\n/usr/bin/slabtop -o > \"$HOME/slab-control.out\" 2> \"$HOME/slab-control.err\" || exit 93\ns=$(< \"$HOME/slab-control.out\")\n[[ $s == *fxalpha* && $s == *fxbeta* && $s == *fxcharlie* ]] || exit 94\n' ",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 25,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "cmp",
+        "slabtop"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name active_objs num_objs objsize objperslab pagesperslab : tunables limit batchcount sharedfactor : slabdata active_slabs num_slabs sharedavail\nfxalpha 2 4 512 4 2 : tunables 0 0 0 : slabdata 1 1 0\nfxbeta 1 8 1024 2 1 : tunables 0 0 0 : slabdata 1 4 0\nfxcharlie 2 4 512 4 1 : tunables 0 0 0 : slabdata 1 1 0\nfxzero 0 0 64 1 1 : tunables 0 0 0 : slabdata 0 0 0\n"
+      },
+      "diagnostic_files": [
+        "slab-control.out",
+        "slab-control.err"
+      ],
+      "covers": [
+        "slabtop/deferred-gnu-batch-parity"
+      ],
+      "oracle": "Pinned procps 4.0.4 slabtop -o with the identical controlled /proc/slabinfo; a fresh unprivileged mount namespace and byte-equality control prove the bind, and the reference table must name all three distinctive fixture caches.",
+      "comparison": "Exact reference/candidate stdout, stderr, status and tree; default and every sort key have separate cases, and malformed/zero/rounding variants do not depend on a preceding case."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-slab-batch-rounding",
+      "loadable": "slabtop",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Full procps/candidate slabtop batch bytes on the identical bind-mounted fixture: batch-rounding.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91; slabtop -o'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/slabinfo\" /proc/slabinfo || exit 91\n/usr/bin/cmp slabinfo /proc/slabinfo || exit 92\n/usr/bin/slabtop -o > \"$HOME/slab-control.out\" 2> \"$HOME/slab-control.err\" || exit 93\ns=$(< \"$HOME/slab-control.out\")\n[[ $s == *fxalpha* && $s == *fxbeta* && $s == *fxcharlie* ]] || exit 94\n' ",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 25,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "cmp",
+        "slabtop"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name active_objs num_objs objsize objperslab pagesperslab : tunables limit batchcount sharedfactor : slabdata active_slabs num_slabs sharedavail\nfxalpha 2 4 512 4 2 : tunables 0 0 0 : slabdata 1 1 0\nfxbeta 1 8 1024 2 1 : tunables 0 0 0 : slabdata 1 4 0\nfxcharlie 2 4 512 4 1 : tunables 0 0 0 : slabdata 1 1 0\nfxround 3 7 384 4 1 : tunables 0 0 0 : slabdata 1 2 0\n"
+      },
+      "diagnostic_files": [
+        "slab-control.out",
+        "slab-control.err"
+      ],
+      "covers": [
+        "slabtop/deferred-gnu-batch-parity"
+      ],
+      "oracle": "Pinned procps 4.0.4 slabtop -o with the identical controlled /proc/slabinfo; a fresh unprivileged mount namespace and byte-equality control prove the bind, and the reference table must name all three distinctive fixture caches.",
+      "comparison": "Exact reference/candidate stdout, stderr, status and tree; default and every sort key have separate cases, and malformed/zero/rounding variants do not depend on a preceding case."
+    }
+  ]
+}

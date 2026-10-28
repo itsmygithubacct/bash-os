@@ -1,0 +1,1153 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terminal-review112-terminal-pixel-printable",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Printable ASCII returns its exact character.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send": "A"
+        },
+        {
+          "expect": "A\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-enter",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "CR returns ENTER.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "ENTER\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-space",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Space returns SPACE.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send": " "
+        },
+        {
+          "expect": "SPACE\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-tab",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Tab returns TAB.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send": "\t"
+        },
+        {
+          "expect": "TAB\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-backspace",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "DEL/backspace returns BACKSPACE.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send_base64": "fw=="
+        },
+        {
+          "expect": "BACKSPACE\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-ctrl-byte",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Temporarily disable VINTR on the private PTY so byte 03 reaches key-read while ISIG is retained; restore VINTR afterward.",
+      "script": "/bin/stty intr undef\ntermpixel key-read --timeout 5000\nrc=$?\n/bin/stty intr '^C'\nexit \"$rc\"",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send_base64": "Aw=="
+        },
+        {
+          "expect": "CTRL_C\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds.",
+      "requires": [
+        "stty"
+      ]
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-csi-up_arrow",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "CSI A decodes to UP_ARROW.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send_base64": "G1tB"
+        },
+        {
+          "expect": "UP_ARROW\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-csi-down_arrow",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "CSI B decodes to DOWN_ARROW.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send_base64": "G1tC"
+        },
+        {
+          "expect": "DOWN_ARROW\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-csi-right_arrow",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "CSI C decodes to RIGHT_ARROW.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send_base64": "G1tD"
+        },
+        {
+          "expect": "RIGHT_ARROW\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-csi-left_arrow",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "CSI D decodes to LEFT_ARROW.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send_base64": "G1tE"
+        },
+        {
+          "expect": "LEFT_ARROW\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-ss3-up_arrow",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "SS3 A decodes to UP_ARROW.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send_base64": "G09B"
+        },
+        {
+          "expect": "UP_ARROW\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-ss3-down_arrow",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "SS3 B decodes to DOWN_ARROW.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send_base64": "G09C"
+        },
+        {
+          "expect": "DOWN_ARROW\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-ss3-right_arrow",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "SS3 C decodes to RIGHT_ARROW.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send_base64": "G09D"
+        },
+        {
+          "expect": "RIGHT_ARROW\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-ss3-left_arrow",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "SS3 D decodes to LEFT_ARROW.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send_base64": "G09E"
+        },
+        {
+          "expect": "LEFT_ARROW\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-escape",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "A lone Escape returns ESCAPE after its bounded continuation grace period.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send_base64": "Gw=="
+        },
+        {
+          "expect": "ESCAPE\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-timeout",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "A waiting raw read with no input returns TIMEOUT.",
+      "script": "termpixel key-read --timeout 2000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "expect": "TIMEOUT\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-cursor-entry",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Raw read emits the cursor-hide control on entry before the key arrives.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "expect": "\\x1b\\[\\?25l"
+        },
+        {
+          "send": "A"
+        },
+        {
+          "expect": "A\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-pixel-cursor-exit",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "A completed key read emits reset rendition and show-cursor controls before its key result.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "send": "A"
+        },
+        {
+          "expect": "\\x1b\\[0m\\x1b\\[\\?25h"
+        },
+        {
+          "expect": "A\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-mouse-pty-sgr",
+      "loadable": "mouse",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "1006 mode on the TTY precedes a consumer read; injected sgr bytes decode to the hand-calculated press and mode is disabled.",
+      "script": "saved=$(/bin/stty -g) || exit 21\n/bin/stty -icanon -echo min 1 time 0 || exit 22\nmouse enable 1006\nprintf 'READY-READ\\n'\nIFS= read -r -N 9 report || exit 23\nhex=$(printf '%s' \"$report\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n')\nmouse decode \"$hex\"\nrc=$?\nmouse disable 1006\n/bin/stty \"$saved\" || exit 24\nexit \"$rc\"\n",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "expect": "\\x1b\\[\\?1006h"
+        },
+        {
+          "expect": "READY-READ"
+        },
+        {
+          "send_base64": "G1s8MDs0OzZN"
+        },
+        {
+          "expect": "mouse protocol=1006 kind=press button=button1 x=4 y=6 mods= code=0"
+        },
+        {
+          "expect": "\\x1b\\[\\?1006l"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "mouse/pty-terminal-interoperability"
+      ],
+      "oracle": "XTerm mouse tracking protocol (SGR 1006, urxvt 1015, legacy X10) and documented mouse record format. Injected input is independently hand-encoded; the consumer is fixture Bash code. This is a byte-stream lifecycle, not a terminal-emulator mode-state assertion.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds.",
+      "requires": [
+        "stty",
+        "od",
+        "tr"
+      ]
+    },
+    {
+      "id": "migration-terminal-review112-terminal-mouse-pty-urxvt",
+      "loadable": "mouse",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "1015 mode on the TTY precedes a consumer read; injected urxvt bytes decode to the hand-calculated press and mode is disabled.",
+      "script": "saved=$(/bin/stty -g) || exit 21\n/bin/stty -icanon -echo min 1 time 0 || exit 22\nmouse enable 1015\nprintf 'READY-READ\\n'\nIFS= read -r -N 9 report || exit 23\nhex=$(printf '%s' \"$report\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n')\nmouse decode \"$hex\"\nrc=$?\nmouse disable 1015\n/bin/stty \"$saved\" || exit 24\nexit \"$rc\"\n",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "expect": "\\x1b\\[\\?1015h"
+        },
+        {
+          "expect": "READY-READ"
+        },
+        {
+          "send_base64": "G1szMjs0OzZN"
+        },
+        {
+          "expect": "mouse protocol=1015 kind=press button=button1 x=4 y=6 mods= code=0"
+        },
+        {
+          "expect": "\\x1b\\[\\?1015l"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "mouse/pty-terminal-interoperability"
+      ],
+      "oracle": "XTerm mouse tracking protocol (SGR 1006, urxvt 1015, legacy X10) and documented mouse record format. Injected input is independently hand-encoded; the consumer is fixture Bash code. This is a byte-stream lifecycle, not a terminal-emulator mode-state assertion.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds.",
+      "requires": [
+        "stty",
+        "od",
+        "tr"
+      ]
+    },
+    {
+      "id": "migration-terminal-review112-terminal-mouse-pty-x10",
+      "loadable": "mouse",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "x10 mode on the TTY precedes a consumer read; injected x10 bytes decode to the hand-calculated press and mode is disabled.",
+      "script": "saved=$(/bin/stty -g) || exit 21\n/bin/stty -icanon -echo min 1 time 0 || exit 22\nmouse enable x10\nprintf 'READY-READ\\n'\nIFS= read -r -N 6 report || exit 23\nhex=$(printf '%s' \"$report\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n')\nmouse decode \"$hex\"\nrc=$?\nmouse disable x10\n/bin/stty \"$saved\" || exit 24\nexit \"$rc\"\n",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "expect": "\\x1b\\[\\?1000h"
+        },
+        {
+          "expect": "READY-READ"
+        },
+        {
+          "send_base64": "G1tNICQm"
+        },
+        {
+          "expect": "mouse protocol=x10 kind=press button=button1 x=4 y=6 mods= code=0"
+        },
+        {
+          "expect": "\\x1b\\[\\?1000l"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "mouse/pty-terminal-interoperability"
+      ],
+      "oracle": "XTerm mouse tracking protocol (SGR 1006, urxvt 1015, legacy X10) and documented mouse record format. Injected input is independently hand-encoded; the consumer is fixture Bash code. This is a byte-stream lifecycle, not a terminal-emulator mode-state assertion.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds.",
+      "requires": [
+        "stty",
+        "od",
+        "tr"
+      ]
+    },
+    {
+      "id": "migration-terminal-review112-terminal-mouse-pty-interrupt",
+      "loadable": "mouse",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "The fixture consumer traps Ctrl-C, emits all disable controls, and restores termios.",
+      "script": "saved=$(/bin/stty -g) || exit 21\n/bin/stty -icanon -echo min 1 time 0 || exit 22\ntrap 'mouse disable all; /bin/stty \"$saved\"; printf \"\\nINT-CLEANED\\n\"; exit 130' INT\nmouse enable all\nprintf 'READY-INT\\n'\nIFS= read -r -N 1 unused\nexit 25\n",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "expect": "\\x1b\\[\\?1000h\\x1b\\[\\?1015h\\x1b\\[\\?1006h"
+        },
+        {
+          "expect": "READY-INT"
+        },
+        {
+          "send_base64": "Aw=="
+        },
+        {
+          "expect": "\\x1b\\[\\?1000l\\x1b\\[\\?1015l\\x1b\\[\\?1006l"
+        },
+        {
+          "expect": "INT-CLEANED"
+        }
+      ],
+      "expected_status": 130,
+      "timeout": 15,
+      "covers": [
+        "mouse/pty-terminal-interoperability"
+      ],
+      "oracle": "XTerm mouse tracking protocol (SGR 1006, urxvt 1015, legacy X10) and documented mouse record format. Injected input is independently hand-encoded; the consumer is fixture Bash code. This is a byte-stream lifecycle, not a terminal-emulator mode-state assertion.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds.",
+      "requires": [
+        "stty"
+      ]
+    },
+    {
+      "id": "migration-terminal-review112-terminal-tetris-quit",
+      "loadable": "bsdgames",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Seeded game enters raw TTY mode, renders a well, then q shows the cursor and the final score.",
+      "script": "bsdgames tetris --seed 12345 -l 1",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^Score: 0\\s+Level: 1$",
+              "1": "^\\|.*\\|$"
+            },
+            "contains": [
+              "q=quit"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        },
+        {
+          "expect": "\\x1b\\[\\?25h"
+        },
+        {
+          "expect": "Your score:"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "bsdgames/interactive-tetris-pty-session"
+      ],
+      "oracle": "Documented BSD tetris key/score and terminal lifecycle contract; a seeded first piece starts above the bottom of a 10-column well. Expectations are not sampled from the headless implementation.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-tetris-drop",
+      "loadable": "bsdgames",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "A hard drop on the first empty well moves the seeded piece to the bottom and increases its score before quit.",
+      "script": "bsdgames tetris --seed 12345 -l 1",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^Score: 0\\s+Level: 1$",
+              "1": "^\\|.*\\|$"
+            },
+            "contains": [
+              "q=quit"
+            ]
+          }
+        },
+        {
+          "send": " "
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^Score: [1-9][0-9]*\\s+Level: 1$"
+            }
+          }
+        },
+        {
+          "send": "q"
+        },
+        {
+          "expect": "Your score:"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "bsdgames/interactive-tetris-pty-session"
+      ],
+      "oracle": "Documented BSD tetris key/score and terminal lifecycle contract; a seeded first piece starts above the bottom of a 10-column well. Expectations are not sampled from the headless implementation.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-tetris-int",
+      "loadable": "bsdgames",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "A keyboard interrupt in raw mode shows the cursor and restores the terminal before the shell resumes.",
+      "script": "bsdgames tetris --seed 12345 -l 1\nprintf 'RETURNED status=%d\\n' \"$?\"",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^Score: 0\\s+Level: 1$",
+              "1": "^\\|.*\\|$"
+            },
+            "contains": [
+              "q=quit"
+            ]
+          }
+        },
+        {
+          "send_base64": "Aw=="
+        },
+        {
+          "expect": "\\x1b\\[\\?25h"
+        },
+        {
+          "expect": "RETURNED status="
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "bsdgames/interactive-tetris-pty-session"
+      ],
+      "oracle": "Documented BSD tetris key/score and terminal lifecycle contract; a seeded first piece starts above the bottom of a 10-column well. Expectations are not sampled from the headless implementation.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    }
+  ]
+}

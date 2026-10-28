@@ -1,0 +1,413 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terminal-review112-terminal-tetris-signal-sigint-r3",
+      "loadable": "bsdgames",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "tetris restores the private terminal after SIGINT.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-signals-10636a9aae80.py tetris \"$BASH\" SIGINT",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-signals-10636a9aae80.py control",
+      "setup_timeout": 45,
+      "expected_status": 0,
+      "stdout": "observer-control=PASS\nraw-mode=PASS\nsignal-delivered=PASS\nchild-exited=PASS\ntermios-restored=PASS\ncursor-shown=PASS\n",
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-terminal-signals-10636a9aae80.py": "10636a9aae80a3efd11ba8dffb03740a61c9b0ab7c471f82779a243569efe79a"
+      },
+      "diagnostic_files": [
+        "signal-control-2.raw",
+        "signal-control-2.json",
+        "signal-control-15.raw",
+        "signal-control-15.json",
+        "signal-control-1.raw",
+        "signal-control-1.json",
+        "escape-control-0.05.raw",
+        "escape-control-0.05.json",
+        "escape-control-0.0.raw",
+        "escape-control-0.0.json",
+        "signal-actual.raw",
+        "signal-actual.json",
+        "escape-actual.raw",
+        "escape-actual.json"
+      ],
+      "covers": [
+        "bsdgames/interactive-tetris-pty-session"
+      ],
+      "oracle": "Documented terminal restoration contract; a fresh private PTY and an owned session leader. Setup checks the observer against a separate raw-mode stub for each signal. Only the child created by the observer is signalled, and only inside the disposable VM.",
+      "comparison": "Wait for raw terminal readiness, signal that owned child, retain raw output, signal event, natural status and termios; cursor-show is required for tetris. Raw live termios, the owned child identity, sent signal or byte, and cleanup status are retained."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-tetris-signal-sigterm-r3",
+      "loadable": "bsdgames",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "tetris restores the private terminal after SIGTERM.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-signals-10636a9aae80.py tetris \"$BASH\" SIGTERM",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-signals-10636a9aae80.py control",
+      "setup_timeout": 45,
+      "expected_status": 0,
+      "stdout": "observer-control=PASS\nraw-mode=PASS\nsignal-delivered=PASS\nchild-exited=PASS\ntermios-restored=PASS\ncursor-shown=PASS\n",
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-terminal-signals-10636a9aae80.py": "10636a9aae80a3efd11ba8dffb03740a61c9b0ab7c471f82779a243569efe79a"
+      },
+      "diagnostic_files": [
+        "signal-control-2.raw",
+        "signal-control-2.json",
+        "signal-control-15.raw",
+        "signal-control-15.json",
+        "signal-control-1.raw",
+        "signal-control-1.json",
+        "escape-control-0.05.raw",
+        "escape-control-0.05.json",
+        "escape-control-0.0.raw",
+        "escape-control-0.0.json",
+        "signal-actual.raw",
+        "signal-actual.json",
+        "escape-actual.raw",
+        "escape-actual.json"
+      ],
+      "covers": [
+        "bsdgames/interactive-tetris-pty-session"
+      ],
+      "oracle": "Documented terminal restoration contract; a fresh private PTY and an owned session leader. Setup checks the observer against a separate raw-mode stub for each signal. Only the child created by the observer is signalled, and only inside the disposable VM.",
+      "comparison": "Wait for raw terminal readiness, signal that owned child, retain raw output, signal event, natural status and termios; cursor-show is required for tetris. Raw live termios, the owned child identity, sent signal or byte, and cleanup status are retained."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-tetris-signal-sighup-r3",
+      "loadable": "bsdgames",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "tetris restores the private terminal after SIGHUP.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-signals-10636a9aae80.py tetris \"$BASH\" SIGHUP",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-signals-10636a9aae80.py control",
+      "setup_timeout": 45,
+      "expected_status": 0,
+      "stdout": "observer-control=PASS\nraw-mode=PASS\nsignal-delivered=PASS\nchild-exited=PASS\ntermios-restored=PASS\ncursor-shown=PASS\n",
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-terminal-signals-10636a9aae80.py": "10636a9aae80a3efd11ba8dffb03740a61c9b0ab7c471f82779a243569efe79a"
+      },
+      "diagnostic_files": [
+        "signal-control-2.raw",
+        "signal-control-2.json",
+        "signal-control-15.raw",
+        "signal-control-15.json",
+        "signal-control-1.raw",
+        "signal-control-1.json",
+        "escape-control-0.05.raw",
+        "escape-control-0.05.json",
+        "escape-control-0.0.raw",
+        "escape-control-0.0.json",
+        "signal-actual.raw",
+        "signal-actual.json",
+        "escape-actual.raw",
+        "escape-actual.json"
+      ],
+      "covers": [
+        "bsdgames/interactive-tetris-pty-session"
+      ],
+      "oracle": "Documented terminal restoration contract; a fresh private PTY and an owned session leader. Setup checks the observer against a separate raw-mode stub for each signal. Only the child created by the observer is signalled, and only inside the disposable VM.",
+      "comparison": "Wait for raw terminal readiness, signal that owned child, retain raw output, signal event, natural status and termios; cursor-show is required for tetris. Raw live termios, the owned child identity, sent signal or byte, and cleanup status are retained."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-termpixel-signal-sigint-r3",
+      "loadable": "termpixel",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "termpixel restores the private terminal after SIGINT.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-signals-10636a9aae80.py termpixel \"$BASH\" SIGINT",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-signals-10636a9aae80.py control",
+      "setup_timeout": 45,
+      "expected_status": 0,
+      "stdout": "observer-control=PASS\nraw-mode=PASS\nsignal-delivered=PASS\nchild-exited=PASS\ntermios-restored=PASS\n",
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-terminal-signals-10636a9aae80.py": "10636a9aae80a3efd11ba8dffb03740a61c9b0ab7c471f82779a243569efe79a"
+      },
+      "diagnostic_files": [
+        "signal-control-2.raw",
+        "signal-control-2.json",
+        "signal-control-15.raw",
+        "signal-control-15.json",
+        "signal-control-1.raw",
+        "signal-control-1.json",
+        "escape-control-0.05.raw",
+        "escape-control-0.05.json",
+        "escape-control-0.0.raw",
+        "escape-control-0.0.json",
+        "signal-actual.raw",
+        "signal-actual.json",
+        "escape-actual.raw",
+        "escape-actual.json"
+      ],
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented terminal restoration contract; a fresh private PTY and an owned session leader. Setup checks the observer against a separate raw-mode stub for each signal. Only the child created by the observer is signalled, and only inside the disposable VM.",
+      "comparison": "Wait for raw terminal readiness, signal that owned child, retain raw output, signal event, natural status and termios; cursor-show is required for tetris. Raw live termios, the owned child identity, sent signal or byte, and cleanup status are retained."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-termpixel-signal-sigterm-r3",
+      "loadable": "termpixel",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "termpixel restores the private terminal after SIGTERM.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-signals-10636a9aae80.py termpixel \"$BASH\" SIGTERM",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-signals-10636a9aae80.py control",
+      "setup_timeout": 45,
+      "expected_status": 0,
+      "stdout": "observer-control=PASS\nraw-mode=PASS\nsignal-delivered=PASS\nchild-exited=PASS\ntermios-restored=PASS\n",
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-terminal-signals-10636a9aae80.py": "10636a9aae80a3efd11ba8dffb03740a61c9b0ab7c471f82779a243569efe79a"
+      },
+      "diagnostic_files": [
+        "signal-control-2.raw",
+        "signal-control-2.json",
+        "signal-control-15.raw",
+        "signal-control-15.json",
+        "signal-control-1.raw",
+        "signal-control-1.json",
+        "escape-control-0.05.raw",
+        "escape-control-0.05.json",
+        "escape-control-0.0.raw",
+        "escape-control-0.0.json",
+        "signal-actual.raw",
+        "signal-actual.json",
+        "escape-actual.raw",
+        "escape-actual.json"
+      ],
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented terminal restoration contract; a fresh private PTY and an owned session leader. Setup checks the observer against a separate raw-mode stub for each signal. Only the child created by the observer is signalled, and only inside the disposable VM.",
+      "comparison": "Wait for raw terminal readiness, signal that owned child, retain raw output, signal event, natural status and termios; cursor-show is required for tetris. Raw live termios, the owned child identity, sent signal or byte, and cleanup status are retained."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-termpixel-escape-grace-r3",
+      "loadable": "termpixel",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A lone ESC reports ESCAPE after the documented 50ms continuation grace.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-signals-10636a9aae80.py escape \"$BASH\"",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-signals-10636a9aae80.py control",
+      "setup_timeout": 45,
+      "expected_status": 0,
+      "stdout": "observer-control=PASS\nraw-mode=PASS\nescape-record=PASS\ngrace-window=PASS\nchild-exited=PASS\ntermios-restored=PASS\n",
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-terminal-signals-10636a9aae80.py": "10636a9aae80a3efd11ba8dffb03740a61c9b0ab7c471f82779a243569efe79a"
+      },
+      "diagnostic_files": [
+        "signal-control-2.raw",
+        "signal-control-2.json",
+        "signal-control-15.raw",
+        "signal-control-15.json",
+        "signal-control-1.raw",
+        "signal-control-1.json",
+        "escape-control-0.05.raw",
+        "escape-control-0.05.json",
+        "escape-control-0.0.raw",
+        "escape-control-0.0.json",
+        "signal-actual.raw",
+        "signal-actual.json",
+        "escape-actual.raw",
+        "escape-actual.json"
+      ],
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "The documented lone-ESC 50ms continuation grace; a monotonic observer uses a 30-500ms acceptance window. Separate fast and 50ms stub controls validate the timing gate.",
+      "comparison": "Retains raw bytes, measured monotonic elapsed time and initial/final termios; scheduling beyond the tolerance is a fixture qualification issue. Raw live termios, the owned child identity, sent signal or byte, and cleanup status are retained."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-tetris-geometry-left-r3",
+      "loadable": "bsdgames",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Seeded interactive tetris left follows the geometric or pause contract.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-tetris-8609f88bff68.py run \"$BASH\" left",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-tetris-8609f88bff68.py control",
+      "setup_timeout": 10,
+      "expected_status": 0,
+      "stdout": "observer-control=PASS\ngeometry=PASS\nfour-cells=PASS\ntransition=PASS\nquit-status=PASS\nterminal-restored=PASS\ncursor-shown=PASS\n",
+      "stderr": "",
+      "timeout": 16,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-terminal-tetris-8609f88bff68.py": "8609f88bff684aff835b1591a80e27d069ce40490e6264cb17c4981ce982fcba"
+      },
+      "diagnostic_files": [
+        "tetris-geometry.raw",
+        "tetris-geometry.json"
+      ],
+      "covers": [
+        "bsdgames/interactive-tetris-pty-session"
+      ],
+      "oracle": "Four-cell geometric invariants: j/l shift one column; k rotates a nonsymmetric tetromino counterclockwise, up to translation; p freezes a known advancing piece and p resumes it. The 20x10 well and seed are fixed. A separately constructed ECMA-48 screen and hand-specified shape are the observer control; headless game output is never used.",
+      "comparison": "Retains decoded cell coordinates, directional input timing, raw frame bytes, final score/status, cursor and termios. Gravity baseline is required before testing pause. Every sent PTY byte and its monotonic timestamp and capture offset are retained."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-tetris-geometry-right-r3",
+      "loadable": "bsdgames",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Seeded interactive tetris right follows the geometric or pause contract.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-tetris-8609f88bff68.py run \"$BASH\" right",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-tetris-8609f88bff68.py control",
+      "setup_timeout": 10,
+      "expected_status": 0,
+      "stdout": "observer-control=PASS\ngeometry=PASS\nfour-cells=PASS\ntransition=PASS\nquit-status=PASS\nterminal-restored=PASS\ncursor-shown=PASS\n",
+      "stderr": "",
+      "timeout": 16,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-terminal-tetris-8609f88bff68.py": "8609f88bff684aff835b1591a80e27d069ce40490e6264cb17c4981ce982fcba"
+      },
+      "diagnostic_files": [
+        "tetris-geometry.raw",
+        "tetris-geometry.json"
+      ],
+      "covers": [
+        "bsdgames/interactive-tetris-pty-session"
+      ],
+      "oracle": "Four-cell geometric invariants: j/l shift one column; k rotates a nonsymmetric tetromino counterclockwise, up to translation; p freezes a known advancing piece and p resumes it. The 20x10 well and seed are fixed. A separately constructed ECMA-48 screen and hand-specified shape are the observer control; headless game output is never used.",
+      "comparison": "Retains decoded cell coordinates, directional input timing, raw frame bytes, final score/status, cursor and termios. Gravity baseline is required before testing pause. Every sent PTY byte and its monotonic timestamp and capture offset are retained."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-tetris-geometry-rotate-r3",
+      "loadable": "bsdgames",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "After an independently observed gravity transition moves the seeded piece fully below the hidden spawn row, k must rotate the four-cell shape.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-tetris-8609f88bff68.py run \"$BASH\" rotate",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-tetris-8609f88bff68.py control",
+      "setup_timeout": 10,
+      "expected_status": 0,
+      "stdout": "observer-control=PASS\ngeometry=PASS\nfour-cells=PASS\ntransition=PASS\nquit-status=PASS\nterminal-restored=PASS\ncursor-shown=PASS\n",
+      "stderr": "",
+      "timeout": 16,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-terminal-tetris-8609f88bff68.py": "8609f88bff684aff835b1591a80e27d069ce40490e6264cb17c4981ce982fcba"
+      },
+      "diagnostic_files": [
+        "tetris-geometry.raw",
+        "tetris-geometry.json"
+      ],
+      "covers": [
+        "bsdgames/interactive-tetris-pty-session"
+      ],
+      "oracle": "Four-cell geometric invariants: j/l shift one column; k rotates a nonsymmetric tetromino counterclockwise, up to translation; p freezes a known advancing piece and p resumes it. The 20x10 well and seed are fixed. A separately constructed ECMA-48 screen and hand-specified shape are the observer control; headless game output is never used.",
+      "comparison": "Retains decoded cell coordinates, directional input timing, raw frame bytes, final score/status, cursor and termios. Gravity baseline is required before testing pause. The rotation is attempted only after an observed same-shape gravity transition to a fully visible height; all sent PTY bytes and their timestamps are retained."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-tetris-geometry-pause-r3",
+      "loadable": "bsdgames",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Seeded interactive tetris pause follows the geometric or pause contract.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-tetris-8609f88bff68.py run \"$BASH\" pause",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-tetris-8609f88bff68.py control",
+      "setup_timeout": 10,
+      "expected_status": 0,
+      "stdout": "observer-control=PASS\ngeometry=PASS\nfour-cells=PASS\ntransition=PASS\nquit-status=PASS\nterminal-restored=PASS\ncursor-shown=PASS\n",
+      "stderr": "",
+      "timeout": 16,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-terminal-tetris-8609f88bff68.py": "8609f88bff684aff835b1591a80e27d069ce40490e6264cb17c4981ce982fcba"
+      },
+      "diagnostic_files": [
+        "tetris-geometry.raw",
+        "tetris-geometry.json"
+      ],
+      "covers": [
+        "bsdgames/interactive-tetris-pty-session"
+      ],
+      "oracle": "Four-cell geometric invariants: j/l shift one column; k rotates a nonsymmetric tetromino counterclockwise, up to translation; p freezes a known advancing piece and p resumes it. The 20x10 well and seed are fixed. A separately constructed ECMA-48 screen and hand-specified shape are the observer control; headless game output is never used.",
+      "comparison": "Retains decoded cell coordinates, directional input timing, raw frame bytes, final score/status, cursor and termios. Gravity baseline is required before testing pause. Every sent PTY byte and its monotonic timestamp and capture offset are retained."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-whip-password-frames-r2",
+      "loadable": "whiptail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "The password remains hidden at every decoded terminal output byte and is returned on the result fd.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-password-3561ec4ba19b.py run \"$BASH\"",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-password-3561ec4ba19b.py control",
+      "setup_timeout": 20,
+      "expected_status": 0,
+      "stdout": "observer-control=PASS\nready=PASS\nbaseline-clean=PASS\nresult=PASS\nstatus=PASS\nrestored=PASS\nno-leak=PASS\n",
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "whiptail"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-terminal-password-3561ec4ba19b.py": "3561ec4ba19b8f9229fe952c1adcd9a7adfa1418a23deffffe34767033830c81"
+      },
+      "diagnostic_files": [
+        "password-control-mask.raw",
+        "password-control-mask.json",
+        "password-control-leak.raw",
+        "password-control-leak.json",
+        "password-actual.raw",
+        "password-actual.json",
+        "password-result"
+      ],
+      "covers": [
+        "whiptail/deferred-keyed-input-widgets"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 and its passwordbox no-display contract. The synthetic password uses characters absent from the initial frame; the observer feeds every terminal output byte to pyte and checks every screen state. Setup requires a masked stub to pass and a deliberately leaking stub to be detected.",
+      "comparison": "Both sides must return the entered value (a single optional trailing newline is accepted), return 0, restore termios and never render any secret character; raw output, result bytes and detected leak offsets are retained."
+    }
+  ]
+}

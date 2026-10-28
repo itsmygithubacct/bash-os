@@ -119,9 +119,18 @@
     },
     {
       "id": "terminal-device-integration",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "End-to-end terminal reporting and mode negotiation remain outside pure-byte decoding.",
-      "reason": "There is no PTY fixture. A physical device is unnecessary because the private PTY plus injected report bytes exercise the whole software path. The candidate never queries the terminal (no DECRQM), so 'negotiation' reduces to emitting modes and decoding the reports that follow."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-mouse-device-switch"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-mouse-device-switch-r2"
+        }
+      ]
     },
     {
       "id": "type-metadata",
@@ -161,9 +170,26 @@
     },
     {
       "id": "pty-terminal-interoperability",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise enable/decode/disable against terminal input and verify mode cleanup across a bounded consumer lifecycle.",
-      "reason": "There is no PTY case. The driver can now inject mouse report bytes as ordinary input and observe the emitted mode sequences with expect, so no real mouse device is needed."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-mouse-pty-interrupt"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-mouse-pty-sgr"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-mouse-pty-urxvt"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-mouse-pty-x10"
+        }
+      ]
     }
   ]
 }

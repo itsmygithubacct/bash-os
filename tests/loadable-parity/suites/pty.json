@@ -47,15 +47,61 @@
     },
     {
       "id": "pty-terminal-io-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise isatty, tty-name, close, echo, and resize on a private PTY pair.",
-      "reason": "Only regular-file descriptor cases ran. The PTY driver can exercise every remaining obligation; no capability is missing."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/pty/close-private-descriptor"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pty/invalid-close-operand"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pty/regular-file-is-not-terminal"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-pty-b01-tty-classification"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-pty-b01-tty-echo"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-pty-b01-tty-resize"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-pty-b01r2-tty-classification"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-pty-b01r2-tty-echo"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-pty-b01r2-tty-resize"
+        }
+      ]
     },
     {
       "id": "pty-spawn-waitpid-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise spawn and waitpid with bounded child output, exit status, and descriptor cleanup.",
-      "reason": "Never executed. Fully implementable with existing drivers: pty spawn creates its own PTY in the VM, and the candidate itself ($BASH -c ...) can be the fixed harmless child."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-pty-b01r2-spawn-io"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-pty-b01r2-spawn-signal"
+        }
+      ]
     },
     {
       "id": "pty-serial-ldisc-deferred",

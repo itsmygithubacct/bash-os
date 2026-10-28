@@ -1,0 +1,184 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terminal-review112-pty-b01-tty-classification",
+      "loadable": "pty",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Classify a driver PTY and /dev/null, compare tty-name to an independent tty(1), and close an actual tty descriptor twice.",
+      "expected_status": 0,
+      "covers": [
+        "pty/pty-terminal-io-deferred"
+      ],
+      "timeout": 22,
+      "requires": [
+        "python3",
+        "tty"
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "oracle": "Reference uses Python os.isatty, os.ttyname and os.close on the same private controlling PTY; tty(1) and the driver\u2019s recorded tty_name independently identify the device.",
+      "comparison": "Terminal steps assert both classifications, an exact /dev/pts path shape and close/duplicate-close; the raw path is retained against tty_name in each VM result.",
+      "candidate_script": "exec 9</dev/null\nif pty isatty 0 && ! pty isatty 9; then printf 'CLASSIFY=PASS\\n'; else exit 1; fi\nexec 9<&-\nname=$(pty tty-name 0) || exit 1\nother=$(/usr/bin/tty) || exit 1\n[[ $name == \"$other\" && $name =~ ^/dev/pts/[0-9]+$ ]] || exit 1\nprintf 'TTY=%s\\n' \"$name\"\nexec 9<>/dev/tty\npty close 9 || exit 1\n[[ ! -e /proc/$BASHPID/fd/9 ]] || exit 1\nif pty close 9 2>/dev/null; then exit 1; fi\nprintf 'CLOSE=PASS\\n'\n",
+      "reference_script": "/usr/bin/python3 -c '\nimport errno, os, re\nf = os.open(\"/dev/null\", os.O_RDONLY)\nassert os.isatty(0) and not os.isatty(f)\nos.close(f)\nprint(\"CLASSIFY=PASS\", flush=True)\nname = os.ttyname(0)\nassert re.fullmatch(r\"/dev/pts/[0-9]+\", name)\nprint(\"TTY=\" + name, flush=True)\nf = os.open(\"/dev/tty\", os.O_RDWR)\nos.close(f)\ntry: os.close(f)\nexcept OSError as exc: assert exc.errno == errno.EBADF\nelse: raise AssertionError(\"double close succeeded\")\nprint(\"CLOSE=PASS\", flush=True)\n'\n",
+      "steps": [
+        {
+          "expect": "CLASSIFY=PASS\\r?\\n"
+        },
+        {
+          "expect": "TTY=/dev/pts/[0-9]+\\r?\\n"
+        },
+        {
+          "expect": "CLOSE=PASS\\r?\\n"
+        }
+      ]
+    },
+    {
+      "id": "migration-terminal-review112-pty-b01-tty-echo",
+      "loadable": "pty",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Observe all four echo flags, suppressed input, and restored visible input on the private PTY.",
+      "expected_status": 0,
+      "covers": [
+        "pty/pty-terminal-io-deferred"
+      ],
+      "timeout": 22,
+      "requires": [
+        "stty"
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "oracle": "The independent reference applies stty flag operations; the VM PTY driver reads termios from the slave and captures the actual typed bytes.",
+      "comparison": "Assert ECHO/ECHOE/ECHOK/ECHONL are clear and later set, hidden input is absent from the raw stream, visible input is echoed, both reads succeed and original modes are restored.",
+      "candidate_script": "saved=$(/usr/bin/stty -g) || exit 1\ntrap '/usr/bin/stty \"$saved\"' EXIT\n/usr/bin/stty echo echoe echok echonl || exit 1\npty echo 0 off || exit 1\nprintf 'ECHO-OFF-READY\\n'\nIFS= read -r secret || exit 1\n[[ $secret == HIDDEN-4f7c ]] || exit 1\nprintf 'SECRET-ACCEPTED\\n'\npty echo 0 on || exit 1\nprintf 'ECHO-ON-READY\\n'\nIFS= read -r visible || exit 1\n[[ $visible == VISIBLE-28ba ]] || exit 1\nprintf 'VISIBLE-ACCEPTED\\n'\n",
+      "reference_script": "saved=$(/usr/bin/stty -g) || exit 1\ntrap '/usr/bin/stty \"$saved\"' EXIT\n/usr/bin/stty echo echoe echok echonl || exit 1\n/usr/bin/stty -echo -echoe -echok -echonl || exit 1\nprintf 'ECHO-OFF-READY\\n'\nIFS= read -r secret || exit 1\n[[ $secret == HIDDEN-4f7c ]] || exit 1\nprintf 'SECRET-ACCEPTED\\n'\n/usr/bin/stty echo echoe echok echonl || exit 1\nprintf 'ECHO-ON-READY\\n'\nIFS= read -r visible || exit 1\n[[ $visible == VISIBLE-28ba ]] || exit 1\nprintf 'VISIBLE-ACCEPTED\\n'\n",
+      "steps": [
+        {
+          "expect": "ECHO-OFF-READY\\r?\\n"
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ECHOE",
+              "ECHOK",
+              "ECHONL"
+            ]
+          }
+        },
+        {
+          "send": "HIDDEN-4f7c\n"
+        },
+        {
+          "expect": "SECRET-ACCEPTED\\r?\\n"
+        },
+        {
+          "output_lacks": "HIDDEN-4f7c"
+        },
+        {
+          "expect": "ECHO-ON-READY\\r?\\n"
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO",
+              "ECHOE",
+              "ECHOK",
+              "ECHONL"
+            ]
+          }
+        },
+        {
+          "send": "VISIBLE-28ba\n"
+        },
+        {
+          "expect": "VISIBLE-28ba\\r?\\n"
+        },
+        {
+          "expect": "VISIBLE-ACCEPTED\\r?\\n"
+        }
+      ]
+    },
+    {
+      "id": "migration-terminal-review112-pty-b01-tty-resize",
+      "loadable": "pty",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Resize the controlling PTY and observe SIGWINCH and rows/columns independently.",
+      "expected_status": 0,
+      "covers": [
+        "pty/pty-terminal-io-deferred"
+      ],
+      "timeout": 22,
+      "requires": [
+        "stty"
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "oracle": "The reference invokes stty rows/cols; a shell trap observes kernel SIGWINCH and stty size independently reads TIOCGWINSZ.",
+      "comparison": "The terminal driver requires the WINCH marker, literal 37 113 geometry, normal completion, and no surviving process.",
+      "candidate_script": "trap 'printf \"SIGNAL=WINCH\\n\"' WINCH\npty resize 0 -W 113 -H 37 || exit 1\nprintf 'GEOMETRY='\n/usr/bin/stty size || exit 1\nprintf 'RESIZE-DONE\\n'\n",
+      "reference_script": "trap 'printf \"SIGNAL=WINCH\\n\"' WINCH\n/usr/bin/stty rows 37 cols 113 || exit 1\nprintf 'GEOMETRY='\n/usr/bin/stty size || exit 1\nprintf 'RESIZE-DONE\\n'\n",
+      "steps": [
+        {
+          "expect": "SIGNAL=WINCH\\r?\\n"
+        },
+        {
+          "expect": "GEOMETRY=37 113\\r?\\n"
+        },
+        {
+          "expect": "RESIZE-DONE\\r?\\n"
+        }
+      ]
+    },
+    {
+      "id": "migration-terminal-review112-pty-b01-broker-lifecycle",
+      "loadable": "ptybroker",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Create a private broker, inspect status and access controls, and require owned-child and session cleanup.",
+      "expected_status": 0,
+      "covers": [
+        "ptybroker/private_session_lifecycle"
+      ],
+      "timeout": 25,
+      "requires": [
+        "python3",
+        "mkdir",
+        "stat",
+        "sleep"
+      ],
+      "oracle": "Documented broker API plus independent stat ownership/mode checks, procfs process existence, a fixture-owned sleep child and a Python private-PTY facility control. /root is only lstat-ed as a wrong-owner 0700 inode.",
+      "comparison": "Require literal PASS predicates for ready status and geometry, live child, exact list, private directory modes, both EACCES rejection paths, termination, disappearance from status/list and no live child; raw bounded command output and error files are saved.",
+      "setup_script": "/usr/bin/python3 -c 'import os,stat; s=os.stat(\"/root\"); assert os.geteuid()!=0 and s.st_uid!=os.geteuid() and stat.S_IMODE(s.st_mode)==0o700; m,t=os.openpty(); assert os.isatty(t); os.close(m); os.close(t)'\n",
+      "setup_timeout": 8,
+      "script": "root=$HOME/broker-root\nbad=$HOME/broker-wrong-mode\n/usr/bin/mkdir -m 700 \"$root\" || exit 1\n/usr/bin/mkdir -m 755 \"$bad\" || exit 1\ntrap 'ptybroker terminate \"$root\" one >/dev/null 2>&1 || :' EXIT\nfailed=0\ncheck() { if \"$@\"; then printf '%s=PASS\\n' \"$label\"; else printf '%s=FAIL\\n' \"$label\"; failed=1; fi; }\nptybroker create \"$root\" one --rows 24 --cols 80 -- /usr/bin/sleep 8 >\"$HOME/broker-create.log\" 2>\"$HOME/broker-create.err\"; create_rc=$?\nstatus=$(ptybroker status \"$root\" one 2>\"$HOME/broker-status.err\"); status_rc=$?\nprintf '%s\\n' \"$status\" >\"$HOME/broker-status.log\"\npid=0\nif [[ $status =~ child_pid=([0-9]+) ]]; then pid=${BASH_REMATCH[1]}; fi\nlabel=ready-status; check test \"$create_rc\" = 0 -a \"$status_rc\" = 0\nlabel=running-geometry; if [[ $status == *'id=one '* && $status == *'running=1 '* && $status == *'rows=24 cols=80 '* && $pid != 0 && -e /proc/$pid ]]; then printf '%s=PASS\\n' \"$label\"; else printf '%s=FAIL\\n' \"$label\"; failed=1; fi\nlisting=$(ptybroker list \"$root\" 2>\"$HOME/broker-list.err\"); list_rc=$?\nlabel=list-session; if [[ $list_rc == 0 && $listing == one ]]; then printf '%s=PASS\\n' \"$label\"; else printf '%s=FAIL\\n' \"$label\"; failed=1; fi\nroot_mode=$(/usr/bin/stat -c '%a:%u' \"$root\")\nsession_mode=$(/usr/bin/stat -c '%a:%u' \"$root/one\" 2>/dev/null)\nlabel=private-directories; if [[ $root_mode == 700:$EUID && $session_mode == 700:$EUID ]]; then printf '%s=PASS\\n' \"$label\"; else printf '%s=FAIL\\n' \"$label\"; failed=1; fi\nptybroker list \"$bad\" >\"$HOME/broker-bad-mode.out\" 2>\"$HOME/broker-bad-mode.err\"; bad_rc=$?\nlabel=wrong-mode-eacces; if [[ $bad_rc == 1 && $(<\"$HOME/broker-bad-mode.err\") == *'Permission denied'* ]]; then printf '%s=PASS\\n' \"$label\"; else printf '%s=FAIL\\n' \"$label\"; failed=1; fi\nptybroker list /root >\"$HOME/broker-bad-owner.out\" 2>\"$HOME/broker-bad-owner.err\"; bad_rc=$?\nlabel=wrong-owner-eacces; if [[ $bad_rc == 1 && $(<\"$HOME/broker-bad-owner.err\") == *'Permission denied'* ]]; then printf '%s=PASS\\n' \"$label\"; else printf '%s=FAIL\\n' \"$label\"; failed=1; fi\nptybroker terminate \"$root\" one >\"$HOME/broker-terminate.out\" 2>\"$HOME/broker-terminate.err\"; term_rc=$?\nlabel=terminate; check test \"$term_rc\" = 0\nptybroker status \"$root\" one >\"$HOME/broker-after-status.out\" 2>\"$HOME/broker-after-status.err\"; after_rc=$?\nafter=$(ptybroker list \"$root\" 2>\"$HOME/broker-after-list.err\"); after_list_rc=$?\nlabel=removed-from-status-and-list; if [[ $after_rc != 0 && $after_list_rc == 0 && -z $after && ! -e $root/one ]]; then printf '%s=PASS\\n' \"$label\"; else printf '%s=FAIL\\n' \"$label\"; failed=1; fi\nlabel=owned-child-reaped; if [[ $pid != 0 && ! -e /proc/$pid ]]; then printf '%s=PASS\\n' \"$label\"; else printf '%s=FAIL\\n' \"$label\"; failed=1; fi\nexit \"$failed\"\n",
+      "stdout": "ready-status=PASS\nrunning-geometry=PASS\nlist-session=PASS\nprivate-directories=PASS\nwrong-mode-eacces=PASS\nwrong-owner-eacces=PASS\nterminate=PASS\nremoved-from-status-and-list=PASS\nowned-child-reaped=PASS\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "broker-create.log",
+        "broker-create.err",
+        "broker-status.log",
+        "broker-status.err",
+        "broker-list.err",
+        "broker-bad-mode.err",
+        "broker-bad-owner.err",
+        "broker-terminate.err",
+        "broker-after-status.err",
+        "broker-after-list.err"
+      ]
+    }
+  ]
+}

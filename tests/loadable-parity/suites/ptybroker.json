@@ -36,13 +36,18 @@
       "id": "private_session_lifecycle",
       "kind": "deferred",
       "purpose": "Verify create, status, list, and terminate for a bounded harmless child, including 0700 session ownership and removal after termination.",
-      "reason": "There is no fixture. The broker allocates its own PTYs, so the driver needs no extra PTY. The VM supplies /proc, pidfd, SOCK_SEQPACKET and subreaper; only the case scripts and their helpers are missing."
+      "reason": "Remaining obligations: r3: Wrong-owner rejection remains unproved: the /root test retained EACCES but not target owner/mode or proof that the error arose from the ownership condition."
     },
     {
       "id": "binary_stream_roundtrip",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify send-fd count limits and byte-exact receive delivery for a deterministic payload containing NUL and high-bit bytes, including continuation across the documented 16384-byte input chunk boundary.",
-      "reason": "There is no fixture. The broker allocates its own PTYs, so the driver needs no extra PTY. The VM supplies /proc, pidfd, SOCK_SEQPACKET and subreaper; only the case scripts and their helpers are missing."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-pty-b02r2-binary"
+        }
+      ]
     },
     {
       "id": "roles_and_handle_scope",
@@ -52,9 +57,14 @@
     },
     {
       "id": "pty_geometry_resize",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify requested initial rows and columns, resize propagation, and the corresponding bounded child geometry notification.",
-      "reason": "There is no fixture. The broker allocates its own PTYs, so the driver needs no extra PTY. The VM supplies /proc, pidfd, SOCK_SEQPACKET and subreaper; only the case scripts and their helpers are missing."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-pty-b02r2-geometry"
+        }
+      ]
     },
     {
       "id": "raw_history_and_late_attach",

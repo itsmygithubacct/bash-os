@@ -91,8 +91,49 @@
     {
       "id": "mutation-prompts-mocked",
       "purpose": "Check PID/signal and PID/nice input validation and request construction without sending a signal or changing any process priority.",
-      "kind": "deferred",
-      "reason": "Never executed. A syscall mock is unnecessary: per design, owned children are legitimate targets. Each side starts its own sleep child, gives top its PID, and verifies the effect (signal status via wait, nice via /proc/PID/stat). Raising niceness is unprivileged."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-top-mock-invalid-pid"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-top-mock-invalid-signal"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-top-mock-invalid-signal-number"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-top-mock-kill"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-top-mock-renice"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-top-mock-renice-invalid"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-top-mock-renice-invalid-delta"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-top-mock-renice-invalid-pid"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-top-mock-renice-unknown"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-top-mock-unknown-pid"
+        }
+      ]
     },
     {
       "id": "batch-failure-cleanup",

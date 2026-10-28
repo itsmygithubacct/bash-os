@@ -1,0 +1,131 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terminal-review112-terminal-tetris-geometry-left",
+      "loadable": "bsdgames",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Seeded interactive tetris left follows the geometric or pause contract.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-tetris-0ceb812f9107.py run \"$BASH\" left",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-tetris-0ceb812f9107.py control",
+      "setup_timeout": 10,
+      "expected_status": 0,
+      "stdout": "observer-control=PASS\ngeometry=PASS\nfour-cells=PASS\ntransition=PASS\nquit-status=PASS\nterminal-restored=PASS\ncursor-shown=PASS\n",
+      "stderr": "",
+      "timeout": 16,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-terminal-tetris-0ceb812f9107.py": "0ceb812f91079279a809d260a5e6b84ace45226b320f5955227aac17e7959906"
+      },
+      "diagnostic_files": [
+        "tetris-geometry.raw",
+        "tetris-geometry.json"
+      ],
+      "covers": [
+        "bsdgames/interactive-tetris-pty-session"
+      ],
+      "oracle": "Four-cell geometric invariants: j/l shift one column; k rotates a nonsymmetric tetromino counterclockwise, up to translation; p freezes a known advancing piece and p resumes it. The 20x10 well and seed are fixed. A separately constructed ECMA-48 screen and hand-specified shape are the observer control; headless game output is never used.",
+      "comparison": "Retains decoded cell coordinates, directional input timing, raw frame bytes, final score/status, cursor and termios. Gravity baseline is required before testing pause."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-tetris-geometry-right",
+      "loadable": "bsdgames",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Seeded interactive tetris right follows the geometric or pause contract.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-tetris-0ceb812f9107.py run \"$BASH\" right",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-tetris-0ceb812f9107.py control",
+      "setup_timeout": 10,
+      "expected_status": 0,
+      "stdout": "observer-control=PASS\ngeometry=PASS\nfour-cells=PASS\ntransition=PASS\nquit-status=PASS\nterminal-restored=PASS\ncursor-shown=PASS\n",
+      "stderr": "",
+      "timeout": 16,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-terminal-tetris-0ceb812f9107.py": "0ceb812f91079279a809d260a5e6b84ace45226b320f5955227aac17e7959906"
+      },
+      "diagnostic_files": [
+        "tetris-geometry.raw",
+        "tetris-geometry.json"
+      ],
+      "covers": [
+        "bsdgames/interactive-tetris-pty-session"
+      ],
+      "oracle": "Four-cell geometric invariants: j/l shift one column; k rotates a nonsymmetric tetromino counterclockwise, up to translation; p freezes a known advancing piece and p resumes it. The 20x10 well and seed are fixed. A separately constructed ECMA-48 screen and hand-specified shape are the observer control; headless game output is never used.",
+      "comparison": "Retains decoded cell coordinates, directional input timing, raw frame bytes, final score/status, cursor and termios. Gravity baseline is required before testing pause."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-tetris-geometry-pause",
+      "loadable": "bsdgames",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Seeded interactive tetris pause follows the geometric or pause contract.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-tetris-0ceb812f9107.py run \"$BASH\" pause",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-tetris-0ceb812f9107.py control",
+      "setup_timeout": 10,
+      "expected_status": 0,
+      "stdout": "observer-control=PASS\ngeometry=PASS\nfour-cells=PASS\ntransition=PASS\nquit-status=PASS\nterminal-restored=PASS\ncursor-shown=PASS\n",
+      "stderr": "",
+      "timeout": 16,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-terminal-tetris-0ceb812f9107.py": "0ceb812f91079279a809d260a5e6b84ace45226b320f5955227aac17e7959906"
+      },
+      "diagnostic_files": [
+        "tetris-geometry.raw",
+        "tetris-geometry.json"
+      ],
+      "covers": [
+        "bsdgames/interactive-tetris-pty-session"
+      ],
+      "oracle": "Four-cell geometric invariants: j/l shift one column; k rotates a nonsymmetric tetromino counterclockwise, up to translation; p freezes a known advancing piece and p resumes it. The 20x10 well and seed are fixed. A separately constructed ECMA-48 screen and hand-specified shape are the observer control; headless game output is never used.",
+      "comparison": "Retains decoded cell coordinates, directional input timing, raw frame bytes, final score/status, cursor and termios. Gravity baseline is required before testing pause."
+    },
+    {
+      "id": "migration-terminal-review112-terminal-whip-password-frames",
+      "loadable": "whiptail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "The password remains hidden at every decoded terminal output byte and is returned on the result fd.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-password-1ecc0d2459d7.py run \"$BASH\"",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-password-1ecc0d2459d7.py control",
+      "setup_timeout": 20,
+      "expected_status": 0,
+      "stdout": "observer-control=PASS\nready=PASS\nbaseline-clean=PASS\nresult=PASS\nstatus=PASS\nrestored=PASS\nno-leak=PASS\n",
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "whiptail"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-terminal-password-1ecc0d2459d7.py": "1ecc0d2459d7b8c6598b5dafe490e5b75b848edcec4dff0a1b60377db91182e4"
+      },
+      "diagnostic_files": [
+        "password-control-mask.raw",
+        "password-control-mask.json",
+        "password-control-leak.raw",
+        "password-control-leak.json",
+        "password-actual.raw",
+        "password-actual.json",
+        "password-result"
+      ],
+      "covers": [
+        "whiptail/deferred-keyed-input-widgets"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 and its passwordbox no-display contract. The synthetic password uses characters absent from the initial frame; the observer feeds every terminal output byte to pyte and checks every screen state. Setup requires a masked stub to pass and a deliberately leaking stub to be detected.",
+      "comparison": "Both sides must return the entered value (a single optional trailing newline is accepted), return 0, restore termios and never render any secret character; raw output, result bytes and detected leak offsets are retained."
+    }
+  ]
+}

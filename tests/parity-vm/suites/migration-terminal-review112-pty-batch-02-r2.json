@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terminal-review112-pty-b02r2-binary",
+      "loadable": "ptybroker",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Send and receive deterministic binary bytes across two 16384-byte boundaries.",
+      "covers": [
+        "ptybroker/binary_stream_roundtrip"
+      ],
+      "expected_status": 0,
+      "timeout": 35,
+      "setup_timeout": 8,
+      "setup_script": "/usr/bin/python3 -c 'import hashlib,os; a=bytes((i*73+19)%256 for i in range(32768+45)); b=bytes((i*37+11)%256 for i in range(16384)); assert len(a)==32813 and len(b)==16384 and 0 in a and max(a)>127; assert hashlib.sha256(a).hexdigest()==\"d5b60ff71ffd82d71e5cda06bb82482785283d64a95c7144049a61ed1d96cdb9\" and hashlib.sha256(b).hexdigest()==\"ce61cc72a84bd3526a8f955235c5f4f67439820d6ffb910b5ab07e54741262b8\"; m,s=os.openpty(); assert os.isatty(m) and os.isatty(s); os.close(m); os.close(s)'\n",
+      "requires": [
+        "python3",
+        "mkdir",
+        "sleep",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-pty-broker-r2-c4f9e09f956d.py": "c4f9e09f956d98efd87f314527a8dc5c3f05c26e2fdd5500837c48f2e80ceabf"
+      },
+      "oracle": "Documented broker contract, independently created fixed bytes and Linux PTY/process observations. Setup controls the PTY facility and exact expected byte hashes; no candidate output defines expected behavior.",
+      "comparison": "Check exact send counts including EOF, contiguous output event offsets, byte equality for both echoed output and independently recorded child input, and cleanup.",
+      "script": "H=/opt/bashos-parity/harness/helpers/terminal-review112-pty-broker-r2-c4f9e09f956d.py\nroot=$HOME/broker-root\n/usr/bin/python3 \"$H\" prepare || exit 1\n/usr/bin/mkdir -m 700 \"$root\" || exit 1\nfailed=0\nmark() { if [[ $2 == 1 ]]; then printf '%s=PASS\\n' \"$1\"; else printf '%s=FAIL\\n' \"$1\"; failed=1; fi; }\nawait_file() { local j; for ((j=0;j<100;j++)); do [[ -f $HOME/$1 ]] && return 0; /usr/bin/sleep .05; done; return 1; }\ntrap 'ptybroker terminate \"$root\" one >/dev/null 2>&1 || :' EXIT\n\nptybroker create \"$root\" one -- /usr/bin/python3 \"$H\" child binary >\"$HOME/create.log\" 2>\"$HOME/errors.log\" || exit 1\nawait_file binary-ready || exit 1\nptybroker attach \"$root\" one observe h 2>>\"$HOME/errors.log\" || exit 1\nexec 8>\"$HOME/received-binary\"\nptybroker receive \"$h\" 8 ev 3000 2>>\"$HOME/errors.log\" || exit 1\n[[ $ev == attached\\ * ]] || exit 1\nexec 7<\"$HOME/expected-binary\"\nptybroker send-fd \"$root\" one 7 n1 2>>\"$HOME/errors.log\"; r1=$?\nptybroker send-fd \"$root\" one 7 n2 2>>\"$HOME/errors.log\"; r2=$?\nptybroker send-fd \"$root\" one 7 n3 2>>\"$HOME/errors.log\"; r3=$?\nptybroker send-fd \"$root\" one 7 n4 2>>\"$HOME/errors.log\"; r4=$?\nprintf '%s %s %s %s | %s %s %s %s\\n' \"$n1\" \"$n2\" \"$n3\" \"$n4\" \"$r1\" \"$r2\" \"$r3\" \"$r4\" >\"$HOME/counts.log\"\ngood=0; [[ $r1 == 0 && $r2 == 0 && $r3 == 0 && $r4 == 0 && $n1 == 16384 && $n2 == 16384 && $n3 == 45 && $n4 == 0 ]] && good=1\nmark send-fd-counts \"$good\"\ntotal=0; offsets=1\nfor ((i=0;i<128 && total<32813;i++)); do\n  ptybroker receive \"$h\" 8 ev 1500 2>>\"$HOME/errors.log\" || { offsets=0; break; }\n  printf '%s\\n' \"$ev\" >>\"$HOME/events.log\"\n  if [[ $ev =~ ^output[[:space:]]size=([0-9]+)[[:space:]]offset=([0-9]+)$ ]]; then\n    n=${BASH_REMATCH[1]}; off=${BASH_REMATCH[2]}; (( off == total && n > 0 )) || offsets=0; ((total+=n))\n  else offsets=0; break; fi\ndone\nexec 8>&- 7<&-\ngood=0; ((offsets == 1 && total == 32813)) && good=1\nmark continuous-offsets \"$good\"\ngood=0; /usr/bin/cmp -s \"$HOME/expected-binary\" \"$HOME/received-binary\" && good=1\nmark roundtrip-bytes \"$good\"\ngood=0; await_file binary-child-input && /usr/bin/cmp -s \"$HOME/expected-binary\" \"$HOME/binary-child-input\" && good=1\nmark child-received-bytes \"$good\"\nptybroker terminate \"$root\" one 2>>\"$HOME/errors.log\"; rc=$?\ngood=0; [[ $rc == 0 && ! -e $root/one ]] && good=1\nmark cleanup \"$good\"\nexit \"$failed\"\n",
+      "stdout": "send-fd-counts=PASS\ncontinuous-offsets=PASS\nroundtrip-bytes=PASS\nchild-received-bytes=PASS\ncleanup=PASS\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "counts.log",
+        "events.log",
+        "received-binary",
+        "binary-child-input",
+        "errors.log",
+        "create.log"
+      ]
+    },
+    {
+      "id": "migration-terminal-review112-pty-b02r2-geometry",
+      "loadable": "ptybroker",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Check initial child winsize, resize SIGWINCH, and the attached geometry event.",
+      "covers": [
+        "ptybroker/pty_geometry_resize"
+      ],
+      "expected_status": 0,
+      "timeout": 35,
+      "setup_timeout": 8,
+      "setup_script": "/usr/bin/python3 -c 'import hashlib,os; a=bytes((i*73+19)%256 for i in range(32768+45)); b=bytes((i*37+11)%256 for i in range(16384)); assert len(a)==32813 and len(b)==16384 and 0 in a and max(a)>127; assert hashlib.sha256(a).hexdigest()==\"d5b60ff71ffd82d71e5cda06bb82482785283d64a95c7144049a61ed1d96cdb9\" and hashlib.sha256(b).hexdigest()==\"ce61cc72a84bd3526a8f955235c5f4f67439820d6ffb910b5ab07e54741262b8\"; m,s=os.openpty(); assert os.isatty(m) and os.isatty(s); os.close(m); os.close(s)'\n",
+      "requires": [
+        "python3",
+        "mkdir",
+        "sleep"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-pty-broker-r2-c4f9e09f956d.py": "c4f9e09f956d98efd87f314527a8dc5c3f05c26e2fdd5500837c48f2e80ceabf"
+      },
+      "oracle": "Documented broker contract, independently created fixed bytes and Linux PTY/process observations. Setup controls the PTY facility and exact expected byte hashes; no candidate output defines expected behavior.",
+      "comparison": "The fixed child reads TIOCGWINSZ before resize and inside its SIGWINCH handler; the observer separately checks the geometry event and service cleanup.",
+      "script": "H=/opt/bashos-parity/harness/helpers/terminal-review112-pty-broker-r2-c4f9e09f956d.py\nroot=$HOME/broker-root\n/usr/bin/python3 \"$H\" prepare || exit 1\n/usr/bin/mkdir -m 700 \"$root\" || exit 1\nfailed=0\nmark() { if [[ $2 == 1 ]]; then printf '%s=PASS\\n' \"$1\"; else printf '%s=FAIL\\n' \"$1\"; failed=1; fi; }\nawait_file() { local j; for ((j=0;j<100;j++)); do [[ -f $HOME/$1 ]] && return 0; /usr/bin/sleep .05; done; return 1; }\ntrap 'ptybroker terminate \"$root\" one >/dev/null 2>&1 || :' EXIT\n\nptybroker create \"$root\" one --rows 31 --cols 97 -- /usr/bin/python3 \"$H\" child geometry >\"$HOME/create.log\" 2>\"$HOME/errors.log\" || exit 1\nawait_file geometry-initial || exit 1\ninitial=$(<\"$HOME/geometry-initial\")\ngood=0; [[ $initial == '31 97' ]] && good=1\nmark initial-child-size \"$good\"\nptybroker attach \"$root\" one observe h 2>>\"$HOME/errors.log\" || exit 1\nexec 8>\"$HOME/output\"\nptybroker receive \"$h\" 8 ev 3000 2>>\"$HOME/errors.log\" || exit 1\n[[ $ev == attached\\ * ]] || exit 1\nptybroker resize \"$root\" one 37 119 2>>\"$HOME/errors.log\"; resize_rc=$?\nptybroker receive \"$h\" 8 ev 3000 2>>\"$HOME/errors.log\"; event_rc=$?\nprintf '%s\\n' \"$ev\" >\"$HOME/geometry-event.log\"\ngood=0; [[ $resize_rc == 0 && $event_rc == 0 && $ev == 'geometry rows=37 cols=119 '* ]] && good=1\nmark resize-event \"$good\"\ngood=0; if await_file geometry-winch; then value=$(<\"$HOME/geometry-winch\"); [[ $value == '37 119' ]] && good=1; fi\nmark signal-and-child-size \"$good\"\nptybroker terminate \"$root\" one 2>>\"$HOME/errors.log\"; rc=$?\ngood=0; [[ $rc == 0 && ! -e $root/one ]] && good=1\nmark cleanup \"$good\"\nexit \"$failed\"\n",
+      "stdout": "initial-child-size=PASS\nresize-event=PASS\nsignal-and-child-size=PASS\ncleanup=PASS\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "geometry-initial",
+        "geometry-winch",
+        "geometry-event.log",
+        "errors.log",
+        "create.log"
+      ]
+    }
+  ]
+}

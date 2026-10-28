@@ -119,9 +119,98 @@
     },
     {
       "id": "termpixel-pty-input",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise raw-mode setup/restoration, cursor hygiene, and ASCII/CSI arrow decoding using an isolated pseudo-terminal.",
-      "reason": "Only headless pipe decoding executes. Raw-mode entry/restoration, cursor controls and escape decoding on a PTY need only the existing PTY driver."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/termpixel/key-read-pipe-ascii"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-termpixel-escape-grace-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-termpixel-signal-sigint-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-termpixel-signal-sigterm-r3"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-backspace"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-csi-down_arrow"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-csi-left_arrow"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-csi-right_arrow"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-csi-up_arrow"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-ctrl-byte"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-cursor-entry"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-cursor-exit"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-enter"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-escape"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-printable"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-space"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-ss3-down_arrow"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-ss3-left_arrow"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-ss3-right_arrow"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-ss3-up_arrow"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-tab"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-pixel-timeout"
+        }
+      ]
     },
     {
       "id": "probe-color-environment",

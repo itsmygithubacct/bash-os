@@ -117,9 +117,62 @@
     },
     {
       "id": "interactive-tetris-pty-session",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Interactive game controls and terminal redraw behavior need a real bounded terminal session.",
-      "reason": "No executed evidence. The headless scripted and --frames paths in legacy cases do not exercise the TTY renderer or input. The existing PTY driver is sufficient: send, screen, termios, terminal_restored, a ^C send, and hangup."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-tetris-geometry-left"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-tetris-geometry-left-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-tetris-geometry-pause"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-tetris-geometry-pause-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-tetris-geometry-right"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-tetris-geometry-right-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-tetris-geometry-rotate-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-tetris-signal-sighup-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-tetris-signal-sigint-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-terminal-tetris-signal-sigterm-r3"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-tetris-drop"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-tetris-int"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal-review112-terminal-tetris-quit"
+        }
+      ]
     },
     {
       "id": "rot13-empty-and-repeat",

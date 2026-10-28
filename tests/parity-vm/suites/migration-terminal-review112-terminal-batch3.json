@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terminal-review112-terminal-mouse-device-switch",
+      "loadable": "mouse",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A private terminal emulator tracks 1000, 1015 and 1006, generates each click from the current active encoding, then confirms mode disable inhibits reports.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-mouse-02c30297b288.py switch \"$BASH\"",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-mouse-02c30297b288.py control \"$BASH\"",
+      "setup_timeout": 20,
+      "expected_status": 0,
+      "stdout": "vector-control=PASS\nmode-1006=PASS\nmode-1015=PASS\nmode-x10=PASS\nmode-disabled=PASS\nrecord-1006=PASS\nrecord-1015=PASS\nrecord-x10=PASS\nconsumer-status=PASS\ntermios-restored=PASS\n",
+      "stderr": "",
+      "timeout": 20,
+      "requires": [
+        "python3",
+        "stty",
+        "od",
+        "tr"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-review112-terminal-mouse-02c30297b288.py": "02c30297b288a308735ac1048d0c5e8439aff08762083164309806cef7e32598"
+      },
+      "diagnostic_files": [
+        "mouse-control.raw",
+        "mouse-control.json",
+        "mouse-emulator.raw",
+        "mouse-emulator.json"
+      ],
+      "covers": [
+        "mouse/terminal-device-integration"
+      ],
+      "oracle": "Private software emulator implements XTerm 1000 tracking and 1006/1015/X10 encoding precedence; fixed hand-computed event vectors and a stub consumer are mandatory setup controls. The shell consumer reads actual PTY bytes and invokes the mouse decoder. No physical device is opened.",
+      "comparison": "Per-phase mode set, actual emitted protocol record, disabled mode, consumer status and final terminal modes; raw transcript and transition/injection timeline retained. A missing phase is reported FAIL rather than claimed as exercised."
+    }
+  ]
+}
