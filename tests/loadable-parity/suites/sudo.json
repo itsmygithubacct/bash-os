@@ -76,7 +76,7 @@
       "id": "policy-list-projection",
       "kind": "deferred",
       "purpose": "Check -l, -ll, and --list against a caller-readable private policy snapshot, including digest binding and empty/no-match behavior, without treating listing as execution approval.",
-      "reason": "Remaining obligations: r1: Requires the device for the advertised path and digest.; r2: Requires the device.; r4: The authority route (listing then never approving execution) needs the /dev/bashos-auth device."
+      "reason": "Remaining obligations: r1: Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised.; r2: Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised.; r4: The authority route (listing then never approving execution) needs the /dev/bashos-auth device."
     }
   ]
 }

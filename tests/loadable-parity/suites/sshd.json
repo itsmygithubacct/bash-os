@@ -44,7 +44,7 @@
       "id": "hostkey-lifecycle",
       "kind": "deferred",
       "purpose": "Exercise sshd keygen, explicit missing-key refusal, and lazy native/encrypted host-key creation and permissions.",
-      "reason": "Remaining obligations: r2: Native key creation, mode and public file are checked, but the documented placeholder bytes are not asserted.; r4: Lazy native creation and notice pass. The encrypted-key case used a scan parser that included a comment line, so its key-equality observation is invalid pending correction and rerun."
+      "reason": "Remaining obligations: r2: Native key creation, mode and public file are checked, but the documented placeholder bytes are not asserted."
     },
     {
       "id": "native-command-stream",
@@ -77,7 +77,7 @@
       "id": "authentication-authorization",
       "kind": "deferred",
       "purpose": "Check authorized-key matching and restrictions, password-auth policy, forced commands, accepted environment variables, root-login policy, and forwarding authorization.",
-      "reason": "Remaining obligations: r2: The from, no-pty and no-port-forwarding restrictions are exercised. The per-key no-agent-forwarding branch remains untested.; r4: Requires the bash-os kernel auth device /dev/bashos-auth (sshd.c:165,2160-2185) used to verify the PHC hash; the Debian trixie VM kernel has no such device, and a script cannot emulate a kernel ioctl interface.; r7: Not executed (sshd.c:2950-2965).; r8: Direct forwarding allow/deny is exercised; the allowed round-trip exposes a candidate lost-reply defect. Reverse-forward authorization denial remains untested."
+      "reason": "Remaining obligations: r2: The from, no-pty and no-port-forwarding restrictions are exercised. The per-key no-agent-forwarding branch remains untested.; r4: Requires the bash-os kernel auth device /dev/bashos-auth (sshd.c:165,2160-2185) used to verify the PHC hash; the Debian trixie VM kernel has no such device, and a script cannot emulate a kernel ioctl interface.; r7: PasswordAuthentication no is set in every variant; no discriminating prohibit-password password attempt, nor admitted command execution.; r8: Reverse-forward denial is still missing."
     },
     {
       "id": "session-management",
@@ -89,7 +89,7 @@
       "id": "sftp-and-forwarding",
       "kind": "deferred",
       "purpose": "Check SFTP file requests and direct/reverse TCP and agent forwarding after authentication, including denied-policy cases.",
-      "reason": "Remaining obligations: r1: SFTP put/get/chmod bytes and modes pass; directory listing is not asserted.; r2: The direct-tcpip channel is exercised with ssh -W and loses a reply after EOF. An actual ssh -L local-listener probe is pending in batch43.; r3: The combined reverse-forward/session scenario fails before its listener data path. Separate reverse-only/cancel probes are pending in batch43.; r4: The candidate disconnects before the remote command, so agent-socket/channel use is not yet observed.; r5: Direct forwarding and global agent-forwarding denials are checked. SFTP-unavailable refusal and the per-key no-agent-forwarding branch remain untested."
+      "reason": "Remaining obligations: r1: SFTP put/get/chmod bytes and modes pass; directory listing is not asserted.; r4: No agent-channel request/reply is asserted; original ssh-add -l case exits early.; r5: Direct forwarding and global agent-forwarding denials are checked. SFTP-unavailable refusal and the per-key no-agent-forwarding branch remain untested."
     }
   ]
 }

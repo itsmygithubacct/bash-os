@@ -154,6 +154,10 @@
         },
         {
           "group": "shell",
+          "id": "migration-fstrim-selection-listed-tables"
+        },
+        {
+          "group": "shell",
           "id": "migration-fstrim-single-target"
         }
       ]

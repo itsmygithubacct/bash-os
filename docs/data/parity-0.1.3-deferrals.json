@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "c4d98a05dbcbf72aa07d43e30424c3caea20eeee9f7158ee0bbc55b4308e7e87",
+  "ledger_sha256": "af7b9ff417c5a6e1331414713f73dd2356ab5481d34bf211f7ecbe1048532cb5",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 100,
-    "none": 253,
-    "full": 247
+    "partial": 99,
+    "none": 251,
+    "full": 250
   },
   "migrations": {
-    "deferred": 353,
-    "replacement": 247
+    "deferred": 350,
+    "replacement": 250
   },
   "pending_full_topics": [],
   "builds": {
@@ -1892,6 +1892,32 @@
           "candidate_unchanged": true,
           "candidate_matches_guest": true,
           "prepared_unchanged": true
+        },
+        {
+          "name": "logger-static-91",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "fb08091743769bfb3655f6dd4c6717457e764be8707600cf35c689fe2a57bdf0",
+            "provenance.json": "f4ce85aca7e93ce9d9efff30c21eb7c157e4e420da6ebbb2b35723ec335bfce9",
+            "payload.tar": "ae0db8df46b47b09151c9d494f54025a85eb2d1f3b891d4b95dd03a70d1f0503",
+            "evidence.tar": "15d9243701f154d74b8a45697f196410a08461be966dfe90384b3af70baf0e39"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793184877.6568217
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
         }
       ],
       "entries": [
@@ -3524,147 +3550,229 @@
         },
         {
           "topic": "bashlogger/message-framing-limits",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Operands join with exactly one space, including empty arguments (a '' b -> 'a  b').",
-              "coverage": "missing",
-              "gap": "No received-bytes check.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-framing",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "'--' ends option parsing; following '-x' words are message text.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-framing",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Without operands, stdin is the message; one final LF or CRLF is removed and internal newlines are preserved.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-framing",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "NUL in stdin is rejected with status 2 and no datagram is sent.",
-              "coverage": "partial",
-              "gap": "No receiver proves that no datagram was delivered.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/bashlogger/nul-stdin",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-framing",
+                  "status": "PASS",
+                  "run": "logger-static-91"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Empty stdin is rejected with status 2 and no datagram.",
-              "coverage": "partial",
-              "gap": "No receiver proves absence of delivery.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/bashlogger/empty-stdin",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-framing",
+                  "status": "PASS",
+                  "run": "logger-static-91"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "A 2047-byte message is delivered exactly; 2048 bytes (operands or stdin) fail with status 2.",
-              "coverage": "missing",
-              "gap": "No boundary case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-framing",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r7",
               "behavior": "A formatted datagram over 3071 bytes (long tag) fails with status 2.",
-              "coverage": "missing",
-              "gap": "No boundary case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-framing",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashlogger/priority-grammar",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Decimal PRI endpoints 0 and 191 produce <0> and <191>.",
-              "coverage": "missing",
-              "gap": "No delivery check.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-priorities",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Named facility.severity pairs produce facility*8+severity for every facility (kern..local7) and severity.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-priorities",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Numeric and mixed forms within facility.severity (e.g. 16.6, local0.3) are accepted.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-priorities",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Names are case-insensitive (USER.Notice).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-priorities",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Aliases security=auth, error=err, warn=warning, panic=emerg are accepted with the documented value; a bare severity uses the user facility.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-priorities",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "Out-of-range or invalid priorities fail with status 2 before any datagram is sent.",
-              "coverage": "partial",
-              "gap": "No receiver shows that nothing was sent; the 'no socket opened' claim is unobserved.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -3683,109 +3791,178 @@
                   "id": "legacy/bashlogger/invalid-severity",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-priorities",
+                  "status": "PASS",
+                  "run": "logger-static-91"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashlogger/socket-path-errors",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A missing destination path fails with status 1 and a sendto diagnostic.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-paths",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "A non-socket destination (regular file) fails with status 1.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-paths",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "A path of 108 bytes or more is rejected before a socket is created (status 1, 'socket path too long').",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-paths",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "A socket bound at the 107-byte truncation of an overlong path receives no packet.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-paths",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashlogger/wire-format-options",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Each successful call sends exactly one datagram.",
-              "coverage": "missing",
-              "gap": "No receiver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-wire",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Default formatting is '<13> user: MSG' (user.notice, tag user).",
-              "coverage": "missing",
-              "gap": "No receiver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-wire",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "-t TAG, --tag TAG and --tag=TAG set the tag bytes.",
-              "coverage": "missing",
-              "gap": "No receiver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-wire",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "-p/--priority/--priority= set PRI = facility*8+severity computed independently.",
-              "coverage": "missing",
-              "gap": "No receiver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-wire",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "-i/--id inserts '[PID]' after the tag, where PID is the invoking shell process (semantic: equals $BASHPID).",
-              "coverage": "missing",
-              "gap": "No receiver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-wire",
+                  "status": "PASS",
+                  "run": "logger-static-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -5843,16 +6020,16 @@
         },
         {
           "topic": "buf/save-faults-deferred",
-          "migration": "replacement",
-          "coverage": "full",
-          "fully_exercised": true,
-          "result": "PASS",
+          "migration": null,
+          "coverage": "partial",
+          "fully_exercised": false,
+          "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
-              "behavior": "Data-write failure during save rolls back: destination unchanged, temp removed, buffer stays dirty.",
-              "coverage": "covered",
-              "gap": "",
+              "behavior": "Data-write failure during save rolls back: destination unchanged, temp removed, buffer stays dirty; preserve the original filename of the same failed buffer.",
+              "coverage": "partial",
+              "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
               "evidence": [
                 {
                   "group": "shell",
@@ -5867,14 +6044,14 @@
                   "run": "data-static-38"
                 }
               ],
-              "fully_exercised": true,
-              "result": "PASS"
+              "fully_exercised": false,
+              "result": "UNRESOLVED"
             },
             {
               "id": "r2",
-              "behavior": "fdatasync failure rolls back.",
-              "coverage": "covered",
-              "gap": "",
+              "behavior": "fdatasync failure rolls back; preserve the original filename of the same failed buffer.",
+              "coverage": "partial",
+              "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
               "evidence": [
                 {
                   "group": "shell",
@@ -5883,14 +6060,14 @@
                   "run": "data-static-38"
                 }
               ],
-              "fully_exercised": true,
-              "result": "PASS"
+              "fully_exercised": false,
+              "result": "UNRESOLVED"
             },
             {
               "id": "r3",
-              "behavior": "close failure rolls back.",
-              "coverage": "covered",
-              "gap": "",
+              "behavior": "close failure rolls back; preserve the original filename of the same failed buffer.",
+              "coverage": "partial",
+              "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
               "evidence": [
                 {
                   "group": "shell",
@@ -5899,14 +6076,14 @@
                   "run": "data-static-38"
                 }
               ],
-              "fully_exercised": true,
-              "result": "PASS"
+              "fully_exercised": false,
+              "result": "UNRESOLVED"
             },
             {
               "id": "r4",
-              "behavior": "rename failure rolls back (destination and temp handling, retained filename).",
-              "coverage": "covered",
-              "gap": "",
+              "behavior": "rename failure rolls back (destination and temp handling, retained filename); preserve the original filename of the same failed buffer.",
+              "coverage": "partial",
+              "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
               "evidence": [
                 {
                   "group": "shell",
@@ -5915,8 +6092,8 @@
                   "run": "data-static-38"
                 }
               ],
-              "fully_exercised": true,
-              "result": "PASS"
+              "fully_exercised": false,
+              "result": "UNRESOLVED"
             }
           ]
         },
@@ -12708,6 +12885,18 @@
                   "id": "migration-doas-external-delegate-verbatim",
                   "status": "PASS",
                   "run": "data-auth-corrections-static-47"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-doas-fallback-translation",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-static-47"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-list-delegate-only",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-static-47"
                 }
               ],
               "fully_exercised": true,
@@ -13136,6 +13325,12 @@
                   "id": "migration-expect-alt-on-pty",
                   "status": "PASS",
                   "run": "migration-terminal-static-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-alt-pattern",
+                  "status": "PASS",
+                  "run": "oracles-static-46"
                 }
               ],
               "fully_exercised": true,
@@ -13152,6 +13347,12 @@
                   "id": "migration-expect-alt-on-pty",
                   "status": "PASS",
                   "run": "migration-terminal-static-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-alt-pattern",
+                  "status": "PASS",
+                  "run": "oracles-static-46"
                 }
               ],
               "fully_exercised": true,
@@ -13174,6 +13375,12 @@
                   "id": "migration-expect-alt-on-pty",
                   "status": "PASS",
                   "run": "migration-terminal-static-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-alt-pattern",
+                  "status": "PASS",
+                  "run": "oracles-static-46"
                 }
               ],
               "fully_exercised": true,
@@ -13290,6 +13497,12 @@
                   "id": "migration-expect-spawn-round-trip",
                   "status": "PASS",
                   "run": "migration-terminal-static-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-round-trip",
+                  "status": "PASS",
+                  "run": "oracles-static-46"
                 }
               ],
               "fully_exercised": true,
@@ -13312,6 +13525,12 @@
                   "id": "migration-expect-spawn-round-trip",
                   "status": "PASS",
                   "run": "migration-terminal-static-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-round-trip",
+                  "status": "PASS",
+                  "run": "oracles-static-46"
                 }
               ],
               "fully_exercised": true,
@@ -13340,6 +13559,12 @@
                   "id": "migration-expect-close-signal-status",
                   "status": "PASS",
                   "run": "migration-terminal-static-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-round-trip",
+                  "status": "PASS",
+                  "run": "oracles-static-46"
                 }
               ],
               "fully_exercised": true,
@@ -13362,6 +13587,12 @@
                   "id": "migration-expect-close-signal-status",
                   "status": "PASS",
                   "run": "migration-terminal-static-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-round-trip",
+                  "status": "PASS",
+                  "run": "oracles-static-46"
                 }
               ],
               "fully_exercised": true,
@@ -13384,6 +13615,12 @@
                   "id": "migration-expect-close-signal-status",
                   "status": "PASS",
                   "run": "migration-terminal-static-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-round-trip",
+                  "status": "PASS",
+                  "run": "oracles-static-46"
                 }
               ],
               "fully_exercised": true,
@@ -14584,6 +14821,12 @@
                   "id": "migration-fstrim-single-target",
                   "status": "PASS",
                   "run": "storage-static-41"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-fstrim-selection-listed-tables",
+                  "status": "PASS",
+                  "run": "workers-d-static-63"
                 }
               ],
               "fully_exercised": true,
@@ -14618,6 +14861,12 @@
                   "id": "migration-fstrim-fitrim-root",
                   "status": "PASS",
                   "run": "root-d-static-81"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-fstrim-selection-listed-tables",
+                  "status": "PASS",
+                  "run": "workers-d-static-63"
                 }
               ],
               "fully_exercised": true,
@@ -32877,10 +33126,10 @@
         },
         {
           "topic": "ssh/ssh-keyscan-forward-sftp-deferred",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -32923,18 +33172,30 @@
             {
               "id": "r3",
               "behavior": "Local forward -L: open, carry bytes to a destination, --list shows it, --cancel removes it",
-              "coverage": "partial",
-              "gap": "One forwarded exchange succeeds, but the local forward exits after that connection and its list is empty before cancel; a separate live-list/cancel-before-data probe is pending in batch43.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-ssh-forward-local",
                   "status": "FAIL",
                   "run": "migration-corrections-static-36"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-ssh-forward-local-multi",
+                  "status": "FAIL",
+                  "run": "ssh-probes-static-43"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-ssh-forward-local-cancel-before-data",
+                  "status": "FAIL",
+                  "run": "ssh-probes-static-43"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -33278,9 +33539,16 @@
             {
               "id": "r7",
               "behavior": "PermitRootLogin no / prohibit-password for a uid-0 target",
-              "coverage": "missing",
-              "gap": "Not executed (sshd.c:2950-2965).",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "PasswordAuthentication no is set in every variant; no discriminating prohibit-password password attempt, nor admitted command execution.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-permit-root-login-userns",
+                  "status": "PASS",
+                  "run": "ssh-probes-static-43"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -33288,7 +33556,7 @@
               "id": "r8",
               "behavior": "Forwarding authorization: AllowTcpForwarding/--allow-forwarding gate direct/reverse forwarding",
               "coverage": "partial",
-              "gap": "Direct forwarding allow/deny is exercised; the allowed round-trip exposes a candidate lost-reply defect. Reverse-forward authorization denial remains untested.",
+              "gap": "Reverse-forward denial is still missing.",
               "evidence": [
                 {
                   "group": "shell",
@@ -33301,6 +33569,24 @@
                   "id": "migration-sshd-direct-forward-denied",
                   "status": "PASS",
                   "run": "migration-sshd-a-static-27"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-direct-forward-local-listener",
+                  "status": "FAIL",
+                  "run": "ssh-probes-static-43"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-reverse-forward-only",
+                  "status": "FAIL",
+                  "run": "ssh-probes-static-43"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-reverse-forward-cancel",
+                  "status": "FAIL",
+                  "run": "ssh-probes-static-43"
                 }
               ],
               "fully_exercised": false,
@@ -33551,18 +33837,24 @@
             {
               "id": "r4",
               "behavior": "Missing default-path key (BASHSSHD_HOSTKEY) is lazily created on first start, native placeholder or encrypted Ed25519, with mode 0600 and a stderr notice",
-              "coverage": "partial",
-              "gap": "Lazy native creation and notice pass. The encrypted-key case used a scan parser that included a comment line, so its key-equality observation is invalid pending correction and rerun.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sshd-lazy-native-hostkey",
                   "status": "PASS",
                   "run": "migration-sshd-b-static-28"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-lazy-encrypted-hostkey",
+                  "status": "PASS",
+                  "run": "dns-probes-static-49"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -33721,6 +34013,12 @@
                   "id": "migration-sshd-session-lifecycle",
                   "status": "PASS",
                   "run": "migration-sshd-b-static-28"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-lazy-native-hostkey",
+                  "status": "PASS",
+                  "run": "migration-sshd-b-static-28"
                 }
               ],
               "fully_exercised": true,
@@ -33770,46 +34068,70 @@
             {
               "id": "r2",
               "behavior": "Direct TCP forwarding (ssh -L) through sshd to a loopback destination when allowed",
-              "coverage": "partial",
-              "gap": "The direct-tcpip channel is exercised with ssh -W and loses a reply after EOF. An actual ssh -L local-listener probe is pending in batch43.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sshd-direct-forward-allowed",
                   "status": "FAIL",
                   "run": "migration-sshd-a-static-27"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-direct-forward-local-listener",
+                  "status": "FAIL",
+                  "run": "ssh-probes-static-43"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Reverse forwarding (ssh -R) opens a server-side listener that forwards back",
-              "coverage": "partial",
-              "gap": "The combined reverse-forward/session scenario fails before its listener data path. Separate reverse-only/cancel probes are pending in batch43.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sshd-reverse-forward",
                   "status": "FAIL",
                   "run": "migration-sshd-a-static-27"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-reverse-forward-only",
+                  "status": "FAIL",
+                  "run": "ssh-probes-static-43"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-reverse-forward-cancel",
+                  "status": "FAIL",
+                  "run": "ssh-probes-static-43"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Agent forwarding (ssh -A) exposes an agent channel when --allow-agent-forwarding",
               "coverage": "partial",
-              "gap": "The candidate disconnects before the remote command, so agent-socket/channel use is not yet observed.",
+              "gap": "No agent-channel request/reply is asserted; original ssh-add -l case exits early.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sshd-agent-forward-allowed",
                   "status": "FAIL",
                   "run": "migration-sshd-a-static-27"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-agent-forward-session-env",
+                  "status": "PASS",
+                  "run": "ssh-probes-static-43"
                 }
               ],
               "fully_exercised": false,
@@ -34695,18 +35017,32 @@
             {
               "id": "r1",
               "behavior": "-l / -ll / --list render the caller-filtered projection of the authority-advertised policy, bound to its digest.",
-              "coverage": "missing",
-              "gap": "Requires the device for the advertised path and digest.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-policy-list-caller-projection",
+                  "status": "PASS",
+                  "run": "auth-static-39"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Empty and no-match policies render as documented.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-policy-list-caller-projection",
+                  "status": "PASS",
+                  "run": "auth-static-39"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -36908,10 +37244,10 @@
         },
         {
           "topic": "tee/write-error-recovery-deferred",
-          "migration": "replacement",
-          "coverage": "full",
-          "fully_exercised": true,
-          "result": "PASS",
+          "migration": null,
+          "coverage": "partial",
+          "fully_exercised": false,
+          "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
@@ -36948,8 +37284,8 @@
             {
               "id": "r3",
               "behavior": "EIO specifically (errno-specific diagnostic).",
-              "coverage": "covered",
-              "gap": "",
+              "coverage": "partial",
+              "gap": "The independent control establishes EIO and raw diagnostics contain it, but the fixture only asserts diagnostic nonemptiness; an explicit errno-specific diagnostic assertion remains required.",
               "evidence": [
                 {
                   "group": "shell",
@@ -36958,8 +37294,8 @@
                   "run": "data-static-38"
                 }
               ],
-              "fully_exercised": true,
-              "result": "PASS"
+              "fully_exercised": false,
+              "result": "UNRESOLVED"
             }
           ]
         },
@@ -41304,6 +41640,12 @@
                   "id": "migration-wgetch-pty-handle-timing",
                   "status": "PASS",
                   "run": "migration-oracles-static-37"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-escdelay-pty-env-grace-and-bounds",
+                  "status": "PASS",
+                  "run": "migration-oracles-static-37"
                 }
               ],
               "fully_exercised": true,
@@ -42119,6 +42461,12 @@
                   "id": "migration-zstdcat-window-128mib-control",
                   "status": "PASS",
                   "run": "data-static-38"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-zstdcat-window-256mib-rejected",
+                  "status": "PASS",
+                  "run": "data-static-38"
                 }
               ],
               "fully_exercised": true,
@@ -42128,9 +42476,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 353,
-        "FAIL": 136,
-        "PASS": 111
+        "UNRESOLVED": 350,
+        "FAIL": 137,
+        "PASS": 113
       },
       "migration_without_complete_evidence": []
     },
@@ -44012,6 +44360,32 @@
           "candidate_unchanged": true,
           "candidate_matches_guest": true,
           "prepared_unchanged": true
+        },
+        {
+          "name": "logger-dynamic-91",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "295daeef25d332298a40e4c1cf9a7d8347c0a7ebf8080197dc3392ccff843aa1",
+            "provenance.json": "6969bbfd9a786f2abdf9a04b32e252524e3ae72cde79ca3bad2aef76bb5d60f6",
+            "payload.tar": "cfaf12b27891b2bb2c058346d6701c962d994f1f8b0dc3acc8f6988abbf82154",
+            "evidence.tar": "98e4c83f02d89f58e470cd5c0ea6c912e9533fa7d15116c5ab31d765f2cc8397"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793184995.0582983
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
         }
       ],
       "entries": [
@@ -45644,147 +46018,229 @@
         },
         {
           "topic": "bashlogger/message-framing-limits",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Operands join with exactly one space, including empty arguments (a '' b -> 'a  b').",
-              "coverage": "missing",
-              "gap": "No received-bytes check.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-framing",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "'--' ends option parsing; following '-x' words are message text.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-framing",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Without operands, stdin is the message; one final LF or CRLF is removed and internal newlines are preserved.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-framing",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "NUL in stdin is rejected with status 2 and no datagram is sent.",
-              "coverage": "partial",
-              "gap": "No receiver proves that no datagram was delivered.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/bashlogger/nul-stdin",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-framing",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Empty stdin is rejected with status 2 and no datagram.",
-              "coverage": "partial",
-              "gap": "No receiver proves absence of delivery.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/bashlogger/empty-stdin",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-framing",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "A 2047-byte message is delivered exactly; 2048 bytes (operands or stdin) fail with status 2.",
-              "coverage": "missing",
-              "gap": "No boundary case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-framing",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r7",
               "behavior": "A formatted datagram over 3071 bytes (long tag) fails with status 2.",
-              "coverage": "missing",
-              "gap": "No boundary case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-framing",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashlogger/priority-grammar",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Decimal PRI endpoints 0 and 191 produce <0> and <191>.",
-              "coverage": "missing",
-              "gap": "No delivery check.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-priorities",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Named facility.severity pairs produce facility*8+severity for every facility (kern..local7) and severity.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-priorities",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Numeric and mixed forms within facility.severity (e.g. 16.6, local0.3) are accepted.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-priorities",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Names are case-insensitive (USER.Notice).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-priorities",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Aliases security=auth, error=err, warn=warning, panic=emerg are accepted with the documented value; a bare severity uses the user facility.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-priorities",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "Out-of-range or invalid priorities fail with status 2 before any datagram is sent.",
-              "coverage": "partial",
-              "gap": "No receiver shows that nothing was sent; the 'no socket opened' claim is unobserved.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -45803,109 +46259,178 @@
                   "id": "legacy/bashlogger/invalid-severity",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-priorities",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashlogger/socket-path-errors",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A missing destination path fails with status 1 and a sendto diagnostic.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-paths",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "A non-socket destination (regular file) fails with status 1.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-paths",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "A path of 108 bytes or more is rejected before a socket is created (status 1, 'socket path too long').",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-paths",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "A socket bound at the 107-byte truncation of an overlong path receives no packet.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-paths",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashlogger/wire-format-options",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Each successful call sends exactly one datagram.",
-              "coverage": "missing",
-              "gap": "No receiver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-wire",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Default formatting is '<13> user: MSG' (user.notice, tag user).",
-              "coverage": "missing",
-              "gap": "No receiver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-wire",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "-t TAG, --tag TAG and --tag=TAG set the tag bytes.",
-              "coverage": "missing",
-              "gap": "No receiver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-wire",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "-p/--priority/--priority= set PRI = facility*8+severity computed independently.",
-              "coverage": "missing",
-              "gap": "No receiver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-wire",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "-i/--id inserts '[PID]' after the tag, where PID is the invoking shell process (semantic: equals $BASHPID).",
-              "coverage": "missing",
-              "gap": "No receiver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashlogger-wire",
+                  "status": "PASS",
+                  "run": "logger-dynamic-91"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -47963,16 +48488,16 @@
         },
         {
           "topic": "buf/save-faults-deferred",
-          "migration": "replacement",
-          "coverage": "full",
-          "fully_exercised": true,
-          "result": "PASS",
+          "migration": null,
+          "coverage": "partial",
+          "fully_exercised": false,
+          "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
-              "behavior": "Data-write failure during save rolls back: destination unchanged, temp removed, buffer stays dirty.",
-              "coverage": "covered",
-              "gap": "",
+              "behavior": "Data-write failure during save rolls back: destination unchanged, temp removed, buffer stays dirty; preserve the original filename of the same failed buffer.",
+              "coverage": "partial",
+              "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
               "evidence": [
                 {
                   "group": "shell",
@@ -47987,14 +48512,14 @@
                   "run": "data-dynamic-38"
                 }
               ],
-              "fully_exercised": true,
-              "result": "PASS"
+              "fully_exercised": false,
+              "result": "UNRESOLVED"
             },
             {
               "id": "r2",
-              "behavior": "fdatasync failure rolls back.",
-              "coverage": "covered",
-              "gap": "",
+              "behavior": "fdatasync failure rolls back; preserve the original filename of the same failed buffer.",
+              "coverage": "partial",
+              "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
               "evidence": [
                 {
                   "group": "shell",
@@ -48003,14 +48528,14 @@
                   "run": "data-dynamic-38"
                 }
               ],
-              "fully_exercised": true,
-              "result": "PASS"
+              "fully_exercised": false,
+              "result": "UNRESOLVED"
             },
             {
               "id": "r3",
-              "behavior": "close failure rolls back.",
-              "coverage": "covered",
-              "gap": "",
+              "behavior": "close failure rolls back; preserve the original filename of the same failed buffer.",
+              "coverage": "partial",
+              "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
               "evidence": [
                 {
                   "group": "shell",
@@ -48019,14 +48544,14 @@
                   "run": "data-dynamic-38"
                 }
               ],
-              "fully_exercised": true,
-              "result": "PASS"
+              "fully_exercised": false,
+              "result": "UNRESOLVED"
             },
             {
               "id": "r4",
-              "behavior": "rename failure rolls back (destination and temp handling, retained filename).",
-              "coverage": "covered",
-              "gap": "",
+              "behavior": "rename failure rolls back (destination and temp handling, retained filename); preserve the original filename of the same failed buffer.",
+              "coverage": "partial",
+              "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
               "evidence": [
                 {
                   "group": "shell",
@@ -48035,8 +48560,8 @@
                   "run": "data-dynamic-38"
                 }
               ],
-              "fully_exercised": true,
-              "result": "PASS"
+              "fully_exercised": false,
+              "result": "UNRESOLVED"
             }
           ]
         },
@@ -54828,6 +55353,18 @@
                   "id": "migration-doas-external-delegate-verbatim",
                   "status": "PASS",
                   "run": "data-auth-corrections-dynamic-47"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-doas-fallback-translation",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-dynamic-47"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-list-delegate-only",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-dynamic-47"
                 }
               ],
               "fully_exercised": true,
@@ -55256,6 +55793,12 @@
                   "id": "migration-expect-alt-on-pty",
                   "status": "PASS",
                   "run": "migration-terminal-dynamic-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-alt-pattern",
+                  "status": "PASS",
+                  "run": "oracles-dynamic-46"
                 }
               ],
               "fully_exercised": true,
@@ -55272,6 +55815,12 @@
                   "id": "migration-expect-alt-on-pty",
                   "status": "PASS",
                   "run": "migration-terminal-dynamic-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-alt-pattern",
+                  "status": "PASS",
+                  "run": "oracles-dynamic-46"
                 }
               ],
               "fully_exercised": true,
@@ -55294,6 +55843,12 @@
                   "id": "migration-expect-alt-on-pty",
                   "status": "PASS",
                   "run": "migration-terminal-dynamic-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-alt-pattern",
+                  "status": "PASS",
+                  "run": "oracles-dynamic-46"
                 }
               ],
               "fully_exercised": true,
@@ -55410,6 +55965,12 @@
                   "id": "migration-expect-spawn-round-trip",
                   "status": "PASS",
                   "run": "migration-terminal-dynamic-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-round-trip",
+                  "status": "PASS",
+                  "run": "oracles-dynamic-46"
                 }
               ],
               "fully_exercised": true,
@@ -55432,6 +55993,12 @@
                   "id": "migration-expect-spawn-round-trip",
                   "status": "PASS",
                   "run": "migration-terminal-dynamic-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-round-trip",
+                  "status": "PASS",
+                  "run": "oracles-dynamic-46"
                 }
               ],
               "fully_exercised": true,
@@ -55460,6 +56027,12 @@
                   "id": "migration-expect-close-signal-status",
                   "status": "PASS",
                   "run": "migration-terminal-dynamic-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-round-trip",
+                  "status": "PASS",
+                  "run": "oracles-dynamic-46"
                 }
               ],
               "fully_exercised": true,
@@ -55482,6 +56055,12 @@
                   "id": "migration-expect-close-signal-status",
                   "status": "PASS",
                   "run": "migration-terminal-dynamic-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-round-trip",
+                  "status": "PASS",
+                  "run": "oracles-dynamic-46"
                 }
               ],
               "fully_exercised": true,
@@ -55504,6 +56083,12 @@
                   "id": "migration-expect-close-signal-status",
                   "status": "PASS",
                   "run": "migration-terminal-dynamic-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-round-trip",
+                  "status": "PASS",
+                  "run": "oracles-dynamic-46"
                 }
               ],
               "fully_exercised": true,
@@ -56704,6 +57289,12 @@
                   "id": "migration-fstrim-single-target",
                   "status": "PASS",
                   "run": "storage-dynamic-41"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-fstrim-selection-listed-tables",
+                  "status": "PASS",
+                  "run": "workers-d-dynamic-63"
                 }
               ],
               "fully_exercised": true,
@@ -56738,6 +57329,12 @@
                   "id": "migration-fstrim-fitrim-root",
                   "status": "PASS",
                   "run": "root-d-dynamic-81"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-fstrim-selection-listed-tables",
+                  "status": "PASS",
+                  "run": "workers-d-dynamic-63"
                 }
               ],
               "fully_exercised": true,
@@ -74997,10 +75594,10 @@
         },
         {
           "topic": "ssh/ssh-keyscan-forward-sftp-deferred",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -75043,18 +75640,30 @@
             {
               "id": "r3",
               "behavior": "Local forward -L: open, carry bytes to a destination, --list shows it, --cancel removes it",
-              "coverage": "partial",
-              "gap": "One forwarded exchange succeeds, but the local forward exits after that connection and its list is empty before cancel; a separate live-list/cancel-before-data probe is pending in batch43.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-ssh-forward-local",
                   "status": "FAIL",
                   "run": "migration-corrections-dynamic-36"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-ssh-forward-local-multi",
+                  "status": "FAIL",
+                  "run": "ssh-probes-dynamic-43"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-ssh-forward-local-cancel-before-data",
+                  "status": "FAIL",
+                  "run": "ssh-probes-dynamic-43"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -75398,9 +76007,16 @@
             {
               "id": "r7",
               "behavior": "PermitRootLogin no / prohibit-password for a uid-0 target",
-              "coverage": "missing",
-              "gap": "Not executed (sshd.c:2950-2965).",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "PasswordAuthentication no is set in every variant; no discriminating prohibit-password password attempt, nor admitted command execution.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-permit-root-login-userns",
+                  "status": "PASS",
+                  "run": "ssh-probes-dynamic-43"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -75408,7 +76024,7 @@
               "id": "r8",
               "behavior": "Forwarding authorization: AllowTcpForwarding/--allow-forwarding gate direct/reverse forwarding",
               "coverage": "partial",
-              "gap": "Direct forwarding allow/deny is exercised; the allowed round-trip exposes a candidate lost-reply defect. Reverse-forward authorization denial remains untested.",
+              "gap": "Reverse-forward denial is still missing.",
               "evidence": [
                 {
                   "group": "shell",
@@ -75421,6 +76037,24 @@
                   "id": "migration-sshd-direct-forward-denied",
                   "status": "PASS",
                   "run": "migration-sshd-a-dynamic-27"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-direct-forward-local-listener",
+                  "status": "FAIL",
+                  "run": "ssh-probes-dynamic-43"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-reverse-forward-only",
+                  "status": "FAIL",
+                  "run": "ssh-probes-dynamic-43"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-reverse-forward-cancel",
+                  "status": "FAIL",
+                  "run": "ssh-probes-dynamic-43"
                 }
               ],
               "fully_exercised": false,
@@ -75671,18 +76305,24 @@
             {
               "id": "r4",
               "behavior": "Missing default-path key (BASHSSHD_HOSTKEY) is lazily created on first start, native placeholder or encrypted Ed25519, with mode 0600 and a stderr notice",
-              "coverage": "partial",
-              "gap": "Lazy native creation and notice pass. The encrypted-key case used a scan parser that included a comment line, so its key-equality observation is invalid pending correction and rerun.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sshd-lazy-native-hostkey",
                   "status": "PASS",
                   "run": "migration-sshd-b-dynamic-28"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-lazy-encrypted-hostkey",
+                  "status": "PASS",
+                  "run": "dns-probes-dynamic-49"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -75841,6 +76481,12 @@
                   "id": "migration-sshd-session-lifecycle",
                   "status": "PASS",
                   "run": "migration-sshd-b-dynamic-28"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-lazy-native-hostkey",
+                  "status": "PASS",
+                  "run": "migration-sshd-b-dynamic-28"
                 }
               ],
               "fully_exercised": true,
@@ -75890,46 +76536,70 @@
             {
               "id": "r2",
               "behavior": "Direct TCP forwarding (ssh -L) through sshd to a loopback destination when allowed",
-              "coverage": "partial",
-              "gap": "The direct-tcpip channel is exercised with ssh -W and loses a reply after EOF. An actual ssh -L local-listener probe is pending in batch43.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sshd-direct-forward-allowed",
                   "status": "FAIL",
                   "run": "migration-sshd-a-dynamic-27"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-direct-forward-local-listener",
+                  "status": "FAIL",
+                  "run": "ssh-probes-dynamic-43"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Reverse forwarding (ssh -R) opens a server-side listener that forwards back",
-              "coverage": "partial",
-              "gap": "The combined reverse-forward/session scenario fails before its listener data path. Separate reverse-only/cancel probes are pending in batch43.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sshd-reverse-forward",
                   "status": "FAIL",
                   "run": "migration-sshd-a-dynamic-27"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-reverse-forward-only",
+                  "status": "FAIL",
+                  "run": "ssh-probes-dynamic-43"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-reverse-forward-cancel",
+                  "status": "FAIL",
+                  "run": "ssh-probes-dynamic-43"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Agent forwarding (ssh -A) exposes an agent channel when --allow-agent-forwarding",
               "coverage": "partial",
-              "gap": "The candidate disconnects before the remote command, so agent-socket/channel use is not yet observed.",
+              "gap": "No agent-channel request/reply is asserted; original ssh-add -l case exits early.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sshd-agent-forward-allowed",
                   "status": "FAIL",
                   "run": "migration-sshd-a-dynamic-27"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-agent-forward-session-env",
+                  "status": "PASS",
+                  "run": "ssh-probes-dynamic-43"
                 }
               ],
               "fully_exercised": false,
@@ -76815,18 +77485,32 @@
             {
               "id": "r1",
               "behavior": "-l / -ll / --list render the caller-filtered projection of the authority-advertised policy, bound to its digest.",
-              "coverage": "missing",
-              "gap": "Requires the device for the advertised path and digest.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-policy-list-caller-projection",
+                  "status": "PASS",
+                  "run": "auth-dynamic-39"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Empty and no-match policies render as documented.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-policy-list-caller-projection",
+                  "status": "PASS",
+                  "run": "auth-dynamic-39"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -79028,10 +79712,10 @@
         },
         {
           "topic": "tee/write-error-recovery-deferred",
-          "migration": "replacement",
-          "coverage": "full",
-          "fully_exercised": true,
-          "result": "PASS",
+          "migration": null,
+          "coverage": "partial",
+          "fully_exercised": false,
+          "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
@@ -79068,8 +79752,8 @@
             {
               "id": "r3",
               "behavior": "EIO specifically (errno-specific diagnostic).",
-              "coverage": "covered",
-              "gap": "",
+              "coverage": "partial",
+              "gap": "The independent control establishes EIO and raw diagnostics contain it, but the fixture only asserts diagnostic nonemptiness; an explicit errno-specific diagnostic assertion remains required.",
               "evidence": [
                 {
                   "group": "shell",
@@ -79078,8 +79762,8 @@
                   "run": "data-dynamic-38"
                 }
               ],
-              "fully_exercised": true,
-              "result": "PASS"
+              "fully_exercised": false,
+              "result": "UNRESOLVED"
             }
           ]
         },
@@ -83424,6 +84108,12 @@
                   "id": "migration-wgetch-pty-handle-timing",
                   "status": "PASS",
                   "run": "migration-oracles-dynamic-37"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-escdelay-pty-env-grace-and-bounds",
+                  "status": "PASS",
+                  "run": "migration-oracles-dynamic-37"
                 }
               ],
               "fully_exercised": true,
@@ -84239,6 +84929,12 @@
                   "id": "migration-zstdcat-window-128mib-control",
                   "status": "PASS",
                   "run": "data-dynamic-38"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-zstdcat-window-256mib-rejected",
+                  "status": "PASS",
+                  "run": "data-dynamic-38"
                 }
               ],
               "fully_exercised": true,
@@ -84248,9 +84944,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 353,
-        "FAIL": 136,
-        "PASS": 111
+        "UNRESOLVED": 350,
+        "FAIL": 137,
+        "PASS": 113
       },
       "migration_without_complete_evidence": []
     }

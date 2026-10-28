@@ -96,30 +96,9 @@
     },
     {
       "id": "save-faults-deferred",
-      "kind": "migrated",
+      "kind": "deferred",
       "purpose": "Qualify rollback when save encounters data-write, data-sync, close, or rename failures.",
-      "replacement_cases": [
-        {
-          "group": "shell",
-          "id": "migration-buf-save-fault-close-eio"
-        },
-        {
-          "group": "shell",
-          "id": "migration-buf-save-fault-enospc"
-        },
-        {
-          "group": "shell",
-          "id": "migration-buf-save-fault-fdatasync-eio"
-        },
-        {
-          "group": "shell",
-          "id": "migration-buf-save-fault-rename-eio"
-        },
-        {
-          "group": "shell",
-          "id": "migration-buf-save-fault-short-write-efbig"
-        }
-      ]
+      "reason": "Remaining obligations: r1: The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.; r2: The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.; r3: The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.; r4: The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required."
     },
     {
       "id": "journal-mutation-records",

@@ -59,6 +59,10 @@
         {
           "group": "shell",
           "id": "migration-sudo-doas-fallback-translation"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sudo-list-delegate-only"
         }
       ]
     },

@@ -137,18 +137,9 @@
     },
     {
       "id": "write-error-recovery-deferred",
-      "kind": "migrated",
+      "kind": "deferred",
       "purpose": "Exercise recovery when one already-open output fails during write while other output descriptors remain healthy.",
-      "replacement_cases": [
-        {
-          "group": "shell",
-          "id": "migration-tee-eio-stdout-continues"
-        },
-        {
-          "group": "shell",
-          "id": "migration-tee-full-sink-continues"
-        }
-      ]
+      "reason": "Remaining obligations: r3: The independent control establishes EIO and raw diagnostics contain it, but the fixture only asserts diagnostic nonemptiness; an explicit errno-specific diagnostic assertion remains required."
     },
     {
       "id": "repeated-input-and-open-error-recovery",

@@ -154,9 +154,42 @@
     },
     {
       "id": "ssh-keyscan-forward-sftp-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise host-key scanning and hashing, local/remote forwarding lifecycle, and encrypted SFTP transfers against a controlled peer.",
-      "reason": "Remaining obligations: r3: One forwarded exchange succeeds, but the local forward exits after that connection and its list is empty before cancel; a separate live-list/cancel-before-data probe is pending in batch43."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ssh-forward-local"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ssh-forward-local-cancel-before-data"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ssh-forward-local-multi"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ssh-forward-remote"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ssh-keyscan-hashed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ssh-keyscan-key-matches"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ssh-keyscan-streams"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ssh-sftp-put-get-mode"
+        }
+      ]
     },
     {
       "id": "ssh-pty-multiplex-deferred",

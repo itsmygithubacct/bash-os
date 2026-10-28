@@ -1570,75 +1570,122 @@
         "purpose": "Check argument joining including empty arguments, -- termination, stdin input, removal of one trailing LF/CRLF, preservation of internal newlines, NUL rejection, and the documented 2047-byte message boundary against exact received bytes/status.",
         "reason": "Requires a future disposable VM with a private AF_UNIX receiver and an independently reviewed socket/syscall mock that prevents any host logging or network effects. Check exact packet bytes for argument joining, stdin newline framing and documented size boundaries; pre-socket NUL/empty rejection is covered separately."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Only pre-socket rejection statuses are executed; delivery bytes need a private AF_UNIX receiver, which the VM can host with BASHLOGGER_SOCKET.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Operands join with exactly one space, including empty arguments (a '' b -> 'a  b').",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No received-bytes check."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-framing",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: empty-middle, empty-first, empty-last, empty-operand. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "d14af17f56ca347adaa7a4d6d69f6be1f0c1ca242a12a839ad54d4df312d5327"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "'--' ends option parsing; following '-x' words are message text.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-framing",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: terminator. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "d14af17f56ca347adaa7a4d6d69f6be1f0c1ca242a12a839ad54d4df312d5327"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Without operands, stdin is the message; one final LF or CRLF is removed and internal newlines are preserved.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-framing",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: stdin-lf, stdin-crlf, stdin-two-lf, stdin-cr, stdin-one-lf. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "d14af17f56ca347adaa7a4d6d69f6be1f0c1ca242a12a839ad54d4df312d5327"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "NUL in stdin is rejected with status 2 and no datagram is sent.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/bashlogger/nul-stdin",
               "assertion": "Status 2 and nonempty stderr for 'before\\0after' on stdin.",
               "definition_sha256": "34b731f05e7ae8f241da52a3d97eb0c804c9ad411e72eb9c3184e0932bb4aaf0"
+            },
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-framing",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: stdin-nul. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "d14af17f56ca347adaa7a4d6d69f6be1f0c1ca242a12a839ad54d4df312d5327"
             }
           ],
-          "gap": "No receiver proves that no datagram was delivered."
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Empty stdin is rejected with status 2 and no datagram.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/bashlogger/empty-stdin",
               "assertion": "Status 2 and nonempty stderr for empty stdin.",
               "definition_sha256": "56fa9d19775932d5d2e4f321ac97ba29e2a9b2dcdd228e667e0152cfa16eede4"
+            },
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-framing",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: stdin-empty. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "d14af17f56ca347adaa7a4d6d69f6be1f0c1ca242a12a839ad54d4df312d5327"
             }
           ],
-          "gap": "No receiver proves absence of delivery."
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "A 2047-byte message is delivered exactly; 2048 bytes (operands or stdin) fail with status 2.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No boundary case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-framing",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: operand-2047, stdin-2047, operand-2048, stdin-2048. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "d14af17f56ca347adaa7a4d6d69f6be1f0c1ca242a12a839ad54d4df312d5327"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r7",
           "behavior": "A formatted datagram over 3071 bytes (long tag) fails with status 2.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No boundary case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-framing",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: formatted-3071, formatted-3072. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "d14af17f56ca347adaa7a4d6d69f6be1f0c1ca242a12a839ad54d4df312d5327"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/bashlogger.c:162-175 blog_append; :214-220 '--'; :233-255 stdin framing; :262-268 format '<%d> %s: %s' (space after '>' per the source; the oracle must follow documented help, which only says logger(1)-style)."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "bashlogger/priority-grammar",
@@ -1648,49 +1695,84 @@
         "purpose": "Check decimal PRI endpoints 0 and 191, named and numeric facility/severity pairs, case-insensitive names and documented aliases; verify invalid or out-of-range priorities fail before any datagram is sent.",
         "reason": "Requires a future disposable VM with a private AF_UNIX receiver and an independently reviewed socket/syscall mock that prevents any host logging or network effects. Exercise valid named, numeric and mixed priority forms and audit that invalid values open no socket; ordinary invalid-input rejection is covered separately."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Rejection statuses are covered; accepted forms need a private AF_UNIX receiver.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Decimal PRI endpoints 0 and 191 produce <0> and <191>.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No delivery check."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-priorities",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: endpoint-0, endpoint-191. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "51df9c57ae5624abb7769457a0d743d39a34ce9e746af2193ce35a74f4d370ad"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Named facility.severity pairs produce facility*8+severity for every facility (kern..local7) and severity.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-priorities",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: all160 named facility/severity pairs. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "51df9c57ae5624abb7769457a0d743d39a34ce9e746af2193ce35a74f4d370ad"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Numeric and mixed forms within facility.severity (e.g. 16.6, local0.3) are accepted.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-priorities",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: all192 numeric pairs, local0.3, 16.info. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "51df9c57ae5624abb7769457a0d743d39a34ce9e746af2193ce35a74f4d370ad"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Names are case-insensitive (USER.Notice).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-priorities",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: USER.Notice. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "51df9c57ae5624abb7769457a0d743d39a34ce9e746af2193ce35a74f4d370ad"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Aliases security=auth, error=err, warn=warning, panic=emerg are accepted with the documented value; a bare severity uses the user facility.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-priorities",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: security.error, user.warn, user.panic, all11 bare severity names/aliases. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "51df9c57ae5624abb7769457a0d743d39a34ce9e746af2193ce35a74f4d370ad"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "Out-of-range or invalid priorities fail with status 2 before any datagram is sent.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -1709,12 +1791,18 @@
               "id": "legacy/bashlogger/invalid-severity",
               "assertion": "-p local0.8 rejected with status 2.",
               "definition_sha256": "04d78e7a36a82967d5ef60ccddea9d1bcef3ea74305ed3d5190ee952e6a2da4c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-priorities",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: invalid-0..invalid-13; each status2,diagnostic,no packet,1 marker and0 sockets after marker. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "51df9c57ae5624abb7769457a0d743d39a34ce9e746af2193ce35a74f4d370ad"
             }
           ],
-          "gap": "No receiver shows that nothing was sent; the 'no socket opened' claim is unobserved."
+          "gap": ""
         }
       ],
-      "notes": "loadables/bashlogger.c:104-111 facility table (security=auth); :113-116 severity table with panic/error/warn aliases; :138-148 strncasecmp lookup; :150-165 facility.severity and decimal-only bare numbers."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "bashlogger/socket-path-errors",
@@ -1724,40 +1812,68 @@
         "purpose": "Check missing and non-socket destinations fail, an overlong socket path is rejected before send, and a path that would otherwise be truncated never receives a packet. Use only private relative fixture paths and independently inspect packet delivery/status.",
         "reason": "Requires a future disposable VM with a private AF_UNIX receiver and an independently reviewed socket/syscall mock that prevents any host logging or network effects. Use only relative private endpoints and a mock for socket/send/path-length outcomes; no real service endpoint may be used."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "These obligations need only relative files and a private AF_UNIX receiver; no fixture exists.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A missing destination path fails with status 1 and a sendto diagnostic.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-paths",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: missing. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "c2bfb05a5f695ffe51492bf5aa6b15e0f335e5e59fa375eab9ca858edc59015d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "A non-socket destination (regular file) fails with status 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-paths",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: non-socket, regular-file-preserved. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "c2bfb05a5f695ffe51492bf5aa6b15e0f335e5e59fa375eab9ca858edc59015d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "A path of 108 bytes or more is rejected before a socket is created (status 1, 'socket path too long').",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-paths",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: path-108, path-256; both0 sockets after exact marker. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "c2bfb05a5f695ffe51492bf5aa6b15e0f335e5e59fa375eab9ca858edc59015d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "A socket bound at the 107-byte truncation of an overlong path receives no packet.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-paths",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: path-107 positive control, path-108, path-256; bound107-byte prefix receives0 packets. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "c2bfb05a5f695ffe51492bf5aa6b15e0f335e5e59fa375eab9ca858edc59015d"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/bashlogger.c:65-69 length check before socket(); :88-95 sendto failure status 1."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "bashlogger/wire-format-options",
@@ -1767,47 +1883,82 @@
         "purpose": "Check one datagram per valid call, default <13> user formatting, explicit tags and priorities, and the PID-bearing -i/--id form. Compute the expected PRI independently as facility * 8 + severity and compare exact packet bytes.",
         "reason": "Requires a future disposable VM with a private AF_UNIX receiver and an independently reviewed socket/syscall mock that prevents any host logging or network effects. Independently compute facility*8+severity, exact tag/PID bytes and one datagram per call."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No datagram has ever been captured; a private AF_UNIX receiver via BASHLOGGER_SOCKET is enough.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Each successful call sends exactly one datagram.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No receiver."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-wire",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: all10 vectors; exact packet list equality. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "e416a596054ef9817b0bddcf10902c336a3ceece10242e3fef0b50c93c463c98"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Default formatting is '<13> user: MSG' (user.notice, tag user).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No receiver."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-wire",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: default. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "e416a596054ef9817b0bddcf10902c336a3ceece10242e3fef0b50c93c463c98"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "-t TAG, --tag TAG and --tag=TAG set the tag bytes.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No receiver."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-wire",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: tag-short, tag-long, tag-equals. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "e416a596054ef9817b0bddcf10902c336a3ceece10242e3fef0b50c93c463c98"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "-p/--priority/--priority= set PRI = facility*8+severity computed independently.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No receiver."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-wire",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: priority-short, priority-long, priority-equals. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "e416a596054ef9817b0bddcf10902c336a3ceece10242e3fef0b50c93c463c98"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "-i/--id inserts '[PID]' after the tag, where PID is the invoking shell process (semantic: equals $BASHPID).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No receiver."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashlogger-wire",
+              "assertion": "Both unchanged builds PASS in logger-91. Exact observed assertions: pid-short, pid-long. Private AF_UNIX receiver, exact bytes/status, verified syscall observation after the pre-builtin marker; raw observations retained.",
+              "definition_sha256": "e416a596054ef9817b0bddcf10902c336a3ceece10242e3fef0b50c93c463c98"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/bashlogger.c:186-268 option parsing and snprintf formats; :282-293 documented help."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "bashmount/defer_bind_remount",
@@ -3773,74 +3924,74 @@
         "purpose": "Qualify rollback when save encounters data-write, data-sync, close, or rename failures.",
         "reason": "Requires an independently reviewed syscall fault-injection mock or a disposable VM that can deterministically fail write, fdatasync, close, and rename while checking the destination, temporary files, retained filename, and dirty state. The supplied runner provides no syscall shim, so ordinary save success must not be counted as coverage of these failure paths."
       },
-      "coverage": "full",
-      "migration": "replacement",
-      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
+      "coverage": "partial",
+      "migration": null,
+      "current_reason": "Remaining obligations: r1: The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.; r2: The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.; r3: The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.; r4: The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
       "requirements": [
         {
           "id": "r1",
-          "behavior": "Data-write failure during save rolls back: destination unchanged, temp removed, buffer stays dirty.",
-          "coverage": "covered",
+          "behavior": "Data-write failure during save rolls back: destination unchanged, temp removed, buffer stays dirty; preserve the original filename of the same failed buffer.",
+          "coverage": "partial",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-buf-save-fault-enospc",
-              "assertion": "dest unchanged, residue 0, dirty=yes, retained save succeeds",
+              "assertion": "ENOSPC executes destination/temp/dirty checks and a same-buffer save without PATH.",
               "definition_sha256": "022a9b1165d82556498c863c31bc3e589053950d0d0b2c130817e3551f956bf7"
             },
             {
               "group": "shell",
               "id": "migration-buf-save-fault-short-write-efbig",
-              "assertion": "same for short write + EFBIG",
+              "assertion": "The failed child/subshell observes error status, original destination, temporary-file cleanup and dirty state. The later retained-save output comes from a newly constructed parent buffer and is not evidence of the failed buffer's retained filename.",
               "definition_sha256": "d367ebe08e91f3892a52ffb3abd29c81d887402b7701571fdab11f8ea3799bf9"
             }
           ],
-          "gap": ""
+          "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required."
         },
         {
           "id": "r2",
-          "behavior": "fdatasync failure rolls back.",
-          "coverage": "covered",
+          "behavior": "fdatasync failure rolls back; preserve the original filename of the same failed buffer.",
+          "coverage": "partial",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-buf-save-fault-fdatasync-eio",
-              "assertion": "same contract",
+              "assertion": "The failed child/subshell observes error status, original destination, temporary-file cleanup and dirty state. The later retained-save output comes from a newly constructed parent buffer and is not evidence of the failed buffer's retained filename.",
               "definition_sha256": "88a77e17b9583216ee09c65f1d909356cb5db0ac57752cad101ca471e990b6eb"
             }
           ],
-          "gap": ""
+          "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required."
         },
         {
           "id": "r3",
-          "behavior": "close failure rolls back.",
-          "coverage": "covered",
+          "behavior": "close failure rolls back; preserve the original filename of the same failed buffer.",
+          "coverage": "partial",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-buf-save-fault-close-eio",
-              "assertion": "identity observation established fd 11 (load closes fd 10, then fd 10 is pinned), and the refused close(11) rolls back",
+              "assertion": "The failed child/subshell observes error status, original destination, temporary-file cleanup and dirty state. The later retained-save output comes from a newly constructed parent buffer and is not evidence of the failed buffer's retained filename.",
               "definition_sha256": "47486bb43308ef044385ec0f846b3b0cc12182ee342a3a33a2237fc51a2af29b"
             }
           ],
-          "gap": ""
+          "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required."
         },
         {
           "id": "r4",
-          "behavior": "rename failure rolls back (destination and temp handling, retained filename).",
-          "coverage": "covered",
+          "behavior": "rename failure rolls back (destination and temp handling, retained filename); preserve the original filename of the same failed buffer.",
+          "coverage": "partial",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-buf-save-fault-rename-eio",
-              "assertion": "same contract",
+              "assertion": "The failed child/subshell observes error status, original destination, temporary-file cleanup and dirty state. The later retained-save output comes from a newly constructed parent buffer and is not evidence of the failed buffer's retained filename.",
               "definition_sha256": "ef1967dabfc4ec11d08c331d38bb311e256fe01458a51751fbb8173bc5324099"
             }
           ],
-          "gap": ""
+          "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required."
         }
       ],
-      "notes": "Root reviewed original compound obligations, current fixture definitions and matching raw VM results on both unchanged builds. Only reached assertions qualify; candidate FAIL is retained, while invalid or superseded fixture results are excluded."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "caps/caps-clear-bounding",
@@ -10366,6 +10517,18 @@
               "id": "migration-doas-external-delegate-verbatim",
               "assertion": "The shell holds fds 7 and 9 open and ignores USR1 and TERM; every delegate run reports open-fds=[] and usr1-ignored=0 term-ignored=0 blocked=0000000000000000. Contract PASS.",
               "definition_sha256": "cd436e0923ff98bd7fed82e128a67a461370bb38288abbcc106c224427227ec4"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sudo-doas-fallback-translation",
+              "assertion": "The selected run47 recorder DOES print open-fds=[] and usr1-ignored=0 term-ignored=0 blocked=0000000000000000 with caller fds 7/9 open and signals ignored. This exercises the shared bda_run_external hygiene from the sudo route; the direct doas case already covers the requirement. The stale recorder-defect claim is false for the selected payload.",
+              "definition_sha256": "66d0153ef22965b8870cfda66e69fa9aabc514fe7bbcb91b4fc27295584a2eee"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sudo-list-delegate-only",
+              "assertion": "The selected run47 recorder DOES print open-fds=[] and usr1-ignored=0 term-ignored=0 blocked=0000000000000000 with caller fds 7/9 open and signals ignored. This exercises the shared bda_run_external hygiene from the sudo route; the direct doas case already covers the requirement. The stale recorder-defect claim is false for the selected payload.",
+              "definition_sha256": "3ab0e8db504b10b77af20d069f4ec8ecb77003e7117cc3d99f37818202deccb6"
             }
           ],
           "gap": ""
@@ -10385,7 +10548,7 @@
           "gap": ""
         }
       ],
-      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "doas/root_target_and_group_drop",
@@ -10784,6 +10947,12 @@
               "id": "migration-expect-alt-on-pty",
               "assertion": "expect-alt zzz 'id=[0-9]+' -> 'rc=0 which=1 match=id=42'",
               "definition_sha256": "b14e4dc978dabf4dc34d281c2093eed2326cbe28fe83994126ed30fa5a3598c8"
+            },
+            {
+              "group": "shell",
+              "id": "migration-expect-tcl-alt-pattern",
+              "assertion": "The archived out file explicitly asserts this obligation on candidate and Tcl Expect reference on both builds. Current requirements already have valid contract/PTY evidence; the extra reference-backed mapping is sound and redundant.",
+              "definition_sha256": "da8792ccd55f87856cf296c862215341ff96de3740156a479a3a35dd7088f139"
             }
           ],
           "gap": ""
@@ -10798,6 +10967,12 @@
               "id": "migration-expect-alt-on-pty",
               "assertion": "'spl' observed first (first-part=0), 'it-ok' written 300 ms later: expect 'split-ok' -> 'rc=0 match=split-ok'",
               "definition_sha256": "b14e4dc978dabf4dc34d281c2093eed2326cbe28fe83994126ed30fa5a3598c8"
+            },
+            {
+              "group": "shell",
+              "id": "migration-expect-tcl-alt-pattern",
+              "assertion": "The archived out file explicitly asserts this obligation on candidate and Tcl Expect reference on both builds. Current requirements already have valid contract/PTY evidence; the extra reference-backed mapping is sound and redundant.",
+              "definition_sha256": "da8792ccd55f87856cf296c862215341ff96de3740156a479a3a35dd7088f139"
             }
           ],
           "gap": ""
@@ -10818,12 +10993,18 @@
               "id": "migration-expect-alt-on-pty",
               "assertion": "after marker and a 600 ms pause, -t 0 'late-token' -> 0 and -t 0 absent pattern -> 1, both within 500 ms",
               "definition_sha256": "b14e4dc978dabf4dc34d281c2093eed2326cbe28fe83994126ed30fa5a3598c8"
+            },
+            {
+              "group": "shell",
+              "id": "migration-expect-tcl-alt-pattern",
+              "assertion": "The archived out file explicitly asserts this obligation on candidate and Tcl Expect reference on both builds. Current requirements already have valid contract/PTY evidence; the extra reference-backed mapping is sound and redundant.",
+              "definition_sha256": "da8792ccd55f87856cf296c862215341ff96de3740156a479a3a35dd7088f139"
             }
           ],
           "gap": ""
         }
       ],
-      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "expect/deadline-eof-timeout",
@@ -10936,6 +11117,12 @@
               "id": "migration-expect-spawn-round-trip",
               "assertion": "expect 'name\\? $' -V prompt -> 'rc=0 prompt=[name? ]'",
               "definition_sha256": "adfc20bdef6bf11b4f565de2b740ff93490a2b27c25e9736f6af442c5e9d1e91"
+            },
+            {
+              "group": "shell",
+              "id": "migration-expect-tcl-round-trip",
+              "assertion": "The archived out file explicitly asserts this obligation on candidate and Tcl Expect reference on both builds. Current requirements already have valid contract/PTY evidence; the extra reference-backed mapping is sound and redundant.",
+              "definition_sha256": "07e3d6a780e1d8937446beddb4a3489ee53cc69761a92b4d459aa49a635d9985"
             }
           ],
           "gap": ""
@@ -10956,6 +11143,12 @@
               "id": "migration-expect-spawn-round-trip",
               "assertion": "sendline alice -> child read 'alice\\n'; echo 'alice\\r' in buffer (ECHO/ONLCR); send 'bob\\r' -> child read 'bob\\n' (ICRNL)",
               "definition_sha256": "adfc20bdef6bf11b4f565de2b740ff93490a2b27c25e9736f6af442c5e9d1e91"
+            },
+            {
+              "group": "shell",
+              "id": "migration-expect-tcl-round-trip",
+              "assertion": "The archived out file explicitly asserts this obligation on candidate and Tcl Expect reference on both builds. Current requirements already have valid contract/PTY evidence; the extra reference-backed mapping is sound and redundant.",
+              "definition_sha256": "07e3d6a780e1d8937446beddb4a3489ee53cc69761a92b4d459aa49a635d9985"
             }
           ],
           "gap": ""
@@ -10982,6 +11175,12 @@
               "id": "migration-expect-close-signal-status",
               "assertion": "eof=0 after a self-signalled child",
               "definition_sha256": "5e3c3c332918a88d523be25851e749f31376b116cd5cfd4ccc951e42a8a9b4ab"
+            },
+            {
+              "group": "shell",
+              "id": "migration-expect-tcl-round-trip",
+              "assertion": "The archived out file explicitly asserts this obligation on candidate and Tcl Expect reference on both builds. Current requirements already have valid contract/PTY evidence; the extra reference-backed mapping is sound and redundant.",
+              "definition_sha256": "07e3d6a780e1d8937446beddb4a3489ee53cc69761a92b4d459aa49a635d9985"
             }
           ],
           "gap": ""
@@ -11002,6 +11201,12 @@
               "id": "migration-expect-close-signal-status",
               "assertion": "close=143 (SIGTERM) and close=129 (SIGHUP from master hangup, without waiting for the 30 s sleep)",
               "definition_sha256": "5e3c3c332918a88d523be25851e749f31376b116cd5cfd4ccc951e42a8a9b4ab"
+            },
+            {
+              "group": "shell",
+              "id": "migration-expect-tcl-round-trip",
+              "assertion": "The archived out file explicitly asserts this obligation on candidate and Tcl Expect reference on both builds. Current requirements already have valid contract/PTY evidence; the extra reference-backed mapping is sound and redundant.",
+              "definition_sha256": "07e3d6a780e1d8937446beddb4a3489ee53cc69761a92b4d459aa49a635d9985"
             }
           ],
           "gap": ""
@@ -11022,12 +11227,18 @@
               "id": "migration-expect-close-signal-status",
               "assertion": "both children gone; guest owned-process check",
               "definition_sha256": "5e3c3c332918a88d523be25851e749f31376b116cd5cfd4ccc951e42a8a9b4ab"
+            },
+            {
+              "group": "shell",
+              "id": "migration-expect-tcl-round-trip",
+              "assertion": "The archived out file explicitly asserts this obligation on candidate and Tcl Expect reference on both builds. Current requirements already have valid contract/PTY evidence; the extra reference-backed mapping is sound and redundant.",
+              "definition_sha256": "07e3d6a780e1d8937446beddb4a3489ee53cc69761a92b4d459aa49a635d9985"
             }
           ],
           "gap": ""
         }
       ],
-      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "expect/secret-handle-delivery",
@@ -12204,6 +12415,12 @@
               "id": "migration-fstrim-single-target",
               "assertion": "real tmpfs/proc unsupported as uid 2000, --quiet-unsupported",
               "definition_sha256": "c3fa6d775851427e1828c11ca18bed66a3362420ce7d2aa88663b6d3650dd7e0"
+            },
+            {
+              "group": "shell",
+              "id": "migration-fstrim-selection-listed-tables",
+              "assertion": "Valid additional table-mode observation on both builds: listed-tables records unsupported diagnostics/quiet suppression plus statuses 0 and 32 and request counts; discard-capable-root records -a/-A status 0, with its FAIL due to a selection difference. These subchecks do not alone cover every aggregate status; retain existing root/mocked evidence for the complete requirement.",
+              "definition_sha256": "9b702627b6733e60bbdd393bfbb7665f5d3fe616f2c3aa4fd4b6e869726f5974"
             }
           ],
           "gap": ""
@@ -12236,12 +12453,18 @@
               "id": "migration-fstrim-fitrim-root",
               "assertion": "-I list of two filesystems: all succeed status 0; -o 8M beyond the 4 MiB filesystem only gives 'FITRIM ioctl failed: Invalid argument' for it and status 64; -o 64M fails both, status 32; with the second request answered EOPNOTSUPP the unsupported message appears (or is silenced with --quiet-unsupported) and the status is 0; PASS.",
               "definition_sha256": "7d57e8c5e14c0ed82dd5c4d706705bb63b3ea0a01d861bb28b28da5e6e6f3a19"
+            },
+            {
+              "group": "shell",
+              "id": "migration-fstrim-selection-listed-tables",
+              "assertion": "Valid additional table-mode observation on both builds: listed-tables records unsupported diagnostics/quiet suppression plus statuses 0 and 32 and request counts; discard-capable-root records -a/-A status 0, with its FAIL due to a selection difference. These subchecks do not alone cover every aggregate status; retain existing root/mocked evidence for the complete requirement.",
+              "definition_sha256": "9b702627b6733e60bbdd393bfbb7665f5d3fe616f2c3aa4fd4b6e869726f5974"
             }
           ],
           "gap": ""
         }
       ],
-      "notes": "Root batch D on the rented VM host (root-d-81; supersedes root-d-80, where the two fstrim fixtures exceeded the default 8 MiB file-size limit during setup). privilege=root sides on ext loop mounts, loop and dm-zero devices; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "fstrim/fstab-tags-and-root",
@@ -29973,9 +30196,9 @@
         "purpose": "Exercise host-key scanning and hashing, local/remote forwarding lifecycle, and encrypted SFTP transfers against a controlled peer.",
         "reason": "Requires a future disposable VM or independently reviewed network mock that provides a bounded SSH/SFTP peer, deterministic fixture ports and files, and an isolated route. No peer or network activity is available or permitted in this run."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: One forwarded exchange succeeds, but the local forward exits after that connection and its list is empty before cancel; a separate live-list/cancel-before-data probe is pending in batch43.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -29985,7 +30208,7 @@
             {
               "group": "shell",
               "id": "migration-ssh-keyscan-streams",
-              "assertion": "byte parity of stdout key lines and stderr comment lines vs ssh-keyscan; predicted FAIL: candidate prints '# host:port banner' on stdout (ssh.c:3465-3471)",
+              "assertion": "The selected candidate and OpenSSH reference stdout/stderr are equal on both builds; keyscan comment/data stream placement is PASS, replacing the obsolete predicted-failure description.",
               "definition_sha256": "9c1343efb4f6a4771df7d08e10ec6a5e1d69bb788b3398f89a40fb1d09c56763"
             },
             {
@@ -30014,16 +30237,28 @@
         {
           "id": "r3",
           "behavior": "Local forward -L: open, carry bytes to a destination, --list shows it, --cancel removes it",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-ssh-forward-local",
-              "assertion": "-L open + bytes to destination and back; --list/--cancel in the parent shell (3r4 fix); listener gone",
+              "assertion": "Local -L open/data/list/cancel union is fully exercised. Single and multi expose one-connection listener retirement; live-list cancellation before data succeeds. Preserve all three FAIL statuses. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
               "definition_sha256": "5e40f5da833b57a0e1ff12656ecddc4c462c9fd3a2e450b39f1e2322f89cd132"
+            },
+            {
+              "group": "shell",
+              "id": "migration-ssh-forward-local-multi",
+              "assertion": "Local -L open/data/list/cancel union is fully exercised. Single and multi expose one-connection listener retirement; live-list cancellation before data succeeds. Preserve all three FAIL statuses. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
+              "definition_sha256": "ceaa1fda83a0a24f2dcfa27c6812e55c5e8f0f47e3f684e604695991ccf181db"
+            },
+            {
+              "group": "shell",
+              "id": "migration-ssh-forward-local-cancel-before-data",
+              "assertion": "Local -L open/data/list/cancel union is fully exercised. Single and multi expose one-connection listener retirement; live-list cancellation before data succeeds. Preserve all three FAIL statuses. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
+              "definition_sha256": "3a9f56ae7887db563b2df3f783271f4303ba1c49e115231da1252aaa1c282a0f"
             }
           ],
-          "gap": "One forwarded exchange succeeds, but the local forward exits after that connection and its list is empty before cancel; a separate live-list/cancel-before-data probe is pending in batch43."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -30054,7 +30289,7 @@
           "gap": ""
         }
       ],
-      "notes": "Root reviewed original compound obligations, fixture definitions and both unchanged-build VM records. Only reached assertions are covered; early candidate rejection remains partial. Reference/fixture errors are excluded. PASS and FAIL retain their distinct meanings."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "ssh/ssh-pty-multiplex-deferred",
@@ -30243,7 +30478,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r2: The from, no-pty and no-port-forwarding restrictions are exercised. The per-key no-agent-forwarding branch remains untested.; r4: Requires the bash-os kernel auth device /dev/bashos-auth (sshd.c:165,2160-2185) used to verify the PHC hash; the Debian trixie VM kernel has no such device, and a script cannot emulate a kernel ioctl interface.; r7: Not executed (sshd.c:2950-2965).; r8: Direct forwarding allow/deny is exercised; the allowed round-trip exposes a candidate lost-reply defect. Reverse-forward authorization denial remains untested.",
+      "current_reason": "Remaining obligations: r2: The from, no-pty and no-port-forwarding restrictions are exercised. The per-key no-agent-forwarding branch remains untested.; r4: Requires the bash-os kernel auth device /dev/bashos-auth (sshd.c:165,2160-2185) used to verify the PHC hash; the Debian trixie VM kernel has no such device, and a script cannot emulate a kernel ioctl interface.; r7: PasswordAuthentication no is set in every variant; no discriminating prohibit-password password attempt, nor admitted command execution.; r8: Reverse-forward denial is still missing.",
       "requirements": [
         {
           "id": "r1",
@@ -30349,9 +30584,16 @@
         {
           "id": "r7",
           "behavior": "PermitRootLogin no / prohibit-password for a uid-0 target",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed (sshd.c:2950-2965)."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sshd-permit-root-login-userns",
+              "assertion": "UID-0 publickey root admission is refused for no and held for prohibit-password/yes; no-mode command marker remains absent. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
+              "definition_sha256": "8e146b16593aa1bdec38a428d30f5f423b00c203d96f8ac195cabfd185e04487"
+            }
+          ],
+          "gap": "PasswordAuthentication no is set in every variant; no discriminating prohibit-password password attempt, nor admitted command execution."
         },
         {
           "id": "r8",
@@ -30369,12 +30611,30 @@
               "id": "migration-sshd-direct-forward-denied",
               "assertion": "denial branch for direct forwarding",
               "definition_sha256": "68fad06b65bf6454168a2f397073a824d1ec71efb821e80120f8a6b0475942c2"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sshd-direct-forward-local-listener",
+              "assertion": "Allowed direct and reverse paths are reached with explicit bytes/connection observations. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
+              "definition_sha256": "48ec28e56873747a11b4fa21df7fcc22c8790f6981ffbab4bf934d2fd7e0c8ce"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sshd-reverse-forward-only",
+              "assertion": "Allowed direct and reverse paths are reached with explicit bytes/connection observations. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
+              "definition_sha256": "5be85ef6eeb4b63ee5d50c9482f3a320d4aca423e87eacea5be475be3b46afc3"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sshd-reverse-forward-cancel",
+              "assertion": "Allowed direct and reverse paths are reached with explicit bytes/connection observations. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
+              "definition_sha256": "c574fe069d5d1e31982d4bba5e4cd4b7520cbaea3752ace8925927faf8d3fc8a"
             }
           ],
-          "gap": "Direct forwarding allow/deny is exercised; the allowed round-trip exposes a candidate lost-reply defect. Reverse-forward authorization denial remains untested."
+          "gap": "Reverse-forward denial is still missing."
         }
       ],
-      "notes": "Root reviewed original compound obligations, fixture definitions and both unchanged-build VM records. Only reached assertions are covered; early candidate rejection remains partial. Reference/fixture errors are excluded. PASS and FAIL retain their distinct meanings."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "sshd/configuration-policy",
@@ -30565,7 +30825,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r2: Native key creation, mode and public file are checked, but the documented placeholder bytes are not asserted.; r4: Lazy native creation and notice pass. The encrypted-key case used a scan parser that included a comment line, so its key-equality observation is invalid pending correction and rerun.",
+      "current_reason": "Remaining obligations: r2: Native key creation, mode and public file are checked, but the documented placeholder bytes are not asserted.",
       "requirements": [
         {
           "id": "r1",
@@ -30612,19 +30872,25 @@
         {
           "id": "r4",
           "behavior": "Missing default-path key (BASHSSHD_HOSTKEY) is lazily created on first start, native placeholder or encrypted Ed25519, with mode 0600 and a stderr notice",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-sshd-lazy-native-hostkey",
-              "assertion": "lazy native key mode 0600 plus stderr notice",
+              "assertion": "Native and encrypted lazy-key branches now have valid matching evidence; corrected encrypted scan parser observes served-key-matches. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
               "definition_sha256": "cb6f6c2bee0154a6d2565ffb15a842fd019aec8a7f433200fffb8e26575fb3d0"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sshd-lazy-encrypted-hostkey",
+              "assertion": "Native and encrypted lazy-key branches now have valid matching evidence; corrected encrypted scan parser observes served-key-matches. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
+              "definition_sha256": "768bc9f2d454bb8f13bd86a25ffbd649f50a1773f0d89a4d4160ad44e2ce05be"
             }
           ],
-          "gap": "Lazy native creation and notice pass. The encrypted-key case used a scan parser that included a comment line, so its key-equality observation is invalid pending correction and rerun."
+          "gap": ""
         }
       ],
-      "notes": "Root reviewed original compound obligations, fixture definitions and both unchanged-build VM records. Only reached assertions are covered; early candidate rejection remains partial. Reference/fixture errors are excluded. PASS and FAIL retain their distinct meanings."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "sshd/native-command-stream",
@@ -30775,6 +31041,12 @@
               "id": "migration-sshd-session-lifecycle",
               "assertion": "stop status 0, server exit 0, pidfile removed",
               "definition_sha256": "3f873e6ac6a776597bd7846d3566099ebf100a01da08e89c06b91cd6d08cadbf"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sshd-lazy-native-hostkey",
+              "assertion": "lazy-native records stop=0 and server-stopped. This supplements termination but does not independently assert pidfile removal; retain the current lifecycle case for the complete r4.",
+              "definition_sha256": "cb6f6c2bee0154a6d2565ffb15a842fd019aec8a7f433200fffb8e26575fb3d0"
             }
           ],
           "gap": ""
@@ -30794,7 +31066,7 @@
           "gap": "Reload signals the server and it remains running; a changed configuration value has not been observed taking effect."
         }
       ],
-      "notes": "Root reviewed original compound obligations, fixture definitions and both unchanged-build VM records. Only reached assertions are covered; early candidate rejection remains partial. Reference/fixture errors are excluded. PASS and FAIL retain their distinct meanings."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "sshd/sftp-and-forwarding",
@@ -30806,7 +31078,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: SFTP put/get/chmod bytes and modes pass; directory listing is not asserted.; r2: The direct-tcpip channel is exercised with ssh -W and loses a reply after EOF. An actual ssh -L local-listener probe is pending in batch43.; r3: The combined reverse-forward/session scenario fails before its listener data path. Separate reverse-only/cancel probes are pending in batch43.; r4: The candidate disconnects before the remote command, so agent-socket/channel use is not yet observed.; r5: Direct forwarding and global agent-forwarding denials are checked. SFTP-unavailable refusal and the per-key no-agent-forwarding branch remain untested.",
+      "current_reason": "Remaining obligations: r1: SFTP put/get/chmod bytes and modes pass; directory listing is not asserted.; r4: No agent-channel request/reply is asserted; original ssh-add -l case exits early.; r5: Direct forwarding and global agent-forwarding denials are checked. SFTP-unavailable refusal and the per-key no-agent-forwarding branch remain untested.",
       "requirements": [
         {
           "id": "r1",
@@ -30825,30 +31097,48 @@
         {
           "id": "r2",
           "behavior": "Direct TCP forwarding (ssh -L) through sshd to a loopback destination when allowed",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-sshd-direct-forward-allowed",
               "assertion": "ssh -W direct-tcpip when allowed: executed round trip; candidate FAIL loses the reply after client EOF",
               "definition_sha256": "821fadec79e98904ac3d8ed78a7f32ca0388f321be8c41c2ff7129c6bd723091"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sshd-direct-forward-local-listener",
+              "assertion": "Actual OpenSSH -L listener relays echo:one; the candidate closes the SSH connection after the channel, recorded by kill: No such process. FAIL remains FAIL. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
+              "definition_sha256": "48ec28e56873747a11b4fa21df7fcc22c8790f6981ffbab4bf934d2fd7e0c8ce"
             }
           ],
-          "gap": "The direct-tcpip channel is exercised with ssh -W and loses a reply after EOF. An actual ssh -L local-listener probe is pending in batch43."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Reverse forwarding (ssh -R) opens a server-side listener that forwards back",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-sshd-reverse-forward",
               "assertion": "attempted scenario: -R with a remote command on one connection; candidate refuses/stalls the session channel",
               "definition_sha256": "b5b7b14a614ad7fa4a41ffb8df96a6167279dd14acf62375897cc3270b9e88dc"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sshd-reverse-forward-only",
+              "assertion": "Server-side -R listener and data attempt reached; forwarded request rejected and no reply returned. Cancel removes the listener but drops the master connection. Both references valid; FAIL. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
+              "definition_sha256": "5be85ef6eeb4b63ee5d50c9482f3a320d4aca423e87eacea5be475be3b46afc3"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sshd-reverse-forward-cancel",
+              "assertion": "Server-side -R listener and data attempt reached; forwarded request rejected and no reply returned. Cancel removes the listener but drops the master connection. Both references valid; FAIL. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
+              "definition_sha256": "c574fe069d5d1e31982d4bba5e4cd4b7520cbaea3752ace8925927faf8d3fc8a"
             }
           ],
-          "gap": "The combined reverse-forward/session scenario fails before its listener data path. Separate reverse-only/cancel probes are pending in batch43."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -30860,9 +31150,15 @@
               "id": "migration-sshd-agent-forward-allowed",
               "assertion": "attempted scenario: -A session with key listing; candidate disconnects before the command",
               "definition_sha256": "ea62c8cf4057c654469a44d1a26feaba07b9473e0aa705d84ce94dfea6bda49d"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sshd-agent-forward-session-env",
+              "assertion": "Agent-forwarded session runs with SSH_AUTH_SOCK set and a socket present. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
+              "definition_sha256": "7a5e8553f1865d1f728cfbcd8c16b7ba204e63328a946405b138346f82b76b98"
             }
           ],
-          "gap": "The candidate disconnects before the remote command, so agent-socket/channel use is not yet observed."
+          "gap": "No agent-channel request/reply is asserted; original ssh-add -l case exits early."
         },
         {
           "id": "r5",
@@ -30891,7 +31187,7 @@
           "gap": "Direct forwarding and global agent-forwarding denials are checked. SFTP-unavailable refusal and the per-key no-agent-forwarding branch remain untested."
         }
       ],
-      "notes": "Root reviewed original compound obligations, fixture definitions and both unchanged-build VM records. Only reached assertions are covered; early candidate rejection remains partial. Reference/fixture errors are excluded. PASS and FAIL retain their distinct meanings."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "stat/device-node-formats",
@@ -31722,21 +32018,35 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: Requires the device for the advertised path and digest.; r2: Requires the device.; r4: The authority route (listing then never approving execution) needs the /dev/bashos-auth device.",
+      "current_reason": "Remaining obligations: r1: Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised.; r2: Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised.; r4: The authority route (listing then never approving execution) needs the /dev/bashos-auth device.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-l / -ll / --list render the caller-filtered projection of the authority-advertised policy, bound to its digest.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device for the advertised path and digest."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-policy-list-caller-projection",
+              "assertion": "Shared renderer subchecks: short/long caller projection, normalized renderer/parser digest agreement, empty/no-match summary entries=0. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
+              "definition_sha256": "6650fd03cef955148cb484375e5303173a2cd9fe76fcd19ee2a3294a0208d4b3"
+            }
+          ],
+          "gap": "Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised."
         },
         {
           "id": "r2",
           "behavior": "Empty and no-match policies render as documented.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-policy-list-caller-projection",
+              "assertion": "Shared renderer subchecks: short/long caller projection, normalized renderer/parser digest agreement, empty/no-match summary entries=0. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
+              "definition_sha256": "6650fd03cef955148cb484375e5303173a2cd9fe76fcd19ee2a3294a0208d4b3"
+            }
+          ],
+          "gap": "Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised."
         },
         {
           "id": "r3",
@@ -31767,7 +32077,7 @@
           "gap": "The authority route (listing then never approving execution) needs the /dev/bashos-auth device."
         }
       ],
-      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "sudo/root-credential-drop",
@@ -33871,9 +34181,9 @@
         "purpose": "Exercise recovery when one already-open output fails during write while other output descriptors remain healthy.",
         "reason": "Requires a disposable VM with a reviewed deterministic write-fault mock that returns EIO for one private output after open, without relying on /dev/full. A future fixture should compare GNU and candidate status, stderr policy, prompt termination, stdout bytes and the complete contents of healthy sinks for a small bounded input."
       },
-      "coverage": "full",
-      "migration": "replacement",
-      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
+      "coverage": "partial",
+      "migration": null,
+      "current_reason": "Remaining obligations: r3: The independent control establishes EIO and raw diagnostics contain it, but the fixture only asserts diagnostic nonemptiness; an explicit errno-specific diagnostic assertion remains required.",
       "requirements": [
         {
           "id": "r1",
@@ -33906,19 +34216,19 @@
         {
           "id": "r3",
           "behavior": "EIO specifically (errno-specific diagnostic).",
-          "coverage": "covered",
+          "coverage": "partial",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-tee-eio-stdout-continues",
-              "assertion": "parity under the hung-pty stdout wrapper; setup proved EIO with an independent child",
+              "assertion": "An independent hung-PTY control proves EIO; the behavioral fixture currently checks nonzero status, healthy named output bytes and diagnostic presence only. It does not assert errno-specific diagnostic content.",
               "definition_sha256": "c880f4317f896b4b7088e2cc1dfd0d5663d2aa08bb201f247e9f30f0c3bbd71c"
             }
           ],
-          "gap": ""
+          "gap": "The independent control establishes EIO and raw diagnostics contain it, but the fixture only asserts diagnostic nonemptiness; an explicit errno-specific diagnostic assertion remains required."
         }
       ],
-      "notes": "Root reviewed original compound obligations, current fixture definitions and matching raw VM results on both unchanged builds. Only reached assertions qualify; candidate FAIL is retained, while invalid or superseded fixture results are excluded."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "termpixel/termpixel-pty-input",
@@ -38173,6 +38483,12 @@
               "id": "migration-wgetch-pty-handle-timing",
               "assertion": "Private-PTY feeds exercise a lone ESC, continuation within the grace and continuation after the grace, through direct and handle reads; exact key records agree on both builds. Fixed-table prefix/cap limitations remain separate gaps.",
               "definition_sha256": "4abdfff90624d8fa8ee91f9cf80b30d4d2866ee392a98459b11d3104da1aa172"
+            },
+            {
+              "group": "shell",
+              "id": "migration-escdelay-pty-env-grace-and-bounds",
+              "assertion": "The w-within expected file is key_up 257/none 0 with BASHESCDELAY=200 and 100 ms continuation gap on both builds. This supplements r2; it cannot exercise the fixed-table ambiguous-prefix or unreachable total-cap obligations r4/r5.",
+              "definition_sha256": "d31ff0d1b363274f4b9b863efd6e6ba5ab27bbba91f98af7e356af9d369a6815"
             }
           ],
           "gap": ""
@@ -38230,7 +38546,7 @@
           "gap": "Not observable: the longest wgetch key is 6 bytes and the cap timer starts after the second byte, so at most 4 further bytes each within one 50 ms slice arrive in under 200 ms, below the 400 ms minimum cap; any slower trickle ends on the 50 ms slice first. The cap can never be the deciding condition with the fixed table (kgetch's fixture-extensible table is covered by migration-kgetch-total-cap-*)."
         }
       ],
-      "notes": "Root reviewed original compound obligations, fixture definitions and both unchanged-build VM records. Only reached assertions are covered; early candidate rejection remains partial. Reference/fixture errors are excluded. PASS and FAIL retain their distinct meanings."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     },
     {
       "topic": "whiptail/deferred-keyed-input-widgets",
@@ -38966,12 +39282,18 @@
               "id": "migration-zstdcat-window-128mib-control",
               "assertion": "parity control frame; setup proves the 256 MiB frame with zstd --memory=256MB",
               "definition_sha256": "e4db72991d60e0c502ca9665d7778a0eec2bc60d51ce6d41bbca9bd554290cd3"
+            },
+            {
+              "group": "shell",
+              "id": "migration-zstdcat-window-256mib-rejected",
+              "assertion": "Its own setup_script asserts the exact 256 MiB frame decodes to hello under /usr/bin/zstd --memory=256MB before the rejection comparison; both setups complete successfully. This is a direct valid r2 mapping in addition to the current 128 MiB control.",
+              "definition_sha256": "8ee93901456a1cf41578c3b52eefc4909950445fd1a1d21d988c42d097cb6a47"
             }
           ],
           "gap": ""
         }
       ],
-      "notes": "Root reviewed original compound obligations, current fixture definitions and matching raw VM results on both unchanged builds. Only reached assertions qualify; candidate FAIL is retained, while invalid or superseded fixture results are excluded."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
     }
   ]
 }

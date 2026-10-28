@@ -36,27 +36,67 @@
     },
     {
       "id": "wire-format-options",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check one datagram per valid call, default <13> user formatting, explicit tags and priorities, and the PID-bearing -i/--id form. Compute the expected PRI independently as facility * 8 + severity and compare exact packet bytes.",
-      "reason": "No datagram has ever been captured; a private AF_UNIX receiver via BASHLOGGER_SOCKET is enough."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-bashlogger-wire"
+        }
+      ]
     },
     {
       "id": "priority-grammar",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check decimal PRI endpoints 0 and 191, named and numeric facility/severity pairs, case-insensitive names and documented aliases; verify invalid or out-of-range priorities fail before any datagram is sent.",
-      "reason": "Rejection statuses are covered; accepted forms need a private AF_UNIX receiver."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/bashlogger/invalid-facility"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/bashlogger/invalid-priority"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/bashlogger/invalid-severity"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashlogger-priorities"
+        }
+      ]
     },
     {
       "id": "message-framing-limits",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check argument joining including empty arguments, -- termination, stdin input, removal of one trailing LF/CRLF, preservation of internal newlines, NUL rejection, and the documented 2047-byte message boundary against exact received bytes/status.",
-      "reason": "Only pre-socket rejection statuses are executed; delivery bytes need a private AF_UNIX receiver, which the VM can host with BASHLOGGER_SOCKET."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/bashlogger/empty-stdin"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/bashlogger/nul-stdin"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashlogger-framing"
+        }
+      ]
     },
     {
       "id": "socket-path-errors",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check missing and non-socket destinations fail, an overlong socket path is rejected before send, and a path that would otherwise be truncated never receives a packet. Use only private relative fixture paths and independently inspect packet delivery/status.",
-      "reason": "These obligations need only relative files and a private AF_UNIX receiver; no fixture exists."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-bashlogger-paths"
+        }
+      ]
     },
     {
       "id": "descriptor-safety",
