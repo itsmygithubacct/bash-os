@@ -1,0 +1,141 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-sysctl-keys-writes-root",
+      "loadable": "sysctl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "sysctl/key-queries",
+        "sysctl/argument-writes"
+      ],
+      "purpose": "sysctl as root: dotted, slash and multiple key reads of deterministic keys; -n and -N; an unknown key with and without -e; -a with -r patterns (with and without -N); -w and implicit KEY=VALUE writes of net.ipv4 keys and kernel.domainname with read-back, -q; unknown-key writes with and without -e; a write to read-only kernel.ostype; a write as uid 2000. The same keys in the initial namespaces are shown unchanged.",
+      "oracle": "procps-ng 4.0 sysctl",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; /proc/sys values after each write. Each side has fresh network and UTS namespaces, so writes to net.* keys and kernel.domainname change only that side; the initial-namespace values are read with nsenter before and after.",
+      "requires": [
+        "sysctl",
+        "nsenter",
+        "cat",
+        "readlink",
+        "setpriv",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\ncd /tmp; K=\"net.ipv4.ip_forward net.ipv4.conf.lo.forwarding net.ipv4.conf.all.forwarding kernel.domainname\"\nv() { local k; for k; do printf '  %s=%s\\n' $k \"$(< /proc/sys/${k//.//})\"; done; }\ninit() { [[ $(/usr/bin/readlink /proc/1/ns/net) != $(/usr/bin/readlink /proc/self/ns/net) ]] && echo \"  initial namespaces distinct: yes\" || echo \"  initial namespaces distinct: no\"\n  local k; for k in $K; do printf '  init %s=%s\\n' $k \"$(/usr/bin/nsenter -t 1 -n -u /usr/bin/cat /proc/sys/${k//.//})\"; done; }\ninit; v $K\nr read sysctl kernel.ostype\nr read-slash sysctl kernel/ostype\nr read-multi sysctl kernel.ostype net.ipv4.ip_forward net.ipv4.conf.lo.forwarding\nr value-only sysctl -n kernel.ostype net.ipv4.ip_forward\nr name-only sysctl -N kernel.ostype net.ipv4.ip_forward\nr unknown sysctl rf.no.such\nr unknown-ignored sysctl -e rf.no.such\nr unknown-among sysctl kernel.ostype rf.no.such net.ipv4.ip_forward\nr pattern sysctl -a -r '^net\\.ipv4\\.conf\\.lo\\.(forwarding|rp_filter|arp_ignore)$'\nr pattern-names sysctl -a -N -r '^net\\.ipv4\\.conf\\.lo\\.(forwarding|rp_filter)$'\nr pattern-pattern sysctl -a --pattern '^kernel\\.(ostype|domainname)$'\nr write sysctl -w net.ipv4.ip_forward=1; v net.ipv4.ip_forward\nr write-implicit sysctl net.ipv4.ip_forward=0; v net.ipv4.ip_forward\nr write-quiet sysctl -q -w net.ipv4.conf.lo.forwarding=1; v net.ipv4.conf.lo.forwarding\nr write-uts sysctl -w kernel.domainname=rf.example; v kernel.domainname\nr write-multi sysctl -w net.ipv4.ip_forward=1 kernel.domainname=rf.second; v net.ipv4.ip_forward kernel.domainname\nr write-spaces sysctl -w 'net.ipv4.conf.lo.forwarding = 0'; v net.ipv4.conf.lo.forwarding\nr write-unknown sysctl -w rf.no.such=1\nr write-unknown-ignored sysctl -e -w rf.no.such=1\nr write-readonly sysctl -w kernel.ostype=Other; v kernel.ostype\nu write-unprivileged \"sysctl -w net.ipv4.ip_forward=0\"; v net.ipv4.ip_forward\nr write-noequals sysctl -w net.ipv4.ip_forward\ninit\n",
+      "expected_status": 0,
+      "timeout": 45
+    },
+    {
+      "id": "migration-sysctl-loaders-root",
+      "loadable": "sysctl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "sysctl/configuration-loaders"
+      ],
+      "purpose": "sysctl -p on fixture files (comments with # and ;, blank lines, spaces around =, a leading - ignore-failure prefix, an unknown key, a line without =), -p with several files and -p with no file named (/etc/sysctl.conf); --system over fixture directories bind-mounted on /etc/sysctl.d, /run/sysctl.d, /usr/lib/sysctl.d and /etc/sysctl.conf, where a same-named file in /etc/sysctl.d overrides /usr/lib/sysctl.d. Only net.ipv4 keys and kernel.domainname are set. Any missing configuration path (the guest lacks /etc/sysctl.conf and /run/sysctl.d) is created as an empty mount point for the side and removed afterwards; a same-named file in /run/sysctl.d overrides /usr/lib/sysctl.d and /usr/local/lib/sysctl.d holds its own file; if any fixture mount fails, --system is not run.",
+      "oracle": "procps-ng 4.0 sysctl",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; /proc/sys values after each load. Each side has fresh network and UTS namespaces, so writes to net.* keys and kernel.domainname change only that side; the initial-namespace values are read with nsenter before and after. The system configuration paths are replaced in the side's mount namespace only.",
+      "requires": [
+        "sysctl",
+        "nsenter",
+        "cat",
+        "readlink",
+        "mount",
+        "umount",
+        "mkdir",
+        "rm",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\ncd /tmp; K=\"net.ipv4.ip_forward net.ipv4.conf.lo.forwarding net.ipv4.conf.all.forwarding kernel.domainname\"\nv() { local k; for k; do printf '  %s=%s\\n' $k \"$(< /proc/sys/${k//.//})\"; done; }\ninit() { [[ $(/usr/bin/readlink /proc/1/ns/net) != $(/usr/bin/readlink /proc/self/ns/net) ]] && echo \"  initial namespaces distinct: yes\" || echo \"  initial namespaces distinct: no\"\n  local k; for k in $K; do printf '  init %s=%s\\n' $k \"$(/usr/bin/nsenter -t 1 -n -u /usr/bin/cat /proc/sys/${k//.//})\"; done; }\ninit; v $K\nprintf '# comment\\n; also a comment\\n\\nnet.ipv4.ip_forward = 1\\n  net.ipv4.conf.lo.forwarding=1\\n-rf.no.such = 3\\nkernel.domainname = rf.loaded\\n' > /tmp/a.conf\nprintf 'net.ipv4.ip_forward=0\\nrf.no.such = 1\\nthis line has no equals\\nkernel.domainname=rf.bad\\n' > /tmp/bad.conf\nprintf 'net.ipv4.conf.all.forwarding = 1\\n' > /tmp/c.conf\nr load sysctl -p /tmp/a.conf; v $K\nr load-bad sysctl -p /tmp/bad.conf; v $K\nr load-two sysctl -p /tmp/c.conf -p /tmp/a.conf; v $K\nr load-missing sysctl -p /tmp/missing.conf\nr load-quiet sysctl -q -p /tmp/a.conf\nS=/tmp/sys; ok=1; made=\nfor d in /etc/sysctl.d /run/sysctl.d /usr/lib/sysctl.d /usr/local/lib/sysctl.d; do\n  [[ -d $d ]] || { /usr/bin/mkdir $d && made+=\" $d\"; } || ok=0\n  /usr/bin/mkdir -p $S$d && /usr/bin/mount --bind $S$d $d || ok=0; done\n[[ -e /etc/sysctl.conf ]] || { : > /etc/sysctl.conf && made+=\" /etc/sysctl.conf\"; }\nprintf 'net.ipv4.ip_forward = 0\\n' > $S/sysctl.conf && /usr/bin/mount --bind $S/sysctl.conf /etc/sysctl.conf || ok=0\nif ((ok)); then\n  printf 'net.ipv4.ip_forward = 1\\nkernel.domainname = from-usr-lib\\n' > /usr/lib/sysctl.d/10-rf.conf\n  printf 'net.ipv4.conf.lo.forwarding = 0\\n' > /usr/lib/sysctl.d/30-rf.conf\n  printf 'kernel.domainname = from-etc\\n' > /etc/sysctl.d/10-rf.conf\n  printf 'net.ipv4.conf.all.forwarding = 0\\n' > /run/sysctl.d/20-rf.conf\n  printf 'net.ipv4.conf.lo.forwarding = 1\\n' > /run/sysctl.d/30-rf.conf\n  printf 'net.ipv4.conf.default.forwarding = 1\\n' > /usr/local/lib/sysctl.d/40-rf.conf\n  r load-default sysctl -p; v $K; r system sysctl --system; v $K net.ipv4.conf.default.forwarding; else echo SETUP-FAILED; fi\n/usr/bin/umount /etc/sysctl.conf /etc/sysctl.d /run/sysctl.d /usr/lib/sysctl.d /usr/local/lib/sysctl.d 2>/dev/null\nfor m in $made; do /usr/bin/rm -d -- $m; done\ninit\n",
+      "expected_status": 0,
+      "timeout": 45
+    },
+    {
+      "id": "migration-sysctl-dump-root",
+      "loadable": "sysctl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "sysctl/recursive-dump"
+      ],
+      "purpose": "sysctl -a, -A, -a -N, -a -n and -a -r on a fixed tree mounted over /proc/sys in the side's mount namespace (nested directories, a multi-word value, a multi-line value, an empty file and a write-only 0200 entry), run without CAP_DAC_OVERRIDE so the write-only entry is unreadable; then a named read of the write-only key.",
+      "oracle": "procps-ng 4.0 sysctl",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix. The tree is a tmpfs created by the fixture; the real /proc/sys returns when the side ends.",
+      "requires": [
+        "sysctl",
+        "mount",
+        "umount",
+        "mkdir",
+        "chmod",
+        "setpriv",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nT=/tmp/ptree; /usr/bin/mkdir -p $T && /usr/bin/mount -t tmpfs -o size=1M rf-sys $T || echo SETUP-FAILED\ncd $T && /usr/bin/mkdir -p abi kernel/random net/ipv4/conf/lo vm\necho 1 > abi/vsyscall32; echo Linux > kernel/ostype; echo 'rf.domain' > kernel/domainname\nprintf '4\\t4\\t1\\t7\\n' > kernel/printk; : > kernel/random/empty; printf 'line one\\nline two\\n' > vm/multi\necho 0 > net/ipv4/ip_forward; echo 1 > net/ipv4/conf/lo/forwarding; echo secret > kernel/wo; /usr/bin/chmod 0200 kernel/wo\ncd /tmp; /usr/bin/mount --bind $T /proc/sys || echo SETUP-FAILED\nN=\"/usr/bin/setpriv --bounding-set=-dac_override,-dac_read_search -- $BASH --noprofile --norc -c\"\nd() { $N \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nd all \"sysctl -a\"\nd all-upper \"sysctl -A\"\nd names \"sysctl -a -N\"\nd values \"sysctl -a -n\"\nd pattern \"sysctl -a -r '^net\\.'\"\nd pattern-names \"sysctl -a -N -r 'o(stype|main)'\"\nd write-only \"sysctl kernel.wo\"\n/usr/bin/umount /proc/sys; /usr/bin/umount $T\n",
+      "expected_status": 0,
+      "timeout": 45
+    },
+    {
+      "id": "migration-dmesg-live-ring-root",
+      "loadable": "dmesg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "dmesg/live-ring-buffer",
+        "dmesg/clear-ring-buffer"
+      ],
+      "purpose": "dmesg reading the live /dev/kmsg ring after a util-linux clear and four seeded user-facility records (info, err, warning, notice): -f user -t, with -l err,warn, -r -t, -x -t, -k -t; -c -f user -t prints the records and clears the ring (a following read is empty); as uid 2000, reading and -c fail and the ring keeps a reseeded record; with BASHDMESG_DEV_KMSG_FILE pointing at a fixture file, -c under a filter that kills syslog(2).",
+      "oracle": "util-linux 2.41 dmesg on the same ring; util-linux dmesg as the ring readback",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; the user-facility ring contents read by util-linux after each clearing step. Timestamps are suppressed with -t. The ring is shared by both sides, so each side clears and reseeds it first.",
+      "requires": [
+        "dmesg",
+        "cut",
+        "tr",
+        "setpriv",
+        "python3",
+        "sed"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nlvl=$(/usr/bin/cut -f1 /proc/sys/kernel/printk)\ntrap 'echo $lvl > /proc/sys/kernel/printk' EXIT\nseed() { local m; for m; do printf '%s\\n' \"$m\" > /dev/kmsg; done; }\nring() { echo \"  ring: $(/usr/bin/dmesg -f user -t | /usr/bin/tr '\\n' '|')\"; }\n/usr/bin/dmesg -C || echo SETUP-FAILED\nseed '<14>rf-seed: info record one' '<11>rf-seed: error record two' '<12>rf-seed: warning record three' '<13>rf-seed: notice record four'\nr user dmesg -f user -t\nr levels dmesg -f user -t -l err,warn\nr raw dmesg -f user -r -t\nr decode dmesg -f user -x -t\nr kernel-only dmesg -k -t -l emerg\nr clear dmesg -c -f user -t; ring\nr after-clear dmesg -f user -t\nseed '<14>rf-seed: kept record'\nu read-unprivileged \"dmesg -f user -t\"\nu clear-unprivileged \"dmesg -c\"; ring\nprintf '6,1,100,-;rf-fixture: hook record\\n' > /tmp/kmsg.txt; /usr/bin/chmod 0644 /tmp/kmsg.txt\nBASHDMESG_DEV_KMSG_FILE=/tmp/kmsg.txt PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill syslog -- \"$BASH\" --noprofile --norc -c 'dmesg -c -t' >/tmp/rf.out 2>/tmp/rf.err; show hook-clear $?; ring\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      }
+    },
+    {
+      "id": "migration-dmesg-console-level-root",
+      "loadable": "dmesg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "dmesg/console-level-change"
+      ],
+      "purpose": "dmesg -n with numeric levels 1, 4 and 8, named levels (err, debug), an invalid name, an out-of-range number and a missing argument; as uid 2000, -n 4 fails and the level stays. The console level (first field of /proc/sys/kernel/printk) is shown after each step and restored when the side ends.",
+      "oracle": "util-linux 2.41 dmesg",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; the console level after each step.",
+      "requires": [
+        "dmesg",
+        "cut",
+        "tr",
+        "setpriv",
+        "sed"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nlvl=$(/usr/bin/cut -f1 /proc/sys/kernel/printk)\ntrap 'echo $lvl > /proc/sys/kernel/printk' EXIT\nc() { echo \"  console level: $(/usr/bin/cut -f1 /proc/sys/kernel/printk)\"; }\necho 7 > /proc/sys/kernel/printk; c\nr n1 dmesg -n 1; c\nr n4 dmesg -n 4; c\nr n8 dmesg -n 8; c\nr named-err dmesg -n err; c\nr named-debug dmesg -n debug; c\nr bad-name dmesg -n bogus; c\nr out-of-range dmesg -n 9; c\nr missing dmesg -n; c\necho 6 > /proc/sys/kernel/printk\nu unprivileged \"dmesg -n 4\"; c\n",
+      "expected_status": 0,
+      "timeout": 45
+    }
+  ]
+}

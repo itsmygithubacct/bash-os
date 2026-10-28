@@ -105,19 +105,29 @@
       "id": "live-ring-buffer",
       "kind": "deferred",
       "purpose": "Read and decode records from the live kernel ring buffer.",
-      "reason": "Decoder logic executed on regular files only. Live /dev/kmsg reading needs CAP_SYSLOG (dmesg_restrict) and root to seed records; no current driver has either."
+      "reason": "Remaining obligations: r3: No --since/--until or 8192-byte boundary case on the live ring."
     },
     {
       "id": "console-level-change",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise dmesg -n against the kernel console log level.",
-      "reason": "No -n invocation executed. The EPERM and usage paths are unprivileged; a successful change needs CAP_SYSLOG and restore of global console level."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-dmesg-console-level-root"
+        }
+      ]
     },
     {
       "id": "clear-ring-buffer",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise dmesg -c against a populated kernel ring buffer.",
-      "reason": "No -c invocation executed. Unprivileged failure and fixture-hook paths are reachable now; live clear needs CAP_SYSLOG plus ring seeding."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-dmesg-live-ring-root"
+        }
+      ]
     }
   ]
 }

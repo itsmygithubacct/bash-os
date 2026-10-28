@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "1f54fcbcb3aae4189b8319851622e5fe54e2e049bc4ed87f3c03209d7e1cbbcf",
+  "ledger_sha256": "cda2f4e2881c0d66bd0c0e47994ef4874e5bff153836a26da09bbfdda9cf9c37",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
     "partial": 97,
-    "none": 266,
-    "full": 237
+    "none": 260,
+    "full": 243
   },
   "migrations": {
-    "deferred": 363,
-    "replacement": 237
+    "deferred": 357,
+    "replacement": 243
   },
   "pending_full_topics": [],
   "builds": {
@@ -1861,6 +1861,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793152431.0990725
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "root-f-static-87",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "107fdc300fd80096af80b717ec109ebcd86a7ea9c1c9ecba14eed522367369f2",
+            "provenance.json": "a5f8ce5d5c5ea1fc904537fa23beef1870b369c21cce83c2cf57467fbad40ddb",
+            "payload.tar": "74f824a2bfda946b5cb882df8e3f6d33f5df1a1ee1596c5f864bf8c689c5c520",
+            "evidence.tar": "760e0f587a47b5140309c78473f25329af55afaa227b15c6bd929bb265080286"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793166453.6192942
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -10793,82 +10819,131 @@
         },
         {
           "topic": "dmesg/clear-ring-buffer",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "dmesg -c prints the current populated ring buffer (seeded known records) before clearing it.",
-              "coverage": "missing",
-              "gap": "Needs CAP_SYSLOG for reading under dmesg_restrict=1 and root to seed records (see live-ring-buffer).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-live-ring-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "After dmesg -c, the ring is cleared: a subsequent util-linux 'dmesg' (which starts at the clear point) shows none of the pre-clear records, and a candidate 'dmesg' re-read behaves like util-linux.",
-              "coverage": "missing",
-              "gap": "SYSLOG_ACTION_CLEAR requires CAP_SYSLOG and mutates VM-global ring state; needs PRIV-ROOT + KSTATE.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-live-ring-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Without CAP_SYSLOG, -c reports failure (open or clear EPERM) with status 1 and the ring is not cleared.",
-              "coverage": "missing",
-              "gap": "No case; reachable unprivileged in the plain driver (uid 2000).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-live-ring-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "With BASHDMESG_DEV_KMSG_FILE set, -c prints fixture records and never issues the clear syscall.",
-              "coverage": "missing",
-              "gap": "No executed case passes -c with the fixture hook; reachable in legacy with the SECCOMP-FILTER helper (syslog -> KILL) to prove no clear call.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-live-ring-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "dmesg/console-level-change",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "dmesg -n LEVEL issues syslog(SYSLOG_ACTION_CONSOLE_LEVEL) and the kernel console loglevel (first field of /proc/sys/kernel/printk) becomes the level util-linux would set for the same argument (numeric and named).",
-              "coverage": "missing",
-              "gap": "SYSLOG_ACTION_CONSOLE_LEVEL requires CAP_SYSLOG in the initial user namespace (EPERM for uid 2000; a user namespace does not help) and changes VM-global printk state, so it needs a capability plus snapshot/restore.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-console-level-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Without CAP_SYSLOG, dmesg -n fails with status 1 and a diagnostic and the console level is unchanged.",
-              "coverage": "missing",
-              "gap": "No case; reachable unprivileged in the plain driver (uid 2000): the syscall returns EPERM. Compare status with util-linux 'dmesg -n 4' as uid 2000 and read /proc/sys/kernel/printk (world-readable) before/after.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-console-level-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Invalid or missing LEVEL is a usage error (status 2) before any syscall.",
-              "coverage": "missing",
-              "gap": "invalid-level-usage covers -l, not -n; '-n bogus' and '-n' are unprivileged legacy contract cases.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-console-level-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -10882,26 +10957,40 @@
             {
               "id": "r1",
               "behavior": "Read records from the live /dev/kmsg device (one record per read(2), non-blocking drain to EAGAIN) and decode them in default format.",
-              "coverage": "missing",
-              "gap": "All executed cases read regular fixture files via BASHDMESG_DEV_KMSG_FILE; none opens /dev/kmsg. Live read needs CAP_SYSLOG when kernel.dmesg_restrict=1 (Debian default) and seeding known records requires writing /dev/kmsg, which is root-owned 0644; uid 2000 gets EPERM/EACCES for both, and CAP_SYSLOG in a user namespace does not satisfy the init-namespace check.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-live-ring-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Seeded records with known priority/text are reproduced exactly, and filters (-k, -f, -l, -r, -t) behave on live records as on fixtures, compared with pinned util-linux dmesg on the same ring.",
-              "coverage": "missing",
-              "gap": "Same capability; record decoding/filter logic itself is covered only on fixture files.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-live-ring-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Record decoding, filters, raw prefix, --since/--until and the 8192-byte boundary on the documented /dev/kmsg framing.",
-              "coverage": "covered",
-              "gap": "",
+              "coverage": "missing",
+              "gap": "No --since/--until or 8192-byte boundary case on the live ring.",
               "evidence": [
                 {
                   "group": "legacy",
@@ -10932,10 +11021,16 @@
                   "id": "legacy/dmesg/split-read-boundary",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-live-ring-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
                 }
               ],
-              "fully_exercised": true,
-              "result": "PASS"
+              "fully_exercised": false,
+              "result": "UNRESOLVED"
             }
           ]
         },
@@ -35823,199 +35918,325 @@
         },
         {
           "topic": "sysctl/argument-writes",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-w KEY=VALUE and implicit KEY=VALUE write the value; output echoes \"key = value\" like procps; -q suppresses echo",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Resulting kernel value read back equals the written value",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Unknown key write -> error status; -e suppresses",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Read-only key (kernel.ostype, 0444) write -> permission error and value unchanged",
-              "coverage": "missing",
-              "gap": "No case; reachable as uid 2000 today (EACCES for every key).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "Writes are confined: only the fixture-owned namespace changes",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "sysctl/configuration-loaders",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-p FILE parses a relative fixture file (comments #/;, blank lines, key = value, leading \"-\" ignore-failure prefix) and applies in order",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-loaders-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "--system reads /etc/sysctl.d, /run/sysctl.d, /usr/local/lib/sysctl.d, /usr/lib/sysctl.d, /lib/sysctl.d (sorted, first-name-wins precedence) then /etc/sysctl.conf, printing \"* Applying FILE ...\" like procps",
-              "coverage": "missing",
-              "gap": "No case; --system reads absolute system dirs, so fixture dirs must be bind-mounted over them in a private mount namespace.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-loaders-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Resulting values reflect precedence (same basename in /etc overrides /usr/lib)",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-loaders-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Errors in a file (unknown key, bad line) are reported and status reflects failure",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-loaders-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "sysctl/key-queries",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Dotted (and slash) key reads print \"key = value\" identical to procps sysctl for deterministic keys",
-              "coverage": "missing",
-              "gap": "No case executes sysctl, though read-only /proc/sys access is available in the legacy runner.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "-n prints value only; -N prints name only",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Unknown key: error \"cannot stat ... / unknown key\" status, and -e suppresses it",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "-r/--pattern EXPR filters keys by extended regex",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "Byte-identical output to procps-ng 4.0.4 for the same arguments",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "sysctl/recursive-dump",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-a/-A enumerate all readable keys recursively in procps order with values",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-dump-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Unreadable (write-only or EACCES) entries are skipped silently as in procps",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-dump-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Output equals procps for a small fixed tree",
-              "coverage": "missing",
-              "gap": "The live /proc/sys tree contains volatile keys (kernel.random.uuid, fs.dentry-state, entropy counters) that differ between reads, so a byte comparison needs a fixed tree mounted over /proc/sys for both sides.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-dump-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "-a with -r and -N combinations",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-dump-root",
+                  "status": "FAIL",
+                  "run": "root-f-static-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -41730,8 +41951,8 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 363,
-        "FAIL": 129,
+        "UNRESOLVED": 357,
+        "FAIL": 135,
         "PASS": 108
       },
       "migration_without_complete_evidence": []
@@ -43583,6 +43804,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793152432.734095
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "root-f-dynamic-87",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "11f659662ee85c93fb5dfeffb0e200b699fac25a58c862e675f48e9f1926ca33",
+            "provenance.json": "406a2ff142565ae1087d9b0d64bbf4c62a2f7e54e3aab8a2f2dbb35427a853ed",
+            "payload.tar": "03f8e3cfcf7888b9f75e5f653be78e6d2622ba2163e7b29d55aa2049471bd1c6",
+            "evidence.tar": "b5f964bf6b90dc990ffcf4392122d8bb603850340bf9792a2673d9d8803e1f1f"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793166453.676331
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -52515,82 +52762,131 @@
         },
         {
           "topic": "dmesg/clear-ring-buffer",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "dmesg -c prints the current populated ring buffer (seeded known records) before clearing it.",
-              "coverage": "missing",
-              "gap": "Needs CAP_SYSLOG for reading under dmesg_restrict=1 and root to seed records (see live-ring-buffer).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-live-ring-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "After dmesg -c, the ring is cleared: a subsequent util-linux 'dmesg' (which starts at the clear point) shows none of the pre-clear records, and a candidate 'dmesg' re-read behaves like util-linux.",
-              "coverage": "missing",
-              "gap": "SYSLOG_ACTION_CLEAR requires CAP_SYSLOG and mutates VM-global ring state; needs PRIV-ROOT + KSTATE.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-live-ring-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Without CAP_SYSLOG, -c reports failure (open or clear EPERM) with status 1 and the ring is not cleared.",
-              "coverage": "missing",
-              "gap": "No case; reachable unprivileged in the plain driver (uid 2000).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-live-ring-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "With BASHDMESG_DEV_KMSG_FILE set, -c prints fixture records and never issues the clear syscall.",
-              "coverage": "missing",
-              "gap": "No executed case passes -c with the fixture hook; reachable in legacy with the SECCOMP-FILTER helper (syslog -> KILL) to prove no clear call.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-live-ring-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "dmesg/console-level-change",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "dmesg -n LEVEL issues syslog(SYSLOG_ACTION_CONSOLE_LEVEL) and the kernel console loglevel (first field of /proc/sys/kernel/printk) becomes the level util-linux would set for the same argument (numeric and named).",
-              "coverage": "missing",
-              "gap": "SYSLOG_ACTION_CONSOLE_LEVEL requires CAP_SYSLOG in the initial user namespace (EPERM for uid 2000; a user namespace does not help) and changes VM-global printk state, so it needs a capability plus snapshot/restore.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-console-level-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Without CAP_SYSLOG, dmesg -n fails with status 1 and a diagnostic and the console level is unchanged.",
-              "coverage": "missing",
-              "gap": "No case; reachable unprivileged in the plain driver (uid 2000): the syscall returns EPERM. Compare status with util-linux 'dmesg -n 4' as uid 2000 and read /proc/sys/kernel/printk (world-readable) before/after.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-console-level-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Invalid or missing LEVEL is a usage error (status 2) before any syscall.",
-              "coverage": "missing",
-              "gap": "invalid-level-usage covers -l, not -n; '-n bogus' and '-n' are unprivileged legacy contract cases.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-console-level-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -52604,26 +52900,40 @@
             {
               "id": "r1",
               "behavior": "Read records from the live /dev/kmsg device (one record per read(2), non-blocking drain to EAGAIN) and decode them in default format.",
-              "coverage": "missing",
-              "gap": "All executed cases read regular fixture files via BASHDMESG_DEV_KMSG_FILE; none opens /dev/kmsg. Live read needs CAP_SYSLOG when kernel.dmesg_restrict=1 (Debian default) and seeding known records requires writing /dev/kmsg, which is root-owned 0644; uid 2000 gets EPERM/EACCES for both, and CAP_SYSLOG in a user namespace does not satisfy the init-namespace check.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-live-ring-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Seeded records with known priority/text are reproduced exactly, and filters (-k, -f, -l, -r, -t) behave on live records as on fixtures, compared with pinned util-linux dmesg on the same ring.",
-              "coverage": "missing",
-              "gap": "Same capability; record decoding/filter logic itself is covered only on fixture files.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-live-ring-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Record decoding, filters, raw prefix, --since/--until and the 8192-byte boundary on the documented /dev/kmsg framing.",
-              "coverage": "covered",
-              "gap": "",
+              "coverage": "missing",
+              "gap": "No --since/--until or 8192-byte boundary case on the live ring.",
               "evidence": [
                 {
                   "group": "legacy",
@@ -52654,10 +52964,16 @@
                   "id": "legacy/dmesg/split-read-boundary",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-dmesg-live-ring-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
                 }
               ],
-              "fully_exercised": true,
-              "result": "PASS"
+              "fully_exercised": false,
+              "result": "UNRESOLVED"
             }
           ]
         },
@@ -77545,199 +77861,325 @@
         },
         {
           "topic": "sysctl/argument-writes",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-w KEY=VALUE and implicit KEY=VALUE write the value; output echoes \"key = value\" like procps; -q suppresses echo",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Resulting kernel value read back equals the written value",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Unknown key write -> error status; -e suppresses",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Read-only key (kernel.ostype, 0444) write -> permission error and value unchanged",
-              "coverage": "missing",
-              "gap": "No case; reachable as uid 2000 today (EACCES for every key).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "Writes are confined: only the fixture-owned namespace changes",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "sysctl/configuration-loaders",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-p FILE parses a relative fixture file (comments #/;, blank lines, key = value, leading \"-\" ignore-failure prefix) and applies in order",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-loaders-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "--system reads /etc/sysctl.d, /run/sysctl.d, /usr/local/lib/sysctl.d, /usr/lib/sysctl.d, /lib/sysctl.d (sorted, first-name-wins precedence) then /etc/sysctl.conf, printing \"* Applying FILE ...\" like procps",
-              "coverage": "missing",
-              "gap": "No case; --system reads absolute system dirs, so fixture dirs must be bind-mounted over them in a private mount namespace.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-loaders-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Resulting values reflect precedence (same basename in /etc overrides /usr/lib)",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-loaders-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Errors in a file (unknown key, bad line) are reported and status reflects failure",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-loaders-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "sysctl/key-queries",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Dotted (and slash) key reads print \"key = value\" identical to procps sysctl for deterministic keys",
-              "coverage": "missing",
-              "gap": "No case executes sysctl, though read-only /proc/sys access is available in the legacy runner.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "-n prints value only; -N prints name only",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Unknown key: error \"cannot stat ... / unknown key\" status, and -e suppresses it",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "-r/--pattern EXPR filters keys by extended regex",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "Byte-identical output to procps-ng 4.0.4 for the same arguments",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-keys-writes-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "sysctl/recursive-dump",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-a/-A enumerate all readable keys recursively in procps order with values",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-dump-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Unreadable (write-only or EACCES) entries are skipped silently as in procps",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-dump-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Output equals procps for a small fixed tree",
-              "coverage": "missing",
-              "gap": "The live /proc/sys tree contains volatile keys (kernel.random.uuid, fs.dentry-state, entropy counters) that differ between reads, so a byte comparison needs a fixed tree mounted over /proc/sys for both sides.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-dump-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "-a with -r and -N combinations",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sysctl-dump-root",
+                  "status": "FAIL",
+                  "run": "root-f-dynamic-87"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -83452,8 +83894,8 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 363,
-        "FAIL": 129,
+        "UNRESOLVED": 357,
+        "FAIL": 135,
         "PASS": 108
       },
       "migration_without_complete_evidence": []

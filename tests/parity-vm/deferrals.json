@@ -8533,44 +8533,72 @@
         "purpose": "Exercise dmesg -c against a populated kernel ring buffer.",
         "reason": "Requires a disposable VM with CAP_SYSLOG and a seeded private ring buffer; verify printed records and the post-clear state, then discard the VM. This suite does not clear a kernel ring buffer."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No -c invocation executed. Unprivileged failure and fixture-hook paths are reachable now; live clear needs CAP_SYSLOG plus ring seeding.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "dmesg -c prints the current populated ring buffer (seeded known records) before clearing it.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs CAP_SYSLOG for reading under dmesg_restrict=1 and root to seed records (see live-ring-buffer).",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmesg-live-ring-root",
+              "assertion": "-c prints the populated ring before clearing it in both; the candidate also prints the pre-clear-point records (live-ring-buffer r1). Parity FAIL.",
+              "definition_sha256": "03614fe8d6442d206c2ce86edd15e73b378ddafadc0eafea6d657a84f4b2c02a"
+            }
+          ],
+          "gap": "",
           "next_step": "requires_capability"
         },
         {
           "id": "r2",
           "behavior": "After dmesg -c, the ring is cleared: a subsequent util-linux 'dmesg' (which starts at the clear point) shows none of the pre-clear records, and a candidate 'dmesg' re-read behaves like util-linux.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "SYSLOG_ACTION_CLEAR requires CAP_SYSLOG and mutates VM-global ring state; needs PRIV-ROOT + KSTATE.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmesg-live-ring-root",
+              "assertion": "After -c util-linux reads an empty user ring, while a candidate re-read still prints every record, because it does not start at the clear point. Parity FAIL.",
+              "definition_sha256": "03614fe8d6442d206c2ce86edd15e73b378ddafadc0eafea6d657a84f4b2c02a"
+            }
+          ],
+          "gap": "",
           "next_step": "requires_capability"
         },
         {
           "id": "r3",
           "behavior": "Without CAP_SYSLOG, -c reports failure (open or clear EPERM) with status 1 and the ring is not cleared.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; reachable unprivileged in the plain driver (uid 2000).",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmesg-live-ring-root",
+              "assertion": "As uid 2000, reading and -c exit 1 in both and the reseeded record remains in the ring; the candidate says 'open /dev/kmsg: Operation not permitted' where util-linux says 'read kernel buffer failed: Operation not permitted'. Parity FAIL.",
+              "definition_sha256": "03614fe8d6442d206c2ce86edd15e73b378ddafadc0eafea6d657a84f4b2c02a"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r4",
           "behavior": "With BASHDMESG_DEV_KMSG_FILE set, -c prints fixture records and never issues the clear syscall.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case passes -c with the fixture hook; reachable in legacy with the SECCOMP-FILTER helper (syslog -> KILL) to prove no clear call.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmesg-live-ring-root",
+              "assertion": "With BASHDMESG_DEV_KMSG_FILE set, under a filter that kills syslog(2), the candidate prints the fixture record and exits 0, so it made no clear syscall (contract met); util-linux, which has no such variable, is killed (status 159). The ring is unchanged.",
+              "definition_sha256": "03614fe8d6442d206c2ce86edd15e73b378ddafadc0eafea6d657a84f4b2c02a"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         }
       ],
-      "notes": "Source: loadables/dmesg.c:278-330 reader (EAGAIN ends drain, EPIPE skipped), :541-552 -n via SYSLOG_ACTION_CONSOLE_LEVEL, :554-565 open O_NONBLOCK then lseek(fd,0,SEEK_SET), :587-597 -c via SYSLOG_ACTION_CLEAR (ignored when BASHDMESG_DEV_KMSG_FILE is set). Suspected mismatch (not observed, verify): after a clear the candidate re-read starts at the first available record because it uses lseek(fd,0,SEEK_SET) on /dev/kmsg (dmesg.c:565), whereas util-linux seeks with SEEK_DATA to the clear sequence, so the candidate would still print cleared records."
+      "notes": "Root batch F on the rented VM host (root-f-87; supersedes root-f-84, where the guest had no /etc/sysctl.conf so the loaders case stopped at setup, and root-f-86, where /run/sysctl.d was absent so that --system tier had no file). privilege=root sides with fresh network and UTS namespaces; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "dmesg/console-level-change",
@@ -8580,36 +8608,57 @@
         "purpose": "Exercise dmesg -n against the kernel console log level.",
         "reason": "Requires a disposable VM with CAP_SYSLOG and an isolated console log level. Set a known level, independently observe the result, and restore or discard the VM; this suite does not issue the syslog control operation."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No -n invocation executed. The EPERM and usage paths are unprivileged; a successful change needs CAP_SYSLOG and restore of global console level.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "dmesg -n LEVEL issues syslog(SYSLOG_ACTION_CONSOLE_LEVEL) and the kernel console loglevel (first field of /proc/sys/kernel/printk) becomes the level util-linux would set for the same argument (numeric and named).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "SYSLOG_ACTION_CONSOLE_LEVEL requires CAP_SYSLOG in the initial user namespace (EPERM for uid 2000; a user namespace does not help) and changes VM-global printk state, so it needs a capability plus snapshot/restore.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmesg-console-level-root",
+              "assertion": "Numeric levels 1 and 4 set the same console level as util-linux. -n 8 sets 8 in util-linux but the candidate rejects it (\"-n: unknown level '8'\", status 2). Named levels are one lower than util-linux's: err sets 3 (util-linux 4) and debug sets 7 (util-linux 8). Parity FAIL.",
+              "definition_sha256": "9a60ba024682159ed9e2923970fd8f8f71bb86c0e62cfca2cc4287ee7780b1ff"
+            }
+          ],
+          "gap": "",
           "next_step": "requires_capability"
         },
         {
           "id": "r2",
           "behavior": "Without CAP_SYSLOG, dmesg -n fails with status 1 and a diagnostic and the console level is unchanged.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; reachable unprivileged in the plain driver (uid 2000): the syscall returns EPERM. Compare status with util-linux 'dmesg -n 4' as uid 2000 and read /proc/sys/kernel/printk (world-readable) before/after.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmesg-console-level-root",
+              "assertion": "As uid 2000, -n 4 exits 1 in both and the level stays 6; the candidate says 'set console level: need CAP_SYSLOG' where util-linux says 'klogctl failed: Operation not permitted'. Parity FAIL.",
+              "definition_sha256": "9a60ba024682159ed9e2923970fd8f8f71bb86c0e62cfca2cc4287ee7780b1ff"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r3",
           "behavior": "Invalid or missing LEVEL is a usage error (status 2) before any syscall.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "invalid-level-usage covers -l, not -n; '-n bogus' and '-n' are unprivileged legacy contract cases.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmesg-console-level-root",
+              "assertion": "An unknown name, 9 and a missing argument make the candidate exit 2 with its usage line (the contract), before any change; util-linux exits 1 with different texts. Parity FAIL.",
+              "definition_sha256": "9a60ba024682159ed9e2923970fd8f8f71bb86c0e62cfca2cc4287ee7780b1ff"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         }
       ],
-      "notes": "Source: loadables/dmesg.c:278-330 reader (EAGAIN ends drain, EPIPE skipped), :541-552 -n via SYSLOG_ACTION_CONSOLE_LEVEL, :554-565 open O_NONBLOCK then lseek(fd,0,SEEK_SET), :587-597 -c via SYSLOG_ACTION_CLEAR (ignored when BASHDMESG_DEV_KMSG_FILE is set). Suspected mismatch for the deferred success path (not observed, verify in VM): the candidate passes the level index directly (bd_level_index: emerg=0..debug=7, dmesg.c:92-103) while util-linux documents '-n 1 or -n emerg' as equivalent (names map to index+1); 'dmesg -n emerg' would therefore request console level 0, which the kernel rejects with EINVAL, and numeric 8 is rejected by the candidate."
+      "notes": "Root batch F on the rented VM host (root-f-87; supersedes root-f-84, where the guest had no /etc/sysctl.conf so the loaders case stopped at setup, and root-f-86, where /run/sysctl.d was absent so that --system tier had no file). privilege=root sides with fresh network and UTS namespaces; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "dmesg/live-ring-buffer",
@@ -8621,28 +8670,42 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Decoder logic executed on regular files only. Live /dev/kmsg reading needs CAP_SYSLOG (dmesg_restrict) and root to seed records; no current driver has either.",
+      "current_reason": "Remaining obligations: r3: No --since/--until or 8192-byte boundary case on the live ring.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Read records from the live /dev/kmsg device (one record per read(2), non-blocking drain to EAGAIN) and decode them in default format.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "All executed cases read regular fixture files via BASHDMESG_DEV_KMSG_FILE; none opens /dev/kmsg. Live read needs CAP_SYSLOG when kernel.dmesg_restrict=1 (Debian default) and seeding known records requires writing /dev/kmsg, which is root-owned 0644; uid 2000 gets EPERM/EACCES for both, and CAP_SYSLOG in a user namespace does not satisfy the init-namespace check.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmesg-live-ring-root",
+              "assertion": "The candidate reads live /dev/kmsg records and decodes them in default format, but it ignores the clear point util-linux starts from: after a util-linux clear and four seeded records it also prints earlier user-facility records still in the ring. Parity FAIL.",
+              "definition_sha256": "03614fe8d6442d206c2ce86edd15e73b378ddafadc0eafea6d657a84f4b2c02a"
+            }
+          ],
+          "gap": "",
           "next_step": "requires_capability"
         },
         {
           "id": "r2",
           "behavior": "Seeded records with known priority/text are reproduced exactly, and filters (-k, -f, -l, -r, -t) behave on live records as on fixtures, compared with pinned util-linux dmesg on the same ring.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same capability; record decoding/filter logic itself is covered only on fixture files.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmesg-live-ring-root",
+              "assertion": "The seeded records' text is reproduced, but every listing carries the extra pre-clear records (r1). -l err,warn filters by level; -r -t, which util-linux rejects as mutually exclusive (status 1), is accepted with <PRI> prefixes; -x is an unknown flag in the candidate (status 2) where util-linux decodes facility and level; -k -t -l emerg is empty in both. Parity FAIL.",
+              "definition_sha256": "03614fe8d6442d206c2ce86edd15e73b378ddafadc0eafea6d657a84f4b2c02a"
+            }
+          ],
+          "gap": "",
           "next_step": "requires_capability"
         },
         {
           "id": "r3",
           "behavior": "Record decoding, filters, raw prefix, --since/--until and the 8192-byte boundary on the documented /dev/kmsg framing.",
-          "coverage": "covered",
+          "coverage": "missing",
           "evidence": [
             {
               "group": "legacy",
@@ -8673,13 +8736,19 @@
               "id": "legacy/dmesg/split-read-boundary",
               "assertion": "parity vs awk: 8200-byte record emitted intact",
               "definition_sha256": "e8213c0ef10ddc09ce8f82f526d944d0c0bb9e5e4672aaa8732dde222bab6c38"
+            },
+            {
+              "group": "shell",
+              "id": "migration-dmesg-live-ring-root",
+              "assertion": "Not exercised: no --since/--until and no 8192-byte record boundary. Records written to /dev/kmsg are capped near 1 KiB by the kernel, so the boundary needs the fixture-file path.",
+              "definition_sha256": "03614fe8d6442d206c2ce86edd15e73b378ddafadc0eafea6d657a84f4b2c02a"
             }
           ],
-          "gap": "",
+          "gap": "No --since/--until or 8192-byte boundary case on the live ring.",
           "scope_note": "Covers the fixture-file path only; it is the shared decoder, not live-device behaviour (kept distinct from r1/r2)."
         }
       ],
-      "notes": "Source: loadables/dmesg.c:278-330 reader (EAGAIN ends drain, EPIPE skipped), :541-552 -n via SYSLOG_ACTION_CONSOLE_LEVEL, :554-565 open O_NONBLOCK then lseek(fd,0,SEEK_SET), :587-597 -c via SYSLOG_ACTION_CLEAR (ignored when BASHDMESG_DEV_KMSG_FILE is set). No executed mismatch."
+      "notes": "Root batch F on the rented VM host (root-f-87; supersedes root-f-84, where the guest had no /etc/sysctl.conf so the loaders case stopped at setup, and root-f-86, where /run/sysctl.d was absent so that --system tier had no file). privilege=root sides with fresh network and UTS namespaces; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "dmsetup/ioctl-errors-buffering",
@@ -32830,47 +32899,82 @@
         "purpose": "Compare -w and implicit KEY=VALUE writes, echo and -q behavior, unknown keys, and documented read-only key errors while inspecting resulting fixture values.",
         "reason": "Requires a disposable VM or reviewed syscall mock that confines and records every /proc/sys write, plus an independent GNU procps-ng comparison. No kernel parameter writes are run here."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Not a capability block. Writes to namespaced keys (kernel.hostname/domainname in an owned UTS ns, net.ipv4.* in an owned netns, fs.mqueue.* in an owned IPC ns) are allowed for root in a USERNS and die with it. Permission errors are reachable as plain uid 2000. No fixture exists.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-w KEY=VALUE and implicit KEY=VALUE write the value; output echoes \"key = value\" like procps; -q suppresses echo",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-keys-writes-root",
+              "assertion": "-w KEY=VALUE and implicit KEY=VALUE writes echo 'key = value' and -q suppresses the echo, as procps does. A write without '=' is rejected with \"'net.ipv4.ip_forward' must be of the form name=value\" where procps prints 'command line(0): invalid syntax, continuing...' (both status 1). Parity FAIL.",
+              "definition_sha256": "80e8bc1755aea7f42a783d664b7e3ff73688c9f4e8d7e3e2d617d0c9c80da84b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Resulting kernel value read back equals the written value",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-keys-writes-root",
+              "assertion": "Each written net.ipv4 key and kernel.domainname reads back the written value from /proc/sys in both.",
+              "definition_sha256": "80e8bc1755aea7f42a783d664b7e3ff73688c9f4e8d7e3e2d617d0c9c80da84b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Unknown key write -> error status; -e suppresses",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-keys-writes-root",
+              "assertion": "An unknown-key write exits 1 in both, with r3's differing text; -e suppresses it with status 0 in both. Parity FAIL.",
+              "definition_sha256": "80e8bc1755aea7f42a783d664b7e3ff73688c9f4e8d7e3e2d617d0c9c80da84b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Read-only key (kernel.ostype, 0444) write -> permission error and value unchanged",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; reachable as uid 2000 today (EACCES for every key)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-keys-writes-root",
+              "assertion": "Writing read-only kernel.ostype leaves it unchanged in both, but the candidate exits 1 with \"'kernel.ostype' is a known read-only key\" where procps exits 0 with 'setting key \"kernel.ostype\": Operation not permitted'. As uid 2000 both exit 1: candidate \"write 'net.ipv4.ip_forward': Permission denied\", procps 'permission denied on key \"net.ipv4.ip_forward\"'. Parity FAIL.",
+              "definition_sha256": "80e8bc1755aea7f42a783d664b7e3ff73688c9f4e8d7e3e2d617d0c9c80da84b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Writes are confined: only the fixture-owned namespace changes",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-keys-writes-root",
+              "assertion": "Each side runs in fresh network and UTS namespaces; the same keys read through nsenter in the initial namespaces are unchanged before and after, and the namespaces are distinct.",
+              "definition_sha256": "80e8bc1755aea7f42a783d664b7e3ff73688c9f4e8d7e3e2d617d0c9c80da84b"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "procps-ng 4.0.4 /usr/sbin/sysctl is in the guest image and on the legacy reference PATH, so a byte oracle exists. Read-only /proc/sys access is unprivileged; the legacy bwrap procfs exposes it. Many keys are per-namespace and deterministic in a fresh namespace, identical for both sides: kernel.hostname (bwrap sets 'parity'), kernel.domainname, net.ipv4.ip_default_ttl / net.ipv4.ip_forward in the fresh netns, fs.mqueue.msg_max and kernel.shmmni in the fresh IPC ns, kernel.ostype, kernel.osrelease. A USERNS in the plain driver owns its UTS/net/IPC namespaces, so writes to those namespaced keys are permitted and confined to it. A per-side bind mount of a fixture tree over /proc/sys, or of fixture dirs over /etc/sysctl.d and siblings, in the child's mount namespace (preflight) gives a fixed tree for both candidate and procps, which both hardcode /proc/sys. Candidate: write path loadables/sysctl.c:347-404."
+      "notes": "Root batch F on the rented VM host (root-f-87; supersedes root-f-84, where the guest had no /etc/sysctl.conf so the loaders case stopped at setup, and root-f-86, where /run/sysctl.d was absent so that --system tier had no file). privilege=root sides with fresh network and UTS namespaces; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "sysctl/configuration-loaders",
@@ -32880,40 +32984,68 @@
         "purpose": "Compare -p parsing of relative fixture files and --system file ordering/precedence using deterministic configuration inputs.",
         "reason": "Both loaders ultimately write /proc/sys and --system reads standard absolute configuration locations. A disposable VM or reviewed mock must redirect both kernel files and configuration locations before this case can run safely."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No privilege is needed. In a USERNS, -p with namespaced keys and fixture dirs bind-mounted over the absolute config locations are confined to the child. No fixture exists.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-p FILE parses a relative fixture file (comments #/;, blank lines, key = value, leading \"-\" ignore-failure prefix) and applies in order",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-loaders-root",
+              "assertion": "-p on fixture files skips # and ; comments and blank lines, accepts spaces around '=' and applies the valid lines in order with the same echo as procps, and -p with several files and -p with no file (/etc/sysctl.conf) match. A '-' ignore-failure prefix stays part of the key in the candidate (\"'-rf.no.such' is an unknown key\"), where procps strips it ('cannot stat /proc/sys/rf/no/such'); both exit 1. Parity FAIL.",
+              "definition_sha256": "d34dbbadd5dbec96da358b2ed636b49099939a71cdaf4920ab5c40aef6e30539"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "--system reads /etc/sysctl.d, /run/sysctl.d, /usr/local/lib/sysctl.d, /usr/lib/sysctl.d, /lib/sysctl.d (sorted, first-name-wins precedence) then /etc/sysctl.conf, printing \"* Applying FILE ...\" like procps",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; --system reads absolute system dirs, so fixture dirs must be bind-mounted over them in a private mount namespace."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-loaders-root",
+              "assertion": "With fixture directories bind-mounted over every tier, procps prints '* Applying FILE ...' for /etc/sysctl.d/10-rf.conf, /run/sysctl.d/20-rf.conf and 30-rf.conf, /usr/local/lib/sysctl.d/40-rf.conf and /etc/sysctl.conf, skipping /usr/lib files whose names appear earlier. The candidate prints no Applying lines and, after the /etc, /run and /usr/local tiers, applies /usr/lib/sysctl.d/10-rf.conf and 30-rf.conf anyway, then the same files again through /lib/sysctl.d (a symlink to /usr/lib), then /etc/sysctl.conf. Parity FAIL.",
+              "definition_sha256": "d34dbbadd5dbec96da358b2ed636b49099939a71cdaf4920ab5c40aef6e30539"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Resulting values reflect precedence (same basename in /etc overrides /usr/lib)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-loaders-root",
+              "assertion": "procps leaves kernel.domainname=from-etc (/etc overrides /usr/lib) and net.ipv4.conf.lo.forwarding=1 (/run overrides /usr/lib); the candidate ends with from-usr-lib and 0, because the overridden /usr/lib files are applied last. Its extra passes also toggle net.ipv4.ip_forward, which resets net.ipv4.conf.default.forwarding to 0 (procps: 1). Parity FAIL.",
+              "definition_sha256": "d34dbbadd5dbec96da358b2ed636b49099939a71cdaf4920ab5c40aef6e30539"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Errors in a file (unknown key, bad line) are reported and status reflects failure",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-loaders-root",
+              "assertion": "A file with an unknown key and a line without '=' exits 1 in both after applying its valid lines; procps reports '/tmp/bad.conf(3): invalid syntax, continuing...' before the unknown key, while the candidate reports the unknown key first and then \"'this line has no equals' must be of the form name=value\". A missing -p file exits 0 silently in the candidate; procps exits 1 with 'cannot open \"/tmp/missing.conf\"'. Parity FAIL.",
+              "definition_sha256": "d34dbbadd5dbec96da358b2ed636b49099939a71cdaf4920ab5c40aef6e30539"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "procps-ng 4.0.4 /usr/sbin/sysctl is in the guest image and on the legacy reference PATH, so a byte oracle exists. Read-only /proc/sys access is unprivileged; the legacy bwrap procfs exposes it. Many keys are per-namespace and deterministic in a fresh namespace, identical for both sides: kernel.hostname (bwrap sets 'parity'), kernel.domainname, net.ipv4.ip_default_ttl / net.ipv4.ip_forward in the fresh netns, fs.mqueue.msg_max and kernel.shmmni in the fresh IPC ns, kernel.ostype, kernel.osrelease. A USERNS in the plain driver owns its UTS/net/IPC namespaces, so writes to those namespaced keys are permitted and confined to it. A per-side bind mount of a fixture tree over /proc/sys, or of fixture dirs over /etc/sysctl.d and siblings, in the child's mount namespace (preflight) gives a fixed tree for both candidate and procps, which both hardcode /proc/sys. Candidate: bsc_load_system loadables/sysctl.c:497-515, bsc_load_file/bsc_load_dir_sorted :406-495."
+      "notes": "Root batch F on the rented VM host (root-f-87; supersedes root-f-84, where the guest had no /etc/sysctl.conf so the loaders case stopped at setup, and root-f-86, where /run/sysctl.d was absent so that --system tier had no file). privilege=root sides with fresh network and UTS namespaces; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "sysctl/key-queries",
@@ -32923,47 +33055,82 @@
         "purpose": "Compare dotted-key reads, -n/-N output, -e unknown-key handling, and -r filtering with deterministic values.",
         "reason": "Requires a disposable VM or reviewed syscall mock providing a private /proc/sys tree and a GNU procps-ng sysctl oracle. No sysctl operation is executed under the current safety scope."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Not a capability block: procps-ng 4.0.4 /usr/sbin/sysctl is in the guest image and on the legacy reference PATH, so a byte oracle exists. Read-only /proc/sys access is unprivileged; the legacy bwrap procfs exposes it. Many keys are per-namespace and deterministic in a fresh namespace, identical for both sides: kernel.hostname (bwrap sets 'parity'), kernel.domainname, net.ipv4.ip_default_ttl / net.ipv4.ip_forward in the fresh netns, fs.mqueue.msg_max and kernel.shmmni in the fresh IPC ns, kernel.ostype, kernel.osrelease. A USERNS in the plain driver owns its UTS/net/IPC namespaces, so writes to those namespaced keys are permitted and confined to it. A per-side bind mount of a fixture tree over /proc/sys, or of fixture dirs over /etc/sysctl.d and siblings, in the child's mount namespace (preflight) gives a fixed tree for both candidate and procps, which both hardcode /proc/sys. No fixture exists.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Dotted (and slash) key reads print \"key = value\" identical to procps sysctl for deterministic keys",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case executes sysctl, though read-only /proc/sys access is available in the legacy runner."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-keys-writes-root",
+              "assertion": "Dotted and multi-key reads match procps byte for byte; a slash-form read prints 'kernel/ostype = Linux' where procps normalizes it to 'kernel.ostype = Linux'. Parity FAIL.",
+              "definition_sha256": "80e8bc1755aea7f42a783d664b7e3ff73688c9f4e8d7e3e2d617d0c9c80da84b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "-n prints value only; -N prints name only",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-keys-writes-root",
+              "assertion": "-n prints the value only and -N the name only, matching procps.",
+              "definition_sha256": "80e8bc1755aea7f42a783d664b7e3ff73688c9f4e8d7e3e2d617d0c9c80da84b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Unknown key: error \"cannot stat ... / unknown key\" status, and -e suppresses it",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-keys-writes-root",
+              "assertion": "An unknown key exits 1 in both, with different text: candidate \"'rf.no.such' is an unknown key\", procps 'cannot stat /proc/sys/rf/no/such: No such file or directory'; -e suppresses it with status 0 in both. Parity FAIL.",
+              "definition_sha256": "80e8bc1755aea7f42a783d664b7e3ff73688c9f4e8d7e3e2d617d0c9c80da84b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "-r/--pattern EXPR filters keys by extended regex",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-keys-writes-root",
+              "assertion": "-a with -r patterns (with and without -N) selects the same keys in the same order as procps.",
+              "definition_sha256": "80e8bc1755aea7f42a783d664b7e3ff73688c9f4e8d7e3e2d617d0c9c80da84b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Byte-identical output to procps-ng 4.0.4 for the same arguments",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-keys-writes-root",
+              "assertion": "Byte comparison against procps-ng 4.0.4 over all read forms: differs in the slash-form echo and the unknown-key text (r1, r3). Parity FAIL.",
+              "definition_sha256": "80e8bc1755aea7f42a783d664b7e3ff73688c9f4e8d7e3e2d617d0c9c80da84b"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "procps-ng 4.0.4 /usr/sbin/sysctl is in the guest image and on the legacy reference PATH, so a byte oracle exists. Read-only /proc/sys access is unprivileged; the legacy bwrap procfs exposes it. Many keys are per-namespace and deterministic in a fresh namespace, identical for both sides: kernel.hostname (bwrap sets 'parity'), kernel.domainname, net.ipv4.ip_default_ttl / net.ipv4.ip_forward in the fresh netns, fs.mqueue.msg_max and kernel.shmmni in the fresh IPC ns, kernel.ostype, kernel.osrelease. A USERNS in the plain driver owns its UTS/net/IPC namespaces, so writes to those namespaced keys are permitted and confined to it. A per-side bind mount of a fixture tree over /proc/sys, or of fixture dirs over /etc/sysctl.d and siblings, in the child's mount namespace (preflight) gives a fixed tree for both candidate and procps, which both hardcode /proc/sys. Candidate: bsc_read_key loadables/sysctl.c:189-255, pattern :68-90."
+      "notes": "Root batch F on the rented VM host (root-f-87; supersedes root-f-84, where the guest had no /etc/sysctl.conf so the loaders case stopped at setup, and root-f-86, where /run/sysctl.d was absent so that --system tier had no file). privilege=root sides with fresh network and UTS namespaces; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "sysctl/recursive-dump",
@@ -32973,40 +33140,68 @@
         "purpose": "Compare -a/-A recursive key enumeration, readable values, and treatment of unreadable entries against a small fixed tree.",
         "reason": "Requires a disposable VM or reviewed syscall mock with a private, deterministic /proc/sys tree; enumerating the host kernel tree is outside scope."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No privilege is needed, but a fixed tree requires each side to bind-mount a fixture directory over /proc/sys in its own mount namespace. Mounting needs CAP_SYS_ADMIN over that namespace: a USERNS has it, while the legacy runner disables user namespaces and plain uid 2000 gets EPERM. No fixture exists. Alternatively, restrict live dumps to a namespaced deterministic subtree with -r.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-a/-A enumerate all readable keys recursively in procps order with values",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-dump-root",
+              "assertion": "-a and -A walk the fixture tmpfs over /proc/sys in the same order as procps, including both lines of a multi-line value.",
+              "definition_sha256": "6d71c4188cade80464cd8b1e3e095219e19f1a7fd07a89692879d8de6b9d8307"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Unreadable (write-only or EACCES) entries are skipped silently as in procps",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-dump-root",
+              "assertion": "procps skips the empty kernel.random.empty in -a output and the write-only kernel.wo in -N output; the candidate prints 'kernel.random.empty = ' and lists kernel.wo. Reading the write-only key directly exits 1 in the candidate and 0 (silent) in procps. Parity FAIL.",
+              "definition_sha256": "6d71c4188cade80464cd8b1e3e095219e19f1a7fd07a89692879d8de6b9d8307"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Output equals procps for a small fixed tree",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The live /proc/sys tree contains volatile keys (kernel.random.uuid, fs.dentry-state, entropy counters) that differ between reads, so a byte comparison needs a fixed tree mounted over /proc/sys for both sides."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-dump-root",
+              "assertion": "Over the small fixed tree the -a, -A and -N outputs differ from procps only by the entries in r2; -n values match. Parity FAIL.",
+              "definition_sha256": "6d71c4188cade80464cd8b1e3e095219e19f1a7fd07a89692879d8de6b9d8307"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "-a with -r and -N combinations",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sysctl-dump-root",
+              "assertion": "-a with -r and -N together selects the same names as procps.",
+              "definition_sha256": "6d71c4188cade80464cd8b1e3e095219e19f1a7fd07a89692879d8de6b9d8307"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "procps-ng 4.0.4 /usr/sbin/sysctl is in the guest image and on the legacy reference PATH, so a byte oracle exists. Read-only /proc/sys access is unprivileged; the legacy bwrap procfs exposes it. Many keys are per-namespace and deterministic in a fresh namespace, identical for both sides: kernel.hostname (bwrap sets 'parity'), kernel.domainname, net.ipv4.ip_default_ttl / net.ipv4.ip_forward in the fresh netns, fs.mqueue.msg_max and kernel.shmmni in the fresh IPC ns, kernel.ostype, kernel.osrelease. A USERNS in the plain driver owns its UTS/net/IPC namespaces, so writes to those namespaced keys are permitted and confined to it. A per-side bind mount of a fixture tree over /proc/sys, or of fixture dirs over /etc/sysctl.d and siblings, in the child's mount namespace (preflight) gives a fixed tree for both candidate and procps, which both hardcode /proc/sys. Candidate: dump walk loadables/sysctl.c:302-345 (EACCES skipped silently :307)."
+      "notes": "Root batch F on the rented VM host (root-f-87; supersedes root-f-84, where the guest had no /etc/sysctl.conf so the loaders case stopped at setup, and root-f-86, where /run/sysctl.d was absent so that --system tier had no file). privilege=root sides with fresh network and UTS namespaces; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "tac/terminal_ordering_deferred",
