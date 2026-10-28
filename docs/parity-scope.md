@@ -22,6 +22,15 @@ three optional commands, 61 native Bash builtin names, 105 reference Coreutils
 commands and all 600 original historical deferrals. Of those Coreutils commands, 32 have
 no matching candidate builtin. These counts describe scope, not passes.
 
+The batch 92 snapshot inventories 907 modern fixtures, of which 893 have selected
+execution evidence on both builds. The historical topic index contains 252
+migrated scenarios and 348 unresolved scenarios. Migrated topics and authored
+fixtures without selected evidence add no passing cases. Three excluded current-
+definition filesystem diagnostics recorded FAIL; their reasons and history are
+disclosed in the [validation record](data/parity-0.1.3-validation.json).
+The scope's package inventory describes the first 413-package image; validation
+records both images and the first image's unavailable lock-content limitation.
+
 Generate the source/fixture inventory after a build has unpacked the pinned Bash
 source. This reads files and does not run a candidate:
 

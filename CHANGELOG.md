@@ -15,10 +15,12 @@ All notable changes to bash-os are recorded here. Versions follow
   honors header overrides and silent errors, and follows redirect method and
   transfer-status behavior more closely. `dns` stops retrying a verified
   NXDOMAIN response.
-- Both Linux x86-64 builds pass 172 of 199 new fixtures and retain 27 observed
-  mismatches. The historical suites retain 3,171 passes, 24 failures, 23 optional
-  skips and 600 deferrals. Final qualifying results have no harness errors.
-- Independent data checks execute 9,331,283 assertions per build, with 40
+- Expanded selected evidence to 893 modern fixtures plus 3,218 historical
+  behavioral cases. Static results are 3,805 PASS and 283 FAIL; dynamic results
+  are 3,803 PASS and 285 FAIL. Both retain 23 optional skips and zero selected
+  harness errors. The deferral review records 252 migrated topics and 348
+  unresolved topics; migration remains in progress. Topic metadata adds no passes.
+- Independent data checks execute 9,331,283 planned assertions per build, with 40
   retained NFC/NFKC composition-exclusion failures. See the
   [validation record](docs/data/parity-0.1.3-validation.json) for separate
   parity/contract counts, fixture revalidation, evidence hashes and exclusions.

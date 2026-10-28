@@ -164,39 +164,59 @@ execution without the matching VM marker, DMI identity and guest isolation.
 
 See [parity scope](parity-scope.md) for the full inventory and remaining work.
 
-## Initial 0.1.3 qualification
+## 0.1.3 evidence snapshot through batch 92
 
-These counts describe the initial fixture set. The subsequent
-[deferral migration review](parity-deferrals.md) adds assertions, records new
-results and replaces fully exercised historical entries with `MIGRATED`
-metadata. That follow-up remains in progress; these baseline counts are not its
-current remaining-deferral count.
+Migration remains in progress. The selected evidence contains 4,111 unique
+behavioral fixtures per build: 893 modern fixtures and 3,218 historical
+behavioral cases. Results are selected once per fixture ID and exact definition
+from 73 frozen runs per build.
 
-The static and dynamic Linux x86-64 builds produce the same qualifying results:
-
-| Group | PASS | FAIL | ERROR | SKIP | DEFERRED |
+| Group | Static PASS | Static FAIL | Dynamic PASS | Dynamic FAIL | SKIP per build |
 |---|---:|---:|---:|---:|---:|
-| Bash language | 42 | 0 | 0 | 0 | 0 |
-| Terminal | 72 | 26 | 0 | 0 | 0 |
-| Network | 58 | 1 | 0 | 0 | 0 |
-| Historical suites | 3,171 | 24 | 0 | 23 | 600 |
+| Shell and command contracts | 411 | 199 | 411 | 199 | 0 |
+| Terminal | 128 | 42 | 128 | 42 | 0 |
+| Network | 95 | 18 | 93 | 20 | 0 |
+| Historical behavior | 3,171 | 24 | 3,171 | 24 | 23 |
+| Total | 3,805 | 283 | 3,803 | 285 | 23 |
 
-Eight guest harness selfchecks pass separately on each build; the interface
-inventory is `COLLECTED`. Host data/schema checks also pass eight checks.
-Six job-control fixtures were repeated three times per build after correcting
-foreground readiness, asynchronous reaping and prompt-boundary assumptions.
-All 18 repeated attempts pass on each build. They replace the corresponding
-original records and do not increase the unique-case count.
+The selected results contain zero harness errors. Two older DNS transport
+probes account for the build differences; their launch failures do not establish
+certificate validation. Later fixtures provide the relevant transport evidence.
+The authored inventory contains 907 modern fixtures, including 14 without
+selected evidence. They contribute no cases to these counts. Three (mv EXDEV,
+link cross-filesystem, and dd noerror) have excluded FAIL records because their
+definitions compare unpinned setup mtimes or elapsed-time output; real candidate
+differences were also observed. Their diagnostic history and exclusion reasons
+are listed in the validation record pending corrected definitions.
 
-Each build executes all 9,331,283 planned normative assertions: 9,331,243 pass
+The [deferral review](parity-deferrals.md) records 252 migrated topics (115 PASS,
+137 FAIL) and 348 unresolved topics. These summarize existing assertions and
+add no behavioral cases. The original legacy run's 600 DEFERRED metadata rows
+remain preserved; the current topic index records their migration state.
+
+Every guest selfcheck recorded in the selected runs passes: 13 in the latest
+non-root runs and 14 in root-fixture runs. Corpus-only and job-control repeat
+runs record none. Each run retains its frozen payload hash. Runtime inventory remains
+`COLLECTED`. Schema, helper hashes, original-topic integrity and selected artifact
+and definition hashes were checked as data. The six original job-control
+fixtures retain their three successful repeats per build; repeats add no cases.
+
+Each build executes 9,331,283 planned normative assertions: 9,331,243 pass
 and 40 fail. The failures concern four non-starter composition exclusions in
 NFC/NFKC; they remain unfixed. At corpus-record level this is 33 PASS, one FAIL
-and four explicit SKIP records. Scalar sweeps, corpus records and ordinary
+and four explicit SKIP records. The plan excludes NUL inputs, unavailable casing
+interfaces and unsupported RFC vectors as detailed in those records. Scalar
+sweeps, corpus records and ordinary
 fixture cases are different denominators.
 
 The [validation record](data/parity-0.1.3-validation.json) separates parity,
 contracts, selfchecks and metadata; lists every retained behavioral failure;
-and preserves hashes of the source runs, including superseded fixture results.
-It records the complete image, package versions, candidate hashes, isolation,
-clean teardown and overlay deletion. The [scope inventory](data/parity-0.1.3-scope.json)
+and preserves the selected source runs, filters and artifact hashes.
+It records both sealed images, package versions, unchanged candidate hashes,
+root-fixture settings, clean teardown and overlay deletion. Private diagnostic
+and superseded runs remain outside the selected counts. Older definitions exist
+for 72 modern fixtures per build; their outcome changes are summarized in the
+record. The first image's original lock content is unavailable, though its hash
+and 413-package map remain; the committed lock describes the later image.
+The [scope inventory](data/parity-0.1.3-scope.json)
 keeps missing commands, unreviewed option forms and all deferrals visible.
