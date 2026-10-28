@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "0826a74513e5cd6da2a14c781676d33b13b6778ec1ec5994ce7e620de84b225d",
+  "ledger_sha256": "53826a4f4a09c99b8770071c1d76035a89b2b0223e7bc3ca4acfb9f4370ae3ce",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 104,
-    "none": 276,
-    "full": 220
+    "partial": 95,
+    "none": 274,
+    "full": 231
   },
   "migrations": {
-    "deferred": 380,
-    "replacement": 220
+    "deferred": 369,
+    "replacement": 231
   },
   "pending_full_topics": [],
   "builds": {
@@ -1809,6 +1809,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793150936.20961
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "root-d-static-81",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 8,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "5411fe3338e519f5081db1345811f8e0eeede590d3790fcd144735126b7274aa",
+            "provenance.json": "4193b256c49d7586501cce65a8bf22a982177955e1cac1bead62998b9121326f",
+            "payload.tar": "b9de2bb90a4b60569f8c1b2ea5f1a741764797543be38c50b27664e86be7b0b0",
+            "evidence.tar": "cd38bff517b532eee82a6b1d32a138fc13da7a62cc7abead6c56c6cc8ce35555"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793151775.1377084
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -5344,35 +5370,48 @@
         },
         {
           "topic": "blockdev/maintenance-requests-mock",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "--flushbufs issues BLKFLSBUF on each device and returns 0 with no stdout when permitted; denied (EACCES) without CAP_SYS_ADMIN with status 1.",
-              "coverage": "partial",
-              "gap": "real permitted/denied BLKFLSBUF needs a block device (BLOCK-DEV)",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-blockdev-mocked-success",
                   "status": "PASS",
                   "run": "storage-static-41"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-maintenance-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "--rereadpt issues BLKRRPART: after the backing image's partition table changes, the kernel partition set (/sys/block/loopN/loopNpM) reflects the new table; EBUSY/EINVAL behaviour on a device without partscan matches util-linux.",
-              "coverage": "missing",
-              "gap": "unchanged: partition re-read effect needs a loop device with partscan (BLOCK-DEV)",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-maintenance-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -5401,45 +5440,73 @@
         {
           "topic": "blockdev/query-actions-mock",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "--getsz and --getsize64 print sectors (bytes/512, truncated) and bytes for a device of known size, matching util-linux blockdev byte-for-byte.",
-              "coverage": "missing",
-              "gap": "No blockdev action is executed in any case (suite is metadata only).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-query-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "--getsize prints the legacy BLKGETSIZE sector count, including a device larger than 2^32 sectors (beyond the 32-bit range).",
-              "coverage": "missing",
-              "gap": "No executed case; needs a >2 TiB device (dm-zero) because BLKGETSIZE on x86_64 returns unsigned long.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-query-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "--getss and --getbsz print logical sector size and block size for devices with 512 and 4096 logical sectors.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-query-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "--getro prints 1 for a read-only device and 0 for a writable one (normalized from nonzero BLKROGET).",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-query-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
@@ -5454,44 +5521,64 @@
         },
         {
           "topic": "blockdev/readonly-transitions-mock",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Ordered --getro --setro --getro --setrw --getro on one device prints 0,1,0 in order within a single invocation and leaves the device writable (kernel /sys/block/loopN/ro = 0).",
-              "coverage": "partial",
-              "gap": "printed values 0/1/0 and setter values need a buffer-writing mock or a block device",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-blockdev-mocked-success",
                   "status": "PASS",
                   "run": "storage-static-41"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-readonly-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "State persists across invocations and is per-device: --setro on device A then --getro A B in a later call prints 1 then 0.",
-              "coverage": "missing",
-              "gap": "unchanged: per-device persistent state needs a block device or stateful mock",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-readonly-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Without CAP_SYS_ADMIN, --setro/--setrw fail (kernel returns EACCES), the getter still runs, status is 1, and the device state is unchanged.",
-              "coverage": "missing",
-              "gap": "unchanged: kernel EACCES for BLKROSET needs a block device",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-readonly-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -5582,7 +5669,7 @@
               "id": "r5",
               "behavior": "Descriptor cleanup: after success and after each failure path, the shell has no additional open descriptors.",
               "coverage": "partial",
-              "gap": "Descriptor counts are unchanged for the tested open/ioctl failures. Close-error cleanup and real successful device paths remain untested.",
+              "gap": "Close-error cleanup remains untested: close(2) failure injection has no stable descriptor-number condition.",
               "evidence": [
                 {
                   "group": "shell",
@@ -5595,6 +5682,12 @@
                   "id": "migration-blockdev-injected-errors",
                   "status": "PASS",
                   "run": "storage-static-41"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-query-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
                 }
               ],
               "fully_exercised": false,
@@ -13641,46 +13734,67 @@
         },
         {
           "topic": "fsfreeze/deferred-freeze-supported-filesystem",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "fsfreeze -f MOUNTPOINT on a freezable filesystem returns 0 with no stdout/stderr and the filesystem is frozen (independent oracle: a second freeze reports EBUSY; a bounded write blocks).",
-              "coverage": "missing",
-              "gap": "No fsfreeze action is executed in any case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-fsfreeze-lifecycle-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "--freeze long option is equivalent to -f.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-fsfreeze-lifecycle-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Cleanup guarantees thaw even when assertions fail.",
-              "coverage": "missing",
-              "gap": "Harness obligation; no driver teardown exists.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-fsfreeze-lifecycle-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "fsfreeze/deferred-ioctl-error-contract",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -13733,8 +13847,8 @@
             {
               "id": "r4",
               "behavior": "Pre-ioctl errors: missing path (stat ENOENT), non-directory operand, missing operand, both -f and -u, unknown option, extra operand.",
-              "coverage": "partial",
-              "gap": "usage diagnostics wording not asserted",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -13747,28 +13861,41 @@
                   "id": "migration-fsfreeze-usage-forms",
                   "status": "PASS",
                   "run": "storage-static-41"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-fsfreeze-usage-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "fsfreeze/deferred-symlink-mountpoint",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A relative symlink operand pointing to the disposable mount directory is followed for -f and the subsequent -u, freezing/thawing that filesystem.",
-              "coverage": "missing",
-              "gap": "successful freeze/thaw through a symlink needs a freezable filesystem (CAP_SYS_ADMIN)",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-fsfreeze-lifecycle-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -13796,19 +13923,26 @@
         },
         {
           "topic": "fsfreeze/deferred-thaw-and-resume",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "fsfreeze -u / --unfreeze on the frozen disposable mount returns 0 silently and ordinary reads/writes resume (bounded write completes, content read back).",
-              "coverage": "missing",
-              "gap": "unchanged: needs a frozen freezable filesystem",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-fsfreeze-lifecycle-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -13945,35 +14079,48 @@
         },
         {
           "topic": "fstrim/fitrim-results-and-statuses",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "FITRIM receives start/length/minimum-length from -o/-l/-m (default 0, ULLONG_MAX, 0) \u2014 request argument values.",
-              "coverage": "missing",
-              "gap": "start/length/minlen values are inside struct fstrim_range in memory; system-seccomp.py can record only integer and string arguments, so request values are not observed (only the request count per invocation). Needs a struct-reading notify log.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-fstrim-fitrim-root",
+                  "status": "PASS",
+                  "run": "root-d-static-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Verbose success output '<mp>: <human> (<n> bytes) trimmed [on <dev>]' uses the kernel-returned length with util-linux human formatting.",
-              "coverage": "partial",
-              "gap": "Successful mocked FITRIM leaves the requested length unchanged and its formatting is checked. A distinct kernel-returned length has not been written into the response buffer and observed.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-fstrim-mocked-results",
                   "status": "PASS",
                   "run": "storage-static-41"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-fstrim-fitrim-root",
+                  "status": "PASS",
+                  "run": "root-d-static-81"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -14000,8 +14147,8 @@
             {
               "id": "r4",
               "behavior": "Aggregate statuses in table modes: all failed 32, some failed 64, none selected 255/1 per util-linux, all ok 0.",
-              "coverage": "partial",
-              "gap": "some-failed status 64 needs a mixed per-filesystem result; the helper replies per syscall name, and successive FITRIM calls are not distinguishable by integer arguments",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -14020,10 +14167,16 @@
                   "id": "migration-fstrim-namespace-mounts",
                   "status": "PASS",
                   "run": "storage-static-41"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-fstrim-fitrim-root",
+                  "status": "PASS",
+                  "run": "root-d-static-81"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -14179,16 +14332,16 @@
         },
         {
           "topic": "fstrim/mountinfo-all-mode",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-a parses /proc/self/mountinfo and with -n lists the writable local mounted filesystems in reverse table order, skipping read-only, pseudo (proc, sysfs, devtmpfs...), network and swap entries.",
-              "coverage": "partial",
-              "gap": "No positive -a listing: the guest root is not selected by util-linux -a (likely mounted read-only), so reverse-order listing of writable local block filesystems is unobserved.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -14201,10 +14354,16 @@
                   "id": "migration-fstrim-selection-discard-capable-root",
                   "status": "FAIL",
                   "run": "workers-d-static-63"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-fstrim-all-mode-root",
+                  "status": "PASS",
+                  "run": "root-d-static-81"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -14231,8 +14390,8 @@
             {
               "id": "r3",
               "behavior": "-a without -n attempts FITRIM: EPERM/unsupported per filesystem and the aggregate status (32 all failed, 64 some failed, 0 ok, quiet-unsupported) match util-linux.",
-              "coverage": "partial",
-              "gap": "No -a run attempts FITRIM in the guest; per-filesystem EPERM/unsupported reporting and the 32/64 aggregates in -a mode are unobserved.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -14245,35 +14404,47 @@
                   "id": "migration-fstrim-selection-discard-capable-root",
                   "status": "FAIL",
                   "run": "workers-d-static-63"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-fstrim-all-mode-root",
+                  "status": "PASS",
+                  "run": "root-d-static-81"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "fstrim/ranges-and-option-errors",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-o/-l/-m parse base-0 numbers (0x, leading 0), binary (KiB/MiB/K) and decimal (KB/MB) suffixes, fractions and overflow limits exactly like util-linux strtosize; dry run validates the target and prints the dry-run line.",
-              "coverage": "partial",
-              "gap": "Size syntax acceptance/rejection and dry-run target validation are exercised. Converted numeric offset/length/minimum fields are not observed; the dry-run line reports zero bytes.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-fstrim-options-and-ranges",
                   "status": "FAIL",
                   "run": "storage-static-41"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-fstrim-fitrim-root",
+                  "status": "PASS",
+                  "run": "root-d-static-81"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -20220,10 +20391,10 @@
         },
         {
           "topic": "losetup/find-free-and-exhaustion",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -20244,11 +20415,18 @@
             {
               "id": "r2",
               "behavior": "Exhaustion: when no free device can be allocated, the command fails with the LOOP_CTL_GET_FREE diagnostic and status 1.",
-              "coverage": "missing",
-              "gap": "Real exhaustion is unreachable on the guest kernel 6.12: in root-b-77 reloading loop with max_loop=1 still let LOOP_CTL_GET_FREE allocate loop1. Needs an errno injector for LOOP_CTL_GET_FREE.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-injected-errors-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -20327,10 +20505,10 @@
         },
         {
           "topic": "losetup/readonly-fallback-and-rollback",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -20351,20 +20529,34 @@
             {
               "id": "r2",
               "behavior": "LOOP_SET_STATUS64 failure after LOOP_SET_FD rolls back with LOOP_CLR_FD so the device is left unattached, with status 1.",
-              "coverage": "missing",
-              "gap": "LOOP_SET_STATUS64 does not fail for the candidate argument set on a real kernel; needs an ioctl errno injector.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-injected-errors-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Rollback failure (LOOP_CLR_FD also failing) is reported with the 'rollback LOOP_CLR_FD' diagnostic.",
-              "coverage": "missing",
-              "gap": "Needs injection on two ioctls (LOOP_SET_STATUS64 and LOOP_CLR_FD).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-injected-errors-root",
+                  "status": "FAIL",
+                  "run": "root-d-static-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -41289,9 +41481,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 380,
-        "FAIL": 113,
-        "PASS": 107
+        "UNRESOLVED": 369,
+        "FAIL": 123,
+        "PASS": 108
       },
       "migration_without_complete_evidence": []
     },
@@ -43090,6 +43282,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793150935.9951596
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "root-d-dynamic-81",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 8,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "e9c042a4282e1a5bc72ac9f79d645791a38045e90f7b9c7fe8de59e3ca21620e",
+            "provenance.json": "ce368061549912addd5870f67e144f88520ef27afb6a01e6c111995a0dcffcaf",
+            "payload.tar": "12a6f260645a98465782919e655a3db1b3caa7f42654ad291d524487c825f2ad",
+            "evidence.tar": "803d0d0d21122c0ab232a5ff151c6159a61c14baaf45df497f794f566a915e24"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793151773.7333343
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -46625,35 +46843,48 @@
         },
         {
           "topic": "blockdev/maintenance-requests-mock",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "--flushbufs issues BLKFLSBUF on each device and returns 0 with no stdout when permitted; denied (EACCES) without CAP_SYS_ADMIN with status 1.",
-              "coverage": "partial",
-              "gap": "real permitted/denied BLKFLSBUF needs a block device (BLOCK-DEV)",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-blockdev-mocked-success",
                   "status": "PASS",
                   "run": "storage-dynamic-41"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-maintenance-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "--rereadpt issues BLKRRPART: after the backing image's partition table changes, the kernel partition set (/sys/block/loopN/loopNpM) reflects the new table; EBUSY/EINVAL behaviour on a device without partscan matches util-linux.",
-              "coverage": "missing",
-              "gap": "unchanged: partition re-read effect needs a loop device with partscan (BLOCK-DEV)",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-maintenance-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -46682,45 +46913,73 @@
         {
           "topic": "blockdev/query-actions-mock",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "--getsz and --getsize64 print sectors (bytes/512, truncated) and bytes for a device of known size, matching util-linux blockdev byte-for-byte.",
-              "coverage": "missing",
-              "gap": "No blockdev action is executed in any case (suite is metadata only).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-query-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "--getsize prints the legacy BLKGETSIZE sector count, including a device larger than 2^32 sectors (beyond the 32-bit range).",
-              "coverage": "missing",
-              "gap": "No executed case; needs a >2 TiB device (dm-zero) because BLKGETSIZE on x86_64 returns unsigned long.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-query-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "--getss and --getbsz print logical sector size and block size for devices with 512 and 4096 logical sectors.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-query-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "--getro prints 1 for a read-only device and 0 for a writable one (normalized from nonzero BLKROGET).",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-query-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
@@ -46735,44 +46994,64 @@
         },
         {
           "topic": "blockdev/readonly-transitions-mock",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Ordered --getro --setro --getro --setrw --getro on one device prints 0,1,0 in order within a single invocation and leaves the device writable (kernel /sys/block/loopN/ro = 0).",
-              "coverage": "partial",
-              "gap": "printed values 0/1/0 and setter values need a buffer-writing mock or a block device",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-blockdev-mocked-success",
                   "status": "PASS",
                   "run": "storage-dynamic-41"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-readonly-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "State persists across invocations and is per-device: --setro on device A then --getro A B in a later call prints 1 then 0.",
-              "coverage": "missing",
-              "gap": "unchanged: per-device persistent state needs a block device or stateful mock",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-readonly-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Without CAP_SYS_ADMIN, --setro/--setrw fail (kernel returns EACCES), the getter still runs, status is 1, and the device state is unchanged.",
-              "coverage": "missing",
-              "gap": "unchanged: kernel EACCES for BLKROSET needs a block device",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-readonly-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -46863,7 +47142,7 @@
               "id": "r5",
               "behavior": "Descriptor cleanup: after success and after each failure path, the shell has no additional open descriptors.",
               "coverage": "partial",
-              "gap": "Descriptor counts are unchanged for the tested open/ioctl failures. Close-error cleanup and real successful device paths remain untested.",
+              "gap": "Close-error cleanup remains untested: close(2) failure injection has no stable descriptor-number condition.",
               "evidence": [
                 {
                   "group": "shell",
@@ -46876,6 +47155,12 @@
                   "id": "migration-blockdev-injected-errors",
                   "status": "PASS",
                   "run": "storage-dynamic-41"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-blockdev-query-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
                 }
               ],
               "fully_exercised": false,
@@ -54922,46 +55207,67 @@
         },
         {
           "topic": "fsfreeze/deferred-freeze-supported-filesystem",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "fsfreeze -f MOUNTPOINT on a freezable filesystem returns 0 with no stdout/stderr and the filesystem is frozen (independent oracle: a second freeze reports EBUSY; a bounded write blocks).",
-              "coverage": "missing",
-              "gap": "No fsfreeze action is executed in any case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-fsfreeze-lifecycle-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "--freeze long option is equivalent to -f.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-fsfreeze-lifecycle-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Cleanup guarantees thaw even when assertions fail.",
-              "coverage": "missing",
-              "gap": "Harness obligation; no driver teardown exists.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-fsfreeze-lifecycle-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "fsfreeze/deferred-ioctl-error-contract",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -55014,8 +55320,8 @@
             {
               "id": "r4",
               "behavior": "Pre-ioctl errors: missing path (stat ENOENT), non-directory operand, missing operand, both -f and -u, unknown option, extra operand.",
-              "coverage": "partial",
-              "gap": "usage diagnostics wording not asserted",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -55028,28 +55334,41 @@
                   "id": "migration-fsfreeze-usage-forms",
                   "status": "PASS",
                   "run": "storage-dynamic-41"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-fsfreeze-usage-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "fsfreeze/deferred-symlink-mountpoint",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A relative symlink operand pointing to the disposable mount directory is followed for -f and the subsequent -u, freezing/thawing that filesystem.",
-              "coverage": "missing",
-              "gap": "successful freeze/thaw through a symlink needs a freezable filesystem (CAP_SYS_ADMIN)",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-fsfreeze-lifecycle-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -55077,19 +55396,26 @@
         },
         {
           "topic": "fsfreeze/deferred-thaw-and-resume",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "fsfreeze -u / --unfreeze on the frozen disposable mount returns 0 silently and ordinary reads/writes resume (bounded write completes, content read back).",
-              "coverage": "missing",
-              "gap": "unchanged: needs a frozen freezable filesystem",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-fsfreeze-lifecycle-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -55226,35 +55552,48 @@
         },
         {
           "topic": "fstrim/fitrim-results-and-statuses",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "FITRIM receives start/length/minimum-length from -o/-l/-m (default 0, ULLONG_MAX, 0) \u2014 request argument values.",
-              "coverage": "missing",
-              "gap": "start/length/minlen values are inside struct fstrim_range in memory; system-seccomp.py can record only integer and string arguments, so request values are not observed (only the request count per invocation). Needs a struct-reading notify log.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-fstrim-fitrim-root",
+                  "status": "PASS",
+                  "run": "root-d-dynamic-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Verbose success output '<mp>: <human> (<n> bytes) trimmed [on <dev>]' uses the kernel-returned length with util-linux human formatting.",
-              "coverage": "partial",
-              "gap": "Successful mocked FITRIM leaves the requested length unchanged and its formatting is checked. A distinct kernel-returned length has not been written into the response buffer and observed.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-fstrim-mocked-results",
                   "status": "PASS",
                   "run": "storage-dynamic-41"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-fstrim-fitrim-root",
+                  "status": "PASS",
+                  "run": "root-d-dynamic-81"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -55281,8 +55620,8 @@
             {
               "id": "r4",
               "behavior": "Aggregate statuses in table modes: all failed 32, some failed 64, none selected 255/1 per util-linux, all ok 0.",
-              "coverage": "partial",
-              "gap": "some-failed status 64 needs a mixed per-filesystem result; the helper replies per syscall name, and successive FITRIM calls are not distinguishable by integer arguments",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -55301,10 +55640,16 @@
                   "id": "migration-fstrim-namespace-mounts",
                   "status": "PASS",
                   "run": "storage-dynamic-41"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-fstrim-fitrim-root",
+                  "status": "PASS",
+                  "run": "root-d-dynamic-81"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -55460,16 +55805,16 @@
         },
         {
           "topic": "fstrim/mountinfo-all-mode",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-a parses /proc/self/mountinfo and with -n lists the writable local mounted filesystems in reverse table order, skipping read-only, pseudo (proc, sysfs, devtmpfs...), network and swap entries.",
-              "coverage": "partial",
-              "gap": "No positive -a listing: the guest root is not selected by util-linux -a (likely mounted read-only), so reverse-order listing of writable local block filesystems is unobserved.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -55482,10 +55827,16 @@
                   "id": "migration-fstrim-selection-discard-capable-root",
                   "status": "FAIL",
                   "run": "workers-d-dynamic-63"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-fstrim-all-mode-root",
+                  "status": "PASS",
+                  "run": "root-d-dynamic-81"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -55512,8 +55863,8 @@
             {
               "id": "r3",
               "behavior": "-a without -n attempts FITRIM: EPERM/unsupported per filesystem and the aggregate status (32 all failed, 64 some failed, 0 ok, quiet-unsupported) match util-linux.",
-              "coverage": "partial",
-              "gap": "No -a run attempts FITRIM in the guest; per-filesystem EPERM/unsupported reporting and the 32/64 aggregates in -a mode are unobserved.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -55526,35 +55877,47 @@
                   "id": "migration-fstrim-selection-discard-capable-root",
                   "status": "FAIL",
                   "run": "workers-d-dynamic-63"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-fstrim-all-mode-root",
+                  "status": "PASS",
+                  "run": "root-d-dynamic-81"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "fstrim/ranges-and-option-errors",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-o/-l/-m parse base-0 numbers (0x, leading 0), binary (KiB/MiB/K) and decimal (KB/MB) suffixes, fractions and overflow limits exactly like util-linux strtosize; dry run validates the target and prints the dry-run line.",
-              "coverage": "partial",
-              "gap": "Size syntax acceptance/rejection and dry-run target validation are exercised. Converted numeric offset/length/minimum fields are not observed; the dry-run line reports zero bytes.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-fstrim-options-and-ranges",
                   "status": "FAIL",
                   "run": "storage-dynamic-41"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-fstrim-fitrim-root",
+                  "status": "PASS",
+                  "run": "root-d-dynamic-81"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -61501,10 +61864,10 @@
         },
         {
           "topic": "losetup/find-free-and-exhaustion",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -61525,11 +61888,18 @@
             {
               "id": "r2",
               "behavior": "Exhaustion: when no free device can be allocated, the command fails with the LOOP_CTL_GET_FREE diagnostic and status 1.",
-              "coverage": "missing",
-              "gap": "Real exhaustion is unreachable on the guest kernel 6.12: in root-b-77 reloading loop with max_loop=1 still let LOOP_CTL_GET_FREE allocate loop1. Needs an errno injector for LOOP_CTL_GET_FREE.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-injected-errors-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -61608,10 +61978,10 @@
         },
         {
           "topic": "losetup/readonly-fallback-and-rollback",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -61632,20 +62002,34 @@
             {
               "id": "r2",
               "behavior": "LOOP_SET_STATUS64 failure after LOOP_SET_FD rolls back with LOOP_CLR_FD so the device is left unattached, with status 1.",
-              "coverage": "missing",
-              "gap": "LOOP_SET_STATUS64 does not fail for the candidate argument set on a real kernel; needs an ioctl errno injector.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-injected-errors-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Rollback failure (LOOP_CLR_FD also failing) is reported with the 'rollback LOOP_CLR_FD' diagnostic.",
-              "coverage": "missing",
-              "gap": "Needs injection on two ioctls (LOOP_SET_STATUS64 and LOOP_CLR_FD).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-injected-errors-root",
+                  "status": "FAIL",
+                  "run": "root-d-dynamic-81"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -82570,9 +82954,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 380,
-        "FAIL": 113,
-        "PASS": 107
+        "UNRESOLVED": 369,
+        "FAIL": 123,
+        "PASS": 108
       },
       "migration_without_complete_evidence": []
     }

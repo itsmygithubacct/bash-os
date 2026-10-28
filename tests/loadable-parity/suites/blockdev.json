@@ -43,25 +43,47 @@
       "id": "query-actions-mock",
       "kind": "deferred",
       "purpose": "Exercise query ioctl dispatch and formatting for size in sectors, size in bytes, legacy size, logical sector size, block size, and normalized read-only state.",
-      "reason": "Query ioctls need a block device: uid 2000 with setgroups([]) cannot open /dev/loop-control or /dev/loopN (root:disk 0660), cannot mknod block nodes (CAP_MKNOD; device nodes are refused inside user namespaces), and the real virtio disk nodes are root:disk 0660, so no block device with known contents is visible to an unprivileged fixture. Read-only query ioctls themselves need no capability once a readable node exists, so only device provisioning is missing; r5 values cannot exist on a real device."
+      "reason": "Remaining obligations: r5: Not producible by a real block device (minimum logical block 512 B; loop/dm sizes are sector multiples); only an ioctl return-value mock can supply it."
     },
     {
       "id": "readonly-transitions-mock",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise ordered --getro, --setro, --getro, --setrw, --getro sequences across fixture devices and invocations.",
-      "reason": "Remaining obligations: r1: printed values 0/1/0 and setter values need a buffer-writing mock or a block device; r2: unchanged: per-device persistent state needs a block device or stateful mock; r3: unchanged: kernel EACCES for BLKROSET needs a block device"
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-blockdev-mocked-success"
+        },
+        {
+          "group": "shell",
+          "id": "migration-blockdev-readonly-root"
+        }
+      ]
     },
     {
       "id": "maintenance-requests-mock",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise --flushbufs and --rereadpt dispatch, zero-argument ioctl requests, device iteration, and continuation order.",
-      "reason": "Remaining obligations: r1: real permitted/denied BLKFLSBUF needs a block device (BLOCK-DEV); r2: unchanged: partition re-read effect needs a loop device with partscan (BLOCK-DEV)"
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-blockdev-maintenance-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-blockdev-mocked-success"
+        },
+        {
+          "group": "shell",
+          "id": "migration-blockdev-request-trace"
+        }
+      ]
     },
     {
       "id": "syscall-failures-mock",
       "kind": "deferred",
       "purpose": "Exercise missing/open-failing paths, EACCES read-write retry, ioctl failure continuation, descriptor close handling, and aggregate status.",
-      "reason": "Remaining obligations: r4: close(2) failure injection not attempted: no stable descriptor-number condition for a seccomp rule; r5: Descriptor counts are unchanged for the tested open/ioctl failures. Close-error cleanup and real successful device paths remain untested."
+      "reason": "Remaining obligations: r4: close(2) failure injection not attempted: no stable descriptor-number condition for a seccomp rule; r5: Close-error cleanup remains untested: close(2) failure injection has no stable descriptor-number condition."
     }
   ]
 }

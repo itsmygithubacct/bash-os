@@ -55,9 +55,18 @@
     },
     {
       "id": "find-free-and-exhaustion",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify -f/--find selection, the returned device name, and the no-free-device error when allocation is exhausted.",
-      "reason": "Remaining obligations: r2: Real exhaustion is unreachable on the guest kernel 6.12: in root-b-77 reloading loop with max_loop=1 still let LOOP_CTL_GET_FREE allocate loop1. Needs an errno injector for LOOP_CTL_GET_FREE."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-losetup-find-free-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-losetup-injected-errors-root"
+        }
+      ]
     },
     {
       "id": "automatic-attach-options",
@@ -83,9 +92,18 @@
     },
     {
       "id": "readonly-fallback-and-rollback",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify the documented read-only backing-file fallback on EACCES/EROFS and rollback behavior after loop status configuration failures, including rollback failure reporting.",
-      "reason": "Remaining obligations: r2: LOOP_SET_STATUS64 does not fail for the candidate argument set on a real kernel; needs an ioctl errno injector.; r3: Needs injection on two ioctls (LOOP_SET_STATUS64 and LOOP_CLR_FD)."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-losetup-injected-errors-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-losetup-readonly-fallback-root"
+        }
+      ]
     },
     {
       "id": "detach-and-ownership",

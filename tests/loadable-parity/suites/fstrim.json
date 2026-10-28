@@ -58,9 +58,30 @@
     },
     {
       "id": "mountinfo-all-mode",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare -a mountinfo parsing and selection of writable local filesystems, including read-only, pseudo, network and unmounted entries.",
-      "reason": "Remaining obligations: r1: No positive -a listing: the guest root is not selected by util-linux -a (likely mounted read-only), so reverse-order listing of writable local block filesystems is unobserved.; r3: No -a run attempts FITRIM in the guest; per-filesystem EPERM/unsupported reporting and the 32/64 aggregates in -a mode are unobserved."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-fstrim-all-mode-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-listed-tables"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-namespace-mounts"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-selection-discard-capable-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-selection-listed-tables"
+        }
+      ]
     },
     {
       "id": "fstab-tags-and-root",
@@ -97,15 +118,45 @@
     },
     {
       "id": "ranges-and-option-errors",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare -o/-l/-m size parsing (base-0 numbers, binary/decimal suffixes, fractions and limits), option permutation and representative usage failures.",
-      "reason": "Remaining obligations: r1: Size syntax acceptance/rejection and dry-run target validation are exercised. Converted numeric offset/length/minimum fields are not observed; the dry-run line reports zero bytes."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-fstrim-fitrim-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-options-and-ranges"
+        }
+      ]
     },
     {
       "id": "fitrim-results-and-statuses",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare range arguments, verbose size formatting, unsupported-operation handling, quiet mode, and all-failed/partial-failed aggregate exit statuses.",
-      "reason": "Remaining obligations: r1: start/length/minlen values are inside struct fstrim_range in memory; system-seccomp.py can record only integer and string arguments, so request values are not observed (only the request count per invocation). Needs a struct-reading notify log.; r2: Successful mocked FITRIM leaves the requested length unchanged and its formatting is checked. A distinct kernel-returned length has not been written into the response buffer and observed.; r4: some-failed status 64 needs a mixed per-filesystem result; the helper replies per syscall name, and successive FITRIM calls are not distinguishable by integer arguments"
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-fstrim-fitrim-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-listed-tables"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-mocked-results"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-namespace-mounts"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-single-target"
+        }
+      ]
     },
     {
       "id": "single-target-path-lifecycle",

@@ -1,0 +1,251 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-fsfreeze-lifecycle-root",
+      "loadable": "fsfreeze",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "fsfreeze/deferred-freeze-supported-filesystem",
+        "fsfreeze/deferred-thaw-and-resume",
+        "fsfreeze/deferred-symlink-mountpoint"
+      ],
+      "purpose": "fsfreeze on an 8 MiB ext4 loop mount: -f freezes (util-linux -f then reports EBUSY), reads still work and a background write blocks; -u thaws, the blocked write completes and the filesystem is writable; --freeze/--unfreeze are equivalent; thawing an unfrozen filesystem fails; a relative symlink to the mount directory is followed for -f and -u. An EXIT trap thaws the mount whatever happens.",
+      "oracle": "util-linux 2.41 fsfreeze; util-linux fsfreeze -f as the frozen-state probe",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; the frozen-state probe after each step; writer state and the written size. Loop devices are attached to per-side images under /tmp/rt (udev settled after each attach) and detached by the fixture; the harness verifies no loop, dm or mount state survives the side.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "losetup",
+        "mkdir",
+        "sed",
+        "tr",
+        "fsfreeze",
+        "dd",
+        "sleep",
+        "cat",
+        "stat",
+        "ln"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nnx=0; mkext() { local i=$1 s=$2 m=$3; shift 3; nx=$((nx+1))\n  /usr/bin/truncate -s $s $i && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal -E nodiscard,lazy_itable_init=0 \\\n    -U 0b0e0e0e-1111-4222-8333-44444444444$nx \"$@\" $i && dev=$(att -f --show $i) && /usr/bin/mkdir -p $m &&\n    /usr/bin/mount $dev $m || { echo SETUP-FAILED; exit 99; }; }\nprobe() { if /usr/sbin/fsfreeze -f $M 2>/dev/null; then /usr/sbin/fsfreeze -u $M; echo \"  frozen=no\"; else echo \"  frozen=yes\"; fi; }\ntrap '/usr/sbin/fsfreeze -u $M >/dev/null 2>&1' EXIT\ncd $RT; M=$RT/mnt; mkext img 8M $M; echo data > $M/f\nr freeze fsfreeze -f $M; probe\nr read-frozen /usr/bin/cat $M/f\n/usr/bin/dd if=/dev/zero of=$M/w bs=4k count=2 conv=fsync status=none & wp=$!\n/usr/bin/sleep 1; kill -0 $wp 2>/dev/null && echo \"  writer blocked\" || echo \"  writer finished early\"\nr thaw fsfreeze -u $M\nwait $wp; echo \"  writer status=$? size=$(/usr/bin/stat -c %s $M/w)\"; probe\nr freeze-long fsfreeze --freeze $M; probe\nr unfreeze-long fsfreeze --unfreeze $M; probe\nr thaw-unfrozen fsfreeze -u $M; probe\n/usr/bin/ln -s mnt lnk\nr freeze-link fsfreeze -f lnk; probe\nr thaw-link fsfreeze -u lnk; probe\nr write-after /usr/bin/dd if=/dev/zero of=$M/w2 bs=4k count=1 conv=fsync status=none\ntrap - EXIT; cd /tmp/parity-case; /usr/bin/umount $M; detach $dev; echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 60
+    },
+    {
+      "id": "migration-fsfreeze-usage-root",
+      "loadable": "fsfreeze",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "fsfreeze/deferred-ioctl-error-contract"
+      ],
+      "purpose": "fsfreeze pre-request failures as root beside a real freezable ext4 mount: a missing path, a regular file, an empty operand, no operand, no action, both actions, an unknown option, an extra operand and an action word after --; the mount is never frozen.",
+      "oracle": "util-linux 2.41 fsfreeze",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; the frozen-state probe at the end. Loop devices are attached to per-side images under /tmp/rt (udev settled after each attach) and detached by the fixture; the harness verifies no loop, dm or mount state survives the side.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "losetup",
+        "mkdir",
+        "sed",
+        "tr",
+        "fsfreeze"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nnx=0; mkext() { local i=$1 s=$2 m=$3; shift 3; nx=$((nx+1))\n  /usr/bin/truncate -s $s $i && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal -E nodiscard,lazy_itable_init=0 \\\n    -U 0b0e0e0e-1111-4222-8333-44444444444$nx \"$@\" $i && dev=$(att -f --show $i) && /usr/bin/mkdir -p $m &&\n    /usr/bin/mount $dev $m || { echo SETUP-FAILED; exit 99; }; }\nprobe() { if /usr/sbin/fsfreeze -f $M 2>/dev/null; then /usr/sbin/fsfreeze -u $M; echo \"  frozen=no\"; else echo \"  frozen=yes\"; fi; }\ntrap '/usr/sbin/fsfreeze -u $M >/dev/null 2>&1' EXIT\ncd $RT; M=$RT/mnt; mkext img 8M $M; echo data > $M/f\n: > $RT/file\nr missing fsfreeze -f $RT/missing\nr regular fsfreeze -f $RT/file\nr empty fsfreeze -f ''\nr no-operand fsfreeze -f\nr no-action fsfreeze $M\nr both fsfreeze -f -u $M\nr unknown fsfreeze -Z $M\nr extra fsfreeze -f $M $M\nr dashdash fsfreeze -- -f\nprobe\ntrap - EXIT; cd /tmp/parity-case; /usr/bin/umount $M; detach $dev; echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 45
+    },
+    {
+      "id": "migration-blockdev-query-root",
+      "loadable": "blockdev",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "blockdev/query-actions-mock",
+        "blockdev/syscall-failures-mock"
+      ],
+      "purpose": "blockdev --getsz, --getsize64, --getsize, --getss, --getbsz and --getro on loop devices of 1 MiB (512-byte sectors), 4 MiB with 4096-byte logical sectors and a read-only attachment, and on a dm-zero device of 8589934720 sectors (beyond 32 bits); several actions and devices in one call; the shell's descriptor count is unchanged after the successful calls.",
+      "oracle": "util-linux 2.41 blockdev",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix. Whether the shell's own descriptor count (/proc/$BASHPID/fd) changed across the queries is printed. Loop devices are attached to per-side images under /tmp/rt (udev settled after each attach) and detached by the fixture; the harness verifies no loop, dm or mount state survives the side. The dm device is removed by the fixture and by the harness cleanup.",
+      "requires": [
+        "blockdev",
+        "losetup",
+        "dmsetup",
+        "truncate",
+        "python3",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\ncd $RT; seed a.img 1048576; /usr/bin/truncate -s 4M b.img; seed c.img 65536\nd1=$(att -f --show a.img); d2=$(att -f --show -b 4096 b.img); d3=$(att -f --show -r c.img)\nprintf '0 8589934720 zero\\n' | /usr/sbin/dmsetup create --noudevsync rf-zero || echo SETUP-FAILED\nz=/dev/dm-$(/usr/sbin/dmsetup info -c --noheadings -o minor rf-zero)\nfds() { local a=(/proc/$BASHPID/fd/*); n=${#a[@]}; }\nfds; before=$n\nQ=\"--getsz --getsize64 --getsize --getss --getbsz --getro\"\nr small blockdev $Q $d1\nr 4k blockdev $Q $d2\nr readonly blockdev $Q $d3\nr zero blockdev $Q $z\nr devices blockdev --getsz --getro $d1 $d2 $d3 $z\nr report blockdev --report $d1 $d2\nfds; [[ $n == \"$before\" ]] && echo \"  shell descriptors unchanged\" || echo \"  shell descriptors $before -> $n\"\n/usr/sbin/dmsetup remove --noudevsync rf-zero; detach $d1 $d2 $d3; echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 45
+    },
+    {
+      "id": "migration-blockdev-readonly-root",
+      "loadable": "blockdev",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "blockdev/readonly-transitions-mock"
+      ],
+      "purpose": "blockdev read-only transitions on two loop devices: --getro --setro --getro --setrw --getro in one call; --setro on one device then --getro on both in a later call; and, as uid 2000 in group disk (able to open the nodes), --getro --setro --getro --setrw, which the kernel refuses without CAP_SYS_ADMIN. The kernel state is read from /sys/block/loopN/ro after each step.",
+      "oracle": "util-linux 2.41 blockdev",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; sysfs ro values after each step. Loop devices are attached to per-side images under /tmp/rt (udev settled after each attach) and detached by the fixture; the harness verifies no loop, dm or mount state survives the side.",
+      "requires": [
+        "blockdev",
+        "losetup",
+        "setpriv",
+        "stat",
+        "python3",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\ncd $RT; seed a.img 65536; seed b.img 65536; d1=$(att -f --show a.img); d2=$(att -f --show b.img)\nro() { echo \"  sysfs ro: $(< /sys/block/${d1#/dev/}/ro) $(< /sys/block/${d2#/dev/}/ro)\"; }\necho \"  node group: $(/usr/bin/stat -c '%G %a' $d2)\"; ro\nr sequence blockdev --getro --setro --getro --setrw --getro $d1; ro\nr set-a blockdev --setro $d1; ro\nr later blockdev --getro $d1 $d2; ro\nr reset-a blockdev --setrw $d1; ro\nu unprivileged \"blockdev --getro --setro --getro --setrw $d2\" 6; ro\ndetach $d1 $d2; echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 45
+    },
+    {
+      "id": "migration-blockdev-maintenance-root",
+      "loadable": "blockdev",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "blockdev/maintenance-requests-mock"
+      ],
+      "purpose": "blockdev --flushbufs on two loop devices as root and as uid 2000 in group disk (refused without CAP_SYS_ADMIN); --rereadpt on a partition-scanning loop device after the MBR in its backing image is rewritten from one partition to two and its buffer cache dropped by the fixture (the kernel partition set in sysfs follows), while a partition is held open (busy), and on a device attached without partition scanning.",
+      "oracle": "util-linux 2.41 blockdev",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; the partitions listed in /sys/block/loopN after each step. Loop devices are attached to per-side images under /tmp/rt (udev settled after each attach) and detached by the fixture; the harness verifies no loop, dm or mount state survives the side.",
+      "requires": [
+        "blockdev",
+        "losetup",
+        "setpriv",
+        "truncate",
+        "python3",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\ncd $RT; /usr/bin/truncate -s 4M p.img; /usr/bin/truncate -s 4M q.img; seed a.img 65536\nmbr() { /usr/bin/python3 /tmp/parity-case/mbr.py \"$@\" || echo SETUP-FAILED; }\nparts() { local x=${1#/dev/} p l=; for p in /sys/block/$x/${x}p*; do [[ -e $p ]] && l+=\" ${p##*/}\"; done; echo \"  partitions:${l:- none}\"; }\nmbr p.img - 2048 2048; mbr q.img - 2048 2048\ndp=$(att -f --show -P p.img); dq=$(att -f --show q.img); da=$(att -f --show a.img)\nr flush blockdev --flushbufs $dp $da\nu flush-unprivileged \"blockdev --flushbufs $da\" 6\nparts $dp\nmbr p.img $dp 2048 2048 4096 2048; settle; parts $dp\nr reread blockdev --rereadpt $dp; settle; parts $dp\nexec 7<${dp}p1\nr reread-busy blockdev --rereadpt $dp\nexec 7<&-; settle; parts $dp\nr reread-noscan blockdev --rereadpt $dq; parts $dq\ndetach $dp $dq $da; echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "files": {
+        "mbr.py": "# SPDX-License-Identifier: MIT\n# Write a minimal MBR partition table: Linux (0x83) entries from sector pairs.\nimport fcntl, os, struct, sys\nargs = [int(x) for x in sys.argv[3:]]\nsector = bytearray(512)\nstruct.pack_into('<I', sector, 440, 0x0b0e0e0e)\nfor n in range(len(args) // 2):\n    start, size = args[2 * n], args[2 * n + 1]\n    struct.pack_into('<B3sB3sII', sector, 446 + 16 * n, 0, b'\\xfe\\xff\\xff', 0x83, b'\\xfe\\xff\\xff', start, size)\nsector[510:512] = b'\\x55\\xaa'\nfd = os.open(sys.argv[1], os.O_WRONLY)\nos.pwrite(fd, bytes(sector), 0)\nos.fsync(fd)\nos.close(fd)\nif sys.argv[2] != '-':\n    fd = os.open(sys.argv[2], os.O_RDONLY)\n    fcntl.ioctl(fd, 0x1261)\n    os.close(fd)\n"
+      }
+    },
+    {
+      "id": "migration-fstrim-fitrim-root",
+      "loadable": "fstrim",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "fstrim/fitrim-results-and-statuses",
+        "fstrim/ranges-and-option-errors"
+      ],
+      "purpose": "fstrim against ext4 filesystems on loop devices, with every FITRIM request recorded (its fstrim_range as passed) and run by the kernel: the default range, -o/-l/-m with base-0 numbers, binary and decimal suffixes and a fraction, verbose output with the kernel-returned length; an -I fstab-shaped list of two filesystems where an offset beyond the smaller one fails there only (some failed) or on both (all failed), and an all-success list; and a mixed list where the second request is answered EOPNOTSUPP, with and without --quiet-unsupported.",
+      "oracle": "util-linux 2.41 fstrim under the same recorder",
+      "comparison": "Byte parity of status, stdout, stderr and the recorded requests (start, len, minlen, reply): one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix. Loop devices are attached to per-side images under /tmp/rt (udev settled after each attach) and detached by the fixture; the harness verifies no loop, dm or mount state survives the side.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "losetup",
+        "mkdir",
+        "sed",
+        "tr",
+        "fstrim",
+        "python3"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nnx=0; mkext() { local i=$1 s=$2 m=$3; shift 3; nx=$((nx+1))\n  /usr/bin/truncate -s $s $i && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal -E nodiscard,lazy_itable_init=0 \\\n    -U 0b0e0e0e-1111-4222-8333-44444444444$nx \"$@\" $i && dev=$(att -f --show $i) && /usr/bin/mkdir -p $m &&\n    /usr/bin/mount $dev $m || { echo SETUP-FAILED; exit 99; }; }\nSC=/opt/bashos-parity/harness/helpers/system-seccomp.py SQ=/opt/bashos-parity/harness/helpers/system-sequence.py\nj() { PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 $2 -- \"$BASH\" --noprofile --norc -c \"$3\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nt() { local log=$RT/t.jsonl; : > $log\n  PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 $SQ --notify ioctl:1=0xc0185879 --reply-seq ioctl=${SEQ:-continue} --log-mem ioctl=2:24 --log $log -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err\n  show \"$1\" $?\n  /usr/bin/python3 -c 'import json,struct,sys\nfor line in open(sys.argv[1]):\n    r=json.loads(line); s,l,m=struct.unpack(\"<QQQ\", bytes.fromhex(r[\"memory2\"][\"hex\"])); print(\"  FITRIM start=%d len=%d minlen=%d reply=%s\" % (s,l,m,r[\"reply\"]))' $log; }\ncd $RT; mkext a.img 16M $RT/a; da=$dev; mkext b.img 4M $RT/b; db=$dev\nprintf '%s %s ext4 defaults 0 0\\n' $da $RT/a $db $RT/b > $RT/tab\nt default \"fstrim -v $RT/a\"\nt again \"fstrim -v $RT/a\"\nt base0 \"fstrim -v -o 0x100000 -l 010000000 -m 0 $RT/b\"\nt suffixes \"fstrim -v -o 1MiB -l 2MB -m 4K $RT/b\"\nt fraction \"fstrim -v -o 0 -l 1.5MiB -m 1KiB $RT/b\"\nt list-ok \"fstrim -v -I $RT/tab\"\nt list-some \"fstrim -v -I $RT/tab -o 8M\"\nt list-all \"fstrim -v -I $RT/tab -o 64M\"\nSEQ=continue,EOPNOTSUPP t list-unsupported \"fstrim -v -I $RT/tab\"\nSEQ=continue,EOPNOTSUPP t list-quiet \"fstrim -v --quiet-unsupported -I $RT/tab\"\ncd /tmp/parity-case; /usr/bin/umount $RT/a $RT/b; detach $da $db; echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "file_size_limit": 33554432
+    },
+    {
+      "id": "migration-fstrim-all-mode-root",
+      "loadable": "fstrim",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "fstrim/mountinfo-all-mode"
+      ],
+      "purpose": "fstrim -a in the side's mount namespace with three ext2 loop mounts (16 MiB, 4 MiB, and 4 MiB read-only) and a tmpfs: the dry-run selection with -v, then real -a -t ext2 runs, every FITRIM recorded: all succeed, an offset beyond the smaller filesystem (some failed), beyond both (all failed), and a second request answered EOPNOTSUPP with and without --quiet-unsupported. The -t filter keeps real requests on the fixture filesystems.",
+      "oracle": "util-linux 2.41 fstrim under the same recorder",
+      "comparison": "Byte parity of status, stdout, stderr and the recorded requests: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; the fixture mounts are listed from /proc/self/mountinfo first. Loop devices are attached to per-side images under /tmp/rt (udev settled after each attach) and detached by the fixture; the harness verifies no loop, dm or mount state survives the side.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "losetup",
+        "mkdir",
+        "sed",
+        "tr",
+        "fstrim",
+        "python3",
+        "awk"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nnx=0; mkext() { local i=$1 s=$2 m=$3; shift 3; nx=$((nx+1))\n  /usr/bin/truncate -s $s $i && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal -E nodiscard,lazy_itable_init=0 \\\n    -U 0b0e0e0e-1111-4222-8333-44444444444$nx \"$@\" $i && dev=$(att -f --show $i) && /usr/bin/mkdir -p $m &&\n    /usr/bin/mount $dev $m || { echo SETUP-FAILED; exit 99; }; }\nSC=/opt/bashos-parity/harness/helpers/system-seccomp.py SQ=/opt/bashos-parity/harness/helpers/system-sequence.py\nj() { PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 $2 -- \"$BASH\" --noprofile --norc -c \"$3\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nt() { local log=$RT/t.jsonl; : > $log\n  PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 $SQ --notify ioctl:1=0xc0185879 --reply-seq ioctl=${SEQ:-continue} --log-mem ioctl=2:24 --log $log -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err\n  show \"$1\" $?\n  /usr/bin/python3 -c 'import json,struct,sys\nfor line in open(sys.argv[1]):\n    r=json.loads(line); s,l,m=struct.unpack(\"<QQQ\", bytes.fromhex(r[\"memory2\"][\"hex\"])); print(\"  FITRIM start=%d len=%d minlen=%d reply=%s\" % (s,l,m,r[\"reply\"]))' $log; }\ncd $RT; mkext a.img 16M $RT/a -t ext2; da=$dev; mkext b.img 4M $RT/b -t ext2; db=$dev\nmkext c.img 4M $RT/c -t ext2; dc=$dev; /usr/bin/mount -o remount,ro $RT/c || echo SETUP-FAILED\n/usr/bin/mkdir -p $RT/t && /usr/bin/mount -t tmpfs -o size=1M rf-tmp $RT/t || echo SETUP-FAILED\n/usr/bin/awk -v rt=$RT/ 'index($5, rt) == 1 {print \"  mount\", $5, $6, $(NF-2)}' /proc/self/mountinfo\nt dry \"fstrim -a -n -v\"\nt real \"fstrim -a -t ext2 -v\"\nt some \"fstrim -a -t ext2 -v -o 8M\"\nt all-failed \"fstrim -a -t ext2 -v -o 64M\"\nSEQ=continue,EOPNOTSUPP t unsupported \"fstrim -a -t ext2 -v\"\nSEQ=continue,EOPNOTSUPP t quiet \"fstrim -a -t ext2 -v --quiet-unsupported\"\ncd /tmp/parity-case; /usr/bin/umount $RT/t $RT/a $RT/b $RT/c; detach $da $db $dc; echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "file_size_limit": 33554432
+    },
+    {
+      "id": "migration-losetup-injected-errors-root",
+      "loadable": "losetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "losetup/find-free-and-exhaustion",
+        "losetup/readonly-fallback-and-rollback"
+      ],
+      "purpose": "losetup under injected ioctl errors: LOOP_CTL_GET_FREE failing with ENOSPC for -f and for -f --show FILE (exhaustion); with LOOP_CONFIGURE refused (ENOTTY) and LOOP_SET_STATUS64 failing (EINVAL), an attach that must roll back with LOOP_CLR_FD; and the same with LOOP_CLR_FD also failing (EIO), after which the fixture detaches whatever stayed attached without the filter. losetup -a and sysfs backing files are listed after each step.",
+      "oracle": "util-linux 2.41 losetup under the same filter",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; losetup -a (without the backing file's device and inode numbers) and the attached sysfs backing files after each step. Loop devices are attached to per-side images under /tmp/rt (udev settled after each attach) and detached by the fixture; the harness verifies no loop, dm or mount state survives the side. Errors are injected by helpers/system-seccomp.py errno rules on the named ioctl requests.",
+      "requires": [
+        "losetup",
+        "python3",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nSC=/opt/bashos-parity/harness/helpers/system-seccomp.py SQ=/opt/bashos-parity/harness/helpers/system-sequence.py\nj() { PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 $2 -- \"$BASH\" --noprofile --norc -c \"$3\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\ncd $RT; seed a.img 65536\nstate() { local b l=; for b in /sys/block/loop*/loop/backing_file; do [[ -e $b ]] && l+=\" ${b#/sys/block/}\"; done; echo \"  attached:${l:- none}\"; /usr/sbin/losetup -a | /usr/bin/sed -E 's/\\[[0-9a-f]+\\]:[0-9]+ //; s/^/  /'; }\ncleanup() { local b x; for b in /sys/block/loop*/loop/backing_file; do [[ -e $b ]] || continue; x=${b#/sys/block/}; detach /dev/${x%%/*}; done; }\nstate\nj find-free \"$SC --errno ioctl:ENOSPC:1=0x4c82\" \"losetup -f\"; state\nj find-attach \"$SC --errno ioctl:ENOSPC:1=0x4c82\" \"losetup -f --show $RT/a.img\"; state\ncleanup\nj rollback \"$SC --errno ioctl:ENOTTY:1=0x4c0a --errno ioctl:EINVAL:1=0x4c04\" \"losetup -f --show $RT/a.img\"; state\ncleanup\nj rollback-fails \"$SC --errno ioctl:ENOTTY:1=0x4c0a --errno ioctl:EINVAL:1=0x4c04 --errno ioctl:EIO:1=0x4c01\" \"losetup -f --show $RT/a.img\"; state\ncleanup; state; echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      }
+    }
+  ]
+}

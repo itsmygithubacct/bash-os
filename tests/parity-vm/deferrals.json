@@ -3364,30 +3364,43 @@
         "purpose": "Exercise --flushbufs and --rereadpt dispatch, zero-argument ioctl requests, device iteration, and continuation order.",
         "reason": "Requires a separately reviewed syscall mock that records BLKFLSBUF and BLKRRPART without forwarding either request. Use only relative fixture names and assert the device-major/action-minor request trace. Real flush or partition reread effects require a disposable VM with an explicitly created throwaway block device and are outside this runner."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: real permitted/denied BLKFLSBUF needs a block device (BLOCK-DEV); r2: unchanged: partition re-read effect needs a loop device with partscan (BLOCK-DEV)",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "--flushbufs issues BLKFLSBUF on each device and returns 0 with no stdout when permitted; denied (EACCES) without CAP_SYS_ADMIN with status 1.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-blockdev-mocked-success",
               "assertion": "BLKFLSBUF per device, arg 0, status 0, no stdout (mocked success)",
               "definition_sha256": "c11f99523ca8d78fe77b54ee041486d048befb5c5270136f7bd267104d00ec78"
+            },
+            {
+              "group": "shell",
+              "id": "migration-blockdev-maintenance-root",
+              "assertion": "--flushbufs on two loop devices as root: status 0, silent, equal. As uid 2000 in group disk: util-linux 'ioctl error on BLKFLSBUF: Permission denied', the candidate '/dev/loopN: ioctl: Permission denied', both status 1. Parity FAIL.",
+              "definition_sha256": "0a445f32a9c89e70351dd7e484513e901e23019f277d5691577634afced45ec1"
             }
           ],
-          "gap": "real permitted/denied BLKFLSBUF needs a block device (BLOCK-DEV)"
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "--rereadpt issues BLKRRPART: after the backing image's partition table changes, the kernel partition set (/sys/block/loopN/loopNpM) reflects the new table; EBUSY/EINVAL behaviour on a device without partscan matches util-linux.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "unchanged: partition re-read effect needs a loop device with partscan (BLOCK-DEV)"
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-blockdev-maintenance-root",
+              "assertion": "After the backing image's MBR changes from one partition to two (buffer cache dropped by the fixture), sysfs still lists loop0p1; --rereadpt returns 0 and sysfs then lists loop0p1 loop0p2 on both sides. With a partition held open both report EBUSY, and on a device without partition scanning EINVAL, status 1, with util-linux 'ioctl error on BLKRRPART: <strerror>' versus the candidate '<device>: ioctl: <strerror>'. Parity FAIL.",
+              "definition_sha256": "0a445f32a9c89e70351dd7e484513e901e23019f277d5691577634afced45ec1"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
@@ -3410,7 +3423,7 @@
           "gap": ""
         }
       ],
-      "notes": "Root independently reconciled saved records and original compound obligations. Covered requirements may have PASS or FAIL; a separate passing step in a failing case still qualifies. Early failure, unchanged mock output buffers, and unselected table rows do not prove later obligations. Source/fixture errors excluded."
+      "notes": "Root batch D on the rented VM host (root-d-81; supersedes root-d-80, where the two fstrim fixtures exceeded the default 8 MiB file-size limit during setup). privilege=root sides on ext loop mounts, loop and dm-zero devices; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "blockdev/query-actions-mock",
@@ -3420,37 +3433,65 @@
         "purpose": "Exercise query ioctl dispatch and formatting for size in sectors, size in bytes, legacy size, logical sector size, block size, and normalized read-only state.",
         "reason": "Requires a separately reviewed syscall-mock fixture that intercepts open/ioctl/close and never forwards them to the host. The mock must register only relative fixture names and return fixed values, including a byte size with a remainder beyond the 32-bit sector range, a size below one sector, and nonzero read-only metadata. Compare the emitted values with independent Linux ioctl definitions and arithmetic."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Query ioctls need a block device: uid 2000 with setgroups([]) cannot open /dev/loop-control or /dev/loopN (root:disk 0660), cannot mknod block nodes (CAP_MKNOD; device nodes are refused inside user namespaces), and the real virtio disk nodes are root:disk 0660, so no block device with known contents is visible to an unprivileged fixture. Read-only query ioctls themselves need no capability once a readable node exists, so only device provisioning is missing; r5 values cannot exist on a real device.",
+      "current_reason": "Remaining obligations: r5: Not producible by a real block device (minimum logical block 512 B; loop/dm sizes are sector multiples); only an ioctl return-value mock can supply it.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "--getsz and --getsize64 print sectors (bytes/512, truncated) and bytes for a device of known size, matching util-linux blockdev byte-for-byte.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No blockdev action is executed in any case (suite is metadata only)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-blockdev-query-root",
+              "assertion": "--getsz and --getsize64 print 2048/1048576, 8192/4194304 and 128/65536 for 1 MiB, 4 MiB (4096-byte sectors) and 64 KiB read-only loop devices; equal to util-linux.",
+              "definition_sha256": "0bd6553b5824380a5c6711ae2c3467d2824a6cc513a5986721cd51a0ff8416cb"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "--getsize prints the legacy BLKGETSIZE sector count, including a device larger than 2^32 sectors (beyond the 32-bit range).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; needs a >2 TiB device (dm-zero) because BLKGETSIZE on x86_64 returns unsigned long."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-blockdev-query-root",
+              "assertion": "--getsize on a dm-zero device of 8589934720 sectors prints 8589934720 (beyond 32 bits), --getsize64 4398046576640; equal.",
+              "definition_sha256": "0bd6553b5824380a5c6711ae2c3467d2824a6cc513a5986721cd51a0ff8416cb"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "--getss and --getbsz print logical sector size and block size for devices with 512 and 4096 logical sectors.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-blockdev-query-root",
+              "assertion": "--getss prints 512 and 4096, --getbsz 4096 on each device; equal.",
+              "definition_sha256": "0bd6553b5824380a5c6711ae2c3467d2824a6cc513a5986721cd51a0ff8416cb"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "--getro prints 1 for a read-only device and 0 for a writable one (normalized from nonzero BLKROGET).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-blockdev-query-root",
+              "assertion": "--getro prints 1 for the read-only attachment and 0 for the others, also across four devices in one call; equal. (--report, outside this topic, is rejected by the candidate as an unknown option: case FAIL.)",
+              "definition_sha256": "0bd6553b5824380a5c6711ae2c3467d2824a6cc513a5986721cd51a0ff8416cb"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
@@ -3460,7 +3501,7 @@
           "gap": "Not producible by a real block device (minimum logical block 512 B; loop/dm sizes are sector multiples); only an ioctl return-value mock can supply it."
         }
       ],
-      "notes": "Candidate: loadables/blockdev.c:43-95 run_action (BLKGETSIZE64 for --getsz/--getsize64, BLKGETSIZE, BLKSSZGET, BLKBSZGET, BLKROGET normalized to 0/1, BLKROSET, BLKFLSBUF, BLKRRPART), 117-160 blockdev_builtin (O_RDONLY then O_RDWR retry on EACCES at :143, per-device continuation, close error check). util-linux 2.41.5 /usr/sbin/blockdev is the parity oracle in the image. The static candidate cannot be LD_PRELOAD-mocked; tests/sol-blockdev-shim.c is historical host material, not evidence."
+      "notes": "Root batch D on the rented VM host (root-d-81; supersedes root-d-80, where the two fstrim fixtures exceeded the default 8 MiB file-size limit during setup). privilege=root sides on ext loop mounts, loop and dm-zero devices; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "blockdev/readonly-transitions-mock",
@@ -3470,40 +3511,60 @@
         "purpose": "Exercise ordered --getro, --setro, --getro, --setrw, --getro sequences across fixture devices and invocations.",
         "reason": "Requires a separately reviewed syscall mock with in-memory device metadata only. It must record BLKROGET and BLKROSET request order and setter values, model state per relative fixture name, and make no host device calls. Expected output and final state must be calculated from the documented 0/1 getter and setter contract."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: printed values 0/1/0 and setter values need a buffer-writing mock or a block device; r2: unchanged: per-device persistent state needs a block device or stateful mock; r3: unchanged: kernel EACCES for BLKROSET needs a block device",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Ordered --getro --setro --getro --setrw --getro on one device prints 0,1,0 in order within a single invocation and leaves the device writable (kernel /sys/block/loopN/ro = 0).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-blockdev-mocked-success",
               "assertion": "ordered BLKROGET/BLKROSET/BLKROGET/BLKROSET/BLKROGET requests in one invocation",
               "definition_sha256": "c11f99523ca8d78fe77b54ee041486d048befb5c5270136f7bd267104d00ec78"
+            },
+            {
+              "group": "shell",
+              "id": "migration-blockdev-readonly-root",
+              "assertion": "--getro --setro --getro --setrw --getro in one call prints 0, 1, 0 and leaves /sys/block/loopN/ro = 0; equal to util-linux.",
+              "definition_sha256": "c00d3b80e5bc78a1b09967966dbe2899baa3f58da210eae59b59d8fec92792a2"
             }
           ],
-          "gap": "printed values 0/1/0 and setter values need a buffer-writing mock or a block device"
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "State persists across invocations and is per-device: --setro on device A then --getro A B in a later call prints 1 then 0.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "unchanged: per-device persistent state needs a block device or stateful mock"
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-blockdev-readonly-root",
+              "assertion": "--setro on device A, then --getro A B in a later call prints 1 then 0 (sysfs ro 1 0); --setrw restores 0 0; equal.",
+              "definition_sha256": "c00d3b80e5bc78a1b09967966dbe2899baa3f58da210eae59b59d8fec92792a2"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Without CAP_SYS_ADMIN, --setro/--setrw fail (kernel returns EACCES), the getter still runs, status is 1, and the device state is unchanged.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "unchanged: kernel EACCES for BLKROSET needs a block device"
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-blockdev-readonly-root",
+              "assertion": "As uid 2000 in group disk (node root:disk 0660), --getro --setro --getro --setrw: util-linux prints 0, reports 'ioctl error on BLKROSET: Permission denied' and stops (status 1); the candidate prints 0, '/dev/loopN: ioctl: Permission denied', continues with the second --getro (0) and --setrw (a second EACCES), status 1. sysfs ro stays 0. Parity FAIL.",
+              "definition_sha256": "c00d3b80e5bc78a1b09967966dbe2899baa3f58da210eae59b59d8fec92792a2"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Root independently reconciled saved records and original compound obligations. Covered requirements may have PASS or FAIL; a separate passing step in a failing case still qualifies. Early failure, unchanged mock output buffers, and unselected table rows do not prove later obligations. Source/fixture errors excluded."
+      "notes": "Root batch D on the rented VM host (root-d-81; supersedes root-d-80, where the two fstrim fixtures exceeded the default 8 MiB file-size limit during setup). privilege=root sides on ext loop mounts, loop and dm-zero devices; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "blockdev/syscall-failures-mock",
@@ -3515,7 +3576,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r4: close(2) failure injection not attempted: no stable descriptor-number condition for a seccomp rule; r5: Descriptor counts are unchanged for the tested open/ioctl failures. Close-error cleanup and real successful device paths remain untested.",
+      "current_reason": "Remaining obligations: r4: close(2) failure injection not attempted: no stable descriptor-number condition for a seccomp rule; r5: Close-error cleanup remains untested: close(2) failure injection has no stable descriptor-number condition.",
       "requirements": [
         {
           "id": "r1",
@@ -3601,9 +3662,15 @@
               "id": "migration-blockdev-injected-errors",
               "assertion": "fd count unchanged after injected failures",
               "definition_sha256": "109810fdaec4b6014e8555607d6c4b7bd8a642a75e8c9f5e61c4c74c51a56026"
+            },
+            {
+              "group": "shell",
+              "id": "migration-blockdev-query-root",
+              "assertion": "After the successful queries on loop and dm devices, the shell's own descriptor count is unchanged on the candidate side.",
+              "definition_sha256": "0bd6553b5824380a5c6711ae2c3467d2824a6cc513a5986721cd51a0ff8416cb"
             }
           ],
-          "gap": "Descriptor counts are unchanged for the tested open/ioctl failures. Close-error cleanup and real successful device paths remain untested."
+          "gap": "Close-error cleanup remains untested: close(2) failure injection has no stable descriptor-number condition."
         },
         {
           "id": "r6",
@@ -3626,7 +3693,7 @@
           "gap": ""
         }
       ],
-      "notes": "Root independently reconciled saved records and original compound obligations. Covered requirements may have PASS or FAIL; a separate passing step in a failing case still qualifies. Early failure, unchanged mock output buffers, and unselected table rows do not prove later obligations. Source/fixture errors excluded."
+      "notes": "Root batch D on the rented VM host (root-d-81; supersedes root-d-80, where the two fstrim fixtures exceeded the default 8 MiB file-size limit during setup). privilege=root sides on ext loop mounts, loop and dm-zero devices; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "bsdgames/interactive-tetris-pty-session",
@@ -11345,33 +11412,54 @@
         "purpose": "Check a successful freeze request against a dedicated supported filesystem and confirm the command returns without output.",
         "reason": "Requires a disposable VM with CAP_SYS_ADMIN and a dedicated, known-freezable test mount. The fixture must guarantee an explicit thaw in cleanup even if assertions fail. No host or harness filesystem may be used."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Success needs CAP_SYS_ADMIN over the filesystem's user namespace and a freezable filesystem; uid 2000 has no capabilities, every filesystem mountable inside an unprivileged user namespace (tmpfs, proc) lacks freeze support, and ext4/xfs cannot be mounted without init-namespace CAP_SYS_ADMIN and a block device.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "fsfreeze -f MOUNTPOINT on a freezable filesystem returns 0 with no stdout/stderr and the filesystem is frozen (independent oracle: a second freeze reports EBUSY; a bounded write blocks).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fsfreeze action is executed in any case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-fsfreeze-lifecycle-root",
+              "assertion": "fsfreeze -f on an 8 MiB ext4 loop mount returns 0 silently; util-linux fsfreeze -f then reports EBUSY (frozen=yes), reads still succeed and a background dd write stays blocked for 1 s; byte parity PASS for these steps.",
+              "definition_sha256": "9267fae383f1681d613347aef3ec088f3c855d811eafc36e4d3aa7e1a05a92e7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "--freeze long option is equivalent to -f.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-fsfreeze-lifecycle-root",
+              "assertion": "--freeze freezes the same way (status 0, silent, frozen=yes); PASS.",
+              "definition_sha256": "9267fae383f1681d613347aef3ec088f3c855d811eafc36e4d3aa7e1a05a92e7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Cleanup guarantees thaw even when assertions fail.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Harness obligation; no driver teardown exists."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-fsfreeze-lifecycle-root",
+              "assertion": "The fixture installs an EXIT trap that thaws the mount with util-linux, and the harness checks loop and mount state after each side; every step thawed explicitly and teardown succeeded on both sides.",
+              "definition_sha256": "9267fae383f1681d613347aef3ec088f3c855d811eafc36e4d3aa7e1a05a92e7"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: loadables/fsfreeze.c:36-95 (option parsing, stat+S_ISDIR check, open O_DIRECTORY, single ioctl FIFREEZE/FITHAW, diagnostic '<mp>: freeze|unfreeze: <strerror>'). util-linux 2.41.5 /usr/sbin/fsfreeze is in the image and is the parity oracle. Source-predicted divergence: candidate usage errors return EX_USAGE (shell status 2) while util-linux exits 1."
+      "notes": "Root batch D on the rented VM host (root-d-81; supersedes root-d-80, where the two fstrim fixtures exceeded the default 8 MiB file-size limit during setup). privilege=root sides on ext loop mounts, loop and dm-zero devices; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "fsfreeze/deferred-ioctl-error-contract",
@@ -11381,9 +11469,9 @@
         "purpose": "Check status and action-specific diagnostics when the kernel ioctl rejects a freeze or thaw request.",
         "reason": "Requires a separately reviewed syscall mock around ioctl that deterministically returns errors such as EPERM, ENOTTY, or EOPNOTSUPP without reaching the kernel, or a disposable VM with a controlled mock filesystem. The production binary has no test hook and this runner has no such mock."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r4: usage diagnostics wording not asserted",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -11430,7 +11518,7 @@
         {
           "id": "r4",
           "behavior": "Pre-ioctl errors: missing path (stat ENOENT), non-directory operand, missing operand, both -f and -u, unknown option, extra operand.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -11443,12 +11531,18 @@
               "id": "migration-fsfreeze-usage-forms",
               "assertion": "10 usage forms: status 2, empty stdout, non-empty stderr, under a SIGSYS kill rule on FIFREEZE/FITHAW (no request before rejection)",
               "definition_sha256": "e7e9109ce1e546cf6aedfb09b445fd8c4be39ba75e61d4fec22ad32d12f1c1b1"
+            },
+            {
+              "group": "shell",
+              "id": "migration-fsfreeze-usage-root",
+              "assertion": "As root beside a freezable mount: util-linux exits 1 for every pre-request error ('cannot open <path>: No such file or directory', '<path>: is not a directory', 'no filename specified', 'neither --freeze or --unfreeze specified', 'mutually exclusive arguments', getopt's invalid option, 'unexpected number of arguments'); the candidate exits 1 for the missing path and the regular file with different wording, and 2 with its own usage texts for the empty operand, no operand, no action, both actions, an unknown option, an extra operand and an action word after --. The mount is never frozen. Parity FAIL. (Separately, thawing an unfrozen filesystem says 'unfreeze: Invalid argument' where util-linux says 'unfreeze failed: Invalid argument'.)",
+              "definition_sha256": "36d40e5ed625cfbeec3bea3ed29c55ffb4590b1c2aeeb0814b123f67760fd96e"
             }
           ],
-          "gap": "usage diagnostics wording not asserted"
+          "gap": ""
         }
       ],
-      "notes": "Root independently reconciled saved records and original compound obligations. Covered requirements may have PASS or FAIL; a separate passing step in a failing case still qualifies. Early failure, unchanged mock output buffers, and unselected table rows do not prove later obligations. Source/fixture errors excluded."
+      "notes": "Root batch D on the rented VM host (root-d-81; supersedes root-d-80, where the two fstrim fixtures exceeded the default 8 MiB file-size limit during setup). privilege=root sides on ext loop mounts, loop and dm-zero devices; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "fsfreeze/deferred-symlink-mountpoint",
@@ -11458,16 +11552,23 @@
         "purpose": "Verify the documented behavior that a symlink operand is followed to a directory on the disposable filesystem for freeze and subsequent thaw.",
         "reason": "Requires a disposable VM, a dedicated freezable mount, and a relative symlink in its private fixture directory. The test must freeze and thaw only that mount and guarantee thaw cleanup."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: successful freeze/thaw through a symlink needs a freezable filesystem (CAP_SYS_ADMIN)",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A relative symlink operand pointing to the disposable mount directory is followed for -f and the subsequent -u, freezing/thawing that filesystem.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "successful freeze/thaw through a symlink needs a freezable filesystem (CAP_SYS_ADMIN)"
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-fsfreeze-lifecycle-root",
+              "assertion": "A relative symlink lnk -> mnt is followed for -f (frozen=yes) and -u (frozen=no), status 0 and silent on both sides; PASS.",
+              "definition_sha256": "9267fae383f1681d613347aef3ec088f3c855d811eafc36e4d3aa7e1a05a92e7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
@@ -11490,7 +11591,7 @@
           "gap": ""
         }
       ],
-      "notes": "Root independently reconciled saved records and original compound obligations. Covered requirements may have PASS or FAIL; a separate passing step in a failing case still qualifies. Early failure, unchanged mock output buffers, and unselected table rows do not prove later obligations. Source/fixture errors excluded."
+      "notes": "Root batch D on the rented VM host (root-d-81; supersedes root-d-80, where the two fstrim fixtures exceeded the default 8 MiB file-size limit during setup). privilege=root sides on ext loop mounts, loop and dm-zero devices; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "fsfreeze/deferred-thaw-and-resume",
@@ -11500,16 +11601,23 @@
         "purpose": "After a successful freeze on the same disposable mount, check a successful thaw and verify ordinary access resumes.",
         "reason": "Requires the disposable VM and mount from a controlled freeze/thaw lifecycle. Verify FITHAW status and post-thaw reads/writes, with bounded timeouts and an unconditional thaw cleanup path."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: unchanged: needs a frozen freezable filesystem",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "fsfreeze -u / --unfreeze on the frozen disposable mount returns 0 silently and ordinary reads/writes resume (bounded write completes, content read back).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "unchanged: needs a frozen freezable filesystem"
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-fsfreeze-lifecycle-root",
+              "assertion": "-u and --unfreeze on the frozen mount return 0 silently; the blocked writer then completes (status 0, 8192 bytes), the probe shows frozen=no, and a later write succeeds; PASS for these steps.",
+              "definition_sha256": "9267fae383f1681d613347aef3ec088f3c855d811eafc36e4d3aa7e1a05a92e7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
@@ -11540,7 +11648,7 @@
           "gap": ""
         }
       ],
-      "notes": "Root independently reconciled saved records and original compound obligations. Covered requirements may have PASS or FAIL; a separate passing step in a failing case still qualifies. Early failure, unchanged mock output buffers, and unselected table rows do not prove later obligations. Source/fixture errors excluded."
+      "notes": "Root batch D on the rented VM host (root-d-81; supersedes root-d-80, where the two fstrim fixtures exceeded the default 8 MiB file-size limit during setup). privilege=root sides on ext loop mounts, loop and dm-zero devices; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "fstrim/dedup-escapes-and-types",
@@ -11649,30 +11757,43 @@
         "purpose": "Compare range arguments, verbose size formatting, unsupported-operation handling, quiet mode, and all-failed/partial-failed aggregate exit statuses.",
         "reason": "Requires a reviewed closed ioctl mock that records start/length/minimum-length and supplies deterministic success or errno responses to candidate and util-linux. The mock must prove that no FITRIM ioctl reaches the kernel; a disposable real filesystem alone is not an acceptable substitute."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: start/length/minlen values are inside struct fstrim_range in memory; system-seccomp.py can record only integer and string arguments, so request values are not observed (only the request count per invocation). Needs a struct-reading notify log.; r2: Successful mocked FITRIM leaves the requested length unchanged and its formatting is checked. A distinct kernel-returned length has not been written into the response buffer and observed.; r4: some-failed status 64 needs a mixed per-filesystem result; the helper replies per syscall name, and successive FITRIM calls are not distinguishable by integer arguments",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "FITRIM receives start/length/minimum-length from -o/-l/-m (default 0, ULLONG_MAX, 0) \u2014 request argument values.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "start/length/minlen values are inside struct fstrim_range in memory; system-seccomp.py can record only integer and string arguments, so request values are not observed (only the request count per invocation). Needs a struct-reading notify log."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-fstrim-fitrim-root",
+              "assertion": "The recorded fstrim_range of each real FITRIM is start=0 len=18446744073709551615 minlen=0 by default and carries -o/-l/-m values (1048576/2097152/0, 1048576/2000000/4096, 0/1572864/1024) on both sides; byte parity PASS.",
+              "definition_sha256": "7d57e8c5e14c0ed82dd5c4d706705bb63b3ea0a01d861bb28b28da5e6e6f3a19"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Verbose success output '<mp>: <human> (<n> bytes) trimmed [on <dev>]' uses the kernel-returned length with util-linux human formatting.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-fstrim-mocked-results",
               "assertion": "FITRIM answered 0; -v reports the requested -l (struct untouched) across B..EiB magnitudes and fractions, default length, -o/-l/-m, -a -v, -I -v",
               "definition_sha256": "f846922190c3e5bd58e58a73dea015a77387a950edfb274d4fac3216b4399917"
+            },
+            {
+              "group": "shell",
+              "id": "migration-fstrim-fitrim-root",
+              "assertion": "Verbose output reports the kernel-returned length: 14.7 MiB (15444992 bytes) for the first trim of a 16 MiB ext4, 0 B (0 bytes) for the repeated trim with the same request, 3 MiB / 3.7 MiB for ranged trims; PASS.",
+              "definition_sha256": "7d57e8c5e14c0ed82dd5c4d706705bb63b3ea0a01d861bb28b28da5e6e6f3a19"
             }
           ],
-          "gap": "Successful mocked FITRIM leaves the requested length unchanged and its formatting is checked. A distinct kernel-returned length has not been written into the response buffer and observed."
+          "gap": ""
         },
         {
           "id": "r3",
@@ -11697,7 +11818,7 @@
         {
           "id": "r4",
           "behavior": "Aggregate statuses in table modes: all failed 32, some failed 64, none selected 255/1 per util-linux, all ok 0.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -11716,12 +11837,18 @@
               "id": "migration-fstrim-namespace-mounts",
               "assertion": "real -a aggregate",
               "definition_sha256": "088a1115a2ed79d188d7101dcdb580554250b5d3afbb98689b518635de75bd7e"
+            },
+            {
+              "group": "shell",
+              "id": "migration-fstrim-fitrim-root",
+              "assertion": "-I list of two filesystems: all succeed status 0; -o 8M beyond the 4 MiB filesystem only gives 'FITRIM ioctl failed: Invalid argument' for it and status 64; -o 64M fails both, status 32; with the second request answered EOPNOTSUPP the unsupported message appears (or is silenced with --quiet-unsupported) and the status is 0; PASS.",
+              "definition_sha256": "7d57e8c5e14c0ed82dd5c4d706705bb63b3ea0a01d861bb28b28da5e6e6f3a19"
             }
           ],
-          "gap": "some-failed status 64 needs a mixed per-filesystem result; the helper replies per syscall name, and successive FITRIM calls are not distinguishable by integer arguments"
+          "gap": ""
         }
       ],
-      "notes": "Root independently reconciled saved records and original compound obligations. Covered requirements may have PASS or FAIL; a separate passing step in a failing case still qualifies. Early failure, unchanged mock output buffers, and unselected table rows do not prove later obligations. Source/fixture errors excluded."
+      "notes": "Root batch D on the rented VM host (root-d-81; supersedes root-d-80, where the two fstrim fixtures exceeded the default 8 MiB file-size limit during setup). privilege=root sides on ext loop mounts, loop and dm-zero devices; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "fstrim/fstab-tags-and-root",
@@ -11881,14 +12008,14 @@
         "purpose": "Compare -a mountinfo parsing and selection of writable local filesystems, including read-only, pseudo, network and unmounted entries.",
         "reason": "Requires a disposable VM or reviewed mock that supplies a private mountinfo table and consistent filesystem/device metadata to both the candidate and util-linux reference. The mock must intercept table access and all filesystem checks and guarantee no FITRIM ioctl reaches the kernel."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: No positive -a listing: the guest root is not selected by util-linux -a (likely mounted read-only), so reverse-order listing of writable local block filesystems is unobserved.; r3: No -a run attempts FITRIM in the guest; per-filesystem EPERM/unsupported reporting and the 32/64 aggregates in -a mode are unobserved.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-a parses /proc/self/mountinfo and with -n lists the writable local mounted filesystems in reverse table order, skipping read-only, pseudo (proc, sysfs, devtmpfs...), network and swap entries.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -11901,9 +12028,15 @@
               "id": "migration-fstrim-selection-discard-capable-root",
               "assertion": "-a -n and -a -n -v list the real local writable block filesystems (root discard faked in-namespace) like util-linux",
               "definition_sha256": "fc700a71830bb5de6cf6e913415d61163c030a5c0221468a5a54ea0937f222e2"
+            },
+            {
+              "group": "shell",
+              "id": "migration-fstrim-all-mode-root",
+              "assertion": "With ext2 loop mounts a (16 MiB), b (4 MiB), c (read-only) and a tmpfs in the side's namespace, -a -n -v lists b, a, /boot/efi and / in reverse mountinfo order with 'on <device>', skipping the read-only mount and the tmpfs; PASS.",
+              "definition_sha256": "29c44d628e786c0cbf98f15d8c6ab60e6402859cab4165bee3b61fafa7c0164e"
             }
           ],
-          "gap": "No positive -a listing: the guest root is not selected by util-linux -a (likely mounted read-only), so reverse-order listing of writable local block filesystems is unobserved."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -11928,7 +12061,7 @@
         {
           "id": "r3",
           "behavior": "-a without -n attempts FITRIM: EPERM/unsupported per filesystem and the aggregate status (32 all failed, 64 some failed, 0 ok, quiet-unsupported) match util-linux.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -11941,12 +12074,18 @@
               "id": "migration-fstrim-selection-discard-capable-root",
               "assertion": "real -a, -a -v, --quiet-unsupported: EPERM per filesystem and the all-failed aggregate status 32",
               "definition_sha256": "fc700a71830bb5de6cf6e913415d61163c030a5c0221468a5a54ea0937f222e2"
+            },
+            {
+              "group": "shell",
+              "id": "migration-fstrim-all-mode-root",
+              "assertion": "-a -t ext2 attempts FITRIM on b and a: all succeed (3.7 MiB and 14.9 MiB trimmed) status 0; -o 8M fails b only, status 64; -o 64M fails both, status 32; an EOPNOTSUPP reply for the second request is reported, or silenced with --quiet-unsupported, status 0; PASS.",
+              "definition_sha256": "29c44d628e786c0cbf98f15d8c6ab60e6402859cab4165bee3b61fafa7c0164e"
             }
           ],
-          "gap": "No -a run attempts FITRIM in the guest; per-filesystem EPERM/unsupported reporting and the 32/64 aggregates in -a mode are unobserved."
+          "gap": ""
         }
       ],
-      "notes": "Root review (2026-10-27) reconciled workers-d-63/64 raw VM records on both unchanged builds against the original obligations. Covered requirements may PASS or FAIL. Pane-214 batch 9 (fstrim-selection, 5de79f06) and pane-217 A4r1/A5/A6 (account-files 750929ff, hash 95c46e75, verify 648c98c2) ran unchanged in workers-d-63. Pane-214 batch 13 cred: migration-cred-drop's verify.sh printed a deleted log on its second observation (ipcobs.py calls removes LOG while the helper keeps appending), a fixture defect corrected by root without changing expectations; all five cred cases re-ran in workers-d-64 and workers-d-63's cred records are not used."
+      "notes": "Root batch D on the rented VM host (root-d-81; supersedes root-d-80, where the two fstrim fixtures exceeded the default 8 MiB file-size limit during setup). privilege=root sides on ext loop mounts, loop and dm-zero devices; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "fstrim/ranges-and-option-errors",
@@ -11956,23 +12095,29 @@
         "purpose": "Compare -o/-l/-m size parsing (base-0 numbers, binary/decimal suffixes, fractions and limits), option permutation and representative usage failures.",
         "reason": "Even dry-run range cases open and validate a target path. Requires a disposable fixture target or syscall mock for both implementations, util-linux fstrim as oracle, and a check that dry-run issues no FITRIM request. Invalid-option cases may be added to that bounded reference comparison."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: Size syntax acceptance/rejection and dry-run target validation are exercised. Converted numeric offset/length/minimum fields are not observed; the dry-run line reports zero bytes.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-o/-l/-m parse base-0 numbers (0x, leading 0), binary (KiB/MiB/K) and decimal (KB/MB) suffixes, fractions and overflow limits exactly like util-linux strtosize; dry run validates the target and prints the dry-run line.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-fstrim-options-and-ranges",
               "assertion": "0x/leading-0/decimal, KiB/MiB/KB/MB/EiB suffixes, fractions, 2^64 overflow, junk, empty, negative, embedded space",
               "definition_sha256": "da8d77ad7c2505ca4a9a899972471941c61ef92558a30b9244ba71575f17099e"
+            },
+            {
+              "group": "shell",
+              "id": "migration-fstrim-fitrim-root",
+              "assertion": "Converted numeric fields are now observed in the recorded requests: base-0 -o 0x100000 and octal -l 010000000 give start 1048576 and len 2097152, 1MiB/2MB/4K give 1048576/2000000/4096, 1.5MiB/1KiB give 1572864/1024; equal to util-linux.",
+              "definition_sha256": "7d57e8c5e14c0ed82dd5c4d706705bb63b3ea0a01d861bb28b28da5e6e6f3a19"
             }
           ],
-          "gap": "Size syntax acceptance/rejection and dry-run target validation are exercised. Converted numeric offset/length/minimum fields are not observed; the dry-run line reports zero bytes."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -12017,7 +12162,7 @@
           "gap": ""
         }
       ],
-      "notes": "Root independently reconciled saved records and original compound obligations. Covered requirements may have PASS or FAIL; a separate passing step in a failing case still qualifies. Early failure, unchanged mock output buffers, and unselected table rows do not prove later obligations. Source/fixture errors excluded."
+      "notes": "Root batch D on the rented VM host (root-d-81; supersedes root-d-80, where the two fstrim fixtures exceeded the default 8 MiB file-size limit during setup). privilege=root sides on ext loop mounts, loop and dm-zero devices; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "fstrim/single-target-path-lifecycle",
@@ -17744,9 +17889,9 @@
         "purpose": "Verify -f/--find selection, the returned device name, and the no-free-device error when allocation is exhausted.",
         "reason": "Future requirement: provide a private loop-control ioctl mock with configured free/busy device state, or a disposable VM with private loop support and no host device mappings. The case must assert the selected index and exhaustion status without touching host loop devices."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: Real exhaustion is unreachable on the guest kernel 6.12: in root-b-77 reloading loop with max_loop=1 still let LOOP_CTL_GET_FREE allocate loop1. Needs an errno injector for LOOP_CTL_GET_FREE.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -17765,9 +17910,16 @@
         {
           "id": "r2",
           "behavior": "Exhaustion: when no free device can be allocated, the command fails with the LOOP_CTL_GET_FREE diagnostic and status 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Real exhaustion is unreachable on the guest kernel 6.12: in root-b-77 reloading loop with max_loop=1 still let LOOP_CTL_GET_FREE allocate loop1. Needs an errno injector for LOOP_CTL_GET_FREE."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-injected-errors-root",
+              "assertion": "With LOOP_CTL_GET_FREE failing ENOSPC, util-linux falls back to scanning and prints /dev/loop0 for -f and attaches with -f --show (status 0); the candidate reports 'LOOP_CTL_GET_FREE: No space left on device' with status 1 and attaches nothing. Parity FAIL.",
+              "definition_sha256": "d262cdf886e2e4f99ba8cf92f6bfdb2ae35e6f4e9541831084cc984bd4679455"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
@@ -17784,7 +17936,7 @@
           "gap": ""
         }
       ],
-      "notes": "Root batch B on the rented VM host (root-b-78; supersedes root-b-77, whose loop fixtures raced udev probing). privilege=root sides, per-side loop devices and a dm-error device, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
+      "notes": "Root batch D on the rented VM host (root-d-81; supersedes root-d-80, where the two fstrim fixtures exceeded the default 8 MiB file-size limit during setup). privilege=root sides on ext loop mounts, loop and dm-zero devices; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "losetup/list-sysfs-rows",
@@ -17851,9 +18003,9 @@
         "purpose": "Verify the documented read-only backing-file fallback on EACCES/EROFS and rollback behavior after loop status configuration failures, including rollback failure reporting.",
         "reason": "Future requirement: use a fault-injecting syscall mock for open and loop ioctls, with per-call errno controls and an inspectable association state. A disposable VM alone cannot safely or deterministically produce these errno sequences."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: LOOP_SET_STATUS64 does not fail for the candidate argument set on a real kernel; needs an ioctl errno injector.; r3: Needs injection on two ioctls (LOOP_SET_STATUS64 and LOOP_CLR_FD).",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -17872,19 +18024,33 @@
         {
           "id": "r2",
           "behavior": "LOOP_SET_STATUS64 failure after LOOP_SET_FD rolls back with LOOP_CLR_FD so the device is left unattached, with status 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "LOOP_SET_STATUS64 does not fail for the candidate argument set on a real kernel; needs an ioctl errno injector."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-injected-errors-root",
+              "assertion": "With LOOP_CONFIGURE refused (ENOTTY) and LOOP_SET_STATUS64 failing (EINVAL), both implementations roll back and leave no device attached, status 1; util-linux says '<file>: failed to set up loop device: Invalid argument', the candidate '/dev/loop0: LOOP_SET_STATUS64: Invalid argument'. Parity FAIL.",
+              "definition_sha256": "d262cdf886e2e4f99ba8cf92f6bfdb2ae35e6f4e9541831084cc984bd4679455"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Rollback failure (LOOP_CLR_FD also failing) is reported with the 'rollback LOOP_CLR_FD' diagnostic.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs injection on two ioctls (LOOP_SET_STATUS64 and LOOP_CLR_FD)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-injected-errors-root",
+              "assertion": "With LOOP_CLR_FD also failing (EIO), both leave /dev/loop0 attached (the fixture detaches it afterwards); the candidate adds '/dev/loop0: rollback LOOP_CLR_FD: Input/output error', util-linux reports only the setup failure. Parity FAIL.",
+              "definition_sha256": "d262cdf886e2e4f99ba8cf92f6bfdb2ae35e6f4e9541831084cc984bd4679455"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Root batch B on the rented VM host (root-b-78; supersedes root-b-77, whose loop fixtures raced udev probing). privilege=root sides, per-side loop devices and a dm-error device, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
+      "notes": "Root batch D on the rented VM host (root-d-81; supersedes root-d-80, where the two fstrim fixtures exceeded the default 8 MiB file-size limit during setup). privilege=root sides on ext loop mounts, loop and dm-zero devices; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "losetup/selected-attach-and-validation",

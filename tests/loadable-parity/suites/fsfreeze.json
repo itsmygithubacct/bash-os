@@ -30,27 +30,79 @@
     },
     {
       "id": "deferred-freeze-supported-filesystem",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check a successful freeze request against a dedicated supported filesystem and confirm the command returns without output.",
-      "reason": "Success needs CAP_SYS_ADMIN over the filesystem's user namespace and a freezable filesystem; uid 2000 has no capabilities, every filesystem mountable inside an unprivileged user namespace (tmpfs, proc) lacks freeze support, and ext4/xfs cannot be mounted without init-namespace CAP_SYS_ADMIN and a block device."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-fsfreeze-lifecycle-root"
+        }
+      ]
     },
     {
       "id": "deferred-thaw-and-resume",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "After a successful freeze on the same disposable mount, check a successful thaw and verify ordinary access resumes.",
-      "reason": "Remaining obligations: r1: unchanged: needs a frozen freezable filesystem"
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-fsfreeze-init-namespace-refusals"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fsfreeze-lifecycle-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fsfreeze-userns-tmpfs-errors"
+        }
+      ]
     },
     {
       "id": "deferred-ioctl-error-contract",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check status and action-specific diagnostics when the kernel ioctl rejects a freeze or thaw request.",
-      "reason": "Remaining obligations: r4: usage diagnostics wording not asserted"
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-fsfreeze-init-namespace-refusals"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fsfreeze-injected-errors"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fsfreeze-usage-forms"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fsfreeze-usage-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fsfreeze-userns-tmpfs-errors"
+        }
+      ]
     },
     {
       "id": "deferred-symlink-mountpoint",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify the documented behavior that a symlink operand is followed to a directory on the disposable filesystem for freeze and subsequent thaw.",
-      "reason": "Remaining obligations: r1: successful freeze/thaw through a symlink needs a freezable filesystem (CAP_SYS_ADMIN)"
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-fsfreeze-init-namespace-refusals"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fsfreeze-lifecycle-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fsfreeze-userns-tmpfs-errors"
+        }
+      ]
     }
   ]
 }
