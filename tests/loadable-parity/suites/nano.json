@@ -124,21 +124,71 @@
     },
     {
       "id": "deferred_justify_undo",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Use fixed paragraphs and identical PTY key sequences to compare fill-width, trimblanks, repeated justification, and undo/redo saved bytes against GNU nano.",
-      "reason": "Fill width and undo pass. Redo, trimblanks and repeated justification have no fixtures."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-nano-followup-justify-redo"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nano-followup-justify-repeat-paragraphs"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nano-followup-justify-trim"
+        },
+        {
+          "group": "terminal",
+          "id": "nano-justify"
+        },
+        {
+          "group": "terminal",
+          "id": "nano-justify-undo"
+        }
+      ]
     },
     {
       "id": "deferred_selection_completion_utf8",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise marked-region cut/paste and word completion with ASCII and multibyte grapheme inputs, then compare deterministic saved bytes and selected display behavior.",
-      "reason": "Only plain UTF-8 insertion is exercised, and it FAILs on the final newline. Selection, completion, grapheme handling and highlight have no fixtures."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-nano-followup-ascii-completion-cycle"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nano-followup-ascii-mark-cut-paste"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nano-followup-combining-completion-cycle"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nano-followup-selected-reverse-highlight"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nano-followup-utf8-grapheme-region"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nano-followup-wide-completion-cycle"
+        },
+        {
+          "group": "terminal",
+          "id": "nano-utf8-input"
+        }
+      ]
     },
     {
       "id": "deferred_spell_helper",
       "kind": "deferred",
       "purpose": "Run a tiny fixture-local word-list helper through the editor, test replacement and cancel behavior, and compare the resulting saved file with GNU nano using the same deterministic helper contract.",
-      "reason": "There is no fixture. The PTY driver and a fixture-local helper script (trusted /bin/sh, run inside the case directory) are enough."
+      "reason": "Remaining obligations: r1: No candidate GNU-filename-helper correction workflow ran. Under that strict contract, correction prompt, reply, replacement and corrected save remain unreached after refusal42. Dual-interface semantic PASS must not be relabelled as strict API compatibility or used to erase that FAIL."
     },
     {
       "id": "command_help_contract",

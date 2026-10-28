@@ -1,0 +1,121 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terra-local-io-syslogd-routing",
+      "loadable": "bashsyslogd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Private facility routing, control-byte scrubbing, append and socket mode.",
+      "oracle": "The original bashsyslogd deferral and documented interface, RFC syslog PRI facility numbers, Linux Unix/UDP datagram and file-link semantics, and the explicit fixture vectors. The independent Python sender and loopback receivers supply exact bytes; timestamp and hostname prefixes are checked as a bounded format using the guest hostname, not matched against candidate-derived expectations.",
+      "comparison": "The VM-only observer owns its Unix and loopback sockets and daemon. Setup proves Unix empty/nonempty queue ordering, line matcher positive and negative controls, hardlink and symlink behavior, and for config the IPv4/IPv6 loopback and FIFO reader/writer handshake. A SIGHUP reload is synchronized by an observed config FIFO reader before each probe. Original files, bounded raw stdout/stderr, datagrams, process status, comparison details and socket state are captured in the case tree and HOME diagnostic JSONL. Each case compares exact records and explicit normalized results; mismatch or timeout remains failure.",
+      "covers": [
+        "bashsyslogd/local_datagram_routing"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-io-syslogd.py": "5e7591def454c24fbddf2a4aa1d49b4c5da2304da15fe621813ebf36e9a7a2af"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-syslogd.py setup routing",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-syslogd.py \"$BASH\" routing",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "routing exact=yes mode=0o640 stopped=yes socket-removed=yes stderr-empty=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "syslogd-observations.jsonl"
+      ]
+    },
+    {
+      "id": "migration-terra-local-io-syslogd-once",
+      "loadable": "bashsyslogd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Two datagrams queued while the owned daemon is stopped; verify once consumes precisely the first, including an empty first datagram.",
+      "oracle": "The original bashsyslogd deferral and documented interface, RFC syslog PRI facility numbers, Linux Unix/UDP datagram and file-link semantics, and the explicit fixture vectors. The independent Python sender and loopback receivers supply exact bytes; timestamp and hostname prefixes are checked as a bounded format using the guest hostname, not matched against candidate-derived expectations.",
+      "comparison": "The VM-only observer owns its Unix and loopback sockets and daemon. Setup proves Unix empty/nonempty queue ordering, line matcher positive and negative controls, hardlink and symlink behavior, and for config the IPv4/IPv6 loopback and FIFO reader/writer handshake. A SIGHUP reload is synchronized by an observed config FIFO reader before each probe. Original files, bounded raw stdout/stderr, datagrams, process status, comparison details and socket state are captured in the case tree and HOME diagnostic JSONL. Each case compares exact records and explicit normalized results; mismatch or timeout remains failure.",
+      "covers": [
+        "bashsyslogd/local_datagram_routing"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-io-syslogd.py": "5e7591def454c24fbddf2a4aa1d49b4c5da2304da15fe621813ebf36e9a7a2af"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-syslogd.py setup once",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-syslogd.py \"$BASH\" once",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "nonempty queued=2 first-only=yes stopped=yes socket-removed=yes stderr-empty=yes\nempty queued=2 first-only=yes stopped=yes socket-removed=yes stderr-empty=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "syslogd-observations.jsonl"
+      ]
+    },
+    {
+      "id": "migration-terra-local-io-syslogd-links",
+      "loadable": "bashsyslogd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Append through hardlink aliases and a relative symlink with exact record multiplicity and preserved link identity.",
+      "oracle": "The original bashsyslogd deferral and documented interface, RFC syslog PRI facility numbers, Linux Unix/UDP datagram and file-link semantics, and the explicit fixture vectors. The independent Python sender and loopback receivers supply exact bytes; timestamp and hostname prefixes are checked as a bounded format using the guest hostname, not matched against candidate-derived expectations.",
+      "comparison": "The VM-only observer owns its Unix and loopback sockets and daemon. Setup proves Unix empty/nonempty queue ordering, line matcher positive and negative controls, hardlink and symlink behavior, and for config the IPv4/IPv6 loopback and FIFO reader/writer handshake. A SIGHUP reload is synchronized by an observed config FIFO reader before each probe. Original files, bounded raw stdout/stderr, datagrams, process status, comparison details and socket state are captured in the case tree and HOME diagnostic JSONL. Each case compares exact records and explicit normalized results; mismatch or timeout remains failure.",
+      "covers": [
+        "bashsyslogd/fixture_links"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-io-syslogd.py": "5e7591def454c24fbddf2a4aa1d49b4c5da2304da15fe621813ebf36e9a7a2af"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-syslogd.py setup links",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-syslogd.py \"$BASH\" links",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "links hardlink-multiplicity=yes symlink-target=yes identities=yes stopped=yes socket-removed=yes stderr-empty=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "syslogd-observations.jsonl"
+      ]
+    },
+    {
+      "id": "migration-terra-local-io-syslogd-config",
+      "loadable": "bashsyslogd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe startup precedence, literal IPv4 and IPv6 destinations, controlled SIGHUP reload, invalid retention and empty disable.",
+      "oracle": "The original bashsyslogd deferral and documented interface, RFC syslog PRI facility numbers, Linux Unix/UDP datagram and file-link semantics, and the explicit fixture vectors. The independent Python sender and loopback receivers supply exact bytes; timestamp and hostname prefixes are checked as a bounded format using the guest hostname, not matched against candidate-derived expectations.",
+      "comparison": "The VM-only observer owns its Unix and loopback sockets and daemon. Setup proves Unix empty/nonempty queue ordering, line matcher positive and negative controls, hardlink and symlink behavior, and for config the IPv4/IPv6 loopback and FIFO reader/writer handshake. A SIGHUP reload is synchronized by an observed config FIFO reader before each probe. Original files, bounded raw stdout/stderr, datagrams, process status, comparison details and socket state are captured in the case tree and HOME diagnostic JSONL. Each case compares exact records and explicit normalized results; mismatch or timeout remains failure.",
+      "covers": [
+        "bashsyslogd/config_reload"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-io-syslogd.py": "5e7591def454c24fbddf2a4aa1d49b4c5da2304da15fe621813ebf36e9a7a2af"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-syslogd.py setup config",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-syslogd.py \"$BASH\" config",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "config-startup destination=yes\nconfig-no-hup destination=yes\nconfig-reload-v6 destination=yes\nconfig-invalid-retains destination=yes\nconfig-literal-retains destination=yes\nconfig-reload-v4 destination=yes\nconfig-empty-disabled destination=yes\nconfig-summary literal=yes invalid-diagnostic=yes stopped=yes socket-removed=yes\nconfig-file-startup destination=yes\nconfig-file-startup-clean stopped=yes socket-removed=yes stderr-empty=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "syslogd-observations.jsonl"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,709 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-nano-followup-justify-redo",
+      "loadable": "nano",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Through identical real keyboard sequences M-J, M-U, M-E: observe fill16, original line after undo, and the same justification after redo, then save exact trailing-space bytes.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "editor-ready=PASS\nall-input-operations-sent=PASS\ncausal-input-acknowledgements=PASS\nexplicit-visible-assertions=PASS\nexpected-saved-bytes=PASS\nexit-zero-after-save=PASS\ntermios-restored-before-cleanup=PASS\nhelper-contract=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "nano"
+      ],
+      "covers": [
+        "nano/deferred_justify_undo"
+      ],
+      "helpers_sha256": {
+        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+      },
+      "files": {
+        "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
+        "dictionary.json": "{\"teh\": \"the\"}\n",
+        "nano.rc": "# Isolated GNU reference controls; candidate options/keys are otherwise unchanged.\nset wordchars \"\u0301\"\nbind ^T speller main\n",
+        "note.txt": "one two three four five six seven eight\n",
+        "scenario.json": "{\n  \"kind\": \"redo\",\n  \"options\": [\n    \"-r\",\n    \"16\"\n  ],\n  \"initial_lines\": [\n    \"one two three four five six seven eight\"\n  ],\n  \"justified_lines\": [\n    \"one two three \",\n    \"four five six \",\n    \"seven eight\"\n  ],\n  \"expected_final_base64\": \"b25lIHR3byB0aHJlZSAKZm91ciBmaXZlIHNpeCAKc2V2ZW4gZWlnaHQK\"\n}\n"
+      },
+      "expected_files": {
+        "note.txt": "one two three \nfour five six \nseven eight\n",
+        "saved.txt": "one two three \nfour five six \nseven eight\n"
+      },
+      "oracle": "Independent GNU nano8.4, pinned by in-VM --version, with fresh24x80 controlling PTYs and an isolated rcfile. Source read as data from official nano-8.4.tar.xz (sha256 5ad29222bbd55624d87ea677928b3106a743114d6c6f9b41f36c97be2a8e628d). GNU move.c skips zero-width combining characters; text.c scans completion candidates in buffer order and passes a temp filename to custom spellers. The rcfile declares combining acute as a word character and binds ^T directly to GNU speller so the same physical trigger is usable; candidate receives no unsupported rcfile option. Independent native PTY/pselect, Unicode cell/reverse decoder and both fixture-helper interfaces are controlled before behavior. Saved bytes are never normalized.",
+      "comparison": "Exact note.txt/saved.txt and any intermediate file bytes versus GNU and static expected_files. Explicit body text, cursor-cell deltas and reverse-video predicates are recorded per phase. Only pyte display composition uses NFC; file bytes stay decomposed/exact. Full directional raw I/O, modes, readiness syscalls, decoded snapshots and helper protocol/input/decision traces stay in HOME. Actions continue after independent assertion failures; missing modal prompts are recorded as unreached rather than sending replacement text into the main editor.",
+      "diagnostic_files": [
+        "session.raw",
+        "session.json",
+        "observations.json",
+        "setup-tty.raw",
+        "setup-tty.json",
+        "reference-version.raw",
+        "setup-helper.jsonl",
+        "setup-helper-controls.json",
+        "spell-helper.jsonl"
+      ]
+    },
+    {
+      "id": "migration-nano-followup-justify-trim",
+      "loadable": "nano",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Use -M -r16, M-J and save; exact justified line endings must have no trailing blanks, unlike the no-trim fixture. Same seed/fill-width/GNU keyboard path.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "editor-ready=PASS\nall-input-operations-sent=PASS\ncausal-input-acknowledgements=PASS\nexplicit-visible-assertions=PASS\nexpected-saved-bytes=PASS\nexit-zero-after-save=PASS\ntermios-restored-before-cleanup=PASS\nhelper-contract=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "nano"
+      ],
+      "covers": [
+        "nano/deferred_justify_undo"
+      ],
+      "helpers_sha256": {
+        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+      },
+      "files": {
+        "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
+        "dictionary.json": "{\"teh\": \"the\"}\n",
+        "nano.rc": "# Isolated GNU reference controls; candidate options/keys are otherwise unchanged.\nset wordchars \"\u0301\"\nbind ^T speller main\n",
+        "note.txt": "one two three four five six seven eight\n",
+        "scenario.json": "{\n  \"kind\": \"trim\",\n  \"options\": [\n    \"-M\",\n    \"-r\",\n    \"16\"\n  ],\n  \"justified_lines\": [\n    \"one two three\",\n    \"four five six\",\n    \"seven eight\"\n  ],\n  \"expected_final_base64\": \"b25lIHR3byB0aHJlZQpmb3VyIGZpdmUgc2l4CnNldmVuIGVpZ2h0Cg==\"\n}\n"
+      },
+      "expected_files": {
+        "note.txt": "one two three\nfour five six\nseven eight\n",
+        "saved.txt": "one two three\nfour five six\nseven eight\n"
+      },
+      "oracle": "Independent GNU nano8.4, pinned by in-VM --version, with fresh24x80 controlling PTYs and an isolated rcfile. Source read as data from official nano-8.4.tar.xz (sha256 5ad29222bbd55624d87ea677928b3106a743114d6c6f9b41f36c97be2a8e628d). GNU move.c skips zero-width combining characters; text.c scans completion candidates in buffer order and passes a temp filename to custom spellers. The rcfile declares combining acute as a word character and binds ^T directly to GNU speller so the same physical trigger is usable; candidate receives no unsupported rcfile option. Independent native PTY/pselect, Unicode cell/reverse decoder and both fixture-helper interfaces are controlled before behavior. Saved bytes are never normalized.",
+      "comparison": "Exact note.txt/saved.txt and any intermediate file bytes versus GNU and static expected_files. Explicit body text, cursor-cell deltas and reverse-video predicates are recorded per phase. Only pyte display composition uses NFC; file bytes stay decomposed/exact. Full directional raw I/O, modes, readiness syscalls, decoded snapshots and helper protocol/input/decision traces stay in HOME. Actions continue after independent assertion failures; missing modal prompts are recorded as unreached rather than sending replacement text into the main editor.",
+      "diagnostic_files": [
+        "session.raw",
+        "session.json",
+        "observations.json",
+        "setup-tty.raw",
+        "setup-tty.json",
+        "reference-version.raw",
+        "setup-helper.jsonl",
+        "setup-helper-controls.json",
+        "spell-helper.jsonl"
+      ]
+    },
+    {
+      "id": "migration-nano-followup-justify-repeat-paragraphs",
+      "loadable": "nano",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Justify both fixed paragraphs with M-J, save an exact first snapshot, M-J again and save. Both paragraphs and their separator are asserted, and the two saved snapshots must be identical.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "editor-ready=PASS\nall-input-operations-sent=PASS\ncausal-input-acknowledgements=PASS\nexplicit-visible-assertions=PASS\nexpected-saved-bytes=PASS\nexit-zero-after-save=PASS\ntermios-restored-before-cleanup=PASS\nhelper-contract=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "nano"
+      ],
+      "covers": [
+        "nano/deferred_justify_undo"
+      ],
+      "helpers_sha256": {
+        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+      },
+      "files": {
+        "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
+        "dictionary.json": "{\"teh\": \"the\"}\n",
+        "nano.rc": "# Isolated GNU reference controls; candidate options/keys are otherwise unchanged.\nset wordchars \"\u0301\"\nbind ^T speller main\n",
+        "note.txt": "one two three four five six seven eight\n\none two three four five six seven eight\n",
+        "scenario.json": "{\n  \"kind\": \"repeat\",\n  \"options\": [\n    \"-r\",\n    \"16\"\n  ],\n  \"justified_lines\": [\n    \"one two three \",\n    \"four five six \",\n    \"seven eight\",\n    \"\",\n    \"one two three \",\n    \"four five six \",\n    \"seven eight\"\n  ],\n  \"expected_final_base64\": \"b25lIHR3byB0aHJlZSAKZm91ciBmaXZlIHNpeCAKc2V2ZW4gZWlnaHQKCm9uZSB0d28gdGhyZWUgCmZvdXIgZml2ZSBzaXggCnNldmVuIGVpZ2h0Cg==\"\n}\n"
+      },
+      "expected_files": {
+        "note.txt": "one two three \nfour five six \nseven eight\n\none two three \nfour five six \nseven eight\n",
+        "saved.txt": "one two three \nfour five six \nseven eight\n\none two three \nfour five six \nseven eight\n",
+        "first-save.txt": "one two three \nfour five six \nseven eight\n\none two three \nfour five six \nseven eight\n"
+      },
+      "oracle": "Independent GNU nano8.4, pinned by in-VM --version, with fresh24x80 controlling PTYs and an isolated rcfile. Source read as data from official nano-8.4.tar.xz (sha256 5ad29222bbd55624d87ea677928b3106a743114d6c6f9b41f36c97be2a8e628d). GNU move.c skips zero-width combining characters; text.c scans completion candidates in buffer order and passes a temp filename to custom spellers. The rcfile declares combining acute as a word character and binds ^T directly to GNU speller so the same physical trigger is usable; candidate receives no unsupported rcfile option. Independent native PTY/pselect, Unicode cell/reverse decoder and both fixture-helper interfaces are controlled before behavior. Saved bytes are never normalized.",
+      "comparison": "Exact note.txt/saved.txt and any intermediate file bytes versus GNU and static expected_files. Explicit body text, cursor-cell deltas and reverse-video predicates are recorded per phase. Only pyte display composition uses NFC; file bytes stay decomposed/exact. Full directional raw I/O, modes, readiness syscalls, decoded snapshots and helper protocol/input/decision traces stay in HOME. Actions continue after independent assertion failures; missing modal prompts are recorded as unreached rather than sending replacement text into the main editor.",
+      "diagnostic_files": [
+        "session.raw",
+        "session.json",
+        "observations.json",
+        "setup-tty.raw",
+        "setup-tty.json",
+        "reference-version.raw",
+        "setup-helper.jsonl",
+        "setup-helper-controls.json",
+        "spell-helper.jsonl"
+      ]
+    },
+    {
+      "id": "migration-nano-followup-ascii-mark-cut-paste",
+      "loadable": "nano",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "M-A, five Right keys, marked ^K cut, End and ^U paste. Assert selected cells/reverse state, the exact intermediate remaining text, pasted text and saved bytes independently of whole-line cut.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "editor-ready=PASS\nall-input-operations-sent=PASS\ncausal-input-acknowledgements=PASS\nexplicit-visible-assertions=PASS\nexpected-saved-bytes=PASS\nexit-zero-after-save=PASS\ntermios-restored-before-cleanup=PASS\nhelper-contract=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "nano"
+      ],
+      "covers": [
+        "nano/deferred_selection_completion_utf8"
+      ],
+      "helpers_sha256": {
+        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+      },
+      "files": {
+        "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
+        "dictionary.json": "{\"teh\": \"the\"}\n",
+        "nano.rc": "# Isolated GNU reference controls; candidate options/keys are otherwise unchanged.\nset wordchars \"\u0301\"\nbind ^T speller main\n",
+        "note.txt": "alpha beta\n",
+        "scenario.json": "{\n  \"kind\": \"region\",\n  \"after_cut\": \" beta\",\n  \"after_paste\": \" betaalpha\",\n  \"expected_final_base64\": \"IGJldGFhbHBoYQo=\"\n}\n"
+      },
+      "expected_files": {
+        "note.txt": " betaalpha\n",
+        "saved.txt": " betaalpha\n"
+      },
+      "oracle": "Independent GNU nano8.4, pinned by in-VM --version, with fresh24x80 controlling PTYs and an isolated rcfile. Source read as data from official nano-8.4.tar.xz (sha256 5ad29222bbd55624d87ea677928b3106a743114d6c6f9b41f36c97be2a8e628d). GNU move.c skips zero-width combining characters; text.c scans completion candidates in buffer order and passes a temp filename to custom spellers. The rcfile declares combining acute as a word character and binds ^T directly to GNU speller so the same physical trigger is usable; candidate receives no unsupported rcfile option. Independent native PTY/pselect, Unicode cell/reverse decoder and both fixture-helper interfaces are controlled before behavior. Saved bytes are never normalized.",
+      "comparison": "Exact note.txt/saved.txt and any intermediate file bytes versus GNU and static expected_files. Explicit body text, cursor-cell deltas and reverse-video predicates are recorded per phase. Only pyte display composition uses NFC; file bytes stay decomposed/exact. Full directional raw I/O, modes, readiness syscalls, decoded snapshots and helper protocol/input/decision traces stay in HOME. Actions continue after independent assertion failures; missing modal prompts are recorded as unreached rather than sending replacement text into the main editor.",
+      "diagnostic_files": [
+        "session.raw",
+        "session.json",
+        "observations.json",
+        "setup-tty.raw",
+        "setup-tty.json",
+        "reference-version.raw",
+        "setup-helper.jsonl",
+        "setup-helper-controls.json",
+        "spell-helper.jsonl"
+      ]
+    },
+    {
+      "id": "migration-nano-followup-utf8-grapheme-region",
+      "loadable": "nano",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Type decomposed e+acute, wide \u4e2d and Z through the keyboard; Home, M-A and two Right steps must move1 then2 terminal cells without splitting the combining sequence. Cut leaves Z; paste at End gives Z followed by the original decomposed cluster and wide character. Compare exact UTF-8 bytes.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "editor-ready=PASS\nall-input-operations-sent=PASS\ncausal-input-acknowledgements=PASS\nexplicit-visible-assertions=PASS\nexpected-saved-bytes=PASS\nexit-zero-after-save=PASS\ntermios-restored-before-cleanup=PASS\nhelper-contract=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "nano"
+      ],
+      "covers": [
+        "nano/deferred_selection_completion_utf8"
+      ],
+      "helpers_sha256": {
+        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+      },
+      "files": {
+        "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
+        "dictionary.json": "{\"teh\": \"the\"}\n",
+        "nano.rc": "# Isolated GNU reference controls; candidate options/keys are otherwise unchanged.\nset wordchars \"\u0301\"\nbind ^T speller main\n",
+        "note.txt": "\n",
+        "scenario.json": "{\n  \"kind\": \"grapheme\",\n  \"after_cut\": \"Z\",\n  \"after_paste\": \"Ze\\u0301\\u4e2d\",\n  \"expected_final_base64\": \"WmXMgeS4rQo=\"\n}\n"
+      },
+      "expected_files": {
+        "note.txt": "Ze\u0301\u4e2d\n",
+        "saved.txt": "Ze\u0301\u4e2d\n"
+      },
+      "oracle": "Independent GNU nano8.4, pinned by in-VM --version, with fresh24x80 controlling PTYs and an isolated rcfile. Source read as data from official nano-8.4.tar.xz (sha256 5ad29222bbd55624d87ea677928b3106a743114d6c6f9b41f36c97be2a8e628d). GNU move.c skips zero-width combining characters; text.c scans completion candidates in buffer order and passes a temp filename to custom spellers. The rcfile declares combining acute as a word character and binds ^T directly to GNU speller so the same physical trigger is usable; candidate receives no unsupported rcfile option. Independent native PTY/pselect, Unicode cell/reverse decoder and both fixture-helper interfaces are controlled before behavior. Saved bytes are never normalized.",
+      "comparison": "Exact note.txt/saved.txt and any intermediate file bytes versus GNU and static expected_files. Explicit body text, cursor-cell deltas and reverse-video predicates are recorded per phase. Only pyte display composition uses NFC; file bytes stay decomposed/exact. Full directional raw I/O, modes, readiness syscalls, decoded snapshots and helper protocol/input/decision traces stay in HOME. Actions continue after independent assertion failures; missing modal prompts are recorded as unreached rather than sending replacement text into the main editor.",
+      "diagnostic_files": [
+        "session.raw",
+        "session.json",
+        "observations.json",
+        "setup-tty.raw",
+        "setup-tty.json",
+        "reference-version.raw",
+        "setup-helper.jsonl",
+        "setup-helper-controls.json",
+        "spell-helper.jsonl"
+      ]
+    },
+    {
+      "id": "migration-nano-followup-ascii-completion-cycle",
+      "loadable": "nano",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Move to the prefix line and End; ^] must produce the exact first buffer-order word; a second ^] without intervening input cycles to the exact second word. Record the first displayed word and save the second. Combining-acute membership is explicitly configured for GNU; wide and combining cases run independently so an earlier completion failure cannot hide either.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "editor-ready=PASS\nall-input-operations-sent=PASS\ncausal-input-acknowledgements=PASS\nexplicit-visible-assertions=PASS\nexpected-saved-bytes=PASS\nexit-zero-after-save=PASS\ntermios-restored-before-cleanup=PASS\nhelper-contract=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "nano"
+      ],
+      "covers": [
+        "nano/deferred_selection_completion_utf8"
+      ],
+      "helpers_sha256": {
+        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+      },
+      "files": {
+        "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
+        "dictionary.json": "{\"teh\": \"the\"}\n",
+        "nano.rc": "# Isolated GNU reference controls; candidate options/keys are otherwise unchanged.\nset wordchars \"\u0301\"\nbind ^T speller main\n",
+        "note.txt": "apple apricot\nap\n",
+        "scenario.json": "{\n  \"kind\": \"completion\",\n  \"first_word\": \"apple\",\n  \"second_word\": \"apricot\",\n  \"expected_final_base64\": \"YXBwbGUgYXByaWNvdAphcHJpY290Cg==\"\n}\n"
+      },
+      "expected_files": {
+        "note.txt": "apple apricot\napricot\n",
+        "saved.txt": "apple apricot\napricot\n",
+        "first-completion.txt": "apple\n"
+      },
+      "oracle": "Independent GNU nano8.4, pinned by in-VM --version, with fresh24x80 controlling PTYs and an isolated rcfile. Source read as data from official nano-8.4.tar.xz (sha256 5ad29222bbd55624d87ea677928b3106a743114d6c6f9b41f36c97be2a8e628d). GNU move.c skips zero-width combining characters; text.c scans completion candidates in buffer order and passes a temp filename to custom spellers. The rcfile declares combining acute as a word character and binds ^T directly to GNU speller so the same physical trigger is usable; candidate receives no unsupported rcfile option. Independent native PTY/pselect, Unicode cell/reverse decoder and both fixture-helper interfaces are controlled before behavior. Saved bytes are never normalized.",
+      "comparison": "Exact note.txt/saved.txt and any intermediate file bytes versus GNU and static expected_files. Explicit body text, cursor-cell deltas and reverse-video predicates are recorded per phase. Only pyte display composition uses NFC; file bytes stay decomposed/exact. Full directional raw I/O, modes, readiness syscalls, decoded snapshots and helper protocol/input/decision traces stay in HOME. Actions continue after independent assertion failures; missing modal prompts are recorded as unreached rather than sending replacement text into the main editor.",
+      "diagnostic_files": [
+        "session.raw",
+        "session.json",
+        "observations.json",
+        "setup-tty.raw",
+        "setup-tty.json",
+        "reference-version.raw",
+        "setup-helper.jsonl",
+        "setup-helper-controls.json",
+        "spell-helper.jsonl"
+      ]
+    },
+    {
+      "id": "migration-nano-followup-wide-completion-cycle",
+      "loadable": "nano",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Move to the prefix line and End; ^] must produce the exact first buffer-order word; a second ^] without intervening input cycles to the exact second word. Record the first displayed word and save the second. Combining-acute membership is explicitly configured for GNU; wide and combining cases run independently so an earlier completion failure cannot hide either.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "editor-ready=PASS\nall-input-operations-sent=PASS\ncausal-input-acknowledgements=PASS\nexplicit-visible-assertions=PASS\nexpected-saved-bytes=PASS\nexit-zero-after-save=PASS\ntermios-restored-before-cleanup=PASS\nhelper-contract=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "nano"
+      ],
+      "covers": [
+        "nano/deferred_selection_completion_utf8"
+      ],
+      "helpers_sha256": {
+        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+      },
+      "files": {
+        "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
+        "dictionary.json": "{\"teh\": \"the\"}\n",
+        "nano.rc": "# Isolated GNU reference controls; candidate options/keys are otherwise unchanged.\nset wordchars \"\u0301\"\nbind ^T speller main\n",
+        "note.txt": "\u4e2d\u83ef \u4e2d\u6587\n\u4e2d\n",
+        "scenario.json": "{\n  \"kind\": \"completion\",\n  \"first_word\": \"\\u4e2d\\u83ef\",\n  \"second_word\": \"\\u4e2d\\u6587\",\n  \"expected_final_base64\": \"5Lit6I+vIOS4reaWhwrkuK3mlocK\"\n}\n"
+      },
+      "expected_files": {
+        "note.txt": "\u4e2d\u83ef \u4e2d\u6587\n\u4e2d\u6587\n",
+        "saved.txt": "\u4e2d\u83ef \u4e2d\u6587\n\u4e2d\u6587\n",
+        "first-completion.txt": "\u4e2d\u83ef\n"
+      },
+      "oracle": "Independent GNU nano8.4, pinned by in-VM --version, with fresh24x80 controlling PTYs and an isolated rcfile. Source read as data from official nano-8.4.tar.xz (sha256 5ad29222bbd55624d87ea677928b3106a743114d6c6f9b41f36c97be2a8e628d). GNU move.c skips zero-width combining characters; text.c scans completion candidates in buffer order and passes a temp filename to custom spellers. The rcfile declares combining acute as a word character and binds ^T directly to GNU speller so the same physical trigger is usable; candidate receives no unsupported rcfile option. Independent native PTY/pselect, Unicode cell/reverse decoder and both fixture-helper interfaces are controlled before behavior. Saved bytes are never normalized.",
+      "comparison": "Exact note.txt/saved.txt and any intermediate file bytes versus GNU and static expected_files. Explicit body text, cursor-cell deltas and reverse-video predicates are recorded per phase. Only pyte display composition uses NFC; file bytes stay decomposed/exact. Full directional raw I/O, modes, readiness syscalls, decoded snapshots and helper protocol/input/decision traces stay in HOME. Actions continue after independent assertion failures; missing modal prompts are recorded as unreached rather than sending replacement text into the main editor.",
+      "diagnostic_files": [
+        "session.raw",
+        "session.json",
+        "observations.json",
+        "setup-tty.raw",
+        "setup-tty.json",
+        "reference-version.raw",
+        "setup-helper.jsonl",
+        "setup-helper-controls.json",
+        "spell-helper.jsonl"
+      ]
+    },
+    {
+      "id": "migration-nano-followup-combining-completion-cycle",
+      "loadable": "nano",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Move to the prefix line and End; ^] must produce the exact first buffer-order word; a second ^] without intervening input cycles to the exact second word. Record the first displayed word and save the second. Combining-acute membership is explicitly configured for GNU; wide and combining cases run independently so an earlier completion failure cannot hide either.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "editor-ready=PASS\nall-input-operations-sent=PASS\ncausal-input-acknowledgements=PASS\nexplicit-visible-assertions=PASS\nexpected-saved-bytes=PASS\nexit-zero-after-save=PASS\ntermios-restored-before-cleanup=PASS\nhelper-contract=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "nano"
+      ],
+      "covers": [
+        "nano/deferred_selection_completion_utf8"
+      ],
+      "helpers_sha256": {
+        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+      },
+      "files": {
+        "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
+        "dictionary.json": "{\"teh\": \"the\"}\n",
+        "nano.rc": "# Isolated GNU reference controls; candidate options/keys are otherwise unchanged.\nset wordchars \"\u0301\"\nbind ^T speller main\n",
+        "note.txt": "e\u0301clair e\u0301cole\ne\u0301\n",
+        "scenario.json": "{\n  \"kind\": \"completion\",\n  \"first_word\": \"e\\u0301clair\",\n  \"second_word\": \"e\\u0301cole\",\n  \"expected_final_base64\": \"ZcyBY2xhaXIgZcyBY29sZQplzIFjb2xlCg==\"\n}\n"
+      },
+      "expected_files": {
+        "note.txt": "e\u0301clair e\u0301cole\ne\u0301cole\n",
+        "saved.txt": "e\u0301clair e\u0301cole\ne\u0301cole\n",
+        "first-completion.txt": "\u00e9clair\n"
+      },
+      "oracle": "Independent GNU nano8.4, pinned by in-VM --version, with fresh24x80 controlling PTYs and an isolated rcfile. Source read as data from official nano-8.4.tar.xz (sha256 5ad29222bbd55624d87ea677928b3106a743114d6c6f9b41f36c97be2a8e628d). GNU move.c skips zero-width combining characters; text.c scans completion candidates in buffer order and passes a temp filename to custom spellers. The rcfile declares combining acute as a word character and binds ^T directly to GNU speller so the same physical trigger is usable; candidate receives no unsupported rcfile option. Independent native PTY/pselect, Unicode cell/reverse decoder and both fixture-helper interfaces are controlled before behavior. Saved bytes are never normalized.",
+      "comparison": "Exact note.txt/saved.txt and any intermediate file bytes versus GNU and static expected_files. Explicit body text, cursor-cell deltas and reverse-video predicates are recorded per phase. Only pyte display composition uses NFC; file bytes stay decomposed/exact. Full directional raw I/O, modes, readiness syscalls, decoded snapshots and helper protocol/input/decision traces stay in HOME. Actions continue after independent assertion failures; missing modal prompts are recorded as unreached rather than sending replacement text into the main editor.",
+      "diagnostic_files": [
+        "session.raw",
+        "session.json",
+        "observations.json",
+        "setup-tty.raw",
+        "setup-tty.json",
+        "reference-version.raw",
+        "setup-helper.jsonl",
+        "setup-helper-controls.json",
+        "spell-helper.jsonl"
+      ]
+    },
+    {
+      "id": "migration-nano-followup-selected-reverse-highlight",
+      "loadable": "nano",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Independently mark alpha with M-A+five Right keys, assert exactly its five cells reverse and the following space normal, then unmark and assert all six cells normal. No cut or completion failure gates the highlight checks; the saved text remains exact.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "editor-ready=PASS\nall-input-operations-sent=PASS\ncausal-input-acknowledgements=PASS\nexplicit-visible-assertions=PASS\nexpected-saved-bytes=PASS\nexit-zero-after-save=PASS\ntermios-restored-before-cleanup=PASS\nhelper-contract=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "nano"
+      ],
+      "covers": [
+        "nano/deferred_selection_completion_utf8"
+      ],
+      "helpers_sha256": {
+        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+      },
+      "files": {
+        "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
+        "dictionary.json": "{\"teh\": \"the\"}\n",
+        "nano.rc": "# Isolated GNU reference controls; candidate options/keys are otherwise unchanged.\nset wordchars \"\u0301\"\nbind ^T speller main\n",
+        "note.txt": "alpha beta\n",
+        "scenario.json": "{\n  \"kind\": \"highlight\",\n  \"expected_final_base64\": \"YWxwaGEgYmV0YQo=\"\n}\n"
+      },
+      "expected_files": {
+        "note.txt": "alpha beta\n",
+        "saved.txt": "alpha beta\n"
+      },
+      "oracle": "Independent GNU nano8.4, pinned by in-VM --version, with fresh24x80 controlling PTYs and an isolated rcfile. Source read as data from official nano-8.4.tar.xz (sha256 5ad29222bbd55624d87ea677928b3106a743114d6c6f9b41f36c97be2a8e628d). GNU move.c skips zero-width combining characters; text.c scans completion candidates in buffer order and passes a temp filename to custom spellers. The rcfile declares combining acute as a word character and binds ^T directly to GNU speller so the same physical trigger is usable; candidate receives no unsupported rcfile option. Independent native PTY/pselect, Unicode cell/reverse decoder and both fixture-helper interfaces are controlled before behavior. Saved bytes are never normalized.",
+      "comparison": "Exact note.txt/saved.txt and any intermediate file bytes versus GNU and static expected_files. Explicit body text, cursor-cell deltas and reverse-video predicates are recorded per phase. Only pyte display composition uses NFC; file bytes stay decomposed/exact. Full directional raw I/O, modes, readiness syscalls, decoded snapshots and helper protocol/input/decision traces stay in HOME. Actions continue after independent assertion failures; missing modal prompts are recorded as unreached rather than sending replacement text into the main editor.",
+      "diagnostic_files": [
+        "session.raw",
+        "session.json",
+        "observations.json",
+        "setup-tty.raw",
+        "setup-tty.json",
+        "reference-version.raw",
+        "setup-helper.jsonl",
+        "setup-helper-controls.json",
+        "spell-helper.jsonl"
+      ]
+    },
+    {
+      "id": "migration-nano-followup-spell-custom-file-contract",
+      "loadable": "nano",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Strict GNU custom-speller contract: --speller=./helper must provide a temporary filename; the same controlled helper prompts for replacement and rewrites all whole-word teh occurrences. A no-filename stdin invocation is logged/refused42. This preserves the candidate protocol mismatch as FAIL and reports its unentered replacement prompt explicitly.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "editor-ready=PASS\nall-input-operations-sent=PASS\ncausal-input-acknowledgements=PASS\nexplicit-visible-assertions=PASS\nexpected-saved-bytes=PASS\nexit-zero-after-save=PASS\ntermios-restored-before-cleanup=PASS\nhelper-contract=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "nano"
+      ],
+      "covers": [
+        "nano/deferred_spell_helper"
+      ],
+      "helpers_sha256": {
+        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+      },
+      "files": {
+        "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
+        "dictionary.json": "{\"teh\": \"the\"}\n",
+        "nano.rc": "# Isolated GNU reference controls; candidate options/keys are otherwise unchanged.\nset wordchars \"\u0301\"\nbind ^T speller main\n",
+        "note.txt": "teh cat teh\n",
+        "scenario.json": "{\n  \"kind\": \"spell\",\n  \"options\": [\n    \"--speller=./helper\"\n  ],\n  \"spell_mode\": \"strict-replace\",\n  \"spell_seed_base64\": \"dGVoIGNhdCB0ZWgK\",\n  \"expected_final_base64\": \"dGhlIGNhdCB0aGUK\"\n}\n"
+      },
+      "expected_files": {
+        "note.txt": "the cat the\n",
+        "saved.txt": "the cat the\n"
+      },
+      "oracle": "Independent GNU nano8.4, pinned by in-VM --version, with fresh24x80 controlling PTYs and an isolated rcfile. Source read as data from official nano-8.4.tar.xz (sha256 5ad29222bbd55624d87ea677928b3106a743114d6c6f9b41f36c97be2a8e628d). GNU move.c skips zero-width combining characters; text.c scans completion candidates in buffer order and passes a temp filename to custom spellers. The rcfile declares combining acute as a word character and binds ^T directly to GNU speller so the same physical trigger is usable; candidate receives no unsupported rcfile option. Independent native PTY/pselect, Unicode cell/reverse decoder and both fixture-helper interfaces are controlled before behavior. Saved bytes are never normalized.",
+      "comparison": "Exact note.txt/saved.txt and any intermediate file bytes versus GNU and static expected_files. Explicit body text, cursor-cell deltas and reverse-video predicates are recorded per phase. Only pyte display composition uses NFC; file bytes stay decomposed/exact. Full directional raw I/O, modes, readiness syscalls, decoded snapshots and helper protocol/input/decision traces stay in HOME. Actions continue after independent assertion failures; missing modal prompts are recorded as unreached rather than sending replacement text into the main editor.",
+      "diagnostic_files": [
+        "session.raw",
+        "session.json",
+        "observations.json",
+        "setup-tty.raw",
+        "setup-tty.json",
+        "reference-version.raw",
+        "setup-helper.jsonl",
+        "setup-helper-controls.json",
+        "spell-helper.jsonl"
+      ]
+    },
+    {
+      "id": "migration-nano-followup-spell-dual-replacement",
+      "loadable": "nano",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Supplemental semantic probe using a declared dual-interface helper: GNU gets a filename and fixture-local terminal correction; candidate gets the same dictionary as a stdin word list and its native replacement prompt. Reach the actual prompt, replace teh with the, and compare saved bytes. This does not establish GNU filename-speller compatibility; the strict case remains separate.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "editor-ready=PASS\nall-input-operations-sent=PASS\ncausal-input-acknowledgements=PASS\nexplicit-visible-assertions=PASS\nexpected-saved-bytes=PASS\nexit-zero-after-save=PASS\ntermios-restored-before-cleanup=PASS\nhelper-contract=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "nano"
+      ],
+      "covers": [
+        "nano/deferred_spell_helper"
+      ],
+      "helpers_sha256": {
+        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+      },
+      "files": {
+        "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
+        "dictionary.json": "{\"teh\": \"the\"}\n",
+        "nano.rc": "# Isolated GNU reference controls; candidate options/keys are otherwise unchanged.\nset wordchars \"\u0301\"\nbind ^T speller main\n",
+        "note.txt": "teh cat teh\n",
+        "scenario.json": "{\n  \"kind\": \"spell\",\n  \"options\": [\n    \"--speller=./helper\"\n  ],\n  \"spell_mode\": \"dual-replace\",\n  \"spell_seed_base64\": \"dGVoIGNhdCB0ZWgK\",\n  \"expected_final_base64\": \"dGhlIGNhdCB0aGUK\"\n}\n"
+      },
+      "expected_files": {
+        "note.txt": "the cat the\n",
+        "saved.txt": "the cat the\n"
+      },
+      "oracle": "Independent GNU nano8.4, pinned by in-VM --version, with fresh24x80 controlling PTYs and an isolated rcfile. Source read as data from official nano-8.4.tar.xz (sha256 5ad29222bbd55624d87ea677928b3106a743114d6c6f9b41f36c97be2a8e628d). GNU move.c skips zero-width combining characters; text.c scans completion candidates in buffer order and passes a temp filename to custom spellers. The rcfile declares combining acute as a word character and binds ^T directly to GNU speller so the same physical trigger is usable; candidate receives no unsupported rcfile option. Independent native PTY/pselect, Unicode cell/reverse decoder and both fixture-helper interfaces are controlled before behavior. Saved bytes are never normalized.",
+      "comparison": "Exact note.txt/saved.txt and any intermediate file bytes versus GNU and static expected_files. Explicit body text, cursor-cell deltas and reverse-video predicates are recorded per phase. Only pyte display composition uses NFC; file bytes stay decomposed/exact. Full directional raw I/O, modes, readiness syscalls, decoded snapshots and helper protocol/input/decision traces stay in HOME. Actions continue after independent assertion failures; missing modal prompts are recorded as unreached rather than sending replacement text into the main editor.",
+      "diagnostic_files": [
+        "session.raw",
+        "session.json",
+        "observations.json",
+        "setup-tty.raw",
+        "setup-tty.json",
+        "reference-version.raw",
+        "setup-helper.jsonl",
+        "setup-helper-controls.json",
+        "spell-helper.jsonl"
+      ]
+    },
+    {
+      "id": "migration-nano-followup-spell-dual-cancel",
+      "loadable": "nano",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Reach the actual correction prompt before sending lone ESC. GNU fixture helper cancels without touching its file; candidate must cancel its native correction. Exact original saved bytes and explicit per-side cancellation feedback are asserted. Dual-interface semantics supplement, rather than erase, the strict GNU custom-speller protocol gap.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "editor-ready=PASS\nall-input-operations-sent=PASS\ncausal-input-acknowledgements=PASS\nexplicit-visible-assertions=PASS\nexpected-saved-bytes=PASS\nexit-zero-after-save=PASS\ntermios-restored-before-cleanup=PASS\nhelper-contract=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "nano"
+      ],
+      "covers": [
+        "nano/deferred_spell_helper"
+      ],
+      "helpers_sha256": {
+        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+      },
+      "files": {
+        "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
+        "dictionary.json": "{\"teh\": \"the\"}\n",
+        "nano.rc": "# Isolated GNU reference controls; candidate options/keys are otherwise unchanged.\nset wordchars \"\u0301\"\nbind ^T speller main\n",
+        "note.txt": "teh cat teh\n",
+        "scenario.json": "{\n  \"kind\": \"spell\",\n  \"options\": [\n    \"--speller=./helper\"\n  ],\n  \"spell_mode\": \"dual-cancel\",\n  \"spell_seed_base64\": \"dGVoIGNhdCB0ZWgK\",\n  \"expected_final_base64\": \"dGVoIGNhdCB0ZWgK\"\n}\n"
+      },
+      "expected_files": {
+        "note.txt": "teh cat teh\n",
+        "saved.txt": "teh cat teh\n"
+      },
+      "oracle": "Independent GNU nano8.4, pinned by in-VM --version, with fresh24x80 controlling PTYs and an isolated rcfile. Source read as data from official nano-8.4.tar.xz (sha256 5ad29222bbd55624d87ea677928b3106a743114d6c6f9b41f36c97be2a8e628d). GNU move.c skips zero-width combining characters; text.c scans completion candidates in buffer order and passes a temp filename to custom spellers. The rcfile declares combining acute as a word character and binds ^T directly to GNU speller so the same physical trigger is usable; candidate receives no unsupported rcfile option. Independent native PTY/pselect, Unicode cell/reverse decoder and both fixture-helper interfaces are controlled before behavior. Saved bytes are never normalized.",
+      "comparison": "Exact note.txt/saved.txt and any intermediate file bytes versus GNU and static expected_files. Explicit body text, cursor-cell deltas and reverse-video predicates are recorded per phase. Only pyte display composition uses NFC; file bytes stay decomposed/exact. Full directional raw I/O, modes, readiness syscalls, decoded snapshots and helper protocol/input/decision traces stay in HOME. Actions continue after independent assertion failures; missing modal prompts are recorded as unreached rather than sending replacement text into the main editor.",
+      "diagnostic_files": [
+        "session.raw",
+        "session.json",
+        "observations.json",
+        "setup-tty.raw",
+        "setup-tty.json",
+        "reference-version.raw",
+        "setup-helper.jsonl",
+        "setup-helper-controls.json",
+        "spell-helper.jsonl"
+      ]
+    },
+    {
+      "id": "migration-nano-followup-spell-helper-failure",
+      "loadable": "nano",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "The configured helper logs exact supplied text then exits7 under either interface. Assert GNU Error invoking './helper' or candidate Spell helper failed (exit7) feedback as independently specified by their source, continued editor operation, terminal cleanup and unchanged saved bytes.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "editor-ready=PASS\nall-input-operations-sent=PASS\ncausal-input-acknowledgements=PASS\nexplicit-visible-assertions=PASS\nexpected-saved-bytes=PASS\nexit-zero-after-save=PASS\ntermios-restored-before-cleanup=PASS\nhelper-contract=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "nano"
+      ],
+      "covers": [
+        "nano/deferred_spell_helper"
+      ],
+      "helpers_sha256": {
+        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+      },
+      "files": {
+        "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
+        "dictionary.json": "{\"teh\": \"the\"}\n",
+        "nano.rc": "# Isolated GNU reference controls; candidate options/keys are otherwise unchanged.\nset wordchars \"\u0301\"\nbind ^T speller main\n",
+        "note.txt": "teh cat teh\n",
+        "scenario.json": "{\n  \"kind\": \"spell\",\n  \"options\": [\n    \"--speller=./helper\"\n  ],\n  \"spell_mode\": \"failure\",\n  \"spell_seed_base64\": \"dGVoIGNhdCB0ZWgK\",\n  \"expected_final_base64\": \"dGVoIGNhdCB0ZWgK\"\n}\n"
+      },
+      "expected_files": {
+        "note.txt": "teh cat teh\n",
+        "saved.txt": "teh cat teh\n"
+      },
+      "oracle": "Independent GNU nano8.4, pinned by in-VM --version, with fresh24x80 controlling PTYs and an isolated rcfile. Source read as data from official nano-8.4.tar.xz (sha256 5ad29222bbd55624d87ea677928b3106a743114d6c6f9b41f36c97be2a8e628d). GNU move.c skips zero-width combining characters; text.c scans completion candidates in buffer order and passes a temp filename to custom spellers. The rcfile declares combining acute as a word character and binds ^T directly to GNU speller so the same physical trigger is usable; candidate receives no unsupported rcfile option. Independent native PTY/pselect, Unicode cell/reverse decoder and both fixture-helper interfaces are controlled before behavior. Saved bytes are never normalized.",
+      "comparison": "Exact note.txt/saved.txt and any intermediate file bytes versus GNU and static expected_files. Explicit body text, cursor-cell deltas and reverse-video predicates are recorded per phase. Only pyte display composition uses NFC; file bytes stay decomposed/exact. Full directional raw I/O, modes, readiness syscalls, decoded snapshots and helper protocol/input/decision traces stay in HOME. Actions continue after independent assertion failures; missing modal prompts are recorded as unreached rather than sending replacement text into the main editor.",
+      "diagnostic_files": [
+        "session.raw",
+        "session.json",
+        "observations.json",
+        "setup-tty.raw",
+        "setup-tty.json",
+        "reference-version.raw",
+        "setup-helper.jsonl",
+        "setup-helper-controls.json",
+        "spell-helper.jsonl"
+      ]
+    },
+    {
+      "id": "migration-nano-followup-spell-helper-timeout",
+      "loadable": "nano",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe helper input/deadline-ready before timing. GNU custom helper self-exits124 after a fixture-controlled12s bound; candidate must report its own10s helper timeout in9-12s. Exact per-side error feedback and unchanged saved bytes are required. GNU does not implement the candidate10s deadline; no equal-implementation or observed-SIGKILL-cause claim is made.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "editor-ready=PASS\nall-input-operations-sent=PASS\ncausal-input-acknowledgements=PASS\nexplicit-visible-assertions=PASS\nexpected-saved-bytes=PASS\nexit-zero-after-save=PASS\ntermios-restored-before-cleanup=PASS\nhelper-contract=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "nano"
+      ],
+      "covers": [
+        "nano/deferred_spell_helper"
+      ],
+      "helpers_sha256": {
+        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+      },
+      "files": {
+        "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
+        "dictionary.json": "{\"teh\": \"the\"}\n",
+        "nano.rc": "# Isolated GNU reference controls; candidate options/keys are otherwise unchanged.\nset wordchars \"\u0301\"\nbind ^T speller main\n",
+        "note.txt": "teh cat teh\n",
+        "scenario.json": "{\n  \"kind\": \"spell\",\n  \"options\": [\n    \"--speller=./helper\"\n  ],\n  \"spell_mode\": \"timeout\",\n  \"spell_seed_base64\": \"dGVoIGNhdCB0ZWgK\",\n  \"expected_final_base64\": \"dGVoIGNhdCB0ZWgK\"\n}\n"
+      },
+      "expected_files": {
+        "note.txt": "teh cat teh\n",
+        "saved.txt": "teh cat teh\n"
+      },
+      "oracle": "Independent GNU nano8.4, pinned by in-VM --version, with fresh24x80 controlling PTYs and an isolated rcfile. Source read as data from official nano-8.4.tar.xz (sha256 5ad29222bbd55624d87ea677928b3106a743114d6c6f9b41f36c97be2a8e628d). GNU move.c skips zero-width combining characters; text.c scans completion candidates in buffer order and passes a temp filename to custom spellers. The rcfile declares combining acute as a word character and binds ^T directly to GNU speller so the same physical trigger is usable; candidate receives no unsupported rcfile option. Independent native PTY/pselect, Unicode cell/reverse decoder and both fixture-helper interfaces are controlled before behavior. Saved bytes are never normalized.",
+      "comparison": "Exact note.txt/saved.txt and any intermediate file bytes versus GNU and static expected_files. Explicit body text, cursor-cell deltas and reverse-video predicates are recorded per phase. Only pyte display composition uses NFC; file bytes stay decomposed/exact. Full directional raw I/O, modes, readiness syscalls, decoded snapshots and helper protocol/input/decision traces stay in HOME. Actions continue after independent assertion failures; missing modal prompts are recorded as unreached rather than sending replacement text into the main editor.",
+      "diagnostic_files": [
+        "session.raw",
+        "session.json",
+        "observations.json",
+        "setup-tty.raw",
+        "setup-tty.json",
+        "reference-version.raw",
+        "setup-helper.jsonl",
+        "setup-helper-controls.json",
+        "spell-helper.jsonl"
+      ]
+    }
+  ]
+}

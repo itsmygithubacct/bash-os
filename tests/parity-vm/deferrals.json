@@ -1540,47 +1540,82 @@
         "purpose": "Check SOCK_CLOEXEC/FD_CLOEXEC on the sending socket, no descriptor inheritance by an exec child, interrupted-send retry, and descriptor closure after one injected send failure or short send.",
         "reason": "Requires a future disposable VM with a private AF_UNIX receiver and an independently reviewed socket/syscall mock that prevents any host logging or network effects. Record CLOEXEC, closure and single-call EINTR/short-send/failure outcomes through the mock; no stress loop."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No fixture observes descriptors; all of r1-r4 are observable with a private AF_UNIX receiver inside the VM, and r5 needs a ptrace-based return-value injector helper.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "The sending socket carries FD_CLOEXEC/SOCK_CLOEXEC while open.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No observation of the live descriptor flags."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-logger-r2",
+              "assertion": "Use a PID-bearing boundary and traced fd tables to associate the same-PID AF_UNIX SOCK_DGRAM|SOCK_CLOEXEC creation with the live send socket inode and its FD_CLOEXEC; unrelated Unix stream sockets are permitted and controls explicitly exercise them.",
+              "definition_sha256": "bba251f4e42c14107c2a47ccfa29f054404a7e8443f0cb9943017564279501e7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "No logger socket is inherited by a later exec child.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No child descriptor listing after logging."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-logger-r2",
+              "assertion": "Separate exec children enumerate their own descriptor targets before and after each logger call; neither snapshot has a socket, and a passed-socket positive control proves the detector.",
+              "definition_sha256": "bba251f4e42c14107c2a47ccfa29f054404a7e8443f0cb9943017564279501e7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "An interrupted sendto (EINTR) is retried and delivers exactly one datagram.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No interruption fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-logger-r2",
+              "assertion": "Inject EINTR on exactly the first sendto, continue the second, require status 0 and exactly one byte-exact private datagram.",
+              "definition_sha256": "bba251f4e42c14107c2a47ccfa29f054404a7e8443f0cb9943017564279501e7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "After a send failure the descriptor is closed (shell descriptor set unchanged) and status is 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No failing destination case with /proc/$$/fd comparison."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-logger-r2",
+              "assertion": "Inject one EIO send failure; status 1 and the sendto EIO diagnostic are required, no datagram is delivered, and the shell descriptor map after the call equals its pre-call map.",
+              "definition_sha256": "bba251f4e42c14107c2a47ccfa29f054404a7e8443f0cb9943017564279501e7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "A short send is reported as failure (EIO diagnostic) and the descriptor is closed.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "AF_UNIX datagram sends are atomic; this branch is reachable only with syscall-return injection."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-logger-r2",
+              "assertion": "Return synthetic short count 1 for a longer sendto, require status 1 with EIO diagnostic, no actual datagram and an unchanged shell descriptor map.",
+              "definition_sha256": "bba251f4e42c14107c2a47ccfa29f054404a7e8443f0cb9943017564279501e7"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/bashlogger.c:40-55 SOCK_CLOEXEC + fcntl FD_CLOEXEC; :83-87 EINTR loop; :88-95 close before error and EIO for short send. The socket is closed before the builtin returns, so r2 is a regression guard. Confirm bash sig.c handler flags for trapped signals before relying on EINTR."
+      "notes": "Independent raw qualification accepted and bound by primary at checkpoint108 to exact frozen definitions on both unchanged builds. The invalid logger attribution case and superseded lifecycle observer remain historical only; r2 repairs preserve raw descriptor attribution and file modes. Existing companion evidence and genuine candidate FAIL remain."
     },
     {
       "topic": "bashlogger/message-framing-limits",
@@ -2188,44 +2223,71 @@
         "purpose": "Socket/PTY descriptor behavior and failure injection beyond the runnable private FIFO flag, inheritance and close coverage.",
         "reason": "Requires a future disposable VM with a reviewed socket/PTY descriptor injector and fault mock to cover non-FIFO flags, failed operations, and lifetime cleanup beyond the runnable private FIFO checks."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "FIFO behavior is covered; socket and PTY descriptors are creatable in the VM (loopback peers, python3 pty helper) but no fixture exists.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "set-nonblock on/off and clear-cloexec on socket descriptors (TCP/UNIX/UDP) change only the intended flags.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Only FIFO descriptors are inspected."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-descriptors",
+              "assertion": "Read /proc/PID/fdinfo before, after nonblock on, after off and after clear-cloexec for TCP listener/connect/accept, Unix listener, and UDP listener; require only requested flag differences and exec inheritance after clear.",
+              "definition_sha256": "57874d451165ed2948c6823ac1ccfa6d0a20968eb8b17ef088ac999a5bc3cff7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Flags on PTY descriptors.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No PTY descriptor fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-descriptors",
+              "assertion": "Apply the same independent flag-difference and post-close checks to an inherited PTY master.",
+              "definition_sha256": "57874d451165ed2948c6823ac1ccfa6d0a20968eb8b17ef088ac999a5bc3cff7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Operations on invalid/closed descriptors fail with defined status and diagnostics (set-nonblock, clear-cloexec, close).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/bashpoll/private-fifo-descriptor-lifecycle",
               "assertion": "After close, wait on the same fd returns status 1.",
               "definition_sha256": "bb2d5d199efa0ae7530f25b5464c9543138f0ff896d3f8aa9d0e1530ef14fb20"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-descriptors",
+              "assertion": "For each of set-nonblock, clear-cloexec and close, a closed fd must return 1 with its own EBADF diagnostic; each nonnumeric fd must return 2 with its own invalid diagnostic. The shell prints every result even after a mismatch.",
+              "definition_sha256": "57874d451165ed2948c6823ac1ccfa6d0a20968eb8b17ef088ac999a5bc3cff7"
             }
           ],
-          "gap": "set-nonblock/clear-cloexec/close on a closed or non-numeric fd are not exercised."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Descriptors created by listen/accept/connect/listen-udp are close-on-exec by default and are released by close (no leak into exec children).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No socket descriptor lifecycle check."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-descriptors",
+              "assertion": "listen, listen-unix, connect, accept and listen-udp descriptors begin CLOEXEC and are absent in an exec child; after clear they appear in the child; after close both shell and exec-child target are absent.",
+              "definition_sha256": "57874d451165ed2948c6823ac1ccfa6d0a20968eb8b17ef088ac999a5bc3cff7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
@@ -2242,7 +2304,7 @@
           "gap": ""
         }
       ],
-      "notes": "loadables/bashpoll.c:444-458 close; :462-476 set-nonblock; :864-875 clear-cloexec. listen/connect socket flags at :192-300."
+      "notes": "Independent raw qualification accepted and bound by primary at checkpoint108 to exact frozen definitions on both unchanged builds. The invalid logger attribution case and superseded lifecycle observer remain historical only; r2 repairs preserve raw descriptor attribution and file modes. Existing companion evidence and genuine candidate FAIL remain."
     },
     {
       "topic": "bashpoll/multi-fd-readiness",
@@ -2329,37 +2391,65 @@
         "purpose": "Exercise signalfd delivery, accepted signal names, overlapping masks, close/unload restoration, preblocked signals, and invalid signal handling.",
         "reason": "Requires a future disposable VM with a signal syscall mock that records mask ownership, selected delivery and descriptor cleanup for only the fixture shell; no host signals are authorized."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "No fixture sends signals; the fixture shell can signal itself inside the disposable VM and read SigBlk from /proc/$BASHPID/status. Unload restoration is unreachable for the compiled-in builtin.",
+      "current_reason": "Remaining obligations: r5: bashpoll is compiled into both candidate builds; enable -d cannot unload it, so the unload hook is not reachable.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "signalfd SIG... FDVAR blocks the signals and delivers a self-sent signal through the descriptor (readable; siginfo signo matches).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No signal is generated by any fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-masks",
+              "assertion": "A shell self-sends blocked USR1 and requires bashpoll wait to report its signalfd readable; a separate same-PID exec preserves the signalfd, self-sends USR1 and reads 128 bytes with signo USR1, with an independent ctypes control.",
+              "definition_sha256": "b3c532157ac7036dea791791c53751ff970081f356d1e25cd111b6ba25f3cf09"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Accepted signal names (USR1, SIGUSR2, numbers) and rejection of invalid, SIGKILL and SIGSTOP with status 2.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No rejection case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-masks",
+              "assertion": "USR1, SIGUSR2 and numeric 12 create usable signalfds; SIGBOGUS, SIGKILL and SIGSTOP each return 2 with invalid/unblockable diagnostic.",
+              "definition_sha256": "b3c532157ac7036dea791791c53751ff970081f356d1e25cd111b6ba25f3cf09"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Overlapping masks: a signal shared by two signalfds stays blocked until the last one closes.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-masks",
+              "assertion": "Read shell SigBlk after creating two USR1 signalfds, closing one, and closing the last; USR1 remains blocked through the first close and is unblocked after the second.",
+              "definition_sha256": "b3c532157ac7036dea791791c53751ff970081f356d1e25cd111b6ba25f3cf09"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Close restores only signals the module itself blocked; a pre-blocked signal stays blocked.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-masks",
+              "assertion": "Start the shell with USR2 preblocked; after creation and close of a SIGUSR2 signalfd the USR2 bit remains blocked while the module-owned USR1 bit was restored.",
+              "definition_sha256": "b3c532157ac7036dea791791c53751ff970081f356d1e25cd111b6ba25f3cf09"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
@@ -2369,7 +2459,7 @@
           "gap": "bashpoll is compiled into both candidate builds; enable -d cannot unload it, so the unload hook is not reachable."
         }
       ],
-      "notes": "loadables/bashpoll.c:60-89 reference-counted ownership; :91-95 unload; :877-930 signalfd (rejects SIGKILL/SIGSTOP, SFD_CLOEXEC); :444-458 close releases ownership."
+      "notes": "Independent raw qualification accepted and bound by primary at checkpoint108 to exact frozen definitions on both unchanged builds. The invalid logger attribution case and superseded lifecycle observer remain historical only; r2 repairs preserve raw descriptor attribution and file modes. Existing companion evidence and genuine candidate FAIL remain. Close/mask/delivery requirements are exercised; compiled-in unload remains missing and the topic must stay partial."
     },
     {
       "topic": "bashpoll/tcp-stream-api",
@@ -2677,47 +2767,82 @@
         "purpose": "Check literal BASHSYSLOGD_FORWARD parsing, startup precedence, SIGHUP reload, invalid-config retention, and empty-value disable behavior.",
         "reason": "Requires a future disposable VM with an owned daemon and signal control plus a private loopback UDP receiver; the current task prohibits signal and network operations. A deterministic local receiver is needed to observe destination changes."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No daemon is ever started. The daemon, its UDP receiver (existing udp peer or a python3 helper on a second port) and SIGHUP to the script's own child are all possible in the VM.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "BASHSYSLOGD_FORWARD=HOST:PORT in --config is parsed literally (including [v6]:port).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No daemon run."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-config",
+              "assertion": "Initial config-only IPv4 startup and bracketed IPv6 reload both deliver exact datagrams to their bound loopback receiver; a quoted command-substitution-shaped value must not create the absolute-path sentinel and must leave the prior receiver in use.",
+              "definition_sha256": "92b16685295ff4b7484b3ade6a9fb4a29b48957068aa93ee805264e9e106602c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Startup precedence between --forward and the config value.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-config",
+              "assertion": "When file specifies receiver A and --forward specifies B, startup datagram arrives only at B; changing the config without SIGHUP still leaves B selected; config-only startup independently selects A.",
+              "definition_sha256": "92b16685295ff4b7484b3ade6a9fb4a29b48957068aa93ee805264e9e106602c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "SIGHUP rereads the config and changes the forwarding destination.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No signal fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-config",
+              "assertion": "SIGHUP opens the replacement FIFO, then exact probe packets go exclusively to bracketed IPv6 and, after another reload, IPv4 A.",
+              "definition_sha256": "92b16685295ff4b7484b3ade6a9fb4a29b48957068aa93ee805264e9e106602c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "An invalid config on reload keeps the previous destination.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-config",
+              "assertion": "A reload with an unterminated quoted value emits invalid forwarding configuration and the following probe still goes exclusively to the prior IPv6 receiver.",
+              "definition_sha256": "92b16685295ff4b7484b3ade6a9fb4a29b48957068aa93ee805264e9e106602c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "An empty BASHSYSLOGD_FORWARD disables forwarding.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-config",
+              "assertion": "An empty value after a synchronized SIGHUP results in no packets on any of the three receivers after processing the local datagram and clean daemon exit.",
+              "definition_sha256": "92b16685295ff4b7484b3ade6a9fb4a29b48957068aa93ee805264e9e106602c"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/bashsyslogd.c:59 SIGHUP flag; :764-790 reload; :1043-1056 --forward/--config; help :1115-1120."
+      "notes": "Independent raw qualification accepted and bound by primary at checkpoint108 to exact frozen definitions on both unchanged builds. The invalid logger attribution case and superseded lifecycle observer remain historical only; r2 repairs preserve raw descriptor attribution and file modes. Existing companion evidence and genuine candidate FAIL remain."
     },
     {
       "topic": "bashsyslogd/fixture_file_lifecycle",
@@ -2727,33 +2852,54 @@
         "purpose": "Verify bashsyslogd appends records to pre-existing private log files and preserves their modes, then leaves fixture files available for copy/move/removal.",
         "reason": "Requires a future disposable VM with a private AF_UNIX sender/receiver or a reviewed socket/clock mock that invokes bashsyslogd and supplies deterministic log records. Ordinary relative file setup is authorized, but by itself does not exercise this daemon; no socket/network operation is authorized here."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No daemon run exists; a private AF_UNIX sender and owned daemon child are enough.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Records are appended to pre-existing private log files (prior content preserved, new lines appended).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No daemon run."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-lifecycle-r2",
+              "assertion": "Four pre-seeded files retain their exact seed and append the exact timestamp/host-formatted routed messages in expected order and multiplicity.",
+              "definition_sha256": "2540beffdff0006c45ca1e2474b67fd3456d67fc219b2be3898d7acb01d4b7e7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Existing file modes are preserved after appending.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-lifecycle-r2",
+              "assertion": "Inspect four raw lifecycle-mode records: each records expected mode and raw initial/final st_mode before file deletion; both permission bit sets must equal the independently specified 0600, 0640, 0644 or 0660.",
+              "definition_sha256": "2540beffdff0006c45ca1e2474b67fd3456d67fc219b2be3898d7acb01d4b7e7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "After shutdown the log files can be copied, moved and removed by ordinary tools.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-lifecycle-r2",
+              "assertion": "After clean shutdown /usr/bin/cp, mv and rm each succeed for every log; copied/moved bytes match and removed paths are absent.",
+              "definition_sha256": "2540beffdff0006c45ca1e2474b67fd3456d67fc219b2be3898d7acb01d4b7e7"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/bashsyslogd.c:187 opens each output with fopen(path, mode a) (append, follows symlinks, no chmod of existing files); stream selection :340-350."
+      "notes": "Independent raw qualification accepted and bound by primary at checkpoint108 to exact frozen definitions on both unchanged builds. The invalid logger attribution case and superseded lifecycle observer remain historical only; r2 repairs preserve raw descriptor attribution and file modes. Existing companion evidence and genuine candidate FAIL remain."
     },
     {
       "topic": "bashsyslogd/fixture_links",
@@ -2763,33 +2909,54 @@
         "purpose": "Verify bashsyslogd output routing through private hardlink aliases and relative symlinks, with exact record multiplicity and final link identity.",
         "reason": "Requires a future disposable VM with a private AF_UNIX sender/receiver or a reviewed socket/clock mock that invokes bashsyslogd and supplies deterministic log records. Ordinary relative file setup is authorized, but by itself does not exercise this daemon; no socket/network operation is authorized here."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No daemon run exists.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Output through a hardlink alias appends to the shared inode with exact record multiplicity.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No daemon run."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-links",
+              "assertion": "The messages and syslog paths are hardlink aliases: one default-routed packet produces exactly two appended records on the shared inode and one auth packet adds exactly one.",
+              "definition_sha256": "9e09dcf136975757f2d29ada11098b923fc52f26c1edb96494b42bb735de5a9e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Output through a relative symlink is written to the target, and the link is preserved.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-links",
+              "assertion": "An auth packet follows a relative symlink and is appended exactly once to the pre-seeded target while the symlink remains present.",
+              "definition_sha256": "9e09dcf136975757f2d29ada11098b923fc52f26c1edb96494b42bb735de5a9e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Final link identity (same inode for hardlinks, symlink target text) is unchanged.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-links",
+              "assertion": "Before/after device+inode values match for both hardlink names; symlink inode, kind and relative target text are unchanged.",
+              "definition_sha256": "9e09dcf136975757f2d29ada11098b923fc52f26c1edb96494b42bb735de5a9e"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/bashsyslogd.c:187 fopen(path, mode a) follows symlinks and appends through hardlinks, so the expected result is append-through-link with link identity unchanged."
+      "notes": "Independent raw qualification accepted and bound by primary at checkpoint108 to exact frozen definitions on both unchanged builds. The invalid logger attribution case and superseded lifecycle observer remain historical only; r2 repairs preserve raw descriptor attribution and file modes. Existing companion evidence and genuine candidate FAIL remain."
     },
     {
       "topic": "bashsyslogd/forwarding_queue_replay",
@@ -2856,54 +3023,102 @@
         "purpose": "Exercise PRI facility routing, control-byte scrubbing, append behavior, --once consumption, socket mode, and owned socket cleanup.",
         "reason": "Requires a future disposable VM with a private AF_UNIX datagram socket and sender, an owned log tree, and controlled process cleanup. No equivalent-output GNU syslogd fixture is documented, and service operation is excluded in the current environment."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No daemon run exists.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "PRI facility routes records to --syslog/--auth/--kern/default output files.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No daemon run."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-routing",
+              "assertion": "Six unique packets appear exactly once in messages; user/unknown PRI go only to syslog, auth/authpriv go only to auth, and kern goes only to kern.",
+              "definition_sha256": "b06255eb89c5f8a28f125ea4c6ca50637a6b7f6dbf57038c49ff5b9c2fd024dd"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Control bytes in messages are scrubbed in stored records.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-routing",
+              "assertion": "An exact byte comparison requires NUL, SOH, LF, CR and DEL to become spaces, preserves tab and checks all routed and default copies.",
+              "definition_sha256": "b06255eb89c5f8a28f125ea4c6ca50637a6b7f6dbf57038c49ff5b9c2fd024dd"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Records are appended (not truncating).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-routing",
+              "assertion": "All four output files start with distinct seed bytes, preserved exactly before their expected appended records.",
+              "definition_sha256": "b06255eb89c5f8a28f125ea4c6ca50637a6b7f6dbf57038c49ff5b9c2fd024dd"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "--once consumes exactly one datagram (including an empty one) and then exits and cleans up.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-once",
+              "assertion": "Stop the daemon, successfully enqueue two datagrams, resume it and require clean exit and only the first to be processed; repeat with an empty first packet and no records at all.",
+              "definition_sha256": "b07cac03760d7afaa68dff2ce008608be11318d82a5f45ba9a10dfebc1d00173"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "The receiving socket is created with --mode permissions.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-routing",
+              "assertion": "After the socket processed datagrams, lstat/stat mode is exactly 0640 as requested.",
+              "definition_sha256": "b06255eb89c5f8a28f125ea4c6ca50637a6b7f6dbf57038c49ff5b9c2fd024dd"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "The daemon removes its own socket on exit.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-routing",
+              "assertion": "After clean SIGTERM and after each --once exit, the daemon-owned socket pathname is absent.",
+              "definition_sha256": "b06255eb89c5f8a28f125ea4c6ca50637a6b7f6dbf57038c49ff5b9c2fd024dd"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-syslogd-once",
+              "assertion": "After clean SIGTERM and after each --once exit, the daemon-owned socket pathname is absent.",
+              "definition_sha256": "b07cac03760d7afaa68dff2ce008608be11318d82a5f45ba9a10dfebc1d00173"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/bashsyslogd.c:86-110 safe unlink; :113-160 socket bind and chmod to --mode (:153); :902-908 cleanup; :1075 --once."
+      "notes": "Independent raw qualification accepted and bound by primary at checkpoint108 to exact frozen definitions on both unchanged builds. The invalid logger attribution case and superseded lifecycle observer remain historical only; r2 repairs preserve raw descriptor attribution and file modes. Existing companion evidence and genuine candidate FAIL remain."
     },
     {
       "topic": "bashsyslogd/socket_and_output_failures",
@@ -20755,9 +20970,9 @@
         "purpose": "Use fixed paragraphs and identical PTY key sequences to compare fill-width, trimblanks, repeated justification, and undo/redo saved bytes against GNU nano.",
         "reason": "Requires a bounded disposable PTY driver and GNU nano reference. The current runner has no terminal input or window-size control, so justified output cannot be reached through the editor's real keyboard path."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Fill width and undo pass. Redo, trimblanks and repeated justification have no fixtures.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -20769,6 +20984,12 @@
               "id": "nano-justify",
               "assertion": "nano -r 16; M-J; save; expected 'one two three \\nfour five six \\nseven eight\\n'",
               "definition_sha256": "61c18b33fcf8d10ae72c8e7fb2bf71d3772fcbf5c59833cd218206337cb7ceea"
+            },
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-justify-redo",
+              "assertion": "-r16 in actual editor argv; ESC j from actual send stream; three justified lines from independent raw replay; exact saved bytes with trailing blanks compared to GNU",
+              "definition_sha256": "ca7b381263bd833d57f83e3284c9068ccbd2a418f735927a0c27d55b68b02383"
             }
           ],
           "gap": ""
@@ -20781,8 +21002,14 @@
             {
               "group": "terminal",
               "id": "nano-justify-undo",
-              "assertion": "M-J then M-U then save gives the original line",
+              "assertion": "104 M-J then M-U visibly restores original complete line; selected baseline nano-justify-undo M-J/M-U/save reaches original exact saved bytes on both builds and GNU; baseline raw offsets show filled paragraph before undo and original line before save",
               "definition_sha256": "a896728882583dbd4d2a68ad515295421665b7f874b0bc507c4518aef1d13ec8"
+            },
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-justify-redo",
+              "assertion": "104 M-J then M-U visibly restores original complete line; selected baseline nano-justify-undo M-J/M-U/save reaches original exact saved bytes on both builds and GNU; baseline raw offsets show filled paragraph before undo and original line before save",
+              "definition_sha256": "ca7b381263bd833d57f83e3284c9068ccbd2a418f735927a0c27d55b68b02383"
             }
           ],
           "gap": ""
@@ -20790,26 +21017,53 @@
         {
           "id": "r3",
           "behavior": "Redo (M-E) after undo reapplies the justification",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case sends M-E."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-justify-redo",
+              "assertion": "actual ESC e after actual ESC u; original line before redo; filled lines after redo; exact final saved trailing-blank bytes equal GNU",
+              "definition_sha256": "ca7b381263bd833d57f83e3284c9068ccbd2a418f735927a0c27d55b68b02383"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "--trimblanks (-M) changes the justified output (trailing blanks removed)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "nano-justify runs without trimblanks (trailing blanks kept). Only the no-terminal option parse is covered (legacy/nano/gnu_options_without_terminal, FAIL)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-justify-trim",
+              "assertion": "-M -r16 in actual argv; real M-J; exact saved first two lines omit trailing blanks; comparison with GNU and separately reached no-trim case",
+              "definition_sha256": "5aa14ba1b6aa61a15aef0255e4a9bfbfdd4b9f03c9287a8a4bede6b794b5adcd"
+            },
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-justify-redo",
+              "assertion": "-M -r16 in actual argv; real M-J; exact saved first two lines omit trailing blanks; comparison with GNU and separately reached no-trim case",
+              "definition_sha256": "ca7b381263bd833d57f83e3284c9068ccbd2a418f735927a0c27d55b68b02383"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Repeated justification (justify twice, or justify across multiple paragraphs) is idempotent and matches GNU",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-justify-repeat-paragraphs",
+              "assertion": "both fixed paragraphs filled by first M-J; first save visibly reported and first-save.txt exact; second M-J visibly retains both paragraphs; complete final saved bytes equal first save and GNU",
+              "definition_sha256": "32c6b9af6e9659ce4a8552b161e3cac66c6b94f9cafca21f86956f541e0ef6e8"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "These are byte comparisons of saved files. M-J is sent as ESC j, which nano decodes as Meta. The candidate's undo/redo stack is at nano.c:91 and :140."
+      "notes": "Independent standard-library ANSI replay recomputed344 raw snapshots and3118 assertions on56 candidate/reference records from both unchanged builds. Actual key bytes, cursor/reverse cells, saved file bytes, helper protocols, timing and pre-cleanup terminal restoration bound by primary at checkpoint111. Exact older selected companions retained."
     },
     {
       "topic": "nano/deferred_selection_completion_utf8",
@@ -20819,23 +21073,37 @@
         "purpose": "Exercise marked-region cut/paste and word completion with ASCII and multibyte grapheme inputs, then compare deterministic saved bytes and selected display behavior.",
         "reason": "Requires a disposable PTY session with deterministic key and screen capture support; the current runner does not provide a terminal. GNU nano must be available for the operation comparison."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Only plain UTF-8 insertion is exercised, and it FAILs on the final newline. Selection, completion, grapheme handling and highlight have no fixtures.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Marked-region cut and paste (M-A mark, movement, ^K, ^U) with saved bytes compared with GNU nano",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case uses M-A. nano-cut-paste exercises whole-line cut only (FAIL: paste newline lost)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-ascii-mark-cut-paste",
+              "assertion": "actual M-A and five Right inputs; only alpha reverse at cells0-4, following space normal; ^K leaves space+beta; End and ^U paste alpha after beta; exact saved space+beta+alpha newline equals GNU",
+              "definition_sha256": "ede7cd49b28ca822fa5a73ecb03f0561d00ca9359f5b1763e4c33852d93668ee"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Word completion (^]) for an ASCII prefix, and cycling on repeat",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-ascii-completion-cycle",
+              "assertion": "cursor at end of ap; first ^] displays apple at cursor cell5; immediate second ^] displays apricot at cell7; no interposed save; exact final apricot saved bytes equal GNU",
+              "definition_sha256": "ae3750710dbfdaf0c735e6e07c5f1f95e02752c27ba184c15404523d1a5fe0cf"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
@@ -20845,8 +21113,14 @@
             {
               "group": "terminal",
               "id": "nano-utf8-input",
-              "assertion": "types U+00E9, U+4E2D and 'x', saves, compares bytes with GNU nano",
+              "assertion": "actual keyboard hex65cc81e4b8ad5a; display NFC acute plus wide Chinese character and Z; final exact decomposed Ze+acute+Chinese newline bytes after region operations; baseline separate empty-buffer insertion retains missing-final-newline mismatch",
               "definition_sha256": "f4e9ce38f95783bca7ce25ae98a88f2c8429f322576ee7707c8d4c5a9db17be8"
+            },
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-utf8-grapheme-region",
+              "assertion": "actual keyboard hex65cc81e4b8ad5a; display NFC acute plus wide Chinese character and Z; final exact decomposed Ze+acute+Chinese newline bytes after region operations; baseline separate empty-buffer insertion retains missing-final-newline mismatch",
+              "definition_sha256": "7bd89414808536fd21cad1f3cf7fb4f29296ce9003f6103cd25f0cc52cd2c564"
             }
           ],
           "gap": ""
@@ -20854,19 +21128,51 @@
         {
           "id": "r4",
           "behavior": "Selection and completion over multibyte graphemes (combining sequences and wide characters), with the cursor moving by grapheme",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-utf8-grapheme-region",
+              "assertion": "first Right crosses e+acute as one cell; second Right crosses Chinese wide character as two cells; both graphemes selected, cut leaves Z, paste gives exact decomposed saved bytes; wide completion reaches Chinese first and second words at cell4; combining completion reaches e+acute+clair then e+acute+cole at cell6 with decomposed second saved bytes",
+              "definition_sha256": "7bd89414808536fd21cad1f3cf7fb4f29296ce9003f6103cd25f0cc52cd2c564"
+            },
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-wide-completion-cycle",
+              "assertion": "first Right crosses e+acute as one cell; second Right crosses Chinese wide character as two cells; both graphemes selected, cut leaves Z, paste gives exact decomposed saved bytes; wide completion reaches Chinese first and second words at cell4; combining completion reaches e+acute+clair then e+acute+cole at cell6 with decomposed second saved bytes",
+              "definition_sha256": "341924c352af5f9b67191caf63dbe3310e18b6d89c54d8225b68940e900add80"
+            },
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-combining-completion-cycle",
+              "assertion": "first Right crosses e+acute as one cell; second Right crosses Chinese wide character as two cells; both graphemes selected, cut leaves Z, paste gives exact decomposed saved bytes; wide completion reaches Chinese first and second words at cell4; combining completion reaches e+acute+clair then e+acute+cole at cell6 with decomposed second saved bytes",
+              "definition_sha256": "1ba08973e50a5c09df04c782f2e0f4ea071e7e7125c2488de1b666674aaba093"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Selected-region display behavior (reverse-video highlight) on screen",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The screen step checks text only; pyte exposes reverse attributes, but terminal.py's screen spec has no attribute assertion."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-selected-reverse-highlight",
+              "assertion": "native ANSI control independently parses reverse alpha and normal following space; real editor selected alpha cells0-4 reverse and cell5 normal; M-A unmark clears all body reverse cells; independent full raw replay agrees with captured reverse attributes",
+              "definition_sha256": "41d75b87e8b4ceb03799a3894e78af3d6539278555cb1179cb7b0af4bdb813ea"
+            },
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-ascii-mark-cut-paste",
+              "assertion": "native ANSI control independently parses reverse alpha and normal following space; real editor selected alpha cells0-4 reverse and cell5 normal; M-A unmark clears all body reverse cells; independent full raw replay agrees with captured reverse attributes",
+              "definition_sha256": "ede7cd49b28ca822fa5a73ecb03f0561d00ca9359f5b1763e4c33852d93668ee"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate mark support is at nano.c:179-183 and :1665-1700; completion is ^] (nano.c header line 25)."
+      "notes": "Independent standard-library ANSI replay recomputed344 raw snapshots and3118 assertions on56 candidate/reference records from both unchanged builds. Actual key bytes, cursor/reverse cells, saved file bytes, helper protocols, timing and pre-cleanup terminal restoration bound by primary at checkpoint111. Exact older selected companions retained. GNU rcfile explicitly includes combining acute in wordchars. The original selected empty-buffer UTF8 missing-newline FAIL remains part of the topic outcome; no default word-classification or first-completion saved-byte claim."
     },
     {
       "topic": "nano/deferred_spell_helper",
@@ -20876,33 +21182,66 @@
         "purpose": "Run a tiny fixture-local word-list helper through the editor, test replacement and cancel behavior, and compare the resulting saved file with GNU nano using the same deterministic helper contract.",
         "reason": "Requires a disposable PTY-capable fixture harness to invoke the editor and helper safely inside the private fixture tree, plus GNU nano as the behavioral reference. No helper or editor operation is executed by this suite."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "There is no fixture. The PTY driver and a fixture-local helper script (trusted /bin/sh, run inside the case directory) are enough.",
+      "current_reason": "Remaining obligations: r1: No candidate GNU-filename-helper correction workflow ran. Under that strict contract, correction prompt, reply, replacement and corrected save remain unreached after refusal42. Dual-interface semantic PASS must not be relabelled as strict API compatibility or used to erase that FAIL.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Invoke the spell checker through a fixture-local helper (--speller=./helper), with replacement of a misspelled word and the saved file compared with GNU nano",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-spell-custom-file-contract",
+              "assertion": "--speller=./helper actual argv and real ^T in both profiles; helper sees exact teh cat teh newline on both sides; strict GNU passes one private filename and helper replaces both misspellings; saved result corrected; strict candidate passes no filename and stdin buffer; helper logs protocol-refused42; dual candidate helper returns teh word list, native correction prompt appears before reply; dual GNU helper correction prompt appears before same physical reply; dual replacement changes both words, exact corrected saved bytes equal GNU",
+              "definition_sha256": "eab95ce45b586e8a71212f9b91632b0c6cce9420876a58fc5023d83973e679a9"
+            },
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-spell-dual-replacement",
+              "assertion": "--speller=./helper actual argv and real ^T in both profiles; helper sees exact teh cat teh newline on both sides; strict GNU passes one private filename and helper replaces both misspellings; saved result corrected; strict candidate passes no filename and stdin buffer; helper logs protocol-refused42; dual candidate helper returns teh word list, native correction prompt appears before reply; dual GNU helper correction prompt appears before same physical reply; dual replacement changes both words, exact corrected saved bytes equal GNU",
+              "definition_sha256": "04d78d0ee65c38b5a9df3b16b6c4f37c023580dd87562c3104932321aba0ce36"
+            }
+          ],
+          "gap": "No candidate GNU-filename-helper correction workflow ran. Under that strict contract, correction prompt, reply, replacement and corrected save remain unreached after refusal42. Dual-interface semantic PASS must not be relabelled as strict API compatibility or used to erase that FAIL."
         },
         {
           "id": "r2",
           "behavior": "Cancel during spell correction leaves the buffer unchanged",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-spell-dual-cancel",
+              "assertion": "actual correction prompt precedes lone ESC; GNU helper logs cancel with unchanged input and editor shows Nothing changed; candidate native editor shows Spell check cancelled (0 replaced); continued save/exit with exact unchanged seed on both sides",
+              "definition_sha256": "957a1d88aa4f47a43a373450e5f112cf8d1d14f9e7ee044dd14f23a588c234ee"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "A helper failure or timeout is reported without losing the buffer",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case. The candidate has a 10 s timeout and SIGKILL of the helper child (nano.c:2832-3004)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-spell-helper-failure",
+              "assertion": "helper input exact then explicit helper exit7; per-side exact error visible before save; timeout helper readiness logged before measured interval; GNU helper exits124 after12s and editor reports invocation error; candidate editor reports timeout after approximately10s, before helper self-exit; unchanged buffer saved, natural exit0 and pre-cleanup termios restored in both independent error cases",
+              "definition_sha256": "f65fcff20f7d2159e4a72b944adb20e0a54a3776e275ef1c50910b272ea41ee9"
+            },
+            {
+              "group": "shell",
+              "id": "migration-nano-followup-spell-helper-timeout",
+              "assertion": "helper input exact then explicit helper exit7; per-side exact error visible before save; timeout helper readiness logged before measured interval; GNU helper exits124 after12s and editor reports invocation error; candidate editor reports timeout after approximately10s, before helper self-exit; unchanged buffer saved, natural exit0 and pre-cleanup termios restored in both independent error cases",
+              "definition_sha256": "deea0bdce71f537fea4b512889ba260afa7c232a34b500674edfa838ab9a1f61"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "By source inspection, not observed: the candidate's ^T binding and helper protocol may differ from GNU nano. Do not record this as a FAIL until it is executed."
+      "notes": "Independent standard-library ANSI replay recomputed344 raw snapshots and3118 assertions on56 candidate/reference records from both unchanged builds. Actual key bytes, cursor/reverse cells, saved file bytes, helper protocols, timing and pre-cleanup terminal restoration bound by primary at checkpoint111. Exact older selected companions retained. Strict GNU filename-helper API remains a genuine FAIL with its subsequent correction workflow unreached. The separate dual-interface helper proves replacement/cancel semantics only; it does not erase the strict gap. GNU helper self-deadline12s and candidate editor timeout10s are distinct, with exact buffer retention. Topic remains partial."
     },
     {
       "topic": "nano2/piece-table-file-save",
@@ -39651,40 +39990,68 @@
         "purpose": "Qualify the documented read retry path when an attribute grows between the size probe and data read.",
         "reason": "Requires a deterministic syscall interposer or mock that can force ERANGE and control successive getxattr sizes. Do not substitute an uncontrolled concurrent writer race; run this later with a dedicated disposable VM/mock fixture."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Argument matching in a stateless filter is enough for the retry and exhaustion paths, so no mock driver is needed for them. Only a probe that changes between calls needs a stateful supervisor.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "After a successful size probe, an ERANGE on the data read triggers a re-probe and a larger buffer, and the value is returned intact.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed. A stateless per-side /usr/bin/python3 helper that sets PR_SET_NO_NEW_PRIVS and installs a stateless seccomp BPF filter through ctypes prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER) returning SECCOMP_RET_ERRNO|E for a named syscall (optionally only when an argument equals a chosen value), then execs the side's shell `$BASH -c BODY`; unprivileged, inherited across exec, applies identically to GNU and candidate, and needs no new driver (the VM plain driver installs no filter of its own) can return ERANGE only for getxattr calls whose size argument equals the probed size n. The retry asks for max(new probe, 2n) = 2n (xattr.c:121-134), which passes the filter, so the growth path runs deterministically without a racing writer."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-xattr",
+              "assertion": "For a real 3-byte initial attribute, pause its data read, independently grow it to 9 bytes, continue the real syscall and require exact probe/read sizes 0,3,0,9 and exact returned bytes. A ctypes control confirms the first real read returns ERANGE.",
+              "definition_sha256": "56f4b2f9e4e7c8f610cbd2b2ebba133b6f3da8f54f86d63ea1e7df285ecce683"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Repeated ERANGE stops after 8 rounds with 'ERANGE retry limit exceeded' and nonzero status.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed; the same helper with getxattr(size>0)\u2192ERANGE always."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-xattr",
+              "assertion": "Inject ERANGE on all nonzero-length reads and require eight reads with sizes 3,6,12,24,48,96,192,384, nine zero-size probes, status 1 and the retry-limit diagnostic.",
+              "definition_sha256": "56f4b2f9e4e7c8f610cbd2b2ebba133b6f3da8f54f86d63ea1e7df285ecce683"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
-          "behavior": "The same path for fgetxattr (-f FD) and lgetxattr (-L).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed; filter syscall numbers 192 and 193 as well as 191 on x86-64."
+          "behavior": "The same retry path for fgetxattr (-F FD) and lgetxattr (-L).",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-xattr",
+              "assertion": "Repeat both growth and exhaustion for syscall fgetxattr using -F on an open fd and lgetxattr using -L on a regular file, in addition to getxattr.",
+              "definition_sha256": "56f4b2f9e4e7c8f610cbd2b2ebba133b6f3da8f54f86d63ea1e7df285ecce683"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "A real concurrent growth of the value between probe and read.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Intentionally not substituted: the topic rejects an uncontrolled race. A truly grown value with a changed probe needs a stateful seccomp user-notify supervisor; syscall errno/short-count injection for a static binary (seccomp SECCOMP_RET_ERRNO or user-notify filter installed by a trusted guest helper, matched on fd/pid/syscall)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-safety-xattr",
+              "assertion": "The unfiltered supervisor performs and verifies an actual 3-to-9-byte user xattr replacement after the successful probe and before the continued data syscall; the ctypes positive control verifies kernel ERANGE and exact grown output.",
+              "definition_sha256": "56f4b2f9e4e7c8f610cbd2b2ebba133b6f3da8f54f86d63ea1e7df285ecce683"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "xattr.c:93-139."
+      "notes": "Independent raw qualification accepted and bound by primary at checkpoint108 to exact frozen definitions on both unchanged builds. The invalid logger attribution case and superseded lifecycle observer remain historical only; r2 repairs preserve raw descriptor attribution and file modes. Existing companion evidence and genuine candidate FAIL remain. Corrected the derived r3 option spelling from -f to the actual -F fd interface; original purpose/reason unchanged. lgetxattr was exercised on a regular inode, not a symlink inode; no symlink-inode claim is made or required by this retry topic."
     },
     {
       "topic": "zlib/short-write-and-eintr-faults",

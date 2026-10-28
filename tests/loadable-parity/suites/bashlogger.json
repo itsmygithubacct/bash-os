@@ -100,9 +100,14 @@
     },
     {
       "id": "descriptor-safety",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check SOCK_CLOEXEC/FD_CLOEXEC on the sending socket, no descriptor inheritance by an exec child, interrupted-send retry, and descriptor closure after one injected send failure or short send.",
-      "reason": "No fixture observes descriptors; all of r1-r4 are observable with a private AF_UNIX receiver inside the VM, and r5 needs a ptrace-based return-value injector helper."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terra-local-io-safety-logger-r2"
+        }
+      ]
     },
     {
       "id": "invalid-priority",

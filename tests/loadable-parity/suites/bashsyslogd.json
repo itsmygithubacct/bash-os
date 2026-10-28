@@ -15,15 +15,25 @@
   "cases": [
     {
       "id": "fixture_file_lifecycle",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify bashsyslogd appends records to pre-existing private log files and preserves their modes, then leaves fixture files available for copy/move/removal.",
-      "reason": "No daemon run exists; a private AF_UNIX sender and owned daemon child are enough."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terra-local-io-syslogd-lifecycle-r2"
+        }
+      ]
     },
     {
       "id": "fixture_links",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify bashsyslogd output routing through private hardlink aliases and relative symlinks, with exact record multiplicity and final link identity.",
-      "reason": "No daemon run exists."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terra-local-io-syslogd-links"
+        }
+      ]
     },
     {
       "id": "builtin_type_metadata",
@@ -45,15 +55,29 @@
     },
     {
       "id": "local_datagram_routing",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise PRI facility routing, control-byte scrubbing, append behavior, --once consumption, socket mode, and owned socket cleanup.",
-      "reason": "No daemon run exists."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terra-local-io-syslogd-once"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-io-syslogd-routing"
+        }
+      ]
     },
     {
       "id": "config_reload",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check literal BASHSYSLOGD_FORWARD parsing, startup precedence, SIGHUP reload, invalid-config retention, and empty-value disable behavior.",
-      "reason": "No daemon is ever started. The daemon, its UDP receiver (existing udp peer or a python3 helper on a second port) and SIGHUP to the script's own child are all possible in the VM."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terra-local-io-syslogd-config"
+        }
+      ]
     },
     {
       "id": "forwarding_queue_replay",

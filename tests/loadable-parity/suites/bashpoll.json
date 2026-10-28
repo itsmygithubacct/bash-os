@@ -107,13 +107,22 @@
       "id": "signalfd-ownership",
       "kind": "deferred",
       "purpose": "Exercise signalfd delivery, accepted signal names, overlapping masks, close/unload restoration, preblocked signals, and invalid signal handling.",
-      "reason": "No fixture sends signals; the fixture shell can signal itself inside the disposable VM and read SigBlk from /proc/$BASHPID/status. Unload restoration is unreachable for the compiled-in builtin."
+      "reason": "Remaining obligations: r5: bashpoll is compiled into both candidate builds; enable -d cannot unload it, so the unload hook is not reachable."
     },
     {
       "id": "descriptor-flags-and-close",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Socket/PTY descriptor behavior and failure injection beyond the runnable private FIFO flag, inheritance and close coverage.",
-      "reason": "FIFO behavior is covered; socket and PTY descriptors are creatable in the VM (loopback peers, python3 pty helper) but no fixture exists."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/bashpoll/private-fifo-descriptor-lifecycle"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-io-safety-descriptors"
+        }
+      ]
     },
     {
       "id": "multi-fd-readiness",

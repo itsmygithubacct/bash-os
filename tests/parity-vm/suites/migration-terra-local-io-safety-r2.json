@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terra-local-io-safety-logger-r2",
+      "loadable": "bashlogger",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Logger live CLOEXEC, exec noninheritance, one interrupted send retry, injected failure and short-send closure.",
+      "oracle": "The original deferral requirements, the documented builtins and independent Linux syscall/socket/fd semantics. Positive and negative controls use separate Python/ctypes callers in setup, never candidate output. The xattr writer changes a real attribute while its first data syscall is stopped; the kernel executes that read after the change and supplies the real ERANGE.",
+      "comparison": "A PID-bearing write marker immediately precedes the builtin. A pinned seccomp supervisor and VM-only wrapper record the marker, socket and other fd-producing calls, descriptor tables before each call, and live sender fdinfo. The unique same-PID Unix datagram creation after the marker must request SOCK_CLOEXEC; the send socket inode must be absent before creation and present at subsequent observed fd-producing calls and at sendto. Unrelated Unix stream sockets are allowed. Setup uses an independent sender with extra sockets on both sides of the marker and before and after creation; it also verifies rejection of missing CLOEXEC and a preexisting socket. Captured before/after descriptor tables, actual datagrams, return values and diagnostics retain the original strict EINTR, failure and short-send expectations.",
+      "covers": [
+        "bashlogger/descriptor-safety"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-io-faults-r2.py": "de2984291ca8b8ebee4d156ca22e216c82c87cd6affd5bce948f194a40069b9c",
+        "helpers/terra-local-io-notify-r2.py": "c2885c5655ace8f9cf905cae0fcb3c06fc84395b7760b83d0079abd0f3e6c68a",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-faults-r2.py setup logger",
+      "setup_timeout": 35,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-faults-r2.py \"$BASH\" logger",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "logger-pass creation=yes live-cloexec=yes trace=yes packet=yes status=yes diagnostic=yes fd-closed=yes exec-clean=yes\nlogger-intr creation=yes live-cloexec=yes trace=yes packet=yes status=yes diagnostic=yes fd-closed=yes exec-clean=yes\nlogger-fail creation=yes live-cloexec=yes trace=yes packet=yes status=yes diagnostic=yes fd-closed=yes exec-clean=yes\nlogger-short creation=yes live-cloexec=yes trace=yes packet=yes status=yes diagnostic=yes fd-closed=yes exec-clean=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "fault-observations.jsonl",
+        "trace-control-pass.jsonl",
+        "trace-control-intr.jsonl",
+        "trace-control-short.jsonl",
+        "trace-control-fail.jsonl",
+        "trace-pass.jsonl",
+        "trace-intr.jsonl",
+        "trace-fail.jsonl",
+        "trace-short.jsonl"
+      ],
+      "features": [
+        "seccomp-notify"
+      ]
+    }
+  ]
+}

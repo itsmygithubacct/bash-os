@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "eb96d404eb7fca7caec2845371cdd7eb4d48cfce40fdce89b46229753ecd7dea",
+  "ledger_sha256": "e18cf0b5580379aa0d7662479ce0b725869122c9fb637029ef837cc87afae8a9",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 89,
-    "none": 244,
-    "full": 267
+    "partial": 88,
+    "none": 236,
+    "full": 276
   },
   "migrations": {
-    "deferred": 333,
-    "replacement": 267
+    "deferred": 324,
+    "replacement": 276
   },
   "pending_full_topics": [],
   "builds": {
@@ -2100,6 +2100,136 @@
           "candidate_unchanged": true,
           "candidate_matches_guest": true,
           "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-io-syslogd-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "7fa38ce327c92cba89e8a2c96730c10d14883ea1539777242b91e4b4fe290b93",
+            "provenance.json": "c17e2ab7e7b923e76669c3c36f813b5e4c067238d22b4de4aca0005abee9ca41",
+            "payload.tar": "90a5013ff0ffa64e0ba0256dfb364716f9a28eed961d35c236ca6e02f6179970",
+            "evidence.tar": "ae5ad38af50aea4235abb61f3043aa88678527150230438086ca3c60b6353f25"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793191375.7478144
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-io-syslogd-r2-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "d7c1edb13b83b0904a7750a7a4898926324e767a802461379211964027f7b876",
+            "provenance.json": "55e0ab54fad1f496187bd73cc8ea05e068273bd2e0dd66e5da41292f062df820",
+            "payload.tar": "0ab0b71887634ec90d84815d5806933163ecc84ffdd013ec95962efbee0d35a5",
+            "evidence.tar": "edf8217087bda1e6d54f008a003ff4c7f947e3a68804a4410f9efd6a0411beb2"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793193378.3048944
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-io-safety-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "672b8e65976b7e55799fe55439994326c86501ffcaf90fd9a5e5c1b0f070da43",
+            "provenance.json": "92b06ad9bdd7e14ed4399865800650c4f6033553abc0165888b5bf2f0d3f8eff",
+            "payload.tar": "34e29987185f79c020fd72132fce112897e236ef253879281fb8fc169e8ab768",
+            "evidence.tar": "9384de451d2e7bd30dc34bdaa433581eedd19a797d45c82148aef4449771f38a"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793191628.7376814
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-io-safety-r2-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "2405d451ac50052d95ec2184c070f6f709ccb4eeb3664641621e4d8df5f68936",
+            "provenance.json": "9c451685215761f81ad5ec0b1f3ce0c81276313d30e8ebe09e2dea7c7c08b644",
+            "payload.tar": "50da0455235cfcf78f91c8448656b8996213d4d91e49602bb566e8b6954156bf",
+            "evidence.tar": "3b6ffee71300cbdc5124d9138eee68a277377b2b5110e32eb2e79643fbbf93a0"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793193453.2695303
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "nano-followup-static-104",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 14,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "a7a4f055d3e0562d5947a232119bb49e658d146a747ab8c1226f45995abd5b19",
+            "provenance.json": "df6b8aaab91c954f7e194dcab72cbbf907dde1cbe45a989788c2ae6b58bc4153",
+            "payload.tar": "06a8ba67db4ccfe0dfc0f7550e0e931225a56eac6353b56ae9cab738bf575764",
+            "evidence.tar": "b79e54968b332176067d2f893256d6c408b59b33a46351b2d2a4198dfbd03e8b"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793193338.0659356
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
         }
       ],
       "entries": [
@@ -3698,55 +3828,90 @@
         },
         {
           "topic": "bashlogger/descriptor-safety",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "The sending socket carries FD_CLOEXEC/SOCK_CLOEXEC while open.",
-              "coverage": "missing",
-              "gap": "No observation of the live descriptor flags.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-logger-r2",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "No logger socket is inherited by a later exec child.",
-              "coverage": "missing",
-              "gap": "No child descriptor listing after logging.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-logger-r2",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "An interrupted sendto (EINTR) is retried and delivers exactly one datagram.",
-              "coverage": "missing",
-              "gap": "No interruption fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-logger-r2",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "After a send failure the descriptor is closed (shell descriptor set unchanged) and status is 1.",
-              "coverage": "missing",
-              "gap": "No failing destination case with /proc/$$/fd comparison.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-logger-r2",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "A short send is reported as failure (EIO diagnostic) and the descriptor is closed.",
-              "coverage": "missing",
-              "gap": "AF_UNIX datagram sends are atomic; this branch is reachable only with syscall-return injection.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-logger-r2",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -4386,53 +4551,80 @@
         },
         {
           "topic": "bashpoll/descriptor-flags-and-close",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "set-nonblock on/off and clear-cloexec on socket descriptors (TCP/UNIX/UDP) change only the intended flags.",
-              "coverage": "missing",
-              "gap": "Only FIFO descriptors are inspected.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-descriptors",
+                  "status": "FAIL",
+                  "run": "qual-local-io-safety-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Flags on PTY descriptors.",
-              "coverage": "missing",
-              "gap": "No PTY descriptor fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-descriptors",
+                  "status": "FAIL",
+                  "run": "qual-local-io-safety-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Operations on invalid/closed descriptors fail with defined status and diagnostics (set-nonblock, clear-cloexec, close).",
-              "coverage": "partial",
-              "gap": "set-nonblock/clear-cloexec/close on a closed or non-numeric fd are not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/bashpoll/private-fifo-descriptor-lifecycle",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-descriptors",
+                  "status": "FAIL",
+                  "run": "qual-local-io-safety-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Descriptors created by listen/accept/connect/listen-udp are close-on-exec by default and are released by close (no leak into exec children).",
-              "coverage": "missing",
-              "gap": "No socket descriptor lifecycle check.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-descriptors",
+                  "status": "FAIL",
+                  "run": "qual-local-io-safety-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
@@ -4534,45 +4726,73 @@
         {
           "topic": "bashpoll/signalfd-ownership",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "signalfd SIG... FDVAR blocks the signals and delivers a self-sent signal through the descriptor (readable; siginfo signo matches).",
-              "coverage": "missing",
-              "gap": "No signal is generated by any fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-masks",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Accepted signal names (USR1, SIGUSR2, numbers) and rejection of invalid, SIGKILL and SIGSTOP with status 2.",
-              "coverage": "missing",
-              "gap": "No rejection case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-masks",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Overlapping masks: a signal shared by two signalfds stays blocked until the last one closes.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-masks",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Close restores only signals the module itself blocked; a pre-blocked signal stays blocked.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-masks",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -4893,127 +5113,204 @@
         },
         {
           "topic": "bashsyslogd/config_reload",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "BASHSYSLOGD_FORWARD=HOST:PORT in --config is parsed literally (including [v6]:port).",
-              "coverage": "missing",
-              "gap": "No daemon run.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-config",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Startup precedence between --forward and the config value.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-config",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "SIGHUP rereads the config and changes the forwarding destination.",
-              "coverage": "missing",
-              "gap": "No signal fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-config",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "An invalid config on reload keeps the previous destination.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-config",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "An empty BASHSYSLOGD_FORWARD disables forwarding.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-config",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashsyslogd/fixture_file_lifecycle",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Records are appended to pre-existing private log files (prior content preserved, new lines appended).",
-              "coverage": "missing",
-              "gap": "No daemon run.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Existing file modes are preserved after appending.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "After shutdown the log files can be copied, moved and removed by ordinary tools.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashsyslogd/fixture_links",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Output through a hardlink alias appends to the shared inode with exact record multiplicity.",
-              "coverage": "missing",
-              "gap": "No daemon run.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-links",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Output through a relative symlink is written to the target, and the link is preserved.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-links",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Final link identity (same inode for hardlinks, symlink target text) is unchanged.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-links",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -5082,64 +5379,112 @@
         },
         {
           "topic": "bashsyslogd/local_datagram_routing",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "PRI facility routes records to --syslog/--auth/--kern/default output files.",
-              "coverage": "missing",
-              "gap": "No daemon run.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-routing",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Control bytes in messages are scrubbed in stored records.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-routing",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Records are appended (not truncating).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-routing",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "--once consumes exactly one datagram (including an empty one) and then exits and cleans up.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-once",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "The receiving socket is created with --mode permissions.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-routing",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "The daemon removes its own socket on exit.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-routing",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-once",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -23575,10 +23920,10 @@
         },
         {
           "topic": "nano/deferred_justify_undo",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -23591,6 +23936,12 @@
                   "id": "nano-justify",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-justify-redo",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
                 }
               ],
               "fully_exercised": true,
@@ -23607,6 +23958,12 @@
                   "id": "nano-justify-undo",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-justify-redo",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
                 }
               ],
               "fully_exercised": true,
@@ -23615,56 +23972,97 @@
             {
               "id": "r3",
               "behavior": "Redo (M-E) after undo reapplies the justification",
-              "coverage": "missing",
-              "gap": "No case sends M-E.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-justify-redo",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "--trimblanks (-M) changes the justified output (trailing blanks removed)",
-              "coverage": "missing",
-              "gap": "nano-justify runs without trimblanks (trailing blanks kept). Only the no-terminal option parse is covered (legacy/nano/gnu_options_without_terminal, FAIL).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-justify-trim",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-justify-redo",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Repeated justification (justify twice, or justify across multiple paragraphs) is idempotent and matches GNU",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-justify-repeat-paragraphs",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "nano/deferred_selection_completion_utf8",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Marked-region cut and paste (M-A mark, movement, ^K, ^U) with saved bytes compared with GNU nano",
-              "coverage": "missing",
-              "gap": "No case uses M-A. nano-cut-paste exercises whole-line cut only (FAIL: paste newline lost).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-ascii-mark-cut-paste",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Word completion (^]) for an ASCII prefix, and cycling on repeat",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-ascii-completion-cycle",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -23677,6 +24075,12 @@
                   "id": "nano-utf8-input",
                   "status": "FAIL",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-utf8-grapheme-region",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
                 }
               ],
               "fully_exercised": true,
@@ -23685,56 +24089,121 @@
             {
               "id": "r4",
               "behavior": "Selection and completion over multibyte graphemes (combining sequences and wide characters), with the cursor moving by grapheme",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-utf8-grapheme-region",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-wide-completion-cycle",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-combining-completion-cycle",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Selected-region display behavior (reverse-video highlight) on screen",
-              "coverage": "missing",
-              "gap": "The screen step checks text only; pyte exposes reverse attributes, but terminal.py's screen spec has no attribute assertion.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-selected-reverse-highlight",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-ascii-mark-cut-paste",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "nano/deferred_spell_helper",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Invoke the spell checker through a fixture-local helper (--speller=./helper), with replacement of a misspelled word and the saved file compared with GNU nano",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "No candidate GNU-filename-helper correction workflow ran. Under that strict contract, correction prompt, reply, replacement and corrected save remain unreached after refusal42. Dual-interface semantic PASS must not be relabelled as strict API compatibility or used to erase that FAIL.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-spell-custom-file-contract",
+                  "status": "FAIL",
+                  "run": "nano-followup-static-104"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-spell-dual-replacement",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Cancel during spell correction leaves the buffer unchanged",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-spell-dual-cancel",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "A helper failure or timeout is reported without losing the buffer",
-              "coverage": "missing",
-              "gap": "No case. The candidate has a 10 s timeout and SIGKILL of the helper child (nano.c:2832-3004).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-spell-helper-failure",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-spell-helper-timeout",
+                  "status": "PASS",
+                  "run": "nano-followup-static-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -43004,46 +43473,74 @@
         },
         {
           "topic": "xattr/read-erange-race",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "After a successful size probe, an ERANGE on the data read triggers a re-probe and a larger buffer, and the value is returned intact.",
-              "coverage": "missing",
-              "gap": "Not executed. A stateless per-side /usr/bin/python3 helper that sets PR_SET_NO_NEW_PRIVS and installs a stateless seccomp BPF filter through ctypes prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER) returning SECCOMP_RET_ERRNO|E for a named syscall (optionally only when an argument equals a chosen value), then execs the side's shell `$BASH -c BODY`; unprivileged, inherited across exec, applies identically to GNU and candidate, and needs no new driver (the VM plain driver installs no filter of its own) can return ERANGE only for getxattr calls whose size argument equals the probed size n. The retry asks for max(new probe, 2n) = 2n (xattr.c:121-134), which passes the filter, so the growth path runs deterministically without a racing writer.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-xattr",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Repeated ERANGE stops after 8 rounds with 'ERANGE retry limit exceeded' and nonzero status.",
-              "coverage": "missing",
-              "gap": "Not executed; the same helper with getxattr(size>0)\u2192ERANGE always.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-xattr",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
-              "behavior": "The same path for fgetxattr (-f FD) and lgetxattr (-L).",
-              "coverage": "missing",
-              "gap": "Not executed; filter syscall numbers 192 and 193 as well as 191 on x86-64.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "behavior": "The same retry path for fgetxattr (-F FD) and lgetxattr (-L).",
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-xattr",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "A real concurrent growth of the value between probe and read.",
-              "coverage": "missing",
-              "gap": "Intentionally not substituted: the topic rejects an uncontrolled race. A truly grown value with a changed probe needs a stateful seccomp user-notify supervisor; syscall errno/short-count injection for a static binary (seccomp SECCOMP_RET_ERRNO or user-notify filter installed by a trusted guest helper, matched on fd/pid/syscall).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-xattr",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -43169,9 +43666,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 333,
-        "FAIL": 144,
-        "PASS": 123
+        "UNRESOLVED": 324,
+        "FAIL": 146,
+        "PASS": 130
       },
       "migration_without_complete_evidence": []
     },
@@ -45261,6 +45758,136 @@
           "candidate_unchanged": true,
           "candidate_matches_guest": true,
           "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-io-syslogd-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "b54982d294db184cd8d2ab3d93e9f748175161f30e70ee3626f86d04a10d40a4",
+            "provenance.json": "2f63b58f0774cd69bb093ca1f1c4809576bb29a937ea360ea827b453f764f723",
+            "payload.tar": "254910834ad76ca780906ded4ba0deadaf138bfdd8a3cfa7074b5b442267f6e3",
+            "evidence.tar": "3d9db72b903e5d767d93a65d7ea0cb6938b69f254bf6c94a119696576096be17"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793191445.8023076
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-io-syslogd-r2-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "25ddab09237fd8c00f911a53a622c47c80d155a2bae254356bd4b50d6e3b8052",
+            "provenance.json": "57555dcbcdc1a9dcd5f57f19c728c74aad28377dabdce1eb6beaabf184417b58",
+            "payload.tar": "324801ffb73faf035316946e1cf0c2f0080cc56105bc897a7a22b5d794e883b5",
+            "evidence.tar": "cb5c429006d9d2dad59885fb584a65c440c15d1d05b3d081fcf3637ad9df1254"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793193420.9276905
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-io-safety-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "ad3b335c63a6062533cd43f1071fe1c367ef8dc14361105f82e63ce5d3148a2b",
+            "provenance.json": "522dc771e898d7cd4fd90934df332842b6330a9850cd255ad9e219f1b0260d78",
+            "payload.tar": "1b290e1e903944bc690a7608b58b80987af10e77632f21d082525a10491242cf",
+            "evidence.tar": "6bbe7056eeef72f8fe1aa2ad064b73e52e74de1ca49af3a8fd833b62221ef1b3"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793191680.1487837
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-io-safety-r2-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "b63f7370c90d207d2b10138342d7b63ba10bc3b7b4c1a57d445a7b12b9b8aad5",
+            "provenance.json": "a01f55c18ef934935c533ce03cd5f39ea9a22f7fea5e88e27bd9cb7506935337",
+            "payload.tar": "3cb5567d7f66990f3ea4ee286918086de9b844f8509e41558567616cfab422ec",
+            "evidence.tar": "710c340497f4bf6d6ed65e7820bc5d64c7ba5ff24e5619fd8dfef10ffcbb2b83"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793193488.885057
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "nano-followup-dynamic-104",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 14,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "738a172a391698d6deff3ecfce00142b233f92624db6249cbac72c10bb20747e",
+            "provenance.json": "efaff0e7571e94dcd571745d33530fead980febbfcab68e96e48332d06d0c6ee",
+            "payload.tar": "20fc3ec172c0013ec5adb924caa1927dcc2da2a147d5674c969668f4adaad0a5",
+            "evidence.tar": "9d548aa4a59367688567802001e8aa30f6dbc0099eea53c973c675e97b3d8b98"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793193399.5946574
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
         }
       ],
       "entries": [
@@ -46859,55 +47486,90 @@
         },
         {
           "topic": "bashlogger/descriptor-safety",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "The sending socket carries FD_CLOEXEC/SOCK_CLOEXEC while open.",
-              "coverage": "missing",
-              "gap": "No observation of the live descriptor flags.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-logger-r2",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "No logger socket is inherited by a later exec child.",
-              "coverage": "missing",
-              "gap": "No child descriptor listing after logging.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-logger-r2",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "An interrupted sendto (EINTR) is retried and delivers exactly one datagram.",
-              "coverage": "missing",
-              "gap": "No interruption fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-logger-r2",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "After a send failure the descriptor is closed (shell descriptor set unchanged) and status is 1.",
-              "coverage": "missing",
-              "gap": "No failing destination case with /proc/$$/fd comparison.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-logger-r2",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "A short send is reported as failure (EIO diagnostic) and the descriptor is closed.",
-              "coverage": "missing",
-              "gap": "AF_UNIX datagram sends are atomic; this branch is reachable only with syscall-return injection.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-logger-r2",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -47547,53 +48209,80 @@
         },
         {
           "topic": "bashpoll/descriptor-flags-and-close",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "set-nonblock on/off and clear-cloexec on socket descriptors (TCP/UNIX/UDP) change only the intended flags.",
-              "coverage": "missing",
-              "gap": "Only FIFO descriptors are inspected.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-descriptors",
+                  "status": "FAIL",
+                  "run": "qual-local-io-safety-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Flags on PTY descriptors.",
-              "coverage": "missing",
-              "gap": "No PTY descriptor fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-descriptors",
+                  "status": "FAIL",
+                  "run": "qual-local-io-safety-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Operations on invalid/closed descriptors fail with defined status and diagnostics (set-nonblock, clear-cloexec, close).",
-              "coverage": "partial",
-              "gap": "set-nonblock/clear-cloexec/close on a closed or non-numeric fd are not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/bashpoll/private-fifo-descriptor-lifecycle",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-descriptors",
+                  "status": "FAIL",
+                  "run": "qual-local-io-safety-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Descriptors created by listen/accept/connect/listen-udp are close-on-exec by default and are released by close (no leak into exec children).",
-              "coverage": "missing",
-              "gap": "No socket descriptor lifecycle check.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-descriptors",
+                  "status": "FAIL",
+                  "run": "qual-local-io-safety-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
@@ -47695,45 +48384,73 @@
         {
           "topic": "bashpoll/signalfd-ownership",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "signalfd SIG... FDVAR blocks the signals and delivers a self-sent signal through the descriptor (readable; siginfo signo matches).",
-              "coverage": "missing",
-              "gap": "No signal is generated by any fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-masks",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Accepted signal names (USR1, SIGUSR2, numbers) and rejection of invalid, SIGKILL and SIGSTOP with status 2.",
-              "coverage": "missing",
-              "gap": "No rejection case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-masks",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Overlapping masks: a signal shared by two signalfds stays blocked until the last one closes.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-masks",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Close restores only signals the module itself blocked; a pre-blocked signal stays blocked.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-masks",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -48054,127 +48771,204 @@
         },
         {
           "topic": "bashsyslogd/config_reload",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "BASHSYSLOGD_FORWARD=HOST:PORT in --config is parsed literally (including [v6]:port).",
-              "coverage": "missing",
-              "gap": "No daemon run.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-config",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Startup precedence between --forward and the config value.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-config",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "SIGHUP rereads the config and changes the forwarding destination.",
-              "coverage": "missing",
-              "gap": "No signal fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-config",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "An invalid config on reload keeps the previous destination.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-config",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "An empty BASHSYSLOGD_FORWARD disables forwarding.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-config",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashsyslogd/fixture_file_lifecycle",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Records are appended to pre-existing private log files (prior content preserved, new lines appended).",
-              "coverage": "missing",
-              "gap": "No daemon run.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Existing file modes are preserved after appending.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "After shutdown the log files can be copied, moved and removed by ordinary tools.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashsyslogd/fixture_links",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Output through a hardlink alias appends to the shared inode with exact record multiplicity.",
-              "coverage": "missing",
-              "gap": "No daemon run.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-links",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Output through a relative symlink is written to the target, and the link is preserved.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-links",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Final link identity (same inode for hardlinks, symlink target text) is unchanged.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-links",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -48243,64 +49037,112 @@
         },
         {
           "topic": "bashsyslogd/local_datagram_routing",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "PRI facility routes records to --syslog/--auth/--kern/default output files.",
-              "coverage": "missing",
-              "gap": "No daemon run.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-routing",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Control bytes in messages are scrubbed in stored records.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-routing",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Records are appended (not truncating).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-routing",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "--once consumes exactly one datagram (including an empty one) and then exits and cleans up.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-once",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "The receiving socket is created with --mode permissions.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-routing",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "The daemon removes its own socket on exit.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-routing",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-syslogd-once",
+                  "status": "PASS",
+                  "run": "qual-local-io-syslogd-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -66736,10 +67578,10 @@
         },
         {
           "topic": "nano/deferred_justify_undo",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -66752,6 +67594,12 @@
                   "id": "nano-justify",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-justify-redo",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
                 }
               ],
               "fully_exercised": true,
@@ -66768,6 +67616,12 @@
                   "id": "nano-justify-undo",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-justify-redo",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
                 }
               ],
               "fully_exercised": true,
@@ -66776,56 +67630,97 @@
             {
               "id": "r3",
               "behavior": "Redo (M-E) after undo reapplies the justification",
-              "coverage": "missing",
-              "gap": "No case sends M-E.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-justify-redo",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "--trimblanks (-M) changes the justified output (trailing blanks removed)",
-              "coverage": "missing",
-              "gap": "nano-justify runs without trimblanks (trailing blanks kept). Only the no-terminal option parse is covered (legacy/nano/gnu_options_without_terminal, FAIL).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-justify-trim",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-justify-redo",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Repeated justification (justify twice, or justify across multiple paragraphs) is idempotent and matches GNU",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-justify-repeat-paragraphs",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "nano/deferred_selection_completion_utf8",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Marked-region cut and paste (M-A mark, movement, ^K, ^U) with saved bytes compared with GNU nano",
-              "coverage": "missing",
-              "gap": "No case uses M-A. nano-cut-paste exercises whole-line cut only (FAIL: paste newline lost).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-ascii-mark-cut-paste",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Word completion (^]) for an ASCII prefix, and cycling on repeat",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-ascii-completion-cycle",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -66838,6 +67733,12 @@
                   "id": "nano-utf8-input",
                   "status": "FAIL",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-utf8-grapheme-region",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
                 }
               ],
               "fully_exercised": true,
@@ -66846,56 +67747,121 @@
             {
               "id": "r4",
               "behavior": "Selection and completion over multibyte graphemes (combining sequences and wide characters), with the cursor moving by grapheme",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-utf8-grapheme-region",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-wide-completion-cycle",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-combining-completion-cycle",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Selected-region display behavior (reverse-video highlight) on screen",
-              "coverage": "missing",
-              "gap": "The screen step checks text only; pyte exposes reverse attributes, but terminal.py's screen spec has no attribute assertion.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-selected-reverse-highlight",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-ascii-mark-cut-paste",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "nano/deferred_spell_helper",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Invoke the spell checker through a fixture-local helper (--speller=./helper), with replacement of a misspelled word and the saved file compared with GNU nano",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "No candidate GNU-filename-helper correction workflow ran. Under that strict contract, correction prompt, reply, replacement and corrected save remain unreached after refusal42. Dual-interface semantic PASS must not be relabelled as strict API compatibility or used to erase that FAIL.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-spell-custom-file-contract",
+                  "status": "FAIL",
+                  "run": "nano-followup-dynamic-104"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-spell-dual-replacement",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Cancel during spell correction leaves the buffer unchanged",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-spell-dual-cancel",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "A helper failure or timeout is reported without losing the buffer",
-              "coverage": "missing",
-              "gap": "No case. The candidate has a 10 s timeout and SIGKILL of the helper child (nano.c:2832-3004).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-spell-helper-failure",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-nano-followup-spell-helper-timeout",
+                  "status": "PASS",
+                  "run": "nano-followup-dynamic-104"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -86165,46 +87131,74 @@
         },
         {
           "topic": "xattr/read-erange-race",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "After a successful size probe, an ERANGE on the data read triggers a re-probe and a larger buffer, and the value is returned intact.",
-              "coverage": "missing",
-              "gap": "Not executed. A stateless per-side /usr/bin/python3 helper that sets PR_SET_NO_NEW_PRIVS and installs a stateless seccomp BPF filter through ctypes prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER) returning SECCOMP_RET_ERRNO|E for a named syscall (optionally only when an argument equals a chosen value), then execs the side's shell `$BASH -c BODY`; unprivileged, inherited across exec, applies identically to GNU and candidate, and needs no new driver (the VM plain driver installs no filter of its own) can return ERANGE only for getxattr calls whose size argument equals the probed size n. The retry asks for max(new probe, 2n) = 2n (xattr.c:121-134), which passes the filter, so the growth path runs deterministically without a racing writer.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-xattr",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Repeated ERANGE stops after 8 rounds with 'ERANGE retry limit exceeded' and nonzero status.",
-              "coverage": "missing",
-              "gap": "Not executed; the same helper with getxattr(size>0)\u2192ERANGE always.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-xattr",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
-              "behavior": "The same path for fgetxattr (-f FD) and lgetxattr (-L).",
-              "coverage": "missing",
-              "gap": "Not executed; filter syscall numbers 192 and 193 as well as 191 on x86-64.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "behavior": "The same retry path for fgetxattr (-F FD) and lgetxattr (-L).",
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-xattr",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "A real concurrent growth of the value between probe and read.",
-              "coverage": "missing",
-              "gap": "Intentionally not substituted: the topic rejects an uncontrolled race. A truly grown value with a changed probe needs a stateful seccomp user-notify supervisor; syscall errno/short-count injection for a static binary (seccomp SECCOMP_RET_ERRNO or user-notify filter installed by a trusted guest helper, matched on fd/pid/syscall).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-safety-xattr",
+                  "status": "PASS",
+                  "run": "qual-local-io-safety-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -86330,9 +87324,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 333,
-        "FAIL": 144,
-        "PASS": 123
+        "UNRESOLVED": 324,
+        "FAIL": 146,
+        "PASS": 130
       },
       "migration_without_complete_evidence": []
     }

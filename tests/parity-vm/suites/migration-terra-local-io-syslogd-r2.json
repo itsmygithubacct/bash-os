@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terra-local-io-syslogd-lifecycle-r2",
+      "loadable": "bashsyslogd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Append to existing differently permissioned files, then copy, move and remove each using ordinary tools.",
+      "oracle": "The original bashsyslogd deferral and documented interface, RFC syslog PRI facility numbers, Linux Unix/UDP datagram and file-link semantics, and the explicit fixture vectors. The independent Python sender and loopback receivers supply exact bytes; timestamp and hostname prefixes are checked as a bounded format using the guest hostname, not matched against candidate-derived expectations.",
+      "comparison": "The VM-only observer owns its Unix and loopback sockets and daemon. Setup proves Unix empty/nonempty queue ordering, line matcher positive and negative controls, hardlink and symlink behavior, and for config the IPv4/IPv6 loopback and FIFO reader/writer handshake. A SIGHUP reload is synchronized by an observed config FIFO reader before each probe. Original files, bounded raw stdout/stderr, datagrams, process status, comparison details and socket state are captured in the case tree and HOME diagnostic JSONL. Each case compares exact records and explicit normalized results; mismatch or timeout remains failure. Before copy/move/remove, the diagnostic JSONL retains each pathname, expected permission bits, raw initial and final st_mode, and device/inode values, allowing independent per-file mode review.",
+      "covers": [
+        "bashsyslogd/fixture_file_lifecycle"
+      ],
+      "requires": [
+        "python3",
+        "cp",
+        "mv",
+        "rm"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-io-syslogd-r2.py": "992040a0c93c7d2d5e0346519b3f7ff8ec02674e1979f50e2665506e7c660e48"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-syslogd-r2.py setup lifecycle",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-syslogd-r2.py \"$BASH\" lifecycle",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "lifecycle appended=yes modes=yes copied-moved-removed=yes stopped=yes socket-removed=yes stderr-empty=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "syslogd-observations.jsonl"
+      ]
+    }
+  ]
+}

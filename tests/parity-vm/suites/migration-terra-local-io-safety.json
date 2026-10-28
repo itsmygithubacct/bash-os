@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terra-local-io-safety-xattr",
+      "loadable": "xattr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Controlled real growth between probe and read, and eight-round ERANGE exhaustion for path, fd and nofollow system calls.",
+      "oracle": "The original deferral requirements, the documented builtins and independent Linux syscall/socket/fd semantics. Positive and negative controls use separate Python/ctypes callers in setup, never candidate output. The xattr writer changes a real attribute while its first data syscall is stopped; the kernel executes that read after the change and supplies the real ERANGE.",
+      "comparison": "A pinned seccomp supervisor is extended only in a new VM-only wrapper. It retains every notified syscall and reply; sender fdinfo is read while sendto is paused. Before/after shell and exec-child fd tables, raw datagrams, status and diagnostics are captured. For xattr the unfiltered supervisor verifies the actual old and new values before continuing the data call; the candidate must reprobe, return the exact grown bytes, and stop after exactly eight injected ERANGEs.",
+      "covers": [
+        "xattr/read-erange-race"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-io-faults.py": "86dda8daa3b772b41fcc620a02cf1a31163d2a6085112c2dd41448a54dde2461",
+        "helpers/terra-local-io-notify.py": "aec4257c623f250564477dab147d75ee3b298639c6d09d2da0d15cb1d8f57431",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-faults.py setup xattr",
+      "setup_timeout": 35,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-faults.py \"$BASH\" xattr",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "xattr-path growth=yes exhaustion=yes\nxattr-fd growth=yes exhaustion=yes\nxattr-nofollow growth=yes exhaustion=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "fault-observations.jsonl",
+        "trace-control-grow.jsonl",
+        "trace-control-erange.jsonl",
+        "trace-path-grow.jsonl",
+        "trace-path-exhaust.jsonl",
+        "trace-fd-grow.jsonl",
+        "trace-fd-exhaust.jsonl",
+        "trace-nofollow-grow.jsonl",
+        "trace-nofollow-exhaust.jsonl"
+      ],
+      "features": [
+        "seccomp-notify"
+      ]
+    },
+    {
+      "id": "migration-terra-local-io-safety-descriptors",
+      "loadable": "bashpoll",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Flag isolation, exec inheritance and close for TCP, Unix, UDP, accept and PTY descriptors, plus closed and nonnumeric fd diagnostics.",
+      "oracle": "The original bashpoll deferral requirements and Linux fcntl, /proc fdinfo, exec inheritance, signal mask, epoll and signalfd interfaces. Setup independently proves descriptor and PTY flag observations or a self-sent signalfd signal with 128-byte siginfo and a preblocked mask.",
+      "comparison": "A private shell owns the descriptors and receives only self-generated signals; independent subprocesses read its fdinfo or SigBlk. Each flag bit, inherited child descriptor, closed descriptor and invalid diagnostic is compared; the signal case separately checks wait readability and siginfo after exec in the same PID. Unload is explicitly retained as a gap because these builds have a compiled-in builtin.",
+      "covers": [
+        "bashpoll/descriptor-flags-and-close"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-io-fd.py": "de61755ee64e57a44124dc70b6863c9e7d266e529d13fd8937c3e4d7ad2a6224"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-fd.py setup descriptors",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-fd.py \"$BASH\" descriptors",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "descriptor socket-flags=yes pty-flags=yes created-cloexec=yes invalid-status-diagnostic=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "fd-observations.jsonl",
+        "fd-trace.jsonl"
+      ]
+    },
+    {
+      "id": "migration-terra-local-io-safety-masks",
+      "loadable": "bashpoll",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Signal name acceptance, self-sent signalfd readiness and siginfo, overlapping ownership and preservation of a preblocked signal.",
+      "oracle": "The original bashpoll deferral requirements and Linux fcntl, /proc fdinfo, exec inheritance, signal mask, epoll and signalfd interfaces. Setup independently proves descriptor and PTY flag observations or a self-sent signalfd signal with 128-byte siginfo and a preblocked mask.",
+      "comparison": "A private shell owns the descriptors and receives only self-generated signals; independent subprocesses read its fdinfo or SigBlk. Each flag bit, inherited child descriptor, closed descriptor and invalid diagnostic is compared; the signal case separately checks wait readability and siginfo after exec in the same PID. Unload is explicitly retained as a gap because these builds have a compiled-in builtin.",
+      "covers": [
+        "bashpoll/signalfd-ownership"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-io-fd.py": "de61755ee64e57a44124dc70b6863c9e7d266e529d13fd8937c3e4d7ad2a6224"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-fd.py setup masks",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-fd.py \"$BASH\" masks",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "signal masks-overlap=yes preblocked-preserved=yes names-invalid=yes\nsignal self-wait=yes siginfo=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "fd-observations.jsonl",
+        "mask-trace.jsonl"
+      ]
+    }
+  ]
+}

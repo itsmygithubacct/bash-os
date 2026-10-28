@@ -108,9 +108,14 @@
     },
     {
       "id": "read-erange-race",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify the documented read retry path when an attribute grows between the size probe and data read.",
-      "reason": "Argument matching in a stateless filter is enough for the retry and exhaustion paths, so no mock driver is needed for them. Only a probe that changes between calls needs a stateful supervisor."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terra-local-io-safety-xattr"
+        }
+      ]
     },
     {
       "id": "descriptor-list-remove",
