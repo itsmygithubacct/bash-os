@@ -915,26 +915,46 @@
         "purpose": "Check clock_nanosleep EINTR handling and non-EINTR syscall error diagnostics.",
         "reason": "Requires a disposable VM with a deterministic signal/timer driver or reviewed clock_nanosleep mock to inject EINTR and a distinct syscall failure. The successful GNU-parity cases do not cover these error paths, and this suite does not execute or claim them passed."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "EINTR is observable now, and a distinct clock_nanosleep failure is reachable with a stateless per-side seccomp RET_ERRNO filter. Neither needs a new driver.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A signal that interrupts `bashclock sleep` (EINTR) makes it return failure without a spurious diagnostic, honouring SIGINT/handlers.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed; reproducible unprivileged: an owned child sends USR1 (trapped) to $$ during `bashclock sleep 2`. Source review: bashclock.c:152 tests errno after clock_nanosleep, but clock_nanosleep returns the error number and does not set errno, so the EINTR branch depends on a stale errno \u2014 probable defect to measure."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-next-clock-usr1",
+              "assertion": "Both USR1 and SIGINT are sent only after observed clock_nanosleep entry plus250ms; status1, handler once, continued shell and short interval all observed on both builds. Spurious Success stderr makes the no-diagnostic subterm genuine FAIL. Native/setup errno25 is oracle state, not direct evidence of candidate errno. Actual candidate errno is not read by this observer.",
+              "definition_sha256": "21070071725a287fc3f4ea3d4bd801e19a317b4de376a3a8382be101401f6d6c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-next-clock-int",
+              "assertion": "Both USR1 and SIGINT are sent only after observed clock_nanosleep entry plus250ms; status1, handler once, continued shell and short interval all observed on both builds. Spurious Success stderr makes the no-diagnostic subterm genuine FAIL. Native/setup errno25 is oracle state, not direct evidence of candidate errno. Actual candidate errno is not read by this observer.",
+              "definition_sha256": "d497137141700b8956e0154c87a02871c864f8ad47ceef0ce8632ce7632e2d30"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Non-EINTR clock_nanosleep failures are diagnosed with the error text.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed; reachable with per-side /usr/bin/python3 helper that sets PR_SET_NO_NEW_PRIVS and installs a stateless seccomp BPF filter through ctypes prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER) returning SECCOMP_RET_ERRNO|E for a named syscall (optionally only when an argument equals a chosen value), then execs the side's shell `$BASH -c BODY`; unprivileged, inherited across exec, applies identically to GNU and candidate, and needs no new driver (the VM plain driver installs no filter of its own) that returns clock_nanosleep\u2192EINVAL. The vDSO does not cover clock_nanosleep, so the filter applies."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-next-clock-einval",
+              "assertion": "Stateless EINVAL control proven by native +22/unchanged25 and raw -1/errno22. Candidate returns failure promptly but prints Success rather than Invalid argument on both builds: genuine FAIL. No candidate errno value is fabricated or normalized.",
+              "definition_sha256": "eb0ba8aff12674698585568b17877dc15ab302c80e5ebc68ee7af9c5ab80dc2b"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "bashclock.c:151-156; `man clock_nanosleep`: returns error number, errno not set."
+      "notes": "Primary re-read both frozen97 raw archives and checked all observed assertion predicates, exact definitions, unchanged binaries, clean teardown and retained prior companion evidence. Second EOF is not sent to exited candidate ed; only first EOF original obligation is credited. Candidate bc does not perform successful history reevaluation; literal Up escape and incorrect recall are observed FAIL. Clock oracle errno sentinel is not a measurement of candidate errno."
     },
     {
       "topic": "bashdhcp/defer-discover-offer-request-ack",
@@ -3350,9 +3370,9 @@
         "purpose": "Interactive readline and terminal rendering are distinct from the covered piped-program interface.",
         "reason": "The fixture runner connects stdin to /dev/null and does not allocate a PTY. A future disposable PTY driver must feed a short expression plus an editing key sequence and compare captured interactive behavior with GNU bc; no real terminal should be used."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "The PTY cases exist and ran. The candidate bc has no interactive or readline mode (loadables/bc.c reads all input before executing and has no isatty or readline path), so r1-r3 fail. Rendering and history are unasserted.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -3399,40 +3419,59 @@
         {
           "id": "r4",
           "behavior": "Terminal rendering of the interactive session (echo, redraw after editing, bracketed-paste mode toggles ESC[?2004h/l) matches GNU bc.",
-          "coverage": "missing",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "terminal",
               "id": "bc-readline-edit",
               "assertion": "screen bytes recorded but not compared (compare_screen false)",
               "definition_sha256": "23c744d2e2b3b1dd136decd0987a7061b4ca4cd0a5ceb11b374c92cc5b143d5d"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-next-bc-render",
+              "assertion": "Complete raw render.raw bytes compared and session reaches quit/natural exit on both builds. Candidate echo/redraw and bracketed-paste controls differ/are absent: genuine rendering FAIL. No claim that a redraw algorithm behind unsupported readline was reached.",
+              "definition_sha256": "d6f20a49b3b661fc302d1e8c03fe93a2665f52e480874a325a9b16acd7ff4072"
             }
           ],
-          "gap": "No screen or byte assertion on rendering; the raw evidence shows GNU bc emits ESC[?2004h/l around each line."
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Readline history recall (Up arrow re-enters the previous expression).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-next-bc-history",
+              "assertion": "Up ESC[A Enter is actually sent after the previous expression line and a fresh stdin wait. GNU recalls6*7; candidate treats ESC literally and reports a syntax error. Original recall requirement is exercised as FAIL. Successful reevaluation after recall is unexecuted on candidate; its one late42 is the first expression, and is explicitly not counted as history evidence.",
+              "definition_sha256": "3effb87a7ea0f8e46c02fb532df45fdd193798ba6fbe16fe36c4e0f68e9a462d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "quit restores the terminal modes and exits 0.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "terminal",
               "id": "bc-terminal-expression",
               "assertion": "restore_terminal check after quit",
               "definition_sha256": "1113a4e415d1179ab5d4566727d67d1223d08d93a6c00902a13e08b8ccd78c3d"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-next-bc-quit",
+              "assertion": "PASS both: dedicated fresh case sends only quit, natural exit0 without EOF, exact termios restoration before cleanup. No editing/history failure gate remains.",
+              "definition_sha256": "cac97e7f153b704edbe648e5ce793dbbd563eb05231c347e4c8bb64a82c18f0e"
             }
           ],
-          "gap": "Only the reference side reached quit."
+          "gap": ""
         }
       ],
-      "notes": "Evidence: final-static/evidence.tar results/bc-*/{reference,candidate}.json. Candidate interactive support needs C work, coordinated with root. Do not migrate as full while r4 and r5 are missing."
+      "notes": "Primary re-read both frozen97 raw archives and checked all observed assertion predicates, exact definitions, unchanged binaries, clean teardown and retained prior companion evidence. Second EOF is not sent to exited candidate ed; only first EOF original obligation is credited. Candidate bc does not perform successful history reevaluation; literal Up escape and incorrect recall are observed FAIL. Clock oracle errno sentinel is not a measurement of candidate errno."
     },
     {
       "topic": "binhex/deferred-short-io-injection",
@@ -10682,9 +10721,9 @@
         "purpose": "Check the editor's modified-buffer quit warning and response while attached to a terminal.",
         "reason": "Requires a future disposable VM with a bounded PTY driver that can send ed commands and capture the prompt/response sequence. The current runner provides no terminal fixture; any future fixture must use only relative files inside its private workspace."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "The prompt and quit basics ran in the PTY driver. GNU ed is now present in the VM reference, so this is GNU parity, not the old contract-only basis. The warning help, Q and EOF responses are not exercised.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -10745,16 +10784,42 @@
         {
           "id": "r5",
           "behavior": "The warning response: h after '?' explains 'warning: buffer modified'; Q quits unconditionally; an intervening command re-arms the warning.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-next-ed-help",
+              "assertion": "All three intended subterms exercised independently on both builds: h after ? is genuine FAIL (candidate ?, GNU Warning: buffer modified); unconditional Q PASS; an intervening fresh append re-arms warning PASS. Revision94 disproved the optional p-alone premise; do not generalize re-arming to arbitrary non-modifying commands.",
+              "definition_sha256": "ec79ed37aa6e7219c058fb9ba04a0fbc2275f163821a799e43751bb1c2966082"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-next-ed-force",
+              "assertion": "All three intended subterms exercised independently on both builds: h after ? is genuine FAIL (candidate ?, GNU Warning: buffer modified); unconditional Q PASS; an intervening fresh append re-arms warning PASS. Revision94 disproved the optional p-alone premise; do not generalize re-arming to arbitrary non-modifying commands.",
+              "definition_sha256": "821dc0811ddc6f0902ba852978d36ab507fa7e3eaa301d540c574f2b4c2dddba"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-next-ed-rearm",
+              "assertion": "All three intended subterms exercised independently on both builds: h after ? is genuine FAIL (candidate ?, GNU Warning: buffer modified); unconditional Q PASS; an intervening fresh append re-arms warning PASS. Revision94 disproved the optional p-alone premise; do not generalize re-arming to arbitrary non-modifying commands.",
+              "definition_sha256": "c5a08e7774bf0903bf1ea2531ddc9e8c1c7a00a280ca575c1ceb25b0a6e6032a"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "EOF (Ctrl-D) on a modified buffer warns like q.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-next-ed-eof",
+              "assertion": "Original first-EOF obligation genuinely FAIL on both builds: raw0x04 sent on empty canonical input; GNU warns and remains alive, candidate exits0 silently. Additional second-EOF check is NOT reached on candidate (no second send) and cannot be claimed exercised; GNU second EOF2 observed.",
+              "definition_sha256": "de7cb44b227b2a096b66fb1c0cf23f699f450aecc421d40ea28899b91c8d94e8"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r7",
@@ -10771,7 +10836,7 @@
           "gap": ""
         }
       ],
-      "notes": "Candidate mismatches already observed: exit status 0 instead of 1 after a forced quit, and no byte count on open (worker-215 0.1.3 triage). Evidence final-static results/ed-*. Caveat for r7 (moved from gap): Not in the topic's literal purpose but part of the same transcript; noted."
+      "notes": "Primary re-read both frozen97 raw archives and checked all observed assertion predicates, exact definitions, unchanged binaries, clean teardown and retained prior companion evidence. Second EOF is not sent to exited candidate ed; only first EOF original obligation is credited. Candidate bc does not perform successful history reevaluation; literal Up escape and incorrect recall are observed FAIL. Clock oracle errno sentinel is not a measurement of candidate errno."
     },
     {
       "topic": "escdelay/decoder-timing-integration",
@@ -11038,23 +11103,29 @@
         "kind": "deferred",
         "reason": "Requires a future disposable VM with a deterministic PTY producer and clock/readiness control so the continuous-output deadline and EOF boundary can be compared against a documented Tcl Expect reference without timing ambiguity."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A positive -t bounds the entire wait while the child keeps producing non-matching output",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-expect-deadline-and-eof",
               "assertion": "child writes 'x' every 50 ms: expect -t 1 -> 1 after 0.9-2.0 s (bounded-by-deadline)",
               "definition_sha256": "7964dd2279f2047a5d1c89ec3fb19ba9e1db6282392ace122b72f7b78b104b11"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-next-expect-deadline",
+              "assertion": "PASS both builds with independent Tcl oracle: continuous output proven by producer timeline; timeout status1 and whole-wait elapsed bound reached. Old missing-Expect-image reason is obsolete.",
+              "definition_sha256": "caf26ae24a23dd9f9add7f8ef6e901a0a9d9fe3c0211cb66f26846616bfd3889"
             }
           ],
-          "gap": "The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -11072,6 +11143,18 @@
               "id": "migration-expect-deadline-and-eof",
               "assertion": "live silent child: eof -t 1 -> 1, expect -t 1 -> 1; after exit: expect -> 2, eof -> 0",
               "definition_sha256": "7964dd2279f2047a5d1c89ec3fb19ba9e1db6282392ace122b72f7b78b104b11"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-next-expect-status",
+              "assertion": "PASS both: live eof/expect status1; finite-child expect EOF2 and separate eof EOF0; close0.",
+              "definition_sha256": "0efd170e02df53f1f7d8e85044735f8c6500d419573b9e955cc2a4ce3d26fde4"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-next-expect-eof",
+              "assertion": "PASS both: live eof/expect status1; finite-child expect EOF2 and separate eof EOF0; close0.",
+              "definition_sha256": "d1bfd6fc0821b144d1d9d4d78acfaaa450d36a3c59233992978653f0ed4b4e8a"
             }
           ],
           "gap": ""
@@ -11086,12 +11169,24 @@
               "id": "migration-expect-deadline-and-eof",
               "assertion": "EOF against a 10 s deadline: expect-eof=2 and eof=0, each in <3 s",
               "definition_sha256": "7964dd2279f2047a5d1c89ec3fb19ba9e1db6282392ace122b72f7b78b104b11"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-next-expect-status",
+              "assertion": "PASS both: both EOF operations complete promptly against10s deadline; raw intervals retained.",
+              "definition_sha256": "0efd170e02df53f1f7d8e85044735f8c6500d419573b9e955cc2a4ce3d26fde4"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-next-expect-eof",
+              "assertion": "PASS both: both EOF operations complete promptly against10s deadline; raw intervals retained.",
+              "definition_sha256": "d1bfd6fc0821b144d1d9d4d78acfaaa450d36a3c59233992978653f0ed4b4e8a"
             }
           ],
           "gap": ""
         }
       ],
-      "notes": "Root reviewed the assertions and raw VM records. PASS and FAIL both show an exercised scenario; ERROR, SKIP and stale definitions do not qualify. Results are reconciled separately for each build."
+      "notes": "Primary re-read both frozen97 raw archives and checked all observed assertion predicates, exact definitions, unchanged binaries, clean teardown and retained prior companion evidence. Second EOF is not sent to exited candidate ed; only first EOF original obligation is credited. Candidate bc does not perform successful history reevaluation; literal Up escape and incorrect recall are observed FAIL. Clock oracle errno sentinel is not a measurement of candidate errno."
     },
     {
       "topic": "expect/pty-round-trip",

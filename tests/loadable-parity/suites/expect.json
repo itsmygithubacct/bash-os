@@ -90,8 +90,29 @@
     {
       "id": "deadline-eof-timeout",
       "purpose": "Defer checks that a positive timeout bounds the entire wait during continuous output and that EOF and timeout produce distinct documented statuses.",
-      "kind": "deferred",
-      "reason": "Remaining obligations: r1: The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/expect/unmatched-file-eof"
+        },
+        {
+          "group": "shell",
+          "id": "migration-expect-deadline-and-eof"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-next-expect-deadline"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-next-expect-eof"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-next-expect-status"
+        }
+      ]
     },
     {
       "id": "transcript-logging",

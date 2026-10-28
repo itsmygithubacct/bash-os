@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "052a5b214c49c77730110b5641ae97ea477a5da2587f186e353cc708ccb4885d",
+  "ledger_sha256": "7cd7357ebcc5de0665ca7322fde6b864b4677cc7bb584fc62521cc48c5afa39e",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 97,
-    "none": 251,
-    "full": 252
+    "partial": 94,
+    "none": 250,
+    "full": 256
   },
   "migrations": {
-    "deferred": 348,
-    "replacement": 252
+    "deferred": 344,
+    "replacement": 256
   },
   "pending_full_topics": [],
   "builds": {
@@ -1944,6 +1944,32 @@
           "candidate_unchanged": true,
           "candidate_matches_guest": true,
           "prepared_unchanged": true
+        },
+        {
+          "name": "terminal-next-static-97",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 13,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "268c11c21981f04c2312c1b969f9f6c128b81db832845eebcff366d111ee4efe",
+            "provenance.json": "aab784ad80d3f127f2915727c832130da8c320b08a29e226205e172ac451c656",
+            "payload.tar": "648ffa6e4887e77bf44b9974d5e1cb2ffd56de23c477e2d9d12c0c7bea4aad69",
+            "evidence.tar": "0db6649267855fd4daf40c1ece5ad38886fd58389c096c549fe88fcdcd1c8291"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793188620.1323512
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
         }
       ],
       "entries": [
@@ -2904,28 +2930,48 @@
         },
         {
           "topic": "bashclock/sleep_interruption_errors",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A signal that interrupts `bashclock sleep` (EINTR) makes it return failure without a spurious diagnostic, honouring SIGINT/handlers.",
-              "coverage": "missing",
-              "gap": "Not executed; reproducible unprivileged: an owned child sends USR1 (trapped) to $$ during `bashclock sleep 2`. Source review: bashclock.c:152 tests errno after clock_nanosleep, but clock_nanosleep returns the error number and does not set errno, so the EINTR branch depends on a stale errno \u2014 probable defect to measure.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-clock-usr1",
+                  "status": "FAIL",
+                  "run": "terminal-next-static-97"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-clock-int",
+                  "status": "FAIL",
+                  "run": "terminal-next-static-97"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Non-EINTR clock_nanosleep failures are diagnosed with the error text.",
-              "coverage": "missing",
-              "gap": "Not executed; reachable with per-side /usr/bin/python3 helper that sets PR_SET_NO_NEW_PRIVS and installs a stateless seccomp BPF filter through ctypes prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER) returning SECCOMP_RET_ERRNO|E for a named syscall (optionally only when an argument equals a chosen value), then execs the side's shell `$BASH -c BODY`; unprivileged, inherited across exec, applies identically to GNU and candidate, and needs no new driver (the VM plain driver installs no filter of its own) that returns clock_nanosleep\u2192EINVAL. The vDSO does not cover clock_nanosleep, so the filter applies.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-clock-einval",
+                  "status": "FAIL",
+                  "run": "terminal-next-static-97"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -5452,10 +5498,10 @@
         },
         {
           "topic": "bc/interactive_terminal_editing",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -5508,43 +5554,62 @@
             {
               "id": "r4",
               "behavior": "Terminal rendering of the interactive session (echo, redraw after editing, bracketed-paste mode toggles ESC[?2004h/l) matches GNU bc.",
-              "coverage": "missing",
-              "gap": "No screen or byte assertion on rendering; the raw evidence shows GNU bc emits ESC[?2004h/l around each line.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "terminal",
                   "id": "bc-readline-edit",
                   "status": "FAIL",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-bc-render",
+                  "status": "FAIL",
+                  "run": "terminal-next-static-97"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "Readline history recall (Up arrow re-enters the previous expression).",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-bc-history",
+                  "status": "FAIL",
+                  "run": "terminal-next-static-97"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r6",
               "behavior": "quit restores the terminal modes and exits 0.",
-              "coverage": "partial",
-              "gap": "Only the reference side reached quit.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "terminal",
                   "id": "bc-terminal-expression",
                   "status": "FAIL",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-bc-quit",
+                  "status": "PASS",
+                  "run": "terminal-next-static-97"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -13074,10 +13139,10 @@
         },
         {
           "topic": "ed/modified_quit_prompt_pty",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -13146,20 +13211,46 @@
             {
               "id": "r5",
               "behavior": "The warning response: h after '?' explains 'warning: buffer modified'; Q quits unconditionally; an intervening command re-arms the warning.",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-ed-help",
+                  "status": "FAIL",
+                  "run": "terminal-next-static-97"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-ed-force",
+                  "status": "PASS",
+                  "run": "terminal-next-static-97"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-ed-rearm",
+                  "status": "PASS",
+                  "run": "terminal-next-static-97"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r6",
               "behavior": "EOF (Ctrl-D) on a modified buffer warns like q.",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-ed-eof",
+                  "status": "FAIL",
+                  "run": "terminal-next-static-97"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r7",
@@ -13440,26 +13531,32 @@
         },
         {
           "topic": "expect/deadline-eof-timeout",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A positive -t bounds the entire wait while the child keeps producing non-matching output",
-              "coverage": "partial",
-              "gap": "The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-expect-deadline-and-eof",
                   "status": "PASS",
                   "run": "migration-terminal-static-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-expect-deadline",
+                  "status": "PASS",
+                  "run": "terminal-next-static-97"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -13478,6 +13575,18 @@
                   "id": "migration-expect-deadline-and-eof",
                   "status": "PASS",
                   "run": "migration-terminal-static-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-expect-status",
+                  "status": "PASS",
+                  "run": "terminal-next-static-97"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-expect-eof",
+                  "status": "PASS",
+                  "run": "terminal-next-static-97"
                 }
               ],
               "fully_exercised": true,
@@ -13494,6 +13603,18 @@
                   "id": "migration-expect-deadline-and-eof",
                   "status": "PASS",
                   "run": "migration-terminal-static-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-expect-status",
+                  "status": "PASS",
+                  "run": "terminal-next-static-97"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-expect-eof",
+                  "status": "PASS",
+                  "run": "terminal-next-static-97"
                 }
               ],
               "fully_exercised": true,
@@ -42532,9 +42653,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 348,
-        "FAIL": 137,
-        "PASS": 115
+        "UNRESOLVED": 344,
+        "FAIL": 140,
+        "PASS": 116
       },
       "migration_without_complete_evidence": []
     },
@@ -44468,6 +44589,32 @@
           "candidate_unchanged": true,
           "candidate_matches_guest": true,
           "prepared_unchanged": true
+        },
+        {
+          "name": "terminal-next-dynamic-97",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 13,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "42e3715eb7900650888471d96082695f804ba6d2f0e83599b67be26b32b1d232",
+            "provenance.json": "b00f64eafe0affc082d5feef0e202d7203929731828bbce19b953bcbb9bb265c",
+            "payload.tar": "3481e06ec59a9033ec66ddd145843501701dea073322e2d5689203060940cc9d",
+            "evidence.tar": "2f299967c9d2ed531ff8834a0486974e2e14ad690ab4ae1f793fabaea2406ff7"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793189082.6631331
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
         }
       ],
       "entries": [
@@ -45428,28 +45575,48 @@
         },
         {
           "topic": "bashclock/sleep_interruption_errors",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A signal that interrupts `bashclock sleep` (EINTR) makes it return failure without a spurious diagnostic, honouring SIGINT/handlers.",
-              "coverage": "missing",
-              "gap": "Not executed; reproducible unprivileged: an owned child sends USR1 (trapped) to $$ during `bashclock sleep 2`. Source review: bashclock.c:152 tests errno after clock_nanosleep, but clock_nanosleep returns the error number and does not set errno, so the EINTR branch depends on a stale errno \u2014 probable defect to measure.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-clock-usr1",
+                  "status": "FAIL",
+                  "run": "terminal-next-dynamic-97"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-clock-int",
+                  "status": "FAIL",
+                  "run": "terminal-next-dynamic-97"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Non-EINTR clock_nanosleep failures are diagnosed with the error text.",
-              "coverage": "missing",
-              "gap": "Not executed; reachable with per-side /usr/bin/python3 helper that sets PR_SET_NO_NEW_PRIVS and installs a stateless seccomp BPF filter through ctypes prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER) returning SECCOMP_RET_ERRNO|E for a named syscall (optionally only when an argument equals a chosen value), then execs the side's shell `$BASH -c BODY`; unprivileged, inherited across exec, applies identically to GNU and candidate, and needs no new driver (the VM plain driver installs no filter of its own) that returns clock_nanosleep\u2192EINVAL. The vDSO does not cover clock_nanosleep, so the filter applies.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-clock-einval",
+                  "status": "FAIL",
+                  "run": "terminal-next-dynamic-97"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -47976,10 +48143,10 @@
         },
         {
           "topic": "bc/interactive_terminal_editing",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -48032,43 +48199,62 @@
             {
               "id": "r4",
               "behavior": "Terminal rendering of the interactive session (echo, redraw after editing, bracketed-paste mode toggles ESC[?2004h/l) matches GNU bc.",
-              "coverage": "missing",
-              "gap": "No screen or byte assertion on rendering; the raw evidence shows GNU bc emits ESC[?2004h/l around each line.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "terminal",
                   "id": "bc-readline-edit",
                   "status": "FAIL",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-bc-render",
+                  "status": "FAIL",
+                  "run": "terminal-next-dynamic-97"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "Readline history recall (Up arrow re-enters the previous expression).",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-bc-history",
+                  "status": "FAIL",
+                  "run": "terminal-next-dynamic-97"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r6",
               "behavior": "quit restores the terminal modes and exits 0.",
-              "coverage": "partial",
-              "gap": "Only the reference side reached quit.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "terminal",
                   "id": "bc-terminal-expression",
                   "status": "FAIL",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-bc-quit",
+                  "status": "PASS",
+                  "run": "terminal-next-dynamic-97"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -55598,10 +55784,10 @@
         },
         {
           "topic": "ed/modified_quit_prompt_pty",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -55670,20 +55856,46 @@
             {
               "id": "r5",
               "behavior": "The warning response: h after '?' explains 'warning: buffer modified'; Q quits unconditionally; an intervening command re-arms the warning.",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-ed-help",
+                  "status": "FAIL",
+                  "run": "terminal-next-dynamic-97"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-ed-force",
+                  "status": "PASS",
+                  "run": "terminal-next-dynamic-97"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-ed-rearm",
+                  "status": "PASS",
+                  "run": "terminal-next-dynamic-97"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r6",
               "behavior": "EOF (Ctrl-D) on a modified buffer warns like q.",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-ed-eof",
+                  "status": "FAIL",
+                  "run": "terminal-next-dynamic-97"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r7",
@@ -55964,26 +56176,32 @@
         },
         {
           "topic": "expect/deadline-eof-timeout",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A positive -t bounds the entire wait while the child keeps producing non-matching output",
-              "coverage": "partial",
-              "gap": "The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-expect-deadline-and-eof",
                   "status": "PASS",
                   "run": "migration-terminal-dynamic-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-expect-deadline",
+                  "status": "PASS",
+                  "run": "terminal-next-dynamic-97"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -56002,6 +56220,18 @@
                   "id": "migration-expect-deadline-and-eof",
                   "status": "PASS",
                   "run": "migration-terminal-dynamic-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-expect-status",
+                  "status": "PASS",
+                  "run": "terminal-next-dynamic-97"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-expect-eof",
+                  "status": "PASS",
+                  "run": "terminal-next-dynamic-97"
                 }
               ],
               "fully_exercised": true,
@@ -56018,6 +56248,18 @@
                   "id": "migration-expect-deadline-and-eof",
                   "status": "PASS",
                   "run": "migration-terminal-dynamic-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-expect-status",
+                  "status": "PASS",
+                  "run": "terminal-next-dynamic-97"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-next-expect-eof",
+                  "status": "PASS",
+                  "run": "terminal-next-dynamic-97"
                 }
               ],
               "fully_exercised": true,
@@ -85056,9 +85298,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 348,
-        "FAIL": 137,
-        "PASS": 115
+        "UNRESOLVED": 344,
+        "FAIL": 140,
+        "PASS": 116
       },
       "migration_without_complete_evidence": []
     }

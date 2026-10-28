@@ -1,0 +1,528 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terminal-next-ed-help",
+      "loadable": "ed",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "h after the modified-buffer q warning explains Warning: buffer modified (GNU ed exact case).",
+      "expected_status": 0,
+      "stdout": "program-reading-stdin=PASS\nmodified-buffer-ready=PASS\nfirst-q-warns-and-retains-editor=PASS\nh-sent=PASS\nh-explains-warning=PASS\nfile-unchanged=PASS\n",
+      "stderr": "",
+      "covers": [
+        "ed/modified_quit_prompt_pty"
+      ],
+      "requires": [
+        "python3",
+        "ed"
+      ],
+      "timeout": 25,
+      "helpers_sha256": {
+        "helpers/terminal-review-observer.py": "6aea0d99c3aa438c53c5c1dae7c273e6716ce3aef09b17dce210d6f9d495c8f3"
+      },
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty ed-help reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty ed-help candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty-setup\n",
+      "setup_timeout": 10,
+      "oracle": "Independent GNU ed on a fresh 24x80 controlling PTY. Readiness is the direct child blocked in read(0) or pselect6(1) with fd_set bit 0 independently read from its owned memory and no timeout; note is a relative private file. No expected result is derived from the candidate.",
+      "comparison": "Explicit per-obligation predicates and file effects, with raw PTY bytes, directional events, modes, natural status and readiness samples retained.",
+      "diagnostic_files": [
+        "pty.raw",
+        "pty.json",
+        "observations.json",
+        "setup-pty.raw",
+        "setup-pty.json",
+        "setup-pty-observations.json"
+      ],
+      "files": {
+        "note": "one\n"
+      },
+      "expected_files": {
+        "note": "one\n"
+      }
+    },
+    {
+      "id": "migration-terminal-next-ed-force",
+      "loadable": "ed",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Q quits a modified buffer unconditionally, without a warning or write, status 0.",
+      "expected_status": 0,
+      "stdout": "program-reading-stdin=PASS\nmodified-buffer-ready=PASS\nQ-sent=PASS\nQ-unconditional-exit-zero=PASS\nQ-no-warning=PASS\nfile-unchanged=PASS\n",
+      "stderr": "",
+      "covers": [
+        "ed/modified_quit_prompt_pty"
+      ],
+      "requires": [
+        "python3",
+        "ed"
+      ],
+      "timeout": 25,
+      "helpers_sha256": {
+        "helpers/terminal-review-observer.py": "6aea0d99c3aa438c53c5c1dae7c273e6716ce3aef09b17dce210d6f9d495c8f3"
+      },
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty ed-force reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty ed-force candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty-setup\n",
+      "setup_timeout": 10,
+      "oracle": "Independent GNU ed on a fresh 24x80 controlling PTY. Readiness is the direct child blocked in read(0) or pselect6(1) with fd_set bit 0 independently read from its owned memory and no timeout; note is a relative private file. No expected result is derived from the candidate.",
+      "comparison": "Explicit per-obligation predicates and file effects, with raw PTY bytes, directional events, modes, natural status and readiness samples retained.",
+      "diagnostic_files": [
+        "pty.raw",
+        "pty.json",
+        "observations.json",
+        "setup-pty.raw",
+        "setup-pty.json",
+        "setup-pty-observations.json"
+      ],
+      "files": {
+        "note": "one\n"
+      },
+      "expected_files": {
+        "note": "one\n"
+      }
+    },
+    {
+      "id": "migration-terminal-next-ed-rearm",
+      "loadable": "ed",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "After a modified-buffer q warning, p prints two; a fresh append of three re-arms the warning, then a second q warns and retains ed. GNU ed does not re-arm for p alone, as the unchanged revision94 raw transcript demonstrates.",
+      "expected_status": 0,
+      "stdout": "program-reading-stdin=PASS\nmodified-buffer-ready=PASS\nfirst-q-warns-and-retains-editor=PASS\nintervening-p-sent=PASS\nintervening-p-prints-two=PASS\nintervening-edit-sent=PASS\nintervening-edit-prints-three=PASS\nsecond-q-sent=PASS\nintervening-command-rearms-warning=PASS\nfile-unchanged=PASS\n",
+      "stderr": "",
+      "covers": [
+        "ed/modified_quit_prompt_pty"
+      ],
+      "requires": [
+        "python3",
+        "ed"
+      ],
+      "timeout": 25,
+      "helpers_sha256": {
+        "helpers/terminal-review-observer.py": "6aea0d99c3aa438c53c5c1dae7c273e6716ce3aef09b17dce210d6f9d495c8f3"
+      },
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty ed-rearm reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty ed-rearm candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty-setup\n",
+      "setup_timeout": 10,
+      "oracle": "Independent GNU ed on a fresh 24x80 controlling PTY. Readiness is the direct child blocked in read(0) or pselect6(1) with fd_set bit 0 independently read from its owned memory and no timeout; note is a relative private file. No expected result is derived from the candidate.",
+      "comparison": "Explicit per-obligation predicates and file effects, with raw PTY bytes, directional events, modes, natural status and readiness samples retained.",
+      "diagnostic_files": [
+        "pty.raw",
+        "pty.json",
+        "observations.json",
+        "setup-pty.raw",
+        "setup-pty.json",
+        "setup-pty-observations.json"
+      ],
+      "files": {
+        "note": "one\n"
+      },
+      "expected_files": {
+        "note": "one\n"
+      }
+    },
+    {
+      "id": "migration-terminal-next-ed-eof",
+      "loadable": "ed",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "First Ctrl-D warns and retains modified ed; the second Ctrl-D quits with GNU ed 1.21.1 status 2 without writing (distinct from double-q status 1).",
+      "expected_status": 0,
+      "stdout": "program-reading-stdin=PASS\nmodified-buffer-ready=PASS\nfirst-EOF-sent=PASS\nEOF-warns=PASS\nEOF-retains-editor=PASS\nsecond-EOF-sent=PASS\nsecond-EOF-exit-two=PASS\nfile-unchanged=PASS\n",
+      "stderr": "",
+      "covers": [
+        "ed/modified_quit_prompt_pty"
+      ],
+      "requires": [
+        "python3",
+        "ed"
+      ],
+      "timeout": 25,
+      "helpers_sha256": {
+        "helpers/terminal-review-observer.py": "6aea0d99c3aa438c53c5c1dae7c273e6716ce3aef09b17dce210d6f9d495c8f3"
+      },
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty ed-eof reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty ed-eof candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty-setup\n",
+      "setup_timeout": 10,
+      "oracle": "Independent GNU ed on a fresh 24x80 controlling PTY. Readiness is the direct child blocked in read(0) or pselect6(1) with fd_set bit 0 independently read from its owned memory and no timeout; note is a relative private file. No expected result is derived from the candidate.",
+      "comparison": "Explicit per-obligation predicates and file effects, with raw PTY bytes, directional events, modes, natural status and readiness samples retained.",
+      "diagnostic_files": [
+        "pty.raw",
+        "pty.json",
+        "observations.json",
+        "setup-pty.raw",
+        "setup-pty.json",
+        "setup-pty-observations.json"
+      ],
+      "files": {
+        "note": "one\n"
+      },
+      "expected_files": {
+        "note": "one\n"
+      }
+    },
+    {
+      "id": "migration-terminal-next-bc-render",
+      "loadable": "bc",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Compare the complete unnormalized PTY rendering against GNU bc, including echo/redraw from 20+21 Ctrl-B Ctrl-D 2 Enter, result 42, and bracketed-paste on/off/on. render.raw is compared byte for byte; the helper always saves the raw session in diagnostics too.",
+      "expected_status": 0,
+      "stdout": "program-reading-stdin=PASS\nreadline-noncanonical=PASS\npaste-enabled-before-input=PASS\nediting-keys-sent=PASS\nedited-expression-is-42-before-EOF=PASS\nnext-line-reading=PASS\npaste-disabled-after-line=PASS\npaste-reenabled-for-next-line=PASS\n",
+      "stderr": "",
+      "covers": [
+        "bc/interactive_terminal_editing"
+      ],
+      "requires": [
+        "python3",
+        "bc"
+      ],
+      "timeout": 25,
+      "helpers_sha256": {
+        "helpers/terminal-review-observer.py": "6aea0d99c3aa438c53c5c1dae7c273e6716ce3aef09b17dce210d6f9d495c8f3"
+      },
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty bc-render reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty bc-render candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty-setup\n",
+      "setup_timeout": 10,
+      "oracle": "Independent GNU bc on a fresh 24x80 controlling PTY. Readiness is the direct child blocked in read(0) or pselect6(1) with fd_set bit 0 independently read from its owned memory and no timeout; note is a relative private file. No expected result is derived from the candidate.",
+      "comparison": "Full raw PTY byte parity (render.raw), explicit editing/result/paste predicates, with raw PTY bytes, directional events, modes, natural status and readiness samples retained.",
+      "diagnostic_files": [
+        "pty.raw",
+        "pty.json",
+        "observations.json",
+        "setup-pty.raw",
+        "setup-pty.json",
+        "setup-pty-observations.json"
+      ]
+    },
+    {
+      "id": "migration-terminal-next-bc-history",
+      "loadable": "bc",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Enter 6*7 and then independently send Up Enter even if the first evaluation fails; assert recalled expression echo and a new 42 before EOF.",
+      "expected_status": 0,
+      "stdout": "program-reading-stdin=PASS\nfirst-expression-sent=PASS\nfirst-expression-is-42-before-EOF=PASS\nready-before-Up=PASS\nUp-and-enter-sent=PASS\nhistory-renders-prior-expression=PASS\nhistory-reevaluates-42-before-EOF=PASS\n",
+      "stderr": "",
+      "covers": [
+        "bc/interactive_terminal_editing"
+      ],
+      "requires": [
+        "python3",
+        "bc"
+      ],
+      "timeout": 25,
+      "helpers_sha256": {
+        "helpers/terminal-review-observer.py": "6aea0d99c3aa438c53c5c1dae7c273e6716ce3aef09b17dce210d6f9d495c8f3"
+      },
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty bc-history reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty bc-history candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty-setup\n",
+      "setup_timeout": 10,
+      "oracle": "Independent GNU bc on a fresh 24x80 controlling PTY. Readiness is the direct child blocked in read(0) or pselect6(1) with fd_set bit 0 independently read from its owned memory and no timeout; note is a relative private file. No expected result is derived from the candidate.",
+      "comparison": "Explicit per-obligation predicates and file effects, with raw PTY bytes, directional events, modes, natural status and readiness samples retained.",
+      "diagnostic_files": [
+        "pty.raw",
+        "pty.json",
+        "observations.json",
+        "setup-pty.raw",
+        "setup-pty.json",
+        "setup-pty-observations.json"
+      ]
+    },
+    {
+      "id": "migration-terminal-next-bc-quit",
+      "loadable": "bc",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "A dedicated fresh session reaches quit on both sides independently of editing/history assertions. Quit must exit 0 within 3 seconds without sending EOF and restore the initial termios before the observer performs its own unconditional cleanup.",
+      "expected_status": 0,
+      "stdout": "program-reading-stdin=PASS\nquit-sent=PASS\nquit-exit-zero-without-EOF=PASS\nquit-restores-termios=PASS\n",
+      "stderr": "",
+      "covers": [
+        "bc/interactive_terminal_editing"
+      ],
+      "requires": [
+        "python3",
+        "bc"
+      ],
+      "timeout": 25,
+      "helpers_sha256": {
+        "helpers/terminal-review-observer.py": "6aea0d99c3aa438c53c5c1dae7c273e6716ce3aef09b17dce210d6f9d495c8f3"
+      },
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty bc-quit reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty bc-quit candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py pty-setup\n",
+      "setup_timeout": 10,
+      "oracle": "Independent GNU bc on a fresh 24x80 controlling PTY. Readiness is the direct child blocked in read(0) or pselect6(1) with fd_set bit 0 independently read from its owned memory and no timeout; note is a relative private file. No expected result is derived from the candidate.",
+      "comparison": "Explicit per-obligation predicates and file effects, with raw PTY bytes, directional events, modes, natural status and readiness samples retained.",
+      "diagnostic_files": [
+        "pty.raw",
+        "pty.json",
+        "observations.json",
+        "setup-pty.raw",
+        "setup-pty.json",
+        "setup-pty-observations.json"
+      ]
+    },
+    {
+      "id": "migration-terminal-next-expect-deadline",
+      "loadable": "expect",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Independent Tcl Expect positive 3-second deadline under continuing nonmatching output. The producer waits for go, writes x every 50 ms, logs monotonic emission timestamps, and terminates only after stop or a 7-second failure bound. The independent Expect second-resolution window is 1.9 <= elapsed < 4.0 seconds; the existing -t 1 candidate contract retains its tighter bound.",
+      "expected_status": 0,
+      "stdout": "controller-exit-zero=PASS\ncontroller-no-diagnostics=PASS\nready-match=PASS\nwhole-wait-timeout-status-one=PASS\nwhole-wait-1.9-to-4-seconds=PASS\nproducer-continuous-for-at-least-1.8-seconds=PASS\nproducer-stopped-by-command-after-wait=PASS\nclose-zero=PASS\n",
+      "stderr": "",
+      "covers": [
+        "expect/deadline-eof-timeout"
+      ],
+      "requires": [
+        "python3",
+        "expect"
+      ],
+      "timeout": 25,
+      "helpers_sha256": {
+        "helpers/terminal-review-observer.py": "6aea0d99c3aa438c53c5c1dae7c273e6716ce3aef09b17dce210d6f9d495c8f3"
+      },
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py expect expect-deadline reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py expect expect-deadline candidate \"$BASH\"\n",
+      "files": {
+        "expect-deadline.exp": "log_user 0\nlog_file -a -noappend \"$env(HOME)/expect.raw\"\nset timeout 4\nset f [open \"$env(HOME)/metrics\" w]\nproc rec {k v} { global f; puts $f \"$k=$v\"; flush $f }\nproc child_status {w} {\n    if {[llength $w] != 4 || [lindex $w 2] != 0} { return abnormal }\n    return [lindex $w 3]\n}\nspawn /usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py producer stream\nexpect -re {READY\\r\\n} { rec ready 0 } timeout { rec ready 1 } eof { rec ready 2 }\nsend \"go\\n\"\nset t0 [clock microseconds]\nset r unset\nexpect -timeout 3 -re {NEVER_MATCH_THIS} { set r 0 } timeout { set r 1 } eof { set r 2 }\nrec wait $r\nrec elapsed_ms [expr {([clock microseconds] - $t0) / 1000.0}]\nsend \"stop\\n\"\nexpect -timeout 3 eof {} timeout { rec drain timeout }\ncatch {close}\nrec close [child_status [wait]]\nclose $f\nlog_file\nexit 0\n",
+        "expect-deadline.sh": "expect log_user off\nexec 5>\"$HOME/expect.raw\"\nexec 6>\"$HOME/metrics\"\nrec() { printf '%s=%s\\n' \"$1\" \"$2\" >&6; }\nexpect spawn /usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py producer stream -h fd -h pid\nexpect log \"$fd\" -F 5 -m\nexpect expect \"$fd\" READY -t 4; rec ready \"$?\"\nexpect sendline \"$fd\" go\nt0=${EPOCHREALTIME/./}\nexpect expect \"$fd\" NEVER_MATCH_THIS -t 3; r=$?\nt1=${EPOCHREALTIME/./}\nrec wait \"$r\"\nrec elapsed_ms \"$(( (t1 - t0) / 1000 ))\"\nexpect sendline \"$fd\" stop\nexpect eof \"$fd\" -t 3\nexpect close \"$fd\" \"$pid\"; rec close \"$?\"\nexec 5>&- 6>&-\nexit 0\n"
+      },
+      "oracle": "Independent /usr/bin/expect (Tcl Expect 5.45.4 on sealed vm-cache-reference-tools). timeout/eof events map to documented expect 1/2 and eof 1/0 statuses. The existing oracle suite documents Expect timeout second granularity; elapsed values remain raw evidence rather than being compared as exact timings.",
+      "comparison": "Exact semantic predicates against Tcl Expect and static expected statuses/windows; raw transcript, stdout/stderr, controller status, elapsed metrics and producer timeline saved. Both sides use the same independent producer and causal READY/go/finish/stop protocol.",
+      "diagnostic_files": [
+        "expect.raw",
+        "metrics",
+        "producer.json",
+        "controller.stdout",
+        "controller.stderr",
+        "controller.json",
+        "observations.json"
+      ]
+    },
+    {
+      "id": "migration-terminal-next-expect-status",
+      "loadable": "expect",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "While an acknowledged READY producer is blocked waiting for finish, eof and expect each time out with mapped status 1. After finish causes EOF, expect returns 2 promptly against a 10-second deadline. Native Tcl events map explicitly to the documented Bash API.",
+      "expected_status": 0,
+      "stdout": "controller-exit-zero=PASS\ncontroller-no-diagnostics=PASS\nready-match=PASS\neof-live-timeout-one=PASS\nexpect-live-timeout-one=PASS\nexpect-EOF-status-two=PASS\nEOF-before-ten-second-deadline=PASS\nclose-zero=PASS\n",
+      "stderr": "",
+      "covers": [
+        "expect/deadline-eof-timeout"
+      ],
+      "requires": [
+        "python3",
+        "expect"
+      ],
+      "timeout": 25,
+      "helpers_sha256": {
+        "helpers/terminal-review-observer.py": "6aea0d99c3aa438c53c5c1dae7c273e6716ce3aef09b17dce210d6f9d495c8f3"
+      },
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py expect expect-status reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py expect expect-status candidate \"$BASH\"\n",
+      "files": {
+        "expect-status.exp": "log_user 0\nlog_file -a -noappend \"$env(HOME)/expect.raw\"\nset timeout 4\nset f [open \"$env(HOME)/metrics\" w]\nproc rec {k v} { global f; puts $f \"$k=$v\"; flush $f }\nproc child_status {w} {\n    if {[llength $w] != 4 || [lindex $w 2] != 0} { return abnormal }\n    return [lindex $w 3]\n}\nspawn /usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py producer silent\nexpect -re {READY\\r\\n} { rec ready 0 } timeout { rec ready 1 } eof { rec ready 2 }\nexpect -timeout 1 eof { rec eof_live 0 } timeout { rec eof_live 1 }\nexpect -timeout 1 -re {NEVER_MATCH_THIS} { rec expect_live 0 } timeout { rec expect_live 1 } eof { rec expect_live 2 }\nsend \"finish\\n\"\nset t0 [clock microseconds]\nset r unset\nexpect -timeout 10 -re {NEVER_MATCH_THIS} { set r 0 } timeout { set r 1 } eof { set r 2 }\nrec wait $r\nrec elapsed_ms [expr {([clock microseconds] - $t0) / 1000.0}]\ncatch {close}\nrec close [child_status [wait]]\nclose $f\nlog_file\nexit 0\n",
+        "expect-status.sh": "expect log_user off\nexec 5>\"$HOME/expect.raw\"\nexec 6>\"$HOME/metrics\"\nrec() { printf '%s=%s\\n' \"$1\" \"$2\" >&6; }\nexpect spawn /usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py producer silent -h fd -h pid\nexpect log \"$fd\" -F 5 -m\nexpect expect \"$fd\" READY -t 4; rec ready \"$?\"\nexpect eof \"$fd\" -t 1; rec eof_live \"$?\"\nexpect expect \"$fd\" NEVER_MATCH_THIS -t 1; rec expect_live \"$?\"\nexpect sendline \"$fd\" finish\nt0=${EPOCHREALTIME/./}\nexpect expect \"$fd\" NEVER_MATCH_THIS -t 10; r=$?\nt1=${EPOCHREALTIME/./}\nrec wait \"$r\"\nrec elapsed_ms \"$(( (t1 - t0) / 1000 ))\"\nexpect close \"$fd\" \"$pid\"; rec close \"$?\"\nexec 5>&- 6>&-\nexit 0\n"
+      },
+      "oracle": "Independent /usr/bin/expect (Tcl Expect 5.45.4 on sealed vm-cache-reference-tools). timeout/eof events map to documented expect 1/2 and eof 1/0 statuses. The existing oracle suite documents Expect timeout second granularity; elapsed values remain raw evidence rather than being compared as exact timings.",
+      "comparison": "Exact semantic predicates against Tcl Expect and static expected statuses/windows; raw transcript, stdout/stderr, controller status, elapsed metrics and producer timeline saved. Both sides use the same independent producer and causal READY/go/finish/stop protocol.",
+      "diagnostic_files": [
+        "expect.raw",
+        "metrics",
+        "producer.json",
+        "controller.stdout",
+        "controller.stderr",
+        "controller.json",
+        "observations.json"
+      ]
+    },
+    {
+      "id": "migration-terminal-next-expect-eof",
+      "loadable": "expect",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "A separate acknowledged producer receives finish and exits normally; eof maps to 0 and returns in under 3 seconds against a 10-second deadline.",
+      "expected_status": 0,
+      "stdout": "controller-exit-zero=PASS\ncontroller-no-diagnostics=PASS\nready-match=PASS\neof-EOF-status-zero=PASS\nEOF-before-ten-second-deadline=PASS\nclose-zero=PASS\n",
+      "stderr": "",
+      "covers": [
+        "expect/deadline-eof-timeout"
+      ],
+      "requires": [
+        "python3",
+        "expect"
+      ],
+      "timeout": 25,
+      "helpers_sha256": {
+        "helpers/terminal-review-observer.py": "6aea0d99c3aa438c53c5c1dae7c273e6716ce3aef09b17dce210d6f9d495c8f3"
+      },
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py expect expect-eof reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py expect expect-eof candidate \"$BASH\"\n",
+      "files": {
+        "expect-eof.exp": "log_user 0\nlog_file -a -noappend \"$env(HOME)/expect.raw\"\nset timeout 4\nset f [open \"$env(HOME)/metrics\" w]\nproc rec {k v} { global f; puts $f \"$k=$v\"; flush $f }\nproc child_status {w} {\n    if {[llength $w] != 4 || [lindex $w 2] != 0} { return abnormal }\n    return [lindex $w 3]\n}\nspawn /usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py producer silent\nexpect -re {READY\\r\\n} { rec ready 0 } timeout { rec ready 1 } eof { rec ready 2 }\nsend \"finish\\n\"\nset t0 [clock microseconds]\nset r unset\nexpect -timeout 10 eof { set r 0 } timeout { set r 1 }\nrec wait $r\nrec elapsed_ms [expr {([clock microseconds] - $t0) / 1000.0}]\ncatch {close}\nrec close [child_status [wait]]\nclose $f\nlog_file\nexit 0\n",
+        "expect-eof.sh": "expect log_user off\nexec 5>\"$HOME/expect.raw\"\nexec 6>\"$HOME/metrics\"\nrec() { printf '%s=%s\\n' \"$1\" \"$2\" >&6; }\nexpect spawn /usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py producer silent -h fd -h pid\nexpect log \"$fd\" -F 5 -m\nexpect expect \"$fd\" READY -t 4; rec ready \"$?\"\nexpect sendline \"$fd\" finish\nt0=${EPOCHREALTIME/./}\nexpect eof \"$fd\" -t 10; r=$?\nt1=${EPOCHREALTIME/./}\nrec wait \"$r\"\nrec elapsed_ms \"$(( (t1 - t0) / 1000 ))\"\nexpect close \"$fd\" \"$pid\"; rec close \"$?\"\nexec 5>&- 6>&-\nexit 0\n"
+      },
+      "oracle": "Independent /usr/bin/expect (Tcl Expect 5.45.4 on sealed vm-cache-reference-tools). timeout/eof events map to documented expect 1/2 and eof 1/0 statuses. The existing oracle suite documents Expect timeout second granularity; elapsed values remain raw evidence rather than being compared as exact timings.",
+      "comparison": "Exact semantic predicates against Tcl Expect and static expected statuses/windows; raw transcript, stdout/stderr, controller status, elapsed metrics and producer timeline saved. Both sides use the same independent producer and causal READY/go/finish/stop protocol.",
+      "diagnostic_files": [
+        "expect.raw",
+        "metrics",
+        "producer.json",
+        "controller.stdout",
+        "controller.stderr",
+        "controller.json",
+        "observations.json"
+      ]
+    },
+    {
+      "id": "migration-terminal-next-clock-usr1",
+      "loadable": "bashclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Interrupt an owned child with trapped SIGUSR1 only after observing its actual clock_nanosleep(CLOCK_MONOTONIC,0) syscall for at least 250 ms. Assert failure 1, one handler invocation, continued shell, no diagnostic, and elapsed 0.2 <= t < 1.5 seconds for the requested 2 seconds. Independent libc setup verifies the same causal driver and EINTR return convention.",
+      "expected_status": 0,
+      "stdout": "clock-controller-exit-zero=PASS\nsleep-returned-failure-one=PASS\nshell-continued=PASS\nclock-stdout-exact=PASS\nsignal-after-observed-clock-nanosleep=PASS\nhandler-once=PASS\ninterrupted-in-0.2-to-1.5-seconds=PASS\nEINTR-no-diagnostic=PASS\n",
+      "stderr": "",
+      "covers": [
+        "bashclock/sleep_interruption_errors"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "timeout": 25,
+      "helpers_sha256": {
+        "helpers/terminal-review-observer.py": "6aea0d99c3aa438c53c5c1dae7c273e6716ce3aef09b17dce210d6f9d495c8f3"
+      },
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py clock USR1 reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py clock USR1 candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py clock-setup USR1\n",
+      "setup_timeout": 12,
+      "files": {
+        "clock-USR1.sh": "trap 'printf \"handler=USR1\\n\"' USR1\nprintf \"armed\\n\"\nbashclock sleep 2\nr=$?\nprintf \"sleep-status=%s\\nshell-continued\\n\" \"$r\"\n"
+      },
+      "oracle": "Independent libc clock_nanosleep called through ctypes, with errno deliberately set to ENOTTY, plus a real owned-child signal or the same stateless EINVAL filter. The API returns an error number without setting errno. The Bash contract requires return failure on EINTR, no spurious diagnostic, honouring handlers/SIGINT; other errors require the text of the returned error. This is an explicit API contract comparison, not a claim that GNU bash has a bashclock builtin.",
+      "comparison": "Explicit semantic/status/elapsed/diagnostic checks versus an independent libc control. Native return number, errno sentinel, syscall samples, signal time and unmodified stdout/stderr are separate diagnostic artifacts; mismatches return 1.",
+      "diagnostic_files": [
+        "setup-control.stdout",
+        "setup-control.stderr",
+        "setup-control.json",
+        "setup-observations.json",
+        "setup-native.json",
+        "errno-control.json",
+        "clock.stdout",
+        "clock.stderr",
+        "clock.json",
+        "native.json",
+        "observations.json"
+      ]
+    },
+    {
+      "id": "migration-terminal-next-clock-int",
+      "loadable": "bashclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Interrupt an owned child with trapped SIGINT only after observing its actual clock_nanosleep(CLOCK_MONOTONIC,0) syscall for at least 250 ms. Assert failure 1, one handler invocation, continued shell, no diagnostic, and elapsed 0.2 <= t < 1.5 seconds for the requested 2 seconds. Independent libc setup verifies the same causal driver and EINTR return convention.",
+      "expected_status": 0,
+      "stdout": "clock-controller-exit-zero=PASS\nsleep-returned-failure-one=PASS\nshell-continued=PASS\nclock-stdout-exact=PASS\nsignal-after-observed-clock-nanosleep=PASS\nhandler-once=PASS\ninterrupted-in-0.2-to-1.5-seconds=PASS\nEINTR-no-diagnostic=PASS\n",
+      "stderr": "",
+      "covers": [
+        "bashclock/sleep_interruption_errors"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "timeout": 25,
+      "helpers_sha256": {
+        "helpers/terminal-review-observer.py": "6aea0d99c3aa438c53c5c1dae7c273e6716ce3aef09b17dce210d6f9d495c8f3"
+      },
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py clock INT reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py clock INT candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py clock-setup INT\n",
+      "setup_timeout": 12,
+      "files": {
+        "clock-INT.sh": "trap 'printf \"handler=INT\\n\"' INT\nprintf \"armed\\n\"\nbashclock sleep 2\nr=$?\nprintf \"sleep-status=%s\\nshell-continued\\n\" \"$r\"\n"
+      },
+      "oracle": "Independent libc clock_nanosleep called through ctypes, with errno deliberately set to ENOTTY, plus a real owned-child signal or the same stateless EINVAL filter. The API returns an error number without setting errno. The Bash contract requires return failure on EINTR, no spurious diagnostic, honouring handlers/SIGINT; other errors require the text of the returned error. This is an explicit API contract comparison, not a claim that GNU bash has a bashclock builtin.",
+      "comparison": "Explicit semantic/status/elapsed/diagnostic checks versus an independent libc control. Native return number, errno sentinel, syscall samples, signal time and unmodified stdout/stderr are separate diagnostic artifacts; mismatches return 1.",
+      "diagnostic_files": [
+        "setup-control.stdout",
+        "setup-control.stderr",
+        "setup-control.json",
+        "setup-observations.json",
+        "setup-native.json",
+        "errno-control.json",
+        "clock.stdout",
+        "clock.stderr",
+        "clock.json",
+        "native.json",
+        "observations.json"
+      ]
+    },
+    {
+      "id": "migration-terminal-next-clock-einval",
+      "loadable": "bashclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "A stateless inherited seccomp RET_ERRNO rule makes clock_nanosleep fail with EINVAL. Assert status 1, prompt return and the Invalid argument diagnostic, preserving raw stderr. An independent setup control proves libc returns +EINVAL without setting errno, and a raw syscall returns -1 with errno EINVAL under the same filter.",
+      "expected_status": 0,
+      "stdout": "clock-controller-exit-zero=PASS\nsleep-returned-failure-one=PASS\nshell-continued=PASS\nclock-stdout-exact=PASS\ndiagnostic-is-EINVAL-text=PASS\nerror-before-one-second=PASS\n",
+      "stderr": "",
+      "covers": [
+        "bashclock/sleep_interruption_errors"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "timeout": 25,
+      "helpers_sha256": {
+        "helpers/terminal-review-observer.py": "6aea0d99c3aa438c53c5c1dae7c273e6716ce3aef09b17dce210d6f9d495c8f3",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py clock EINVAL reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py clock EINVAL candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review-observer.py clock-setup EINVAL\n",
+      "setup_timeout": 12,
+      "files": {
+        "clock-EINVAL.sh": "printf \"armed\\n\"\nbashclock sleep 2\nr=$?\nprintf \"sleep-status=%s\\nshell-continued\\n\" \"$r\"\n"
+      },
+      "oracle": "Independent libc clock_nanosleep called through ctypes, with errno deliberately set to ENOTTY, plus a real owned-child signal or the same stateless EINVAL filter. The API returns an error number without setting errno. The Bash contract requires return failure on EINTR, no spurious diagnostic, honouring handlers/SIGINT; other errors require the text of the returned error. This is an explicit API contract comparison, not a claim that GNU bash has a bashclock builtin.",
+      "comparison": "Explicit semantic/status/elapsed/diagnostic checks versus an independent libc control. Native return number, errno sentinel, syscall samples, signal time and unmodified stdout/stderr are separate diagnostic artifacts; mismatches return 1.",
+      "diagnostic_files": [
+        "setup-control.stdout",
+        "setup-control.stderr",
+        "setup-control.json",
+        "setup-observations.json",
+        "setup-native.json",
+        "errno-control.json",
+        "clock.stdout",
+        "clock.stderr",
+        "clock.json",
+        "native.json",
+        "observations.json"
+      ]
+    }
+  ]
+}

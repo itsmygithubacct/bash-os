@@ -166,9 +166,34 @@
     },
     {
       "id": "interactive_terminal_editing",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Interactive readline and terminal rendering are distinct from the covered piped-program interface.",
-      "reason": "The PTY cases exist and ran. The candidate bc has no interactive or readline mode (loadables/bc.c reads all input before executing and has no isatty or readline path), so r1-r3 fail. Rendering and history are unasserted."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terminal-next-bc-history"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-next-bc-quit"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-next-bc-render"
+        },
+        {
+          "group": "terminal",
+          "id": "bc-interrupt-continues"
+        },
+        {
+          "group": "terminal",
+          "id": "bc-readline-edit"
+        },
+        {
+          "group": "terminal",
+          "id": "bc-terminal-expression"
+        }
+      ]
     },
     {
       "id": "missing_named_file_gnu_difference",

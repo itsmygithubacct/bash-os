@@ -82,9 +82,22 @@
     },
     {
       "id": "sleep_interruption_errors",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check clock_nanosleep EINTR handling and non-EINTR syscall error diagnostics.",
-      "reason": "EINTR is observable now, and a distinct clock_nanosleep failure is reachable with a stateless per-side seccomp RET_ERRNO filter. Neither needs a new driver."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terminal-next-clock-einval"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-next-clock-int"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-next-clock-usr1"
+        }
+      ]
     },
     {
       "id": "since-missing",
