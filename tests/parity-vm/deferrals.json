@@ -14118,40 +14118,152 @@
         "purpose": "Validate full frames, damage patches, scroll composition, synchronization, terminal rejection/fallback, and shared-memory cleanup for inline and shared-memory transports.",
         "reason": "A future disposable VM needs a bounded PTY terminal peer implementing the Kitty graphics protocol and private shared-memory acknowledgements. The current declarative runner supplies no PTY peer, and no real terminal is within scope."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Never executed. The obligations are observable with an ordinary unprivileged fixture: gpu accepts --tty PATH (gpu.c:721), and a trusted python3 helper can own a pty pair, act as the Kitty peer and decode payloads.",
+      "current_reason": "Remaining obligations: r4: Wrong-ID-then-matching probe remains withheld; unrelated-ID rejection is not independently reached.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "inline transport: start probes with a=q,t=d and present sends full frames as a=t,t=d chunks (m=1/0) that decode to the canvas RGBA",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Never executed. The PTY driver's answer_queries does not reply to Kitty APC queries (terminal.py Screen.answer_queries), so start fails before presenting."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-inline-chunked-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Inline a=q handshake, a=t RGBA32 two-chunk m=1/0 frame, exact asymmetric canvas bytes, q2 suppression and synchronized boundaries.",
+              "definition_sha256": "7ff43418eef06eec0337193f2593b5a79293d7dd834384c711b1f8a755f9666f"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "damage patches send only changed rectangles; scroll composes correctly",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-damage-noop-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: After initial frame, only changed3x2 rectangle at2,4 transfers as frame1 a=f; repeat unchanged present transfers no pixel payload. Exact before/after pixels, saved RGBA and sync boundaries.",
+              "definition_sha256": "9bf3df894e6d253cd94d859a66dd9411297115955a82b6ab5c7b667398758498"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-scroll-patch-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Bounded scroll2,1 inside rectangle2,2,8,6; ordinary damage path composes the expected pixels without a=c.",
+              "definition_sha256": "cf85eba8b096a7c4b306f63ab818a634195d32b76898f72f13eefbfd807e68f0"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-scroll-compose-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Bounded scroll2,1 inside rectangle2,2,8,6; Kilix a=c intermediate image is asserted before later damage can overwrite it.",
+              "definition_sha256": "5895e1894b6e02430455814f3eb01ffcb2d84e4191e2734c3b03f529c120abb6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "shm transport: t=s with a POSIX shm name; the peer reads the shm object; objects are unlinked after acknowledgement and on stop",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same; the peer also needs /dev/shm access (the VM mounts a private /dev/shm tmpfs per case)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-shm-consume-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: POSIX shm: real object ownership/mode/size and exact RGBA read; standards-compliant peer consumes and unlinks each object as acknowledgement.",
+              "definition_sha256": "98dee15356ff032f26851442ca784246dd9f921badedc733d8f99e456481357d"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-shm-query-ack-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: POSIX shm: real object ownership/mode/size and exact RGBA read; probe object retained until text acknowledgement so candidate unlink is independently observed.",
+              "definition_sha256": "0ffece18453c1dcbcc694ca4bf01cf4d5452a0d82d0808e291ea5c70b1918322"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-shm-stop-cleanup-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: POSIX shm: real object ownership/mode/size and exact RGBA read; presentation object retained through stop to test candidate cleanup after abandoned acknowledgement.",
+              "definition_sha256": "7313fa5a041776529016f376c9a6713007fb9a33a04bfc97632f9685b9fe62ad"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-shm-ring-fallback-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Hold three owned presentation shm slots, force fourth full frame to inline fallback, validate all four frames and bounded object ring, then candidate stop must unlink all three.",
+              "definition_sha256": "bcdd40e0c713ab802563f3a6b72ad9804391f001fb7a09d37981660ec2d0aa6b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "synchronization and acknowledgements (q=2 suppression, error replies) are handled; a rejecting terminal causes fallback or the documented error",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-inline-chunked-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Inline a=q handshake, a=t RGBA32 two-chunk m=1/0 frame, exact asymmetric canvas bytes, q2 suppression and synchronized boundaries.",
+              "definition_sha256": "7ff43418eef06eec0337193f2593b5a79293d7dd834384c711b1f8a755f9666f"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-damage-noop-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: After initial frame, only changed3x2 rectangle at2,4 transfers as frame1 a=f; repeat unchanged present transfers no pixel payload. Exact before/after pixels, saved RGBA and sync boundaries.",
+              "definition_sha256": "9bf3df894e6d253cd94d859a66dd9411297115955a82b6ab5c7b667398758498"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-shm-consume-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: POSIX shm: real object ownership/mode/size and exact RGBA read; standards-compliant peer consumes and unlinks each object as acknowledgement.",
+              "definition_sha256": "98dee15356ff032f26851442ca784246dd9f921badedc733d8f99e456481357d"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-shm-query-ack-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: POSIX shm: real object ownership/mode/size and exact RGBA read; probe object retained until text acknowledgement so candidate unlink is independently observed.",
+              "definition_sha256": "0ffece18453c1dcbcc694ca4bf01cf4d5452a0d82d0808e291ea5c70b1918322"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-shm-stop-cleanup-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: POSIX shm: real object ownership/mode/size and exact RGBA read; presentation object retained through stop to test candidate cleanup after abandoned acknowledgement.",
+              "definition_sha256": "7313fa5a041776529016f376c9a6713007fb9a33a04bfc97632f9685b9fe62ad"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-shm-ring-fallback-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Hold three owned presentation shm slots, force fourth full frame to inline fallback, validate all four frames and bounded object ring, then candidate stop must unlink all three.",
+              "definition_sha256": "bcdd40e0c713ab802563f3a6b72ad9804391f001fb7a09d37981660ec2d0aa6b"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-auto-inline-fallback-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Reject shm query with exact error reply; auto must try inline and show the exact full frame with restored probe modes.",
+              "definition_sha256": "40ebe9e40a6b14802e3731f45160ce1f4401ef26490aab73cbd09d173d1aa3f9"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-reject-inline-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Failed start is reached; no later canvas, present, or input is claimed. Original scenario: Reject explicit inline query; start must report terminal rejection and return1, restore probe termios, leak no object and enter no fullscreen session.",
+              "definition_sha256": "016ac5d28df9e7e26bc9f69506cdb9002506ed46306a1299d44de18ac92f6128"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-reject-shm-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Failed start is reached; no later canvas, present, or input is claimed. Original scenario: Reject explicit shm query; start must report terminal rejection and return1, restore probe termios, leak no object and enter no fullscreen session.",
+              "definition_sha256": "5a34b5591111b2697fa988019994a646e7557a877080305beec8239e90798579"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-input-late-probe-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: After rejected shm and accepted inline probe, inject obsolete shm reply during the next real input poll; it must be consumed as a reply and native key X must remain the single input event.",
+              "definition_sha256": "f2332c3200f0cbd2c7f41f8c0cedaa4ab7d54db985e8728ccbe686b61d9a32e7"
+            }
+          ],
+          "gap": "Wrong-ID-then-matching probe remains withheld; unrelated-ID rejection is not independently reached."
         }
       ],
-      "notes": "Source: gpu.c:354-414 (shm/probe), 560-660 (patches), 690-760 (start/probe errors). Do not set TMUX/SSH_* (they change the probe path). Alternative to the helper: extend terminal.py answer_queries with a Kitty responder. The helper keeps the driver unchanged."
+      "notes": "Coverage means the original bounded obligation was reached and independently reviewed on both builds; retained FAIL outcomes remain FAIL. Existing legacy and earlier companions are preserved. See private raw review and explicit gaps."
     },
     {
       "topic": "gpu/terminal-input-and-restoration",
@@ -14161,54 +14273,162 @@
         "purpose": "Validate key, UTF-8, mouse, resize, and timeout event decoding plus restoration of terminal settings on return and failure.",
         "reason": "A future disposable VM needs a PTY driver that sends deterministic event sequences and independently checks variable bindings, timeouts, and termios restoration. The current runner has no controllable terminal fixture."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Never executed. Everything is observable unprivileged with the Kitty-peer pty helper, or with a terminal.py Kitty responder plus ordinary PTY sends.",
+      "current_reason": "Remaining obligations: r6: A readonly binding error was reached but incorrectly returned success, so a non-timeout error-return path is not established.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "gpu input VAR TIMEOUT binds key events: arrows, HOME/END, INSERT/DELETE, PAGEUP/PAGEDOWN, ENTER, TAB, BACKSPACE, CTRL-x, plain ESC",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Never executed; it needs a started terminal session (Kitty probe answered)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-input-keys-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Each required CSI key, both Enter/Backspace byte forms, Tab, CTRL-X and plain ESC is supplied only during actual owned-TTY poll. Bind exact event strings and verify termios after every call; fullscreen stop restores alternate screen/cursor/mouse.",
+              "definition_sha256": "5f856bc0a4ae5a9dbbbf968aa53f321b06c1b5ea67fe3f6f042f1b48edb9d5e4"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-input-late-probe-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: After rejected shm and accepted inline probe, inject obsolete shm reply during the next real input poll; it must be consumed as a reply and native key X must remain the single input event.",
+              "definition_sha256": "f2332c3200f0cbd2c7f41f8c0cedaa4ab7d54db985e8728ccbe686b61d9a32e7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "UTF-8 multi-byte input binds as one event and invalid continuations fall back to one byte",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-input-utf8-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Two/three/four-byte valid UTF8 inputs each bind as a single exact byte event, with readiness and per-call termios checks.",
+              "definition_sha256": "a208615e0efde0c1f406b82283ec65df7f6c55fbd2ade08c882cb35987991891"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-input-invalid-continuation-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Malformed UTF8 continuation falls back to exactly one leading byte; the remaining ASCII byte is bound by a separate subsequent call without another input write.",
+              "definition_sha256": "127f3cac740577f2ca5cd6b3c553ac951b62e877ee3f82ca68ef98aa67977ecd"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "SGR mouse CSI < b;x;y M/m binds MOUSE:down|up:b:x:y",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-input-mouse-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Decode SGR mouse press/release and nonzero button coordinates from exact wire bytes; verify modes restored after each call.",
+              "definition_sha256": "78174e27ade06f075f283f16f3df29abc105e33b9309fa4e3f4a565269e97560"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "a window-size change is reported as RESIZE:cols:rows:xpix:ypix before reading keys",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same. The driver resize sets pixels to 0, while the helper can set pixel sizes with TIOCSWINSZ."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-input-resize-priority-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Change all four winsize fields, queue X before input, require RESIZE:37:11:370:220 first and X second without another write; preserves original modes.",
+              "definition_sha256": "3e7181a383e3f412356548e450c9704ad5f2010514da3ca87590955bb72284cf"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "timeout returns status 1 and binds an empty event",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-input-timeout-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: With no supplied bytes, real200ms poll returns1, binds empty over stale value, records elapsed interval and restores original termios before fullscreen stop.",
+              "definition_sha256": "cd3467025c69ddb777c4f835123d8106f18cfcf38bcf4b1c7aefb0c806a6696a"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "termios is restored after every input call, both on return and on timeout or failure, and fullscreen stop restores the alternate screen, cursor and mouse modes",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-reject-inline-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Failed start is reached; no later canvas, present, or input is claimed. Original scenario: Reject explicit inline query; start must report terminal rejection and return1, restore probe termios, leak no object and enter no fullscreen session.",
+              "definition_sha256": "016ac5d28df9e7e26bc9f69506cdb9002506ed46306a1299d44de18ac92f6128"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-reject-shm-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Failed start is reached; no later canvas, present, or input is claimed. Original scenario: Reject explicit shm query; start must report terminal rejection and return1, restore probe termios, leak no object and enter no fullscreen session.",
+              "definition_sha256": "5a34b5591111b2697fa988019994a646e7557a877080305beec8239e90798579"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-input-keys-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Each required CSI key, both Enter/Backspace byte forms, Tab, CTRL-X and plain ESC is supplied only during actual owned-TTY poll. Bind exact event strings and verify termios after every call; fullscreen stop restores alternate screen/cursor/mouse.",
+              "definition_sha256": "5f856bc0a4ae5a9dbbbf968aa53f321b06c1b5ea67fe3f6f042f1b48edb9d5e4"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-input-utf8-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Two/three/four-byte valid UTF8 inputs each bind as a single exact byte event, with readiness and per-call termios checks.",
+              "definition_sha256": "a208615e0efde0c1f406b82283ec65df7f6c55fbd2ade08c882cb35987991891"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-input-invalid-continuation-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Malformed UTF8 continuation falls back to exactly one leading byte; the remaining ASCII byte is bound by a separate subsequent call without another input write.",
+              "definition_sha256": "127f3cac740577f2ca5cd6b3c553ac951b62e877ee3f82ca68ef98aa67977ecd"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-input-mouse-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Decode SGR mouse press/release and nonzero button coordinates from exact wire bytes; verify modes restored after each call.",
+              "definition_sha256": "78174e27ade06f075f283f16f3df29abc105e33b9309fa4e3f4a565269e97560"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-input-resize-priority-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: Change all four winsize fields, queue X before input, require RESIZE:37:11:370:220 first and X second without another write; preserves original modes.",
+              "definition_sha256": "3e7181a383e3f412356548e450c9704ad5f2010514da3ca87590955bb72284cf"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-input-timeout-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: With no supplied bytes, real200ms poll returns1, binds empty over stale value, records elapsed interval and restores original termios before fullscreen stop.",
+              "definition_sha256": "cd3467025c69ddb777c4f835123d8106f18cfcf38bcf4b1c7aefb0c806a6696a"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-input-bind-failure-audit121-r3",
+              "assertion": "Reached on both builds. The readonly event variable remains STALE and the shell reports the binding error, but the input phase returns 0 where the reference requires 1. Termios and final fullscreen modes are nevertheless restored. Original scenario: After real key input, readonly event binding fails with status1 and unchanged STALE value; original termios must already be restored and fullscreen stop must restore modes.",
+              "definition_sha256": "162d906d865d5caf0ed837a1c04558a97362d79136e69b2fa8c5ad0888410cef"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-input-late-probe-audit121-r3",
+              "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: After rejected shm and accepted inline probe, inject obsolete shm reply during the next real input poll; it must be consumed as a reply and native key X must remain the single input event.",
+              "definition_sha256": "f2332c3200f0cbd2c7f41f8c0cedaa4ab7d54db985e8728ccbe686b61d9a32e7"
+            }
+          ],
+          "gap": "A readonly binding error was reached but incorrectly returned success, so a non-timeout error-return path is not established."
         }
       ],
-      "notes": "Source: gpu.c:814-886 (bg_input), 760-766 (fullscreen modes). This is a contract; there is no GNU equivalent."
+      "notes": "Coverage means the original bounded obligation was reached and independently reviewed on both builds; retained FAIL outcomes remain FAIL. Existing legacy and earlier companions are preserved. See private raw review and explicit gaps."
     },
     {
       "topic": "halt/default_dispatch",
@@ -18404,28 +18624,103 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Byte framing is independently verified, but no consumer exists that interprets Kitty graphics APCs and reports rendered pixels and cursor movement.",
+      "current_reason": "Remaining obligations: r1: No real independent Kitty-compatible terminal acceptance/error reply was observed.; r2: Actual rendered pixels and cell geometry on a real Kitty-compatible terminal remain unobserved.; r3: Actual cursor motion in a real Kitty-compatible terminal remains unobserved.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A Kitty-compatible terminal accepts the emitted APC graphics commands (no protocol error reply)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires a Kitty graphics protocol consumer. pyte 0.8.0 (the PTY driver decoder) does not implement APC graphics, and the reference image has no kitty or other graphics-capable emulator."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-kitty-placement-audit121-r3",
+              "assertion": "Reached on both builds. Actual APC framing and RGB image bytes match the frozen PNG; geometry and cursor are observations of the finite software consumer only. Original scenario: Actual Kitty APC is consumed through an owned PTY: placement; strict RGB24 payload and grammar, q2 quiet acceptance, exact1:1 cell/pixel placement and protocol cursor movement.",
+              "definition_sha256": "3debc9c83cab025a84cc9c95b21cf051e9b4f162eca7f43e45c8d9c28dcbfa29"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-kitty-static-cursor-audit121-r3",
+              "assertion": "Reached on both builds. Actual APC framing and RGB image bytes match the frozen PNG; geometry and cursor are observations of the finite software consumer only. Original scenario: Actual Kitty APC is consumed through an owned PTY: static-cursor; strict RGB24 payload and grammar, q2 quiet acceptance, exact1:1 cell/pixel placement and protocol cursor movement.",
+              "definition_sha256": "ce9a9f50197d3522c4f4c6cca470bd72a95bdca1f1c29b356b9ee3a3acd5ea5a"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-kitty-tmux-consumer-audit121-r3",
+              "assertion": "Reached on both builds. Actual APC framing and RGB image bytes match the frozen PNG; geometry and cursor are observations of the finite software consumer only. Original scenario: Actual Kitty APC is consumed through an owned PTY: tmux-consumer; strict RGB24 payload and grammar, q2 quiet acceptance, exact1:1 cell/pixel placement and protocol cursor movement.",
+              "definition_sha256": "2701503d6445635c5b0aec2fc8b1130d12213011216e807c1dc5da3a27c9b942"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-kitty-chunked-placement-audit121-r3",
+              "assertion": "Reached on both builds. Actual APC framing and RGB image bytes match the frozen PNG; geometry and cursor are observations of the finite software consumer only. Original scenario: Actual Kitty APC is consumed through an owned PTY: chunked-placement; strict RGB24 payload and grammar, q2 quiet acceptance, exact1:1 cell/pixel placement and protocol cursor movement.",
+              "definition_sha256": "9f994c2a22d20faba9f4af43b39be3cd1b280f658735f8a6c21c13d3e864b96a"
+            }
+          ],
+          "gap": "No real independent Kitty-compatible terminal acceptance/error reply was observed."
         },
         {
           "id": "r2",
           "behavior": "The rendered placement shows the expected pixels/cell geometry for the generated image",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same capability: an image decoder that applies a=T/f=24/s/v/c/r controls and reports pixels per cell."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-kitty-placement-audit121-r3",
+              "assertion": "Reached on both builds. Actual APC framing and RGB image bytes match the frozen PNG; geometry and cursor are observations of the finite software consumer only. Original scenario: Actual Kitty APC is consumed through an owned PTY: placement; strict RGB24 payload and grammar, q2 quiet acceptance, exact1:1 cell/pixel placement and protocol cursor movement.",
+              "definition_sha256": "3debc9c83cab025a84cc9c95b21cf051e9b4f162eca7f43e45c8d9c28dcbfa29"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-kitty-static-cursor-audit121-r3",
+              "assertion": "Reached on both builds. Actual APC framing and RGB image bytes match the frozen PNG; geometry and cursor are observations of the finite software consumer only. Original scenario: Actual Kitty APC is consumed through an owned PTY: static-cursor; strict RGB24 payload and grammar, q2 quiet acceptance, exact1:1 cell/pixel placement and protocol cursor movement.",
+              "definition_sha256": "ce9a9f50197d3522c4f4c6cca470bd72a95bdca1f1c29b356b9ee3a3acd5ea5a"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-kitty-tmux-consumer-audit121-r3",
+              "assertion": "Reached on both builds. Actual APC framing and RGB image bytes match the frozen PNG; geometry and cursor are observations of the finite software consumer only. Original scenario: Actual Kitty APC is consumed through an owned PTY: tmux-consumer; strict RGB24 payload and grammar, q2 quiet acceptance, exact1:1 cell/pixel placement and protocol cursor movement.",
+              "definition_sha256": "2701503d6445635c5b0aec2fc8b1130d12213011216e807c1dc5da3a27c9b942"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-kitty-chunked-placement-audit121-r3",
+              "assertion": "Reached on both builds. Actual APC framing and RGB image bytes match the frozen PNG; geometry and cursor are observations of the finite software consumer only. Original scenario: Actual Kitty APC is consumed through an owned PTY: chunked-placement; strict RGB24 payload and grammar, q2 quiet acceptance, exact1:1 cell/pixel placement and protocol cursor movement.",
+              "definition_sha256": "9f994c2a22d20faba9f4af43b39be3cd1b280f658735f8a6c21c13d3e864b96a"
+            }
+          ],
+          "gap": "Actual rendered pixels and cell geometry on a real Kitty-compatible terminal remain unobserved."
         },
         {
           "id": "r3",
           "behavior": "Cursor position after placement follows the protocol (moved past the image, or unmoved with C=1)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same capability; the pyte cursor ignores APC."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-kitty-placement-audit121-r3",
+              "assertion": "Reached on both builds. Actual APC framing and RGB image bytes match the frozen PNG; geometry and cursor are observations of the finite software consumer only. Original scenario: Actual Kitty APC is consumed through an owned PTY: placement; strict RGB24 payload and grammar, q2 quiet acceptance, exact1:1 cell/pixel placement and protocol cursor movement.",
+              "definition_sha256": "3debc9c83cab025a84cc9c95b21cf051e9b4f162eca7f43e45c8d9c28dcbfa29"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-kitty-static-cursor-audit121-r3",
+              "assertion": "Reached on both builds. Actual APC framing and RGB image bytes match the frozen PNG; geometry and cursor are observations of the finite software consumer only. Original scenario: Actual Kitty APC is consumed through an owned PTY: static-cursor; strict RGB24 payload and grammar, q2 quiet acceptance, exact1:1 cell/pixel placement and protocol cursor movement.",
+              "definition_sha256": "ce9a9f50197d3522c4f4c6cca470bd72a95bdca1f1c29b356b9ee3a3acd5ea5a"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-kitty-tmux-consumer-audit121-r3",
+              "assertion": "Reached on both builds. Actual APC framing and RGB image bytes match the frozen PNG; geometry and cursor are observations of the finite software consumer only. Original scenario: Actual Kitty APC is consumed through an owned PTY: tmux-consumer; strict RGB24 payload and grammar, q2 quiet acceptance, exact1:1 cell/pixel placement and protocol cursor movement.",
+              "definition_sha256": "2701503d6445635c5b0aec2fc8b1130d12213011216e807c1dc5da3a27c9b942"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-kitty-chunked-placement-audit121-r3",
+              "assertion": "Reached on both builds. Actual APC framing and RGB image bytes match the frozen PNG; geometry and cursor are observations of the finite software consumer only. Original scenario: Actual Kitty APC is consumed through an owned PTY: chunked-placement; strict RGB24 payload and grammar, q2 quiet acceptance, exact1:1 cell/pixel placement and protocol cursor movement.",
+              "definition_sha256": "9f994c2a22d20faba9f4af43b39be3cd1b280f658735f8a6c21c13d3e864b96a"
+            }
+          ],
+          "gap": "Actual cursor motion in a real Kitty-compatible terminal remains unobserved."
         },
         {
           "id": "r4",
@@ -18449,12 +18744,36 @@
               "id": "legacy/kitty/tmux-auto-framing",
               "assertion": "tmux DCS passthrough framing",
               "definition_sha256": "c7918746f2aea480934b2447361ae727389b7409daa406f8479dd8b4eafe0d3e"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-kitty-placement-audit121-r3",
+              "assertion": "Reached on both builds. Actual APC framing and RGB image bytes match the frozen PNG; geometry and cursor are observations of the finite software consumer only. Original scenario: Actual Kitty APC is consumed through an owned PTY: placement; strict RGB24 payload and grammar, q2 quiet acceptance, exact1:1 cell/pixel placement and protocol cursor movement.",
+              "definition_sha256": "3debc9c83cab025a84cc9c95b21cf051e9b4f162eca7f43e45c8d9c28dcbfa29"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-kitty-static-cursor-audit121-r3",
+              "assertion": "Reached on both builds. Actual APC framing and RGB image bytes match the frozen PNG; geometry and cursor are observations of the finite software consumer only. Original scenario: Actual Kitty APC is consumed through an owned PTY: static-cursor; strict RGB24 payload and grammar, q2 quiet acceptance, exact1:1 cell/pixel placement and protocol cursor movement.",
+              "definition_sha256": "ce9a9f50197d3522c4f4c6cca470bd72a95bdca1f1c29b356b9ee3a3acd5ea5a"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-kitty-tmux-consumer-audit121-r3",
+              "assertion": "Reached on both builds. Actual APC framing and RGB image bytes match the frozen PNG; geometry and cursor are observations of the finite software consumer only. Original scenario: Actual Kitty APC is consumed through an owned PTY: tmux-consumer; strict RGB24 payload and grammar, q2 quiet acceptance, exact1:1 cell/pixel placement and protocol cursor movement.",
+              "definition_sha256": "2701503d6445635c5b0aec2fc8b1130d12213011216e807c1dc5da3a27c9b942"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-kitty-chunked-placement-audit121-r3",
+              "assertion": "Reached on both builds. Actual APC framing and RGB image bytes match the frozen PNG; geometry and cursor are observations of the finite software consumer only. Original scenario: Actual Kitty APC is consumed through an owned PTY: chunked-placement; strict RGB24 payload and grammar, q2 quiet acceptance, exact1:1 cell/pixel placement and protocol cursor movement.",
+              "definition_sha256": "9f994c2a22d20faba9f4af43b39be3cd1b280f658735f8a6c21c13d3e864b96a"
             }
           ],
           "gap": ""
         }
       ],
-      "notes": "loadables/kitty.c emits q=2 quiet mode, so no terminal reply is expected. An actual kitty or wezterm binary in the VM would also need a headless renderer; a Python decoder in the harness is the smaller, reviewable route."
+      "notes": "Coverage means the original bounded obligation was reached and independently reviewed on both builds; retained FAIL outcomes remain FAIL. Existing legacy and earlier companions are preserved. See private raw review and explicit gaps."
     },
     {
       "topic": "ldap/deferred-bind-whoami",
@@ -38119,54 +38438,100 @@
         "purpose": "Qualify the isatty and TIOCGWINSZ sizing branches with a controlled terminal, including default width, --full width, explicit width, and height-fit behavior.",
         "reason": "The supplied runner redirects stdout to a regular file, so it cannot exercise tiv's TTY-dependent behavior. A future disposable Linux VM or PTY harness must attach a controlling PTY, set known TIOCSWINSZ dimensions, feed a small asymmetric PNG, and assert output rows/columns and the documented rows-minus-one height fit without touching host terminals."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Never executed on a PTY. The PTY driver (size field, screen rows, raw-byte expect) can observe all of it; no new capability.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "On a TTY with no -w, the output width equals the terminal width (TIOCGWINSZ ws_col).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; the PTY driver sets the size."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-tiv-tty-default-audit121-r3",
+              "assertion": "Reached on both builds. The complete output bytes match an independently decoded PNG and area-average half-block reconstruction at the frozen geometry. Original scenario: Independent PNG RGB half-block dimensions and exact cells: tty-default",
+              "definition_sha256": "6a0459abd5d702875e76d8a23d6bbd36e530b6fcf3349a4bfc5f9d75bf6ba226"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "--full uses the full terminal width.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-tiv-tty-full-audit121-r3",
+              "assertion": "Reached on both builds. The complete output bytes match an independently decoded PNG and area-average half-block reconstruction at the frozen geometry. Original scenario: Independent PNG RGB half-block dimensions and exact cells: tty-full",
+              "definition_sha256": "5a052decde0fcb604e9ff851bfebb4b9b60fa6ebf76495549de56608f5916a68"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "An explicit -w N overrides the terminal width.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-tiv-tty-explicit-audit121-r3",
+              "assertion": "Reached on both builds. The complete output bytes match an independently decoded PNG and area-average half-block reconstruction at the frozen geometry. Original scenario: Independent PNG RGB half-block dimensions and exact cells: tty-explicit",
+              "definition_sha256": "3b248f9841691d13ba33422afb734499de9ce2a3279a938071fd8688e2ee2531"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-tiv-tty-explicit-height-audit121-r3",
+              "assertion": "Reached on both builds. The complete output bytes match an independently decoded PNG and area-average half-block reconstruction at the frozen geometry. Original scenario: Independent PNG RGB half-block dimensions and exact cells: tty-explicit-height",
+              "definition_sha256": "b8ba6fa1849d60f8360900d6b7cab9efe5f355c59786a1c77e106fad761e7c07"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Height fit: when the image would need more than rows-1 text rows and -H is absent, output is limited to rows-1 rows and the width shrinks to keep the aspect ratio.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-tiv-tty-height-fit-audit121-r3",
+              "assertion": "Reached on both builds. On a 5-row by 10-column TTY, four output rows each contain 4 cells; the independent 4-by-2 expected geometry is not met. Original scenario: Independent PNG RGB half-block dimensions and exact cells: tty-height-fit",
+              "definition_sha256": "8ca1d13d11a13b82342cdbb7dedcc087447a555d51effdd0f143e349df0d34f1"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-tiv-tty-explicit-height-audit121-r3",
+              "assertion": "Reached on both builds. The complete output bytes match an independently decoded PNG and area-average half-block reconstruction at the frozen geometry. Original scenario: Independent PNG RGB half-block dimensions and exact cells: tty-explicit-height",
+              "definition_sha256": "b8ba6fa1849d60f8360900d6b7cab9efe5f355c59786a1c77e106fad761e7c07"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Non-TTY output defaults to width 80 (already the redirected behavior).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/tiv/truecolor-half-block",
               "assertion": "explicit -w/-H rendering to a redirected file",
               "definition_sha256": "732b5ada23be1090d2e3b5e2c02e28e12755300bc2285e40fe49a9a4f6e68e31"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-tiv-redirected-default-audit121-r3",
+              "assertion": "Reached on both builds. The complete output bytes match an independently decoded PNG and area-average half-block reconstruction at the frozen geometry. Original scenario: Independent PNG RGB half-block dimensions and exact cells: redirected-default",
+              "definition_sha256": "fda8ba508b57b22679216a736f3b9bfd6ff1299d6cacf3ea6ea1a0a822092af9"
             }
           ],
-          "gap": "Only explicit dimensions to a file."
+          "gap": ""
         }
       ],
-      "notes": "tiv.c 244-245 (TIOCGWINSZ on stdout), 349-362 (width and height formulas). The expectations must be derived from the doc and formula before any candidate run."
+      "notes": "Coverage means the original bounded obligation was reached and independently reviewed on both builds; retained FAIL outcomes remain FAIL. Existing legacy and earlier companions are preserved. See private raw review and explicit gaps."
     },
     {
       "topic": "tiv/unicode-terminal-display",
@@ -41060,14 +41425,14 @@
         "purpose": "Compare broader parser behavior across VT100/xterm control-sequence classes against an independent terminal implementation.",
         "reason": "No matching GNU CLI or independently pinned xterm/VT100 transcript oracle is available here. A future disposable VM should supply a reviewed reference transcript corpus (or pinned independent emulator) and compare bounded parser outputs; candidate output must not seed those expectations."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "No external conformance comparison ran. An independent pinned emulator exists in the VM: python3-pyte 0.8.0 (already the driver's decoder). A per-side script parity case can compare the vt render with the pyte render of the same corpus. The old 'no independent oracle' reason is stale for the sequence classes pyte models.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Cursor-movement, erase (ED/EL), scroll-region, insert/delete line and char, tab, wrap (DECAWM) and charset sequences give the same rendered grid as an independent emulator for a bounded corpus.",
-          "coverage": "missing",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -41080,47 +41445,156 @@
               "id": "legacy/vt/split-csi-feed",
               "assertion": "split CSI across feeds",
               "definition_sha256": "dfb95c781737e24627768cea2b13d4e1c6e7abb4b19ec4b39f4777732048b3b7"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-cursor-erase-audit121-r3",
+              "assertion": "Reached on both builds. Every retained candidate grid, cell attribute, cursor, size and response in the scenario matches the saved pyte stage data. Original scenario: Bounded independent pyte comparison: cursor-erase",
+              "definition_sha256": "0a1880cb288169f7a08c29c83280ae45d303efdd170f9a26a1b7f4f99588f3e6"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-scroll-region-audit121-r3",
+              "assertion": "Reached on both builds. Stages 2 and 3 have differing visible cells in the scroll region compared with pyte. Original scenario: Bounded independent pyte comparison: scroll-region",
+              "definition_sha256": "7b8c9a72e2a8f4a2d7327117495f6aafa5ea2613eec74fb9c71c81e4b13f27bc"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-insert-delete-lines-audit121-r3",
+              "assertion": "Reached on both builds. Every retained candidate grid, cell attribute, cursor, size and response in the scenario matches the saved pyte stage data. Original scenario: Bounded independent pyte comparison: insert-delete-lines",
+              "definition_sha256": "d3637c52c391d5f4d5daf3b2b46205282ff763606c1f2e5b685dc889912427f8"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-insert-delete-chars-audit121-r3",
+              "assertion": "Reached on both builds. Stages 2 and 3 differ from pyte in cell (row 0, column 10): candidate space versus reference k. Original scenario: Bounded independent pyte comparison: insert-delete-chars",
+              "definition_sha256": "a7ebd9d6bd0edc850bc3e399a351b405f21b65fafbcab3515fec2dd0a108d3d2"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-tab-wrap-audit121-r3",
+              "assertion": "Reached on both builds. Every retained candidate grid, cell attribute, cursor, size and response in the scenario matches the saved pyte stage data. Original scenario: Bounded independent pyte comparison: tab-wrap",
+              "definition_sha256": "34299e48f9812898e8d733bd2372bb97d5eb7a9f8d0495c2e987cd64aa47ff0e"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-charset-audit121-r3",
+              "assertion": "Reached on both builds. Every retained candidate grid, cell attribute, cursor, size and response in the scenario matches the saved pyte stage data. Original scenario: Bounded independent pyte comparison: charset",
+              "definition_sha256": "fa52ba8e89f991865fd6e81898f9c8063acbba2142d221915d5926c033ea07ed"
             }
           ],
-          "gap": "Only a few hand contracts; no independent-emulator comparison."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "SGR attribute and color state matches the independent emulator for each cell.",
-          "coverage": "missing",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/vt/sgr-color-encodings",
               "assertion": "helper encodings (not parser state)",
               "definition_sha256": "c0764ce4a5d7ae769b1bdeec1fe5690a33866d3667b82abc60a55bf04ee3f719"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-sgr-attributes-audit121-r3",
+              "assertion": "Reached on both builds. Every retained candidate grid, cell attribute, cursor, size and response in the scenario matches the saved pyte stage data. Original scenario: Bounded independent pyte comparison: sgr-attributes",
+              "definition_sha256": "24cfbafb501744acd9ddc0822651a801f1d060452408af96b044dc036ba07426"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-sgr-colors-audit121-r3",
+              "assertion": "Reached on both builds. Every retained candidate grid, cell attribute, cursor, size and response in the scenario matches the saved pyte stage data. Original scenario: Bounded independent pyte comparison: sgr-colors",
+              "definition_sha256": "81361ed8ef3e54b88135e873e999a18aef81c4949dc342f4edabc4bc3ad10c2b"
             }
           ],
-          "gap": "Rendered attribute comparison absent."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Replies (DA, DSR) match the independent emulator's replies.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/vt/dsr-cursor-reply",
               "assertion": "DSR 6 reply contract",
               "definition_sha256": "1128b7c87278115c5de546b7905e425a5c3d21d3a08fa18320239a1e4d097a21"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-da-dsr-audit121-r3",
+              "assertion": "Reached on both builds. DSR cursor/status replies agree; DA differs: candidate ESC[?1;2c, pyte ESC[?6c. Original scenario: Bounded independent pyte comparison: DA-DSR",
+              "definition_sha256": "aebf05ddc3bc941b1522f5bc43760ca96202d9bc9f354cf4c7f1cc060fec3b2b"
             }
           ],
-          "gap": "DA and other reports not compared."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "The expectations come from an independent implementation, never from candidate output.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No independent-emulator expectations exist yet. The current contracts are hand-derived for single sequences only."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-cursor-erase-audit121-r3",
+              "assertion": "Reached on both builds. Every retained candidate grid, cell attribute, cursor, size and response in the scenario matches the saved pyte stage data. Original scenario: Bounded independent pyte comparison: cursor-erase",
+              "definition_sha256": "0a1880cb288169f7a08c29c83280ae45d303efdd170f9a26a1b7f4f99588f3e6"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-scroll-region-audit121-r3",
+              "assertion": "Reached on both builds. Stages 2 and 3 have differing visible cells in the scroll region compared with pyte. Original scenario: Bounded independent pyte comparison: scroll-region",
+              "definition_sha256": "7b8c9a72e2a8f4a2d7327117495f6aafa5ea2613eec74fb9c71c81e4b13f27bc"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-insert-delete-lines-audit121-r3",
+              "assertion": "Reached on both builds. Every retained candidate grid, cell attribute, cursor, size and response in the scenario matches the saved pyte stage data. Original scenario: Bounded independent pyte comparison: insert-delete-lines",
+              "definition_sha256": "d3637c52c391d5f4d5daf3b2b46205282ff763606c1f2e5b685dc889912427f8"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-insert-delete-chars-audit121-r3",
+              "assertion": "Reached on both builds. Stages 2 and 3 differ from pyte in cell (row 0, column 10): candidate space versus reference k. Original scenario: Bounded independent pyte comparison: insert-delete-chars",
+              "definition_sha256": "a7ebd9d6bd0edc850bc3e399a351b405f21b65fafbcab3515fec2dd0a108d3d2"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-tab-wrap-audit121-r3",
+              "assertion": "Reached on both builds. Every retained candidate grid, cell attribute, cursor, size and response in the scenario matches the saved pyte stage data. Original scenario: Bounded independent pyte comparison: tab-wrap",
+              "definition_sha256": "34299e48f9812898e8d733bd2372bb97d5eb7a9f8d0495c2e987cd64aa47ff0e"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-charset-audit121-r3",
+              "assertion": "Reached on both builds. Every retained candidate grid, cell attribute, cursor, size and response in the scenario matches the saved pyte stage data. Original scenario: Bounded independent pyte comparison: charset",
+              "definition_sha256": "fa52ba8e89f991865fd6e81898f9c8063acbba2142d221915d5926c033ea07ed"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-sgr-attributes-audit121-r3",
+              "assertion": "Reached on both builds. Every retained candidate grid, cell attribute, cursor, size and response in the scenario matches the saved pyte stage data. Original scenario: Bounded independent pyte comparison: sgr-attributes",
+              "definition_sha256": "24cfbafb501744acd9ddc0822651a801f1d060452408af96b044dc036ba07426"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-sgr-colors-audit121-r3",
+              "assertion": "Reached on both builds. Every retained candidate grid, cell attribute, cursor, size and response in the scenario matches the saved pyte stage data. Original scenario: Bounded independent pyte comparison: sgr-colors",
+              "definition_sha256": "81361ed8ef3e54b88135e873e999a18aef81c4949dc342f4edabc4bc3ad10c2b"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-da-dsr-audit121-r3",
+              "assertion": "Reached on both builds. DSR cursor/status replies agree; DA differs: candidate ESC[?1;2c, pyte ESC[?6c. Original scenario: Bounded independent pyte comparison: DA-DSR",
+              "definition_sha256": "aebf05ddc3bc941b1522f5bc43760ca96202d9bc9f354cf4c7f1cc060fec3b2b"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/vt.c header lines 1-30 list the parser features. A NUL byte cannot pass through 'vt feed H BYTES' (a bash word), so feed-fd from a file is needed for NUL-containing sequences, or NUL is an explicit exclusion."
+      "notes": "Coverage means the original bounded obligation was reached and independently reviewed on both builds; retained FAIL outcomes remain FAIL. Existing legacy and earlier companions are preserved. See private raw review and explicit gaps."
     },
     {
       "topic": "vt/pty-client-integration",
@@ -41130,40 +41604,92 @@
         "purpose": "Exercise vt with a client connected to a pseudo-terminal, including terminal input forwarding and resize events.",
         "reason": "Requires a future disposable VM fixture with a private PTY driver and a client transcript that controls terminal size, sends input, and captures replies. The current bounded contract cases exercise only vt's in-memory feed/model interface."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Never executed. Implementable in the plain driver inside the VM: pty spawn allocates the PTY, the candidate shell is the client, and /usr/bin/stty size is an independent geometry observer.",
+      "current_reason": "Remaining obligations: r1: The client was created with Python os.openpty; the pty spawn builtin was never exercised.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "vt consumes a client's output from a PTY master (vt feed-fd on the master of a pty spawned child) and renders the client's screen.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-client-echo-audit121-r3",
+              "assertion": "Reached on both builds. The client PTY read/write and model observations match the fixed pyte comparison; the client uses os.openpty rather than the pty spawn builtin. Original scenario: Owned PTY master and cooperative native client: echo",
+              "definition_sha256": "b1e5e890462ee7a3e5eaec8b74a9b2850bbc3dec3e237b82a94d6f9d292f3ace"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-client-dsr-audit121-r3",
+              "assertion": "Reached on both builds. The client PTY read/write and model observations match the fixed pyte comparison; the client uses os.openpty rather than the pty spawn builtin. Original scenario: Owned PTY master and cooperative native client: dsr",
+              "definition_sha256": "2af3d2b116b493828baebb2ea18158c6c9ec8c0686ae7bcf38ad190131125e21"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-client-da-audit121-r3",
+              "assertion": "Reached on both builds. The client is sent and reads candidate DA ESC[?1;2c after its owned read readiness; pyte expects ESC[?6c. Original scenario: Owned PTY master and cooperative native client: da",
+              "definition_sha256": "58178dcb4d8f05b73328383a36c40ccf8a53e66b202f272197df289c1a63140f"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-client-resize-audit121-r3",
+              "assertion": "Reached on both builds. The client PTY read/write and model observations match the fixed pyte comparison; the client uses os.openpty rather than the pty spawn builtin. Original scenario: Owned PTY master and cooperative native client: resize",
+              "definition_sha256": "3ee936074f79d418e17e59fb4681012b9e42bfbde5047252f50786144e83d04d"
+            }
+          ],
+          "gap": "The client was created with Python os.openpty; the pty spawn builtin was never exercised."
         },
         {
           "id": "r2",
           "behavior": "Terminal input forwarding: bytes written to the master reach the client, whose echoed or processed result appears in the vt model.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-client-echo-audit121-r3",
+              "assertion": "Reached on both builds. The client PTY read/write and model observations match the fixed pyte comparison; the client uses os.openpty rather than the pty spawn builtin. Original scenario: Owned PTY master and cooperative native client: echo",
+              "definition_sha256": "b1e5e890462ee7a3e5eaec8b74a9b2850bbc3dec3e237b82a94d6f9d292f3ace"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Resize events: after resizing the PTY (pty resize) and the model (vt resize), the client observes SIGWINCH and the new TIOCGWINSZ, and the model geometry matches.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-client-resize-audit121-r3",
+              "assertion": "Reached on both builds. The client PTY read/write and model observations match the fixed pyte comparison; the client uses os.openpty rather than the pty spawn builtin. Original scenario: Owned PTY master and cooperative native client: resize",
+              "definition_sha256": "3ee936074f79d418e17e59fb4681012b9e42bfbde5047252f50786144e83d04d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Replies generated by the model (DSR/DA via vt response) are forwarded to the client and received.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-client-dsr-audit121-r3",
+              "assertion": "Reached on both builds. The client PTY read/write and model observations match the fixed pyte comparison; the client uses os.openpty rather than the pty spawn builtin. Original scenario: Owned PTY master and cooperative native client: dsr",
+              "definition_sha256": "2af3d2b116b493828baebb2ea18158c6c9ec8c0686ae7bcf38ad190131125e21"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-client-da-audit121-r3",
+              "assertion": "Reached on both builds. The client is sent and reads candidate DA ESC[?1;2c after its owned read readiness; pyte expects ESC[?6c. Original scenario: Owned PTY master and cooperative native client: da",
+              "definition_sha256": "58178dcb4d8f05b73328383a36c40ccf8a53e66b202f272197df289c1a63140f"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "vt.c verbs at lines 21-28. Check whether 'vt resize' exists as a verb (resize-clamps-cursor implies it); if not, the model resize is via vt new."
+      "notes": "Coverage means the original bounded obligation was reached and independently reviewed on both builds; retained FAIL outcomes remain FAIL. Existing legacy and earlier companions are preserved. See private raw review and explicit gaps."
     },
     {
       "topic": "w/live-procps-parity",
@@ -42348,7 +42874,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r5: A short write cannot be forced on a tty or /dev/full from an unprivileged fixture. It needs syscall fault injection (seccomp user-notify or ptrace), and LD_PRELOAD does not apply to the static candidate.; r6: The candidate takes a TTY path, not a user name. util-linux write (bsdextrautils in the VM) needs a utmp login record, which requires root (utmp group) provisioning.",
+      "current_reason": "Remaining obligations: r6: The candidate takes a TTY path, not a user name. util-linux write (bsdextrautils in the VM) needs a utmp login record, which requires root (utmp group) provisioning.",
       "requirements": [
         {
           "id": "r1",
@@ -42415,9 +42941,16 @@
         {
           "id": "r5",
           "behavior": "Partial (short) write handling.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "A short write cannot be forced on a tty or /dev/full from an unprivileged fixture. It needs syscall fault injection (seccomp user-notify or ptrace), and LD_PRELOAD does not apply to the static candidate."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-write-positive-short-audit121-r3",
+              "assertion": "Reached on both builds. Real owned PTY sees abc after a first write of 8 requested bytes returned 3; candidate exits 1 without a remainder attempt. Native control retries the remaining 5 and delivers abcdef CRLF with status 0. Original scenario: Positive short write to an actual owned PTY recipient: deliver first3 of8 body bytes before returning3, compare remainder retry and complete bytes/status with native independent write-all control.",
+              "definition_sha256": "b00969d4a1adbc73094f224db59732714b3b864244ea67a445cfc27034e3d456"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
@@ -42427,7 +42960,7 @@
           "gap": "The candidate takes a TTY path, not a user name. util-linux write (bsdextrautils in the VM) needs a utmp login record, which requires root (utmp group) provisioning."
         }
       ],
-      "notes": "Root reviewed original compound obligations, current fixture definitions and matching raw VM results on both unchanged builds. Only reached assertions qualify; candidate FAIL is retained, while invalid or superseded fixture results are excluded."
+      "notes": "Coverage means the original bounded obligation was reached and independently reviewed on both builds; retained FAIL outcomes remain FAIL. Existing legacy and earlier companions are preserved. See private raw review and explicit gaps."
     },
     {
       "topic": "xargs/prompt-requires-pty",

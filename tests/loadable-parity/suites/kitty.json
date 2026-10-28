@@ -102,7 +102,7 @@
       "id": "terminal-rendering-deferred",
       "kind": "deferred",
       "purpose": "End-to-end verification that a Kitty-compatible terminal consumes the generated APC and renders the expected cell/pixel result.",
-      "reason": "Byte framing is independently verified, but no consumer exists that interprets Kitty graphics APCs and reports rendered pixels and cursor movement."
+      "reason": "Remaining obligations: r1: No real independent Kitty-compatible terminal acceptance/error reply was observed.; r2: Actual rendered pixels and cell geometry on a real Kitty-compatible terminal remain unobserved.; r3: Actual cursor motion in a real Kitty-compatible terminal remains unobserved."
     }
   ]
 }

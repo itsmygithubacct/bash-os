@@ -99,13 +99,66 @@
       "id": "pty-client-integration",
       "kind": "deferred",
       "purpose": "Exercise vt with a client connected to a pseudo-terminal, including terminal input forwarding and resize events.",
-      "reason": "Never executed. Implementable in the plain driver inside the VM: pty spawn allocates the PTY, the candidate shell is the client, and /usr/bin/stty size is an independent geometry observer."
+      "reason": "Remaining obligations: r1: The client was created with Python os.openpty; the pty spawn builtin was never exercised."
     },
     {
       "id": "external-terminal-conformance",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare broader parser behavior across VT100/xterm control-sequence classes against an independent terminal implementation.",
-      "reason": "No external conformance comparison ran. An independent pinned emulator exists in the VM: python3-pyte 0.8.0 (already the driver's decoder). A per-side script parity case can compare the vt render with the pyte render of the same corpus. The old 'no independent oracle' reason is stale for the sequence classes pyte models."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/vt/cup-render"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/vt/dsr-cursor-reply"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/vt/sgr-color-encodings"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/vt/split-csi-feed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-vt-charset-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-vt-cursor-erase-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-vt-da-dsr-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-vt-insert-delete-chars-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-vt-insert-delete-lines-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-vt-scroll-region-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-vt-sgr-attributes-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-vt-sgr-colors-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-vt-tab-wrap-audit121-r3"
+        }
+      ]
     },
     {
       "id": "split-csi-feed",

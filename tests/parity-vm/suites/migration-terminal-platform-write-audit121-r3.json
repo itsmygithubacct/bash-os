@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terminal-platform-write-positive-short-audit121-r3",
+      "loadable": "write",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-write-short-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-write-short-audit121-r3.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-write-short-audit121-r3.py run candidate \"$BASH\"\n",
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/terminal-platform-write-short-audit121-r3.py": "31974e69238cde5239219300c866cc4bc6bfcaca9f622a6346462707ba67143c"
+      },
+      "purpose": "Positive short write to an actual owned PTY recipient: deliver first3 of8 body bytes before returning3, compare remainder retry and complete bytes/status with native independent write-all control.",
+      "covers": [
+        "write/pty-banner-eof-and-faults"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "files": {},
+      "diagnostic_files": [
+        "control.json",
+        "control-recipient.raw",
+        "control-stdout.raw",
+        "control-stderr.raw",
+        "native-writer.json",
+        "session.json",
+        "session-recipient.raw",
+        "session-stdout.raw",
+        "session-stderr.raw",
+        "assertions.json"
+      ],
+      "oracle": "Independent guarded Python os.write loop under the exact same unprivileged seccomp notification profile. First write to exact remembered child-owned recipient tty is delivered as abc through the real kernel tty before return3. Subsequent calls continue through the actual kernel. Native setup proves returned3/5, remainder buffer def CRLF, complete abcdef CRLF, actual PTY bytes and preserved modes. No LD_PRELOAD/static-link assumption, regular-file substitute, fake-positive-without-side-effect, root recipient or host behavior.",
+      "comparison": "Exact recipient.raw and result.json against native control; capture syscall PID/FD/tty/buffer/count/reply/delivered-prefix, raw receiver output and child stderr/status/modes/time. BASHWALL_NOBANNER=1 isolates body partial handling. Candidate refusal/nonzero/incomplete output remains FAIL, not normalized. Banner/EOF and util-linux user/utmp parity are not inferred from this body case."
+    }
+  ]
+}

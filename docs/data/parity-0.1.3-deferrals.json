@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "71190af607b56bb2b58e8bce84c6aa84ccaadc8ba902458d21f2cfff58e099e7",
+  "ledger_sha256": "a2aec2d379d8c2328653fdda5be6b2e487c93d6455a2f0ba1e180b7d651e51f4",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 97,
-    "none": 200,
-    "full": 303
+    "partial": 98,
+    "none": 197,
+    "full": 305
   },
   "migrations": {
-    "deferred": 297,
-    "replacement": 303
+    "deferred": 295,
+    "replacement": 305
   },
   "pending_full_topics": [],
   "builds": {
@@ -2647,6 +2647,110 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793222915.7744455
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "terminal-platform-b01-static-123",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 12,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "23310ed6d407bee2f93fe4156e913fd63456fd7353b16d1e2189655356d32910",
+            "provenance.json": "ff678f8866c677775f542e6257ab5297f66ae69ba0abae1c477e120bca0f93f9",
+            "payload.tar": "7fd82386d5b0d86bcdd57f333dea4fc5e605f8cda107f04935167b97e4c1dc5d",
+            "evidence.tar": "a3880116e5d23c49b56f3b771d9ee3b0e358b15e38dc204d4ed963126f285895"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793224389.0931423
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "terminal-platform-b02-static-123",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 12,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "47ea07a247e9d61d354f45fdb1c77a10c1f73ea1154564da0d2ec4d2dfba2fc4",
+            "provenance.json": "29c23adcbb2f54ed3432c4a1b448b198f1e957730c8c7319fc1a899f3ec4b612",
+            "payload.tar": "7fd82386d5b0d86bcdd57f333dea4fc5e605f8cda107f04935167b97e4c1dc5d",
+            "evidence.tar": "5f81c22d13647f2740b6460b50679504f985b737f3a80c8e477e68123d80d7ea"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793224446.404209
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "terminal-platform-b03-static-123",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 13,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "6621872f6d6e320f2c879d43dafe138eb722e9945f4735272e96359eb1050bd1",
+            "provenance.json": "db5ed72a323adcad0e5a88cf94d905d758980f09c76b0cacccdf005b4f763027",
+            "payload.tar": "7fd82386d5b0d86bcdd57f333dea4fc5e605f8cda107f04935167b97e4c1dc5d",
+            "evidence.tar": "7bca5ee033d328780e6fed84f3d060a904ec82c12b98e7a5bec5c7c085101ccc"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793224516.5090628
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "terminal-platform-b04-static-123",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 6,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "ea4e9a195b8d701fdba4d41c43050fd66860b1ec9fce0d2069e8cf25b354fc20",
+            "provenance.json": "0ee6321d7808bcd6126244d495e399352198c559789ea8747e63edc3270a480a",
+            "payload.tar": "7fd82386d5b0d86bcdd57f333dea4fc5e605f8cda107f04935167b97e4c1dc5d",
+            "evidence.tar": "48809b15c81da1778cec93d9b0f81b391193ce6fdd4fc92c038e729bb1cce4a0"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793224576.44836
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -17284,43 +17388,155 @@
         {
           "topic": "gpu/kitty-presentation-transports",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "inline transport: start probes with a=q,t=d and present sends full frames as a=t,t=d chunks (m=1/0) that decode to the canvas RGBA",
-              "coverage": "missing",
-              "gap": "Never executed. The PTY driver's answer_queries does not reply to Kitty APC queries (terminal.py Screen.answer_queries), so start fails before presenting.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-inline-chunked-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "damage patches send only changed rectangles; scroll composes correctly",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-damage-noop-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-scroll-patch-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-scroll-compose-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "shm transport: t=s with a POSIX shm name; the peer reads the shm object; objects are unlinked after acknowledgement and on stop",
-              "coverage": "missing",
-              "gap": "Same; the peer also needs /dev/shm access (the VM mounts a private /dev/shm tmpfs per case).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-shm-consume-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-shm-query-ack-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-shm-stop-cleanup-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-shm-ring-fallback-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "synchronization and acknowledgements (q=2 suppression, error replies) are handled; a rejecting terminal causes fallback or the documented error",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Wrong-ID-then-matching probe remains withheld; unrelated-ID rejection is not independently reached.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-inline-chunked-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-damage-noop-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-shm-consume-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-shm-query-ack-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-shm-stop-cleanup-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-shm-ring-fallback-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-auto-inline-fallback-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-reject-inline-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-reject-shm-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-late-probe-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -17329,61 +17545,169 @@
         {
           "topic": "gpu/terminal-input-and-restoration",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "gpu input VAR TIMEOUT binds key events: arrows, HOME/END, INSERT/DELETE, PAGEUP/PAGEDOWN, ENTER, TAB, BACKSPACE, CTRL-x, plain ESC",
-              "coverage": "missing",
-              "gap": "Never executed; it needs a started terminal session (Kitty probe answered).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-keys-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-late-probe-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "UTF-8 multi-byte input binds as one event and invalid continuations fall back to one byte",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-utf8-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-invalid-continuation-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "SGR mouse CSI < b;x;y M/m binds MOUSE:down|up:b:x:y",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-mouse-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "a window-size change is reported as RESIZE:cols:rows:xpix:ypix before reading keys",
-              "coverage": "missing",
-              "gap": "Same. The driver resize sets pixels to 0, while the helper can set pixel sizes with TIOCSWINSZ.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-resize-priority-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "timeout returns status 1 and binds an empty event",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-timeout-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "termios is restored after every input call, both on return and on timeout or failure, and fullscreen stop restores the alternate screen, cursor and mouse modes",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "A readonly binding error was reached but incorrectly returned success, so a non-timeout error-return path is not established.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-reject-inline-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-reject-shm-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-keys-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-utf8-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-invalid-continuation-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-mouse-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-resize-priority-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-timeout-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-bind-failure-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b01-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-late-probe-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-static-123"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -21677,27 +22001,102 @@
             {
               "id": "r1",
               "behavior": "A Kitty-compatible terminal accepts the emitted APC graphics commands (no protocol error reply)",
-              "coverage": "missing",
-              "gap": "Requires a Kitty graphics protocol consumer. pyte 0.8.0 (the PTY driver decoder) does not implement APC graphics, and the reference image has no kitty or other graphics-capable emulator.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "No real independent Kitty-compatible terminal acceptance/error reply was observed.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-placement-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-static-cursor-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-tmux-consumer-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-chunked-placement-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "The rendered placement shows the expected pixels/cell geometry for the generated image",
-              "coverage": "missing",
-              "gap": "Same capability: an image decoder that applies a=T/f=24/s/v/c/r controls and reports pixels per cell.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Actual rendered pixels and cell geometry on a real Kitty-compatible terminal remain unobserved.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-placement-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-static-cursor-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-tmux-consumer-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-chunked-placement-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "Cursor position after placement follows the protocol (moved past the image, or unmoved with C=1)",
-              "coverage": "missing",
-              "gap": "Same capability; the pyte cursor ignores APC.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Actual cursor motion in a real Kitty-compatible terminal remains unobserved.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-placement-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-static-cursor-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-tmux-consumer-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-chunked-placement-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -21724,6 +22123,30 @@
                   "id": "legacy/kitty/tmux-auto-framing",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-placement-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-static-cursor-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-tmux-consumer-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-chunked-placement-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
                 }
               ],
               "fully_exercised": true,
@@ -41899,62 +42322,108 @@
         },
         {
           "topic": "tiv/pty-sizing-and-fit",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "On a TTY with no -w, the output width equals the terminal width (TIOCGWINSZ ws_col).",
-              "coverage": "missing",
-              "gap": "No case; the PTY driver sets the size.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-tiv-tty-default-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "--full uses the full terminal width.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-tiv-tty-full-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "An explicit -w N overrides the terminal width.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-tiv-tty-explicit-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-tiv-tty-explicit-height-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Height fit: when the image would need more than rows-1 text rows and -H is absent, output is limited to rows-1 rows and the width shrinks to keep the aspect ratio.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-tiv-tty-height-fit-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b03-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-tiv-tty-explicit-height-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "Non-TTY output defaults to width 80 (already the redirected behavior).",
-              "coverage": "partial",
-              "gap": "Only explicit dimensions to a file.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/tiv/truecolor-half-block",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-tiv-redirected-default-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-static-123"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -44883,16 +45352,16 @@
         },
         {
           "topic": "vt/external-terminal-conformance",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Cursor-movement, erase (ED/EL), scroll-region, insert/delete line and char, tab, wrap (DECAWM) and charset sequences give the same rendered grid as an independent emulator for a bounded corpus.",
-              "coverage": "missing",
-              "gap": "Only a few hand contracts; no independent-emulator comparison.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -44905,96 +45374,257 @@
                   "id": "legacy/vt/split-csi-feed",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-cursor-erase-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-scroll-region-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b04-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-insert-delete-lines-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b04-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-insert-delete-chars-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b03-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-tab-wrap-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b04-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-charset-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-static-123"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "SGR attribute and color state matches the independent emulator for each cell.",
-              "coverage": "missing",
-              "gap": "Rendered attribute comparison absent.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/vt/sgr-color-encodings",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-sgr-attributes-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b04-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-sgr-colors-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b04-static-123"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Replies (DA, DSR) match the independent emulator's replies.",
-              "coverage": "partial",
-              "gap": "DA and other reports not compared.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/vt/dsr-cursor-reply",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-da-dsr-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b03-static-123"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "The expectations come from an independent implementation, never from candidate output.",
-              "coverage": "missing",
-              "gap": "No independent-emulator expectations exist yet. The current contracts are hand-derived for single sequences only.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-cursor-erase-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-scroll-region-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b04-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-insert-delete-lines-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b04-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-insert-delete-chars-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b03-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-tab-wrap-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b04-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-charset-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-sgr-attributes-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b04-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-sgr-colors-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b04-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-da-dsr-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b03-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "vt/pty-client-integration",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "vt consumes a client's output from a PTY master (vt feed-fd on the master of a pty spawned child) and renders the client's screen.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The client was created with Python os.openpty; the pty spawn builtin was never exercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-echo-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-dsr-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-da-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b03-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-resize-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-static-123"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Terminal input forwarding: bytes written to the master reach the client, whose echoed or processed result appears in the vt model.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-echo-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Resize events: after resizing the PTY (pty resize) and the model (vt resize), the client observes SIGWINCH and the new TIOCGWINSZ, and the model geometry matches.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-resize-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Replies generated by the model (DSR/DA via vt response) are forwarded to the client and received.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-dsr-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-da-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b03-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -46273,11 +46903,18 @@
             {
               "id": "r5",
               "behavior": "Partial (short) write handling.",
-              "coverage": "missing",
-              "gap": "A short write cannot be forced on a tty or /dev/full from an unprivileged fixture. It needs syscall fault injection (seccomp user-notify or ptrace), and LD_PRELOAD does not apply to the static candidate.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-write-positive-short-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b04-static-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r6",
@@ -46558,8 +47195,8 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 297,
-        "FAIL": 155,
+        "UNRESOLVED": 295,
+        "FAIL": 157,
         "PASS": 148
       },
       "migration_without_complete_evidence": []
@@ -49197,6 +49834,110 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793222955.037271
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "terminal-platform-b01-dynamic-123",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 12,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "9e34dfda4ca8ae519f04b5d22f39035952878bf3fc17dff59b2d3863eb063795",
+            "provenance.json": "db66c22af4effd01f4569f30d5f5d85dac3b5a5631c9736bdf2fff7e79a07afa",
+            "payload.tar": "2c4ce2828658fd38a806ee53328a124ef80d0fd6a4959df3d4eacc85834acc50",
+            "evidence.tar": "79ff1cdda95c95a1d729268f822fa955f395e830149046284f3078459252d610"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793224414.7419052
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "terminal-platform-b02-dynamic-123",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 12,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "59f1dfcbcac48ac627fd1534e87169192afafcd5e9cfeef498150755190be7c0",
+            "provenance.json": "4f8aca96b32dca13c6920ff847d79ed287f134cb8953dee4b3b79473d3e3f9fa",
+            "payload.tar": "2c4ce2828658fd38a806ee53328a124ef80d0fd6a4959df3d4eacc85834acc50",
+            "evidence.tar": "334f2287e0be372f31a953d59c06b9e50faee6345b8238b1524463edb11eaaa0"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793224478.6714923
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "terminal-platform-b03-dynamic-123",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 13,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "7215c1d8c91ba00c62804b363d4fa13a9b328ad71c68e85477447682d0cfed17",
+            "provenance.json": "edec7474f521bbfc9e8eec67b339f6390d3c7a25c63c2554d71767f5ab6d1808",
+            "payload.tar": "2c4ce2828658fd38a806ee53328a124ef80d0fd6a4959df3d4eacc85834acc50",
+            "evidence.tar": "9fe38536385e3b3e50deecb290a26dc250df54cc0a63e8bf30295e247005de9a"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793224552.0740871
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "terminal-platform-b04-dynamic-123",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 6,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "b84e236b038bb4a5fd21e82f42bc4d9de05d92db5790a99725ed4709f6c9efb2",
+            "provenance.json": "3996721b664175361227894f0a8c3fc96601da0d5a2cd4951d08686b2d5e31bf",
+            "payload.tar": "2c4ce2828658fd38a806ee53328a124ef80d0fd6a4959df3d4eacc85834acc50",
+            "evidence.tar": "437d5dcf433adc9d5dea27e17d1e95c5ecf0de263312b95c7ec523d7426920b7"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793224600.7013628
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -63834,43 +64575,155 @@
         {
           "topic": "gpu/kitty-presentation-transports",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "inline transport: start probes with a=q,t=d and present sends full frames as a=t,t=d chunks (m=1/0) that decode to the canvas RGBA",
-              "coverage": "missing",
-              "gap": "Never executed. The PTY driver's answer_queries does not reply to Kitty APC queries (terminal.py Screen.answer_queries), so start fails before presenting.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-inline-chunked-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "damage patches send only changed rectangles; scroll composes correctly",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-damage-noop-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-scroll-patch-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-scroll-compose-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "shm transport: t=s with a POSIX shm name; the peer reads the shm object; objects are unlinked after acknowledgement and on stop",
-              "coverage": "missing",
-              "gap": "Same; the peer also needs /dev/shm access (the VM mounts a private /dev/shm tmpfs per case).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-shm-consume-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-shm-query-ack-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-shm-stop-cleanup-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-shm-ring-fallback-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "synchronization and acknowledgements (q=2 suppression, error replies) are handled; a rejecting terminal causes fallback or the documented error",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Wrong-ID-then-matching probe remains withheld; unrelated-ID rejection is not independently reached.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-inline-chunked-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-damage-noop-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-shm-consume-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-shm-query-ack-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-shm-stop-cleanup-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-shm-ring-fallback-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-auto-inline-fallback-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-reject-inline-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-reject-shm-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-late-probe-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -63879,61 +64732,169 @@
         {
           "topic": "gpu/terminal-input-and-restoration",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "gpu input VAR TIMEOUT binds key events: arrows, HOME/END, INSERT/DELETE, PAGEUP/PAGEDOWN, ENTER, TAB, BACKSPACE, CTRL-x, plain ESC",
-              "coverage": "missing",
-              "gap": "Never executed; it needs a started terminal session (Kitty probe answered).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-keys-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-late-probe-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "UTF-8 multi-byte input binds as one event and invalid continuations fall back to one byte",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-utf8-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-invalid-continuation-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "SGR mouse CSI < b;x;y M/m binds MOUSE:down|up:b:x:y",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-mouse-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "a window-size change is reported as RESIZE:cols:rows:xpix:ypix before reading keys",
-              "coverage": "missing",
-              "gap": "Same. The driver resize sets pixels to 0, while the helper can set pixel sizes with TIOCSWINSZ.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-resize-priority-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "timeout returns status 1 and binds an empty event",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-timeout-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "termios is restored after every input call, both on return and on timeout or failure, and fullscreen stop restores the alternate screen, cursor and mouse modes",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "A readonly binding error was reached but incorrectly returned success, so a non-timeout error-return path is not established.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-reject-inline-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-reject-shm-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-keys-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-utf8-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-invalid-continuation-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-mouse-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-resize-priority-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-timeout-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-bind-failure-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b01-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-input-late-probe-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b01-dynamic-123"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -68227,27 +69188,102 @@
             {
               "id": "r1",
               "behavior": "A Kitty-compatible terminal accepts the emitted APC graphics commands (no protocol error reply)",
-              "coverage": "missing",
-              "gap": "Requires a Kitty graphics protocol consumer. pyte 0.8.0 (the PTY driver decoder) does not implement APC graphics, and the reference image has no kitty or other graphics-capable emulator.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "No real independent Kitty-compatible terminal acceptance/error reply was observed.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-placement-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-static-cursor-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-tmux-consumer-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-chunked-placement-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "The rendered placement shows the expected pixels/cell geometry for the generated image",
-              "coverage": "missing",
-              "gap": "Same capability: an image decoder that applies a=T/f=24/s/v/c/r controls and reports pixels per cell.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Actual rendered pixels and cell geometry on a real Kitty-compatible terminal remain unobserved.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-placement-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-static-cursor-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-tmux-consumer-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-chunked-placement-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "Cursor position after placement follows the protocol (moved past the image, or unmoved with C=1)",
-              "coverage": "missing",
-              "gap": "Same capability; the pyte cursor ignores APC.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Actual cursor motion in a real Kitty-compatible terminal remains unobserved.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-placement-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-static-cursor-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-tmux-consumer-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-chunked-placement-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -68274,6 +69310,30 @@
                   "id": "legacy/kitty/tmux-auto-framing",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-placement-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-static-cursor-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-tmux-consumer-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-kitty-chunked-placement-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
                 }
               ],
               "fully_exercised": true,
@@ -88449,62 +89509,108 @@
         },
         {
           "topic": "tiv/pty-sizing-and-fit",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "On a TTY with no -w, the output width equals the terminal width (TIOCGWINSZ ws_col).",
-              "coverage": "missing",
-              "gap": "No case; the PTY driver sets the size.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-tiv-tty-default-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "--full uses the full terminal width.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-tiv-tty-full-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "An explicit -w N overrides the terminal width.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-tiv-tty-explicit-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-tiv-tty-explicit-height-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Height fit: when the image would need more than rows-1 text rows and -H is absent, output is limited to rows-1 rows and the width shrinks to keep the aspect ratio.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-tiv-tty-height-fit-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b03-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-tiv-tty-explicit-height-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "Non-TTY output defaults to width 80 (already the redirected behavior).",
-              "coverage": "partial",
-              "gap": "Only explicit dimensions to a file.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/tiv/truecolor-half-block",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-tiv-redirected-default-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b02-dynamic-123"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -91433,16 +92539,16 @@
         },
         {
           "topic": "vt/external-terminal-conformance",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Cursor-movement, erase (ED/EL), scroll-region, insert/delete line and char, tab, wrap (DECAWM) and charset sequences give the same rendered grid as an independent emulator for a bounded corpus.",
-              "coverage": "missing",
-              "gap": "Only a few hand contracts; no independent-emulator comparison.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -91455,96 +92561,257 @@
                   "id": "legacy/vt/split-csi-feed",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-cursor-erase-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-scroll-region-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b04-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-insert-delete-lines-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b04-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-insert-delete-chars-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b03-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-tab-wrap-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b04-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-charset-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-dynamic-123"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "SGR attribute and color state matches the independent emulator for each cell.",
-              "coverage": "missing",
-              "gap": "Rendered attribute comparison absent.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/vt/sgr-color-encodings",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-sgr-attributes-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b04-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-sgr-colors-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b04-dynamic-123"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Replies (DA, DSR) match the independent emulator's replies.",
-              "coverage": "partial",
-              "gap": "DA and other reports not compared.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/vt/dsr-cursor-reply",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-da-dsr-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b03-dynamic-123"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "The expectations come from an independent implementation, never from candidate output.",
-              "coverage": "missing",
-              "gap": "No independent-emulator expectations exist yet. The current contracts are hand-derived for single sequences only.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-cursor-erase-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-scroll-region-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b04-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-insert-delete-lines-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b04-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-insert-delete-chars-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b03-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-tab-wrap-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b04-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-charset-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-sgr-attributes-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b04-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-sgr-colors-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b04-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-da-dsr-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b03-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "vt/pty-client-integration",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "vt consumes a client's output from a PTY master (vt feed-fd on the master of a pty spawned child) and renders the client's screen.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The client was created with Python os.openpty; the pty spawn builtin was never exercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-echo-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-dsr-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-da-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b03-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-resize-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-dynamic-123"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Terminal input forwarding: bytes written to the master reach the client, whose echoed or processed result appears in the vt model.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-echo-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Resize events: after resizing the PTY (pty resize) and the model (vt resize), the client observes SIGWINCH and the new TIOCGWINSZ, and the model geometry matches.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-resize-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Replies generated by the model (DSR/DA via vt response) are forwarded to the client and received.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-dsr-audit121-r3",
+                  "status": "PASS",
+                  "run": "terminal-platform-b03-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-da-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b03-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -92823,11 +94090,18 @@
             {
               "id": "r5",
               "behavior": "Partial (short) write handling.",
-              "coverage": "missing",
-              "gap": "A short write cannot be forced on a tty or /dev/full from an unprivileged fixture. It needs syscall fault injection (seccomp user-notify or ptrace), and LD_PRELOAD does not apply to the static candidate.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-write-positive-short-audit121-r3",
+                  "status": "FAIL",
+                  "run": "terminal-platform-b04-dynamic-123"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r6",
@@ -93108,8 +94382,8 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 297,
-        "FAIL": 155,
+        "UNRESOLVED": 295,
+        "FAIL": 157,
         "PASS": 148
       },
       "migration_without_complete_evidence": []

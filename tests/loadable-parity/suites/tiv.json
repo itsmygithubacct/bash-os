@@ -89,9 +89,38 @@
     },
     {
       "id": "pty-sizing-and-fit",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify the isatty and TIOCGWINSZ sizing branches with a controlled terminal, including default width, --full width, explicit width, and height-fit behavior.",
-      "reason": "Never executed on a PTY. The PTY driver (size field, screen rows, raw-byte expect) can observe all of it; no new capability."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/tiv/truecolor-half-block"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-tiv-redirected-default-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-tiv-tty-default-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-tiv-tty-explicit-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-tiv-tty-explicit-height-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-tiv-tty-full-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-tiv-tty-height-fit-audit121-r3"
+        }
+      ]
     },
     {
       "id": "unicode-terminal-display",

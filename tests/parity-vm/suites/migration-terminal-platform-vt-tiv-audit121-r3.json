@@ -1,0 +1,960 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terminal-platform-vt-cursor-erase-audit121-r3",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Bounded independent pyte comparison: cursor-erase",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/external-terminal-conformance"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"width\": 12,\n  \"height\": 5,\n  \"chunks_base64\": [\n    \"G1syShtbSGFiY2RlZmdoG1syOzJIUk9XMhtbMzszSFJPVzM=\",\n    \"G1sxOzRIG1syS1E=\",\n    \"G1syOzNIG1tL\",\n    \"G1szOzRIG1sxSg==\",\n    \"G1tIVVAbWzJCG1szQyEbWzFBG1syRD8=\",\n    \"G1syOzJIG1sxSw==\",\n    \"G1szOzNIG1tK\"\n  ],\n  \"family\": \"cursor-erase\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-vt-scroll-region-audit121-r3",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Bounded independent pyte comparison: scroll-region",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/external-terminal-conformance"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"width\": 12,\n  \"height\": 5,\n  \"chunks_base64\": [\n    \"G1syShtbSEhFQURFUhtbMjsxSG9uZRtbMzsxSHR3bxtbNDsxSHRocmVlG1s1OzFIRk9PVEVS\",\n    \"G1syOzRyG1s0OzFICk5FVw==\",\n    \"G1syOzFIG01PTEQ=\",\n    \"G1tyG1sxOzEwSCE=\"\n  ],\n  \"family\": \"scroll-region\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-vt-insert-delete-lines-audit121-r3",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Bounded independent pyte comparison: insert-delete-lines",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/external-terminal-conformance"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"width\": 12,\n  \"height\": 5,\n  \"chunks_base64\": [\n    \"G1syShtbSEFBQUEbWzI7MUhCQkJCG1szOzFIQ0NDQxtbNDsxSEREREQbWzU7MUhFRUVF\",\n    \"G1syOzVyG1szOzFIG1tMSU5TRVJU\",\n    \"G1s0OzFIG1tN\",\n    \"G1tyG1syOzJIIQ==\"\n  ],\n  \"family\": \"insert-delete-lines\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-vt-insert-delete-chars-audit121-r3",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Bounded independent pyte comparison: insert-delete-chars",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/external-terminal-conformance"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"width\": 12,\n  \"height\": 5,\n  \"chunks_base64\": [\n    \"G1syShtbSGFiY2RlZmdoaWprbBtbMjsxSDAxMjM0NTY3ODk=\",\n    \"G1sxOzNIG1syQFhZ\",\n    \"G1sxOzdIG1syUA==\",\n    \"G1syOzRIG1szWBtbMjs5SCE=\"\n  ],\n  \"family\": \"insert-delete-chars\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-vt-tab-wrap-audit121-r3",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Bounded independent pyte comparison: tab-wrap",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/external-terminal-conformance"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"width\": 12,\n  \"height\": 5,\n  \"chunks_base64\": [\n    \"G1syShtbSEFCCVQbWzI7MUgxMjM0NTY3ODkwMTJ4eQ==\",\n    \"G1s/N2wbWzQ7MTBIQUJDREUbWz83aBtbNTsxSEVORA==\"\n  ],\n  \"family\": \"tab-wrap\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-vt-charset-audit121-r3",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Bounded independent pyte comparison: charset",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/external-terminal-conformance"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"width\": 12,\n  \"height\": 5,\n  \"chunks_base64\": [\n    \"GyVA\",\n    \"G1syShtbSBsoMGxxaxsoQiBBU0NJSRtbMjsxSBspMA54cWoPIE9L\"\n  ],\n  \"family\": \"charset\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-vt-sgr-attributes-audit121-r3",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Bounded independent pyte comparison: sgr-attributes",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/external-terminal-conformance"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"width\": 12,\n  \"height\": 5,\n  \"chunks_base64\": [\n    \"G1syShtbSBtbMTszOzQ7Nzs5bUEbWzIybUIbWzIzbUMbWzI0bUQbWzI3bUUbWzI5bUYbWzBtWg==\"\n  ],\n  \"family\": \"sgr-attributes\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-vt-sgr-colors-audit121-r3",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Bounded independent pyte comparison: sgr-colors",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/external-terminal-conformance"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"width\": 12,\n  \"height\": 5,\n  \"chunks_base64\": [\n    \"G1syShtbSBtbMzE7NDRtUhtbMzg7NTsxOTY7NDg7NTsyMm1QG1szODsyOzE7MjM7NDU7NDg7Mjs2Nzs4OTsxMDFtVBtbMzk7NDltWg==\"\n  ],\n  \"family\": \"sgr-colors\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-vt-da-dsr-audit121-r3",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Bounded independent pyte comparison: DA-DSR",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/external-terminal-conformance"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"width\": 12,\n  \"height\": 5,\n  \"chunks_base64\": [\n    \"G1syShtbSBtbMzs1SBtbNm4bWzVuG1tj\"\n  ],\n  \"family\": \"DA-DSR\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-vt-client-echo-audit121-r3",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Owned PTY master and cooperative native client: echo",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt-client reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt-client candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/pty-client-integration"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"client\": \"echo\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-vt-client-dsr-audit121-r3",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Owned PTY master and cooperative native client: dsr",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt-client reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt-client candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/pty-client-integration"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"client\": \"dsr\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-vt-client-da-audit121-r3",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Owned PTY master and cooperative native client: da",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt-client reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt-client candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/pty-client-integration"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"client\": \"da\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-vt-client-resize-audit121-r3",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Owned PTY master and cooperative native client: resize",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt-client reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt-client candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/pty-client-integration"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"client\": \"resize\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-tiv-tty-default-audit121-r3",
+      "loadable": "tiv",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Independent PNG RGB half-block dimensions and exact cells: tty-default",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py tiv reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py tiv candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "tiv/pty-sizing-and-fit"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"tty\": true,\n  \"size\": [\n    10,\n    12,\n    120,\n    200\n  ],\n  \"options\": [],\n  \"expected_rows\": 2,\n  \"expected_width\": 12\n}\n",
+        "image.png": {
+          "base64": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAACCAIAAADq9gq6AAAAE0lEQVR4nGP4z8AAQTAaB/oPQwCeoRLu2T06qgAAAABJRU5ErkJggg=="
+        },
+        "pixels.json": "{\"pixels\": [[[255, 0, 0], [255, 0, 0], [255, 0, 0], [0, 0, 255], [0, 0, 255], [0, 0, 255], [0, 0, 255], [0, 0, 255]], [[0, 255, 0], [0, 255, 0], [0, 255, 0], [0, 255, 0], [0, 255, 0], [255, 255, 0], [255, 255, 0], [255, 255, 0]]]}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-tiv-tty-full-audit121-r3",
+      "loadable": "tiv",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Independent PNG RGB half-block dimensions and exact cells: tty-full",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py tiv reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py tiv candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "tiv/pty-sizing-and-fit"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"tty\": true,\n  \"size\": [\n    10,\n    12,\n    120,\n    200\n  ],\n  \"options\": [\n    \"--full\"\n  ],\n  \"expected_rows\": 2,\n  \"expected_width\": 12\n}\n",
+        "image.png": {
+          "base64": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAACCAIAAADq9gq6AAAAE0lEQVR4nGP4z8AAQTAaB/oPQwCeoRLu2T06qgAAAABJRU5ErkJggg=="
+        },
+        "pixels.json": "{\"pixels\": [[[255, 0, 0], [255, 0, 0], [255, 0, 0], [0, 0, 255], [0, 0, 255], [0, 0, 255], [0, 0, 255], [0, 0, 255]], [[0, 255, 0], [0, 255, 0], [0, 255, 0], [0, 255, 0], [0, 255, 0], [255, 255, 0], [255, 255, 0], [255, 255, 0]]]}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-tiv-tty-explicit-audit121-r3",
+      "loadable": "tiv",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Independent PNG RGB half-block dimensions and exact cells: tty-explicit",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py tiv reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py tiv candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "tiv/pty-sizing-and-fit"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"tty\": true,\n  \"size\": [\n    10,\n    12,\n    120,\n    200\n  ],\n  \"options\": [\n    \"-w\",\n    \"7\"\n  ],\n  \"expected_rows\": 1,\n  \"expected_width\": 7\n}\n",
+        "image.png": {
+          "base64": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAACCAIAAADq9gq6AAAAE0lEQVR4nGP4z8AAQTAaB/oPQwCeoRLu2T06qgAAAABJRU5ErkJggg=="
+        },
+        "pixels.json": "{\"pixels\": [[[255, 0, 0], [255, 0, 0], [255, 0, 0], [0, 0, 255], [0, 0, 255], [0, 0, 255], [0, 0, 255], [0, 0, 255]], [[0, 255, 0], [0, 255, 0], [0, 255, 0], [0, 255, 0], [0, 255, 0], [255, 255, 0], [255, 255, 0], [255, 255, 0]]]}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-tiv-tty-height-fit-audit121-r3",
+      "loadable": "tiv",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Independent PNG RGB half-block dimensions and exact cells: tty-height-fit",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py tiv reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py tiv candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "tiv/pty-sizing-and-fit"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"tty\": true,\n  \"size\": [\n    5,\n    10,\n    100,\n    100\n  ],\n  \"options\": [],\n  \"expected_rows\": 4,\n  \"expected_width\": 2\n}\n",
+        "image.png": {
+          "base64": "iVBORw0KGgoAAAANSUhEUgAAAAQAAAAICAIAAABRUclSAAAAV0lEQVR4nA3BIQEEMQxFwSdicXFFBAcXF1dERHxcvCIi4vBXtDcDf/mgiYPBM3IOxfAimJERWuHDJnaurbNdFKvylKosLudmXen6palOtd52Y+R8rbZ/HwuiJsE7ZJRaAAAAAElFTkSuQmCC"
+        },
+        "pixels.json": "{\"pixels\": [[[0, 0, 0], [0, 70, 20], [0, 140, 40], [0, 210, 60]], [[30, 0, 20], [30, 70, 40], [30, 140, 60], [30, 210, 80]], [[60, 0, 40], [60, 70, 60], [60, 140, 80], [60, 210, 100]], [[90, 0, 60], [90, 70, 80], [90, 140, 100], [90, 210, 120]], [[120, 0, 80], [120, 70, 100], [120, 140, 120], [120, 210, 140]], [[150, 0, 100], [150, 70, 120], [150, 140, 140], [150, 210, 160]], [[180, 0, 120], [180, 70, 140], [180, 140, 160], [180, 210, 180]], [[210, 0, 140], [210, 70, 160], [210, 140, 180], [210, 210, 200]]]}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-tiv-tty-explicit-height-audit121-r3",
+      "loadable": "tiv",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Independent PNG RGB half-block dimensions and exact cells: tty-explicit-height",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py tiv reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py tiv candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "tiv/pty-sizing-and-fit"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"tty\": true,\n  \"size\": [\n    5,\n    10,\n    100,\n    100\n  ],\n  \"options\": [\n    \"-w\",\n    \"3\",\n    \"-H\",\n    \"6\"\n  ],\n  \"expected_rows\": 6,\n  \"expected_width\": 3\n}\n",
+        "image.png": {
+          "base64": "iVBORw0KGgoAAAANSUhEUgAAAAQAAAAICAIAAABRUclSAAAAV0lEQVR4nA3BIQEEMQxFwSdicXFFBAcXF1dERHxcvCIi4vBXtDcDf/mgiYPBM3IOxfAimJERWuHDJnaurbNdFKvylKosLudmXen6palOtd52Y+R8rbZ/HwuiJsE7ZJRaAAAAAElFTkSuQmCC"
+        },
+        "pixels.json": "{\"pixels\": [[[0, 0, 0], [0, 70, 20], [0, 140, 40], [0, 210, 60]], [[30, 0, 20], [30, 70, 40], [30, 140, 60], [30, 210, 80]], [[60, 0, 40], [60, 70, 60], [60, 140, 80], [60, 210, 100]], [[90, 0, 60], [90, 70, 80], [90, 140, 100], [90, 210, 120]], [[120, 0, 80], [120, 70, 100], [120, 140, 120], [120, 210, 140]], [[150, 0, 100], [150, 70, 120], [150, 140, 140], [150, 210, 160]], [[180, 0, 120], [180, 70, 140], [180, 140, 160], [180, 210, 180]], [[210, 0, 140], [210, 70, 160], [210, 140, 180], [210, 210, 200]]]}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-tiv-redirected-default-audit121-r3",
+      "loadable": "tiv",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Independent PNG RGB half-block dimensions and exact cells: redirected-default",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py tiv reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py tiv candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "tiv/pty-sizing-and-fit"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"tty\": false,\n  \"size\": null,\n  \"options\": [],\n  \"expected_rows\": 10,\n  \"expected_width\": 80\n}\n",
+        "image.png": {
+          "base64": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAACCAIAAADq9gq6AAAAE0lEQVR4nGP4z8AAQTAaB/oPQwCeoRLu2T06qgAAAABJRU5ErkJggg=="
+        },
+        "pixels.json": "{\"pixels\": [[[255, 0, 0], [255, 0, 0], [255, 0, 0], [0, 0, 255], [0, 0, 255], [0, 0, 255], [0, 0, 255], [0, 0, 255]], [[0, 255, 0], [0, 255, 0], [0, 255, 0], [0, 255, 0], [0, 255, 0], [255, 255, 0], [255, 255, 0], [255, 255, 0]]]}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    }
+  ]
+}

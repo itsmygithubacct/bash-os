@@ -44,13 +44,13 @@
       "id": "kitty-presentation-transports",
       "kind": "deferred",
       "purpose": "Validate full frames, damage patches, scroll composition, synchronization, terminal rejection/fallback, and shared-memory cleanup for inline and shared-memory transports.",
-      "reason": "Never executed. The obligations are observable with an ordinary unprivileged fixture: gpu accepts --tty PATH (gpu.c:721), and a trusted python3 helper can own a pty pair, act as the Kitty peer and decode payloads."
+      "reason": "Remaining obligations: r4: Wrong-ID-then-matching probe remains withheld; unrelated-ID rejection is not independently reached."
     },
     {
       "id": "terminal-input-and-restoration",
       "kind": "deferred",
       "purpose": "Validate key, UTF-8, mouse, resize, and timeout event decoding plus restoration of terminal settings on return and failure.",
-      "reason": "Never executed. Everything is observable unprivileged with the Kitty-peer pty helper, or with a terminal.py Kitty responder plus ordinary PTY sends."
+      "reason": "Remaining obligations: r6: A readonly binding error was reached but incorrectly returned success, so a non-timeout error-return path is not established."
     },
     {
       "id": "gles-shader-and-dmabuf",
