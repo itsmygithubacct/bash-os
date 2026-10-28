@@ -1,0 +1,157 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Same-process /proc VmLck and VmRSS, actual RLIMIT_MEMLOCK, independent libc syscall controls, and recorded seccomp syscall replies. No mock is used to assert a real successful lock.",
+      "comparison": "Setup proves a real munlockall success on an unlocked owned process, and validates independent EAGAIN mlockall and EIO munlockall injections. Candidate calls run only in disposable shells; raw outputs, actual limits, VmLck/VmRSS and syscall replies are retained. The mlockall injection case first measures the actual candidate resident size in the VM and requires a hard limit at least resident plus 2 MiB before running; otherwise setup reports the required guest limit instead of treating an unreached syscall as a candidate failure. A guarded precompiled listener records its bootstrap stages for each notification trace.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-followup-mlock-guard-r2.py": "cb600fd63f66fbe922c14b734a9c1d7f17bdb2b884083bedd32ac8a013b25e7c",
+        "helpers/system-client-followup-guarded-sequence.py": "027c8e593b5aba157c4246f16404f22256d9bffce7459dbab5805d38f902f036"
+      },
+      "setup_timeout": 45,
+      "expected_status": 0,
+      "timeout": 35,
+      "stderr": "",
+      "id": "migration-system-client-followup-mlock-all-low-guard-r2",
+      "purpose": "A zero soft limit triggers the real resident-size precheck without locking pages.",
+      "covers": [
+        "mlock/all-operation"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-mlock-guard-r2.py setup all-low",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-mlock-guard-r2.py \"$BASH\" all-low",
+      "stdout": "mlock-all-low=yes\n",
+      "diagnostic_files": [
+        "mlock-followup-observations.jsonl",
+        "mlock-followup-control-all.jsonl",
+        "mlock-followup-control-unlock-fail.jsonl",
+        "mlock-followup-control-all.jsonl.bootstrap",
+        "mlock-followup-control-unlock-fail.jsonl.bootstrap"
+      ]
+    },
+    {
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Same-process /proc VmLck and VmRSS, actual RLIMIT_MEMLOCK, independent libc syscall controls, and recorded seccomp syscall replies. No mock is used to assert a real successful lock.",
+      "comparison": "Setup proves a real munlockall success on an unlocked owned process, and validates independent EAGAIN mlockall and EIO munlockall injections. Candidate calls run only in disposable shells; raw outputs, actual limits, VmLck/VmRSS and syscall replies are retained. The mlockall injection case first measures the actual candidate resident size in the VM and requires a hard limit at least resident plus 2 MiB before running; otherwise setup reports the required guest limit instead of treating an unreached syscall as a candidate failure. A guarded precompiled listener records its bootstrap stages for each notification trace.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-followup-mlock-guard-r2.py": "cb600fd63f66fbe922c14b734a9c1d7f17bdb2b884083bedd32ac8a013b25e7c",
+        "helpers/system-client-followup-guarded-sequence.py": "027c8e593b5aba157c4246f16404f22256d9bffce7459dbab5805d38f902f036"
+      },
+      "setup_timeout": 45,
+      "expected_status": 0,
+      "timeout": 35,
+      "stderr": "",
+      "id": "migration-system-client-followup-mlock-all-eagain-guard-r2",
+      "purpose": "A reached mlockall EAGAIN reports the actual limits with no locked pages.",
+      "covers": [
+        "mlock/all-operation"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-mlock-guard-r2.py setup all-eagain",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-mlock-guard-r2.py \"$BASH\" all-eagain",
+      "stdout": "mlock-all-eagain=yes\n",
+      "diagnostic_files": [
+        "mlock-followup-observations.jsonl",
+        "mlock-followup-control-all.jsonl",
+        "mlock-followup-control-unlock-fail.jsonl",
+        "mlock-followup-trace-eagain.jsonl",
+        "mlock-followup-control-all.jsonl.bootstrap",
+        "mlock-followup-control-unlock-fail.jsonl.bootstrap",
+        "mlock-followup-trace-eagain.jsonl.bootstrap"
+      ]
+    },
+    {
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Same-process /proc VmLck and VmRSS, actual RLIMIT_MEMLOCK, independent libc syscall controls, and recorded seccomp syscall replies. No mock is used to assert a real successful lock.",
+      "comparison": "Setup proves a real munlockall success on an unlocked owned process, and validates independent EAGAIN mlockall and EIO munlockall injections. Candidate calls run only in disposable shells; raw outputs, actual limits, VmLck/VmRSS and syscall replies are retained. The mlockall injection case first measures the actual candidate resident size in the VM and requires a hard limit at least resident plus 2 MiB before running; otherwise setup reports the required guest limit instead of treating an unreached syscall as a candidate failure. A guarded precompiled listener records its bootstrap stages for each notification trace.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-followup-mlock-guard-r2.py": "cb600fd63f66fbe922c14b734a9c1d7f17bdb2b884083bedd32ac8a013b25e7c",
+        "helpers/system-client-followup-guarded-sequence.py": "027c8e593b5aba157c4246f16404f22256d9bffce7459dbab5805d38f902f036"
+      },
+      "setup_timeout": 45,
+      "expected_status": 0,
+      "timeout": 35,
+      "stderr": "",
+      "id": "migration-system-client-followup-mlock-unlock-ok-guard-r2",
+      "purpose": "A real munlockall with no locked pages succeeds and leaves VmLck zero.",
+      "covers": [
+        "mlock/unlock-operation"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-mlock-guard-r2.py setup unlock-ok",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-mlock-guard-r2.py \"$BASH\" unlock-ok",
+      "stdout": "mlock-unlock-ok=yes\n",
+      "diagnostic_files": [
+        "mlock-followup-observations.jsonl",
+        "mlock-followup-control-all.jsonl",
+        "mlock-followup-control-unlock-fail.jsonl",
+        "mlock-followup-control-all.jsonl.bootstrap",
+        "mlock-followup-control-unlock-fail.jsonl.bootstrap"
+      ]
+    },
+    {
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Same-process /proc VmLck and VmRSS, actual RLIMIT_MEMLOCK, independent libc syscall controls, and recorded seccomp syscall replies. No mock is used to assert a real successful lock.",
+      "comparison": "Setup proves a real munlockall success on an unlocked owned process, and validates independent EAGAIN mlockall and EIO munlockall injections. Candidate calls run only in disposable shells; raw outputs, actual limits, VmLck/VmRSS and syscall replies are retained. The mlockall injection case first measures the actual candidate resident size in the VM and requires a hard limit at least resident plus 2 MiB before running; otherwise setup reports the required guest limit instead of treating an unreached syscall as a candidate failure. A guarded precompiled listener records its bootstrap stages for each notification trace.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-followup-mlock-guard-r2.py": "cb600fd63f66fbe922c14b734a9c1d7f17bdb2b884083bedd32ac8a013b25e7c",
+        "helpers/system-client-followup-guarded-sequence.py": "027c8e593b5aba157c4246f16404f22256d9bffce7459dbab5805d38f902f036"
+      },
+      "setup_timeout": 45,
+      "expected_status": 0,
+      "timeout": 35,
+      "stderr": "",
+      "id": "migration-system-client-followup-mlock-unlock-eio-guard-r2",
+      "purpose": "An injected munlockall EIO is reported and no pages remain locked.",
+      "covers": [
+        "mlock/unlock-operation"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-mlock-guard-r2.py setup unlock-eio",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-mlock-guard-r2.py \"$BASH\" unlock-eio",
+      "stdout": "mlock-unlock-eio=yes\n",
+      "diagnostic_files": [
+        "mlock-followup-observations.jsonl",
+        "mlock-followup-control-all.jsonl",
+        "mlock-followup-control-unlock-fail.jsonl",
+        "mlock-followup-trace-unlock.jsonl",
+        "mlock-followup-control-all.jsonl.bootstrap",
+        "mlock-followup-control-unlock-fail.jsonl.bootstrap",
+        "mlock-followup-trace-unlock.jsonl.bootstrap"
+      ]
+    }
+  ]
+}

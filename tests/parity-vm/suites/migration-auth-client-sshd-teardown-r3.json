@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-auth-client-sshd-password-guarded-argon2-teardown-r3",
+      "loadable": "sshd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "On owned loopback, rejected and accepted SSH passwords reach an inherited synthetic secret-slot device in the server and verifier child.",
+      "oracle": "An independently derived Argon2id KAT and project-format shadow hash, an OpenSSH password client, strict fixture host-key checking, x86-64 UAPI encoding, and exact seccomp notification traces. The synthetic peer establishes client interaction only; it cannot establish real kernel authorization.",
+      "comparison": "Setup separately verifies an Argon2 known vector, valid slot write/export and synthetic mint, rejects a cross-fd slot, duplicate export and invalid purpose. The server accepts only loopback connections. The OpenSSH client supplies private synthetic wrong and correct credentials through a guarded askpass helper; require rejection before mint and successful remote command after a correctly bound login mint. Record raw request/response bytes, slot transitions and client/server output. The mock acknowledges PR_SET_DUMPABLE without applying it if requested, so confidentiality is not proven. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included. The CLI raw and encoded outputs and exact inputs are independently cross-checked and recorded. The owned server child is identity-checked and signaled through pidfd; supervisor and child wait/exit evidence, listener completion, cleanup signals and port closure are recorded. Forced cleanup is explicitly classified as unqualified.",
+      "covers": [
+        "sshd/authentication-authorization"
+      ],
+      "requires": [
+        "python3",
+        "argon2",
+        "ssh",
+        "ssh-keygen"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-device-bootstrap-r1.py": "38fe4a9c9d39549c3560c7a184159ae40659e9a83f46234ad9b5d29eb4293aae",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-argon2-cli-r1.py": "54051e50d17c3799b4143b01e583b5cd0001e7a258fd0713085a172bed9754f9",
+        "helpers/auth-client-sshd-observer-teardown-r3.py": "db63ab1ff38217c099ace118f10d68a21d1a347a0dd94778a195c3c9b61ece49"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-sshd-observer-teardown-r3.py setup",
+      "setup_timeout": 40,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-sshd-observer-teardown-r3.py \"$BASH\"",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "sshd-password wrong-denied=yes accepted=yes protocol=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "sshd-auth-observations.jsonl",
+        "sshd-auth-trace-control.jsonl",
+        "sshd-auth-trace-server.jsonl",
+        "sshd-auth-server.log",
+        "sshd-auth-trace-control.jsonl.bootstrap",
+        "sshd-auth-trace-server.jsonl.bootstrap"
+      ]
+    }
+  ]
+}

@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "c69e4fd053c7a7c09f3171c1accf79243f72a611a56a298cae839d5e226a67a5",
+  "ledger_sha256": "9642e5d13fa4f043397afc62371f9dbec66d8e7db9c98a6fd22f8557ea1342b6",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 121,
-    "none": 151,
-    "full": 328
+    "partial": 133,
+    "none": 135,
+    "full": 332
   },
   "migrations": {
-    "deferred": 272,
-    "replacement": 328
+    "deferred": 268,
+    "replacement": 332
   },
   "pending_full_topics": [],
   "builds": {
@@ -3228,6 +3228,188 @@
           "candidate_unchanged": true,
           "candidate_matches_guest": true,
           "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-auth-canonical-2120-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 20,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "d3c209199fa01494d3033bf05045a5d3a82e39cf2aa3645b5634dcec08e91966",
+            "provenance.json": "bdb1e9d31e59766aec77ed36781a38a056f57f95162e97cdb4a3ef127dabed10",
+            "payload.tar": "c92e71e3e1cf4d94ebb71d79fea531254e0bac6816999d79cc0f0c51d9fc1094",
+            "evidence.tar": "b0d4524395913560eaea58e02f15195a3935432dc046da1c4e00d674ed80a5d9"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793222923.01156
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-system-2120-batch-01-mlock-failures-r2-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "df2ed2932ffb822f52298dad4ad1009c3e3ea33360924617ba59d22e021e6222",
+            "provenance.json": "e09c78ce58bb177936cc84b96d1d5fe0725768d269325c20ba3bcca1b1ec4b99",
+            "payload.tar": "d32b409154c970f759974852dc67375c3c7c8a0e22074d73f447a30f3375b92d",
+            "evidence.tar": "6d008757c7735f65009f69e8d6cc2a4ea22845dc51c981eeecbd29399a5a74c1"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793223107.7740648
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-system-2120-batch-04-bashkmod-policy-r2-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "0a2dbb892b371bd6b5a2cace001262d5cf6b09014575b7a8c52de43e92882532",
+            "provenance.json": "2a53be47f855833f93ce7df2ab52163a5e9a7642275c7e39012efcf6ae309d34",
+            "payload.tar": "9e1f26d07707d284e27e9bb9c9f664533be1322e64f9b6b184e05e34cb53305f",
+            "evidence.tar": "3075deff32ef1d36f225d964824dd606fdab1a0acb81f4bb95f5c274e6e89371"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793223642.8239415
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-system-2120-batch-09-mlock-enomem-r2-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "86e0c4553458b0e144165e7c4f87673d864537374fea890a5dec28d8a4641af1",
+            "provenance.json": "3391b1ed141c3bf052aad2cbf8cb7b37efdfe5ab17d1df672268ce72fb534ac0",
+            "payload.tar": "ccbffd30aa9afddd1bc290ed5ed5f3cd62418820a0f56ac75f24a1691cdfa43b",
+            "evidence.tar": "27634b9db111174e957bd0d379ff10b315ed872f782f9504273c1d2b361e4c2c"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793224041.2288594
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-system-2120-chrt-cleanup-r3-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "3d9dc08cb8ed27aa2b1ed26ebe7d4834d7d40723a46a974f6c22d0c1b01fa898",
+            "provenance.json": "3e0b11b7e7c16a7ae4f501f7643fd31a864c5ec173b9108550feca39eb997116",
+            "payload.tar": "04f0ddb6ba7f2feab2e6877686893bde4cf753f227983cc2b3d4cbd1976c4d10",
+            "evidence.tar": "0902ae0fc4d011748e69892fede98134f9974d6058aecfea2a1ba92c4e30f021"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793223423.3002417
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-system-2120-ptrace-mountinfo-r2-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "51ae09110e48baee4cd2e75b2df7e3c371f29f5fafa8d1cf096b6b1619193117",
+            "provenance.json": "dddf899a17be579b6437e89a038a906f702ecc823b43c2d0ef95c7b66aa47195",
+            "payload.tar": "62de6783852daa862ad68d890a743254f0a2b663620d5b7af1bd96e837d4bab2",
+            "evidence.tar": "23687958ebd4e77a190435cc5935e3158abd77f6eb5781bb35fc25c384ee9ea4"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793224172.1617048
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-system-2120-syslog-publication-r3-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "c866823fdf5947f444baf4398a1e92ebb89a6bb402bb28f6ae87fb2ec2e48393",
+            "provenance.json": "fa3c5f9ea8a5e55c1531979581b11a3d143ede6eff1ef3e32c629ca447d0124f",
+            "payload.tar": "a122d0d91603def9170a6da2d777c93a8224aa1005fb44a13d686d28a7d843c9",
+            "evidence.tar": "e36a591d8ed2ba83d2ad9ff5496e1af33b4d2e23f1e1dc30ef44462dce733911"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793224328.3978024
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
         }
       ],
       "entries": [
@@ -3800,9 +3982,22 @@
             {
               "id": "r3",
               "behavior": "privcmd-authz binds the request (SHA-256 digest over argv/env/target) and returns the policy decision.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The authority decision and request fields are synthetic; the request digest and real kernel binding were not independently verified.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-auth-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-auth-canonical-2120-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -3818,9 +4013,16 @@
             {
               "id": "r5",
               "behavior": "Deny/failure paths never start the child; allow paths preserve the child's status without changing host credentials.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The synthetic allow child exited 7 but the auth command reported status 0; deny/error markers remained absent.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-auth-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -3836,27 +4038,48 @@
             {
               "id": "r1",
               "behavior": "auth probe prints abi=MAJOR.MINOR features=0xHEX from the VERSION ioctl.",
-              "coverage": "missing",
-              "gap": "No device exists in the guest.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "VERSION bytes and output were supplied by an intercepted synthetic device, not a real bashos-auth driver.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-device-r2-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "auth open FDVAR opens the descriptor, binds it to FDVAR, and it is close-on-exec.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The client received close-on-exec synthetic descriptors; opening the real kernel device is not established.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-device-r2-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "auth stats FD reports per-descriptor counters.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Distinct descriptor counter vectors were supplied by the synthetic device; real kernel counter isolation is not established.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-device-r2-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -3890,25 +4113,39 @@
         {
           "topic": "auth/pty-sealed-secret-lifecycle",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "auth read-secret reads from the tty with echo disabled and restores modes.",
-              "coverage": "missing",
-              "gap": "Requires an open authority fd; the PTY driver exists but read-secret needs the device first.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-pty-r2-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "The returned handle is opaque; secret bytes never appear in argv, environment or output.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The synthetic secret is absent from saved output, argv and environment; a real kernel secret handle and enforcement were not tested.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-pty-r2-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -3935,43 +4172,71 @@
         {
           "topic": "auth/synthetic-login-and-token-mint",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "auth hash-secret produces a deterministic Argon2id PHC string for fixed salt/T/M/P/HASHLEN.",
-              "coverage": "missing",
-              "gap": "Requires a sealed slot handle from the device; no device-free hash entry point exists in auth.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Candidate PHC bytes differ from the saved independent standard PHC; no cryptographic computation was repeated here.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1",
+                  "status": "FAIL",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "auth verify-login accepts the correct synthetic credential and binds a token reference.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The synthetic good credential was accepted, but the bound token equalled raw synthetic token bytes rather than an opaque reference.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1",
+                  "status": "FAIL",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "verify-login rejects a wrong credential without binding a token.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1",
+                  "status": "FAIL",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Token references are handled only through the fd (never printed).",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The bound shell value equalled the raw synthetic token; the value was not printed, but fd-only opacity failed.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1",
+                  "status": "FAIL",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -4823,45 +5088,92 @@
             {
               "id": "r1",
               "behavior": "policy NAME reports builtin/blacklist/install/remove/softdep/options/alias-target from an isolated modprobe.d + modules.builtin tree",
-              "coverage": "missing",
-              "gap": "No case runs policy although it reads only BASHKMOD_MODPROBE_DIR(S)/BASHKMOD_MODULES_DIR fixture files.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-policy-guard-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "modprobe -n plan: softdep pre modules, then install directive or insmod chain, then softdep post, with options appended; -r prints remove directive or rmmod chain in reverse",
-              "coverage": "missing",
-              "gap": "No case for dry-run planning.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-policy-guard-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-reference-guard-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Alias-driven request for a blacklisted module is refused while an explicit name is not",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-effects-guard-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-policy-guard-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Non-dry install/remove directives execute the configured argv (argv-split exec, no shell) and their exit status propagates; directives with shell metacharacters are refused",
-              "coverage": "missing",
-              "gap": "No case. Executing an absolute-path argv needs no privilege, so this is reachable in the legacy runner. Divergence: kmod runs install/remove commands through /bin/sh -c; the candidate refuses metacharacters, which is a deliberate contract difference.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Reached candidate divergence: Install/remove commands ran in the required order and metacharacters were refused; an owned command exiting 7 was reported but returned builtin status 1 instead of 7.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-effects-guard-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r5",
               "behavior": "softdep cycles and recursion depth are rejected",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Reached candidate divergence: A softdep cycle returned status 2, but the excessive-depth candidate process terminated by SIGSEGV rather than producing the expected rejection.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-policy-guard-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -4877,18 +5189,30 @@
             {
               "id": "r7",
               "behavior": "Dependency data used by planning",
-              "coverage": "partial",
-              "gap": "Only deps text output is covered.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/bashkmod/deps-nested-chain",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-policy-guard-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-reference-guard-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -6383,63 +6707,111 @@
         {
           "topic": "bashsyslogd/forwarding_queue_replay",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Each local record is forwarded once as a UDP datagram with control bytes defanged.",
-              "coverage": "missing",
-              "gap": "No forward receiver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-forward",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "When the send fails the record is admitted to --queue as one lowercase-hex line.",
-              "coverage": "missing",
-              "gap": "No failure fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-forward",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "--queue-max-bytes bounds admission; an existing larger queue is not shrunk.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-forward",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Queued records replay in FIFO order at startup, on SIGHUP and every second once the destination works.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "FIFO replay of three queued records was observed at startup. SIGHUP and periodic replay were each observed with one post-start queued record, so FIFO ordering of multiple records under those triggers was not independently exercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-replay",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-timed",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r5",
               "behavior": "Malformed queue lines (NUL, non-hex, oversize) are skipped without hiding following records.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-replay",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "After a failed replay send the remaining valid records are kept in order.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-replay",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -6556,64 +6928,106 @@
         },
         {
           "topic": "bashsyslogd/socket_and_output_failures",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A non-socket file at the socket path is refused and left intact.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-safety-stale-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "A stale socket at the path is replaced.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-safety-stale-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "An output write error yields a nonzero exit status.",
-              "coverage": "missing",
-              "gap": "No write-failure fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-safety-stale-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Cleanup removes only the socket inode it created (a replaced path is not unlinked).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-safety-stale-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Signal dispositions (TERM/INT/HUP) are restored after run returns.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-safety-stale-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "Descriptors opened by the daemon are closed after return.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-safety-stale-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -9617,29 +10031,50 @@
             {
               "id": "r1",
               "behavior": "chrt -p POLICY PRIO PID changes an existing owned process's policy, observed by an independent query",
-              "coverage": "missing",
-              "gap": "No fixture; legacy query-current-process is read-only.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-pid-cleanup-r3",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "--all-tasks applies the change to every thread of the target thread group (and without -a only the main thread changes)",
-              "coverage": "missing",
-              "gap": "No fixture; needs a multi-threaded fixture-owned target.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Reached candidate divergence: Reference -a set all three threads to BATCH; candidate set only the main thread on both builds.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-pid-cleanup-r3",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "SCHED_DEADLINE runtime/deadline/period validation: runtime <= deadline <= period and minimum granularity are rejected with the same status/diagnostic as util-linux",
-              "coverage": "missing",
-              "gap": "No fixture. The kernel checks __checkparam_dl before the CAP_SYS_NICE check, so invalid parameters give EINVAL even unprivileged and valid ones give EPERM. Both are observable without privilege.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-pid-cleanup-r3",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -9653,17 +10088,24 @@
             {
               "id": "r5",
               "behavior": "-R combined with -p on a PID sets the reset-on-fork flag of the target",
-              "coverage": "missing",
-              "gap": "No fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-pid-cleanup-r3",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r6",
               "behavior": "Failure behavior: nonexistent PID, EPERM on a higher policy, and invalid PID text are reported with GNU status and no partial change",
-              "coverage": "partial",
-              "gap": "Nonexistent numeric PID (ESRCH) and EPERM on FIFO/RR without RLIMIT_RTPRIO are not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -9676,82 +10118,137 @@
                   "id": "legacy/chrt/invalid-pid-with-priority",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-pid-cleanup-r3",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "chrt/deferred-policy-command",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "chrt POLICY PRIO CMD ARGS sets the child's policy for OTHER, BATCH and IDLE (priority 0), observed in the child",
-              "coverage": "missing",
-              "gap": "No fixture runs the command form. The legacy chrt cases are read-only queries (query-current-process, max-priority-*).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "FIFO and RR with valid priorities (1..99) are applied to the child",
-              "coverage": "missing",
-              "gap": "No fixture. Unprivileged uid 2000 has RLIMIT_RTPRIO hard 0, so success needs a provisioned RLIMIT_RTPRIO (or CAP_SYS_NICE) on the fixture side; without one, both sides only show EPERM (still a valid parity observation).",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Valid FIFO/RR requests were denied without CAP_SYS_NICE; actual successful real-time application remains a separate case. Real FIFO/RR success needs guest hard RLIMIT_RTPRIO at least 99 or another approved real facility.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "Invalid priorities (out of range for the policy, nonzero for OTHER/BATCH/IDLE) are rejected with GNU status and no child execution",
-              "coverage": "missing",
-              "gap": "No fixture; max-priority-short/long only print the bounds table.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "-R/--reset-on-fork sets SCHED_RESET_ON_FORK on the child, and a grandchild of a FIFO/RR/negative-nice parent reverts to OTHER",
-              "coverage": "missing",
-              "gap": "No fixture. The reset flag is observable on OTHER/BATCH unprivileged (sched_getscheduler bit 0x40000000); the revert-on-fork effect needs a FIFO/RR parent (same RLIMIT_RTPRIO need as r2).",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Reset-on-fork flag observed on a real OTHER child; actual FIFO/RR grandchild reversion remains unproven. Real FIFO/RR success needs guest hard RLIMIT_RTPRIO at least 99 or another approved real facility.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r5",
               "behavior": "Command arguments are forwarded unchanged (spaces, empty arg, leading dash) and the command is found by execvp",
-              "coverage": "missing",
-              "gap": "No fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "Child exit status and signal death propagate as chrt's status (e.g. exit 7 gives 7; SIGTERM gives the shell-visible 143)",
-              "coverage": "missing",
-              "gap": "No fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r7",
               "behavior": "No scheduler change leaks to the invoking shell (the shell's own policy is unchanged after chrt CMD)",
-              "coverage": "missing",
-              "gap": "No fixture; query-current-process observes only a baseline query.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -14853,43 +15350,71 @@
         {
           "topic": "doas/authority_policy_and_verification",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Non-root allow through the v2 authority runs the command.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "An owned child ran on a synthetic allow response; actual v2 authority and credential enforcement were not exercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Policy deny never starts the command.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Synthetic denial left the owned child marker absent; real authority policy enforcement was not exercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "-n non-interactive deny when authentication would be required.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "A synthetic authentication-required response caused noninteractive denial; real authority enforcement remains untested.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "Interactive verification success/failure via the verifier child.",
-              "coverage": "missing",
-              "gap": "Requires the device and the PTY driver.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-doas-verify-client-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -26034,7 +26559,7 @@
         {
           "topic": "mlock/all-operation",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -26050,18 +26575,38 @@
             {
               "id": "r2",
               "behavior": "With a soft limit below the resident size, the candidate pre-check fails: \"rlimit: needed=N soft=S hard=H - set ulimit -l before continuing\", status 1, VmLck unchanged (0)",
-              "coverage": "missing",
-              "gap": "Reachable unprivileged via `ulimit -S -l 0`; unasserted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-all-low-guard-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-batch-01-mlock-failures-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "If mlockall itself fails (EAGAIN/ENOMEM after the pre-check passes) the diagnostic plus \"current RLIMIT_MEMLOCK: soft=.. hard=..\" is printed and status 1; no pages remain locked",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "EAGAIN and ENOMEM were independently injected on both builds; on ENOMEM the candidate omitted the required current-limit diagnostic.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-all-eagain-guard-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-batch-01-mlock-failures-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-all-enomem-guard-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-batch-09-mlock-enomem-r2-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -26078,55 +26623,90 @@
         },
         {
           "topic": "mlock/ptrace-scope-operation",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Reads /proc/sys/kernel/yama/ptrace_scope and prints \"ptrace_scope=N  <description>\" for the live level",
-              "coverage": "missing",
-              "gap": "No case; live read is unprivileged (Yama in Debian kernels) and the shell can read the same file as oracle.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-ptrace-mountinfo-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Descriptions for levels 0,1,2,3 exactly as documented",
-              "coverage": "missing",
-              "gap": "Requires controlled file contents; setting the sysctl needs CAP_SYS_ADMIN and level 3 cannot be lowered until reboot, so per-side overmounted fixture files are the safe route.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-ptrace-mountinfo-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Unknown numeric level (e.g. 7) prints \"ptrace_scope=7  unknown\"",
-              "coverage": "missing",
-              "gap": "Needs controlled content.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-ptrace-mountinfo-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Unavailable file (ENOENT) -> \"ptrace-scope: open ...: No such file or directory\" status 1",
-              "coverage": "missing",
-              "gap": "Needs overmount hiding the file.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-ptrace-mountinfo-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Malformed content (\"x\") -> \"failed to parse level\" status 1",
-              "coverage": "missing",
-              "gap": "Needs controlled content.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-ptrace-mountinfo-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -26258,7 +26838,7 @@
         {
           "topic": "mlock/unlock-operation",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -26274,20 +26854,34 @@
             {
               "id": "r2",
               "behavior": "mlock unlock without prior locks succeeds and VmLck stays 0",
-              "coverage": "missing",
-              "gap": "Reachable unprivileged now; unasserted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-unlock-ok-guard-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-batch-01-mlock-failures-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "munlockall failure is reported with status 1",
-              "coverage": "missing",
-              "gap": "Kernel munlockall does not fail normally; needs SECCOMP-FILTER injection (unprivileged).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-unlock-eio-guard-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-batch-01-mlock-failures-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -30418,6 +31012,18 @@
                   "id": "migration-passwd-set-fd-argon2id-independent-oracle",
                   "status": "FAIL",
                   "run": "workers-d-static-63"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-passwd-add-fd-records",
+                  "status": "FAIL",
+                  "run": "workers-d-static-63"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-set-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "FAIL",
+                  "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
               "fully_exercised": true,
@@ -30451,8 +31057,8 @@
             {
               "id": "r4",
               "behavior": "Secret buffers are wiped / never written elsewhere; shadow file permissions preserved.",
-              "coverage": "covered",
-              "gap": "",
+              "coverage": "partial",
+              "gap": "No observation establishes that the candidate secret buffer is wiped after use or that secret bytes never reach paths outside the searched database and diagnostic files. The old mode check establishes only that shadow has no other-access bits; full pre/post shadow permission preservation was not observed.",
               "evidence": [
                 {
                   "group": "shell",
@@ -30461,20 +31067,26 @@
                   "run": "workers-d-static-63"
                 }
               ],
-              "fully_exercised": true,
-              "result": "FAIL"
+              "fully_exercised": false,
+              "result": "UNRESOLVED"
             },
             {
               "id": "r5",
               "behavior": "Kernel secret-slot path (BASHPASSWD_REQUIRE_KERNEL_SECRETS=1) uses the device.",
               "coverage": "partial",
-              "gap": "The secret-slot path that uses the device needs /dev/bashos-auth.",
+              "gap": "The slot protocol used intercepted synthetic device replies; real kernel secret-slot security remains untested.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-passwd-set-fd-refusals",
                   "status": "FAIL",
                   "run": "workers-d-static-63"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-set-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "FAIL",
+                  "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
               "fully_exercised": false,
@@ -30556,9 +31168,16 @@
             {
               "id": "r5",
               "behavior": "Kernel-secret path variant.",
-              "coverage": "missing",
-              "gap": "Requires guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Verification used intercepted synthetic device replies; real kernel secret slots are not established.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-verify-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -39874,9 +40493,16 @@
             {
               "id": "r4",
               "behavior": "Successful password authentication when enabled",
-              "coverage": "missing",
-              "gap": "Requires the bash-os kernel auth device /dev/bashos-auth (sshd.c:165,2160-2185) used to verify the PHC hash; the Debian trixie VM kernel has no such device, and a script cannot emulate a kernel ioctl interface.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Loopback authentication succeeded for a project-style hex credential with synthetic token/device replies; standard-PHC and real kernel token authentication remain untested.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sshd-password-guarded-argon2-teardown-r3",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -41041,34 +41667,55 @@
         {
           "topic": "su/kernel-token-protocol",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Token mint request fields (target uid/gid) are filled as documented.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "The minted token is consumed immediately before the credential transition.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Synthetic consume preceded an intercepted setgroups denial; no real token enforcement or successful credential transition occurred.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "Expiry and mint/consume failures abort before any credential change.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Injected mint, consume and expiry errors aborted before observed credential calls; real kernel token expiry and enforcement were not exercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -41086,27 +41733,41 @@
         {
           "topic": "su/owned-child-status-and-signals",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Child exit status propagates.",
-              "coverage": "missing",
-              "gap": "Partially observable now: verification failure exit (1) and usage exit (2) from the owned child propagate through waitpid (su.c parent).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Child signal death maps to 128+N.",
-              "coverage": "missing",
-              "gap": "Requires a child that lives long enough to signal (target shell).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -41120,38 +41781,65 @@
             {
               "id": "r4",
               "behavior": "Parent shell state (IDs, tty modes) is preserved; repeated invocations work.",
-              "coverage": "missing",
-              "gap": "Observable now: run the failing PTY verification twice and assert `id -u`-equivalent ($UID/$EUID) and termios restoration (PTY driver records them).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "su/password-and-lockout-flow",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Correct password passes verification (reaches the token step).",
-              "coverage": "missing",
-              "gap": "Observable now through the PTY driver: correct password produces the kernel-auth diagnostic, wrong password produces the authentication failure.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The correct project-style synthetic credential reached mock MINT/CONSUME; real token authority and credential transition were not exercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Incorrect password fails with status 1 and records a failure.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -41174,9 +41862,16 @@
             {
               "id": "r5",
               "behavior": "Repeated failures lock the account until LOCKED_UNTIL; success clears the failure state.",
-              "coverage": "missing",
-              "gap": "Failure counting and lock-file content are observable; expiry after BSU_LOCK_DURATION needs waiting or a settable wall clock (CLOCK_REALTIME cannot be offset unprivileged), and success-clears-state needs a successful login, which needs the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The saved lock state and expiry handling were observed, but the expired-path su command subsequently failed at setgroups; a successful final credential transition was not shown.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -41192,9 +41887,16 @@
             {
               "id": "r1",
               "behavior": "Present user: target UID/GID/home/shell are taken from the private passwd row.",
-              "coverage": "missing",
-              "gap": "Observable only after successful authentication (exec) or via diagnostics; selection itself is internal.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The test uses only the same uid/gid 2000, so it does not establish selection among varying target IDs or a real credential transition.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -41256,125 +41958,202 @@
         },
         {
           "topic": "su/pty-echo-and-cancellation",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Password echo is suppressed during the prompt.",
-              "coverage": "missing",
-              "gap": "Not executed; PTY driver can assert the typed bytes never reach the screen.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-tty-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Terminal modes are restored after success, failure, read failure (EOF) and cancellation (^C / SIGINT).",
-              "coverage": "missing",
-              "gap": "Not executed; PTY driver records termios_before/after and supports ^C steps.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-tty-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "su/target-shell-environment-and-fds",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Login mode argv[0] '-shell' with -i, non-login argv, -c CMD argv.",
-              "coverage": "missing",
-              "gap": "Requires exec of the target shell.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Login mode changes to the target home; non-login keeps cwd.",
-              "coverage": "missing",
-              "gap": "Requires exec.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Environment filtered (default) or retained (--keep-env).",
-              "coverage": "missing",
-              "gap": "Requires exec.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Inherited descriptors above 2 are closed.",
-              "coverage": "missing",
-              "gap": "Requires exec.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Exec errors (missing/non-executable shell) return 126 with a diagnostic.",
-              "coverage": "missing",
-              "gap": "Requires reaching exec.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "sudo/authority-command-authorization",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Authorized command runs via the v2 authority.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "An owned child ran on a synthetic authority response; real v2 authority and credential enforcement were not exercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Policy denial does not run the command.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Synthetic denial left the child marker absent; real authority policy enforcement remains untested.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "-n denial when interaction is required.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Synthetic authentication-required response caused noninteractive denial; real authority enforcement remains untested.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "Verifier success/failure and fail-closed reauthorization.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudo-verify-client-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -41443,13 +42222,19 @@
               "id": "r1",
               "behavior": "-l / -ll / --list render the caller-filtered projection of the authority-advertised policy, bound to its digest.",
               "coverage": "partial",
-              "gap": "Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised.",
+              "gap": "Short/long/alias projections and mismatched digest rejection were observed with synthetic owner and authority responses; the digest was not recomputed and real authority binding is untested.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-auth-policy-list-caller-projection",
                   "status": "PASS",
                   "run": "auth-static-39"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
               "fully_exercised": false,
@@ -41458,18 +42243,24 @@
             {
               "id": "r2",
               "behavior": "Empty and no-match policies render as documented.",
-              "coverage": "partial",
-              "gap": "Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-auth-policy-list-caller-projection",
                   "status": "PASS",
                   "run": "auth-static-39"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -41491,13 +42282,19 @@
               "id": "r4",
               "behavior": "Listing is never an execution approval.",
               "coverage": "partial",
-              "gap": "The authority route (listing then never approving execution) needs the /dev/bashos-auth device.",
+              "gap": "Listing-with-command was rejected in the synthetic authority fixture; real authority approval enforcement remains untested.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sudo-list-delegate-only",
                   "status": "PASS",
                   "run": "data-auth-corrections-static-47"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
               "fully_exercised": false,
@@ -41553,43 +42350,77 @@
         {
           "topic": "sudo/sudoedit-safe-copyback",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Kernel safe-open of policy-bound targets, private editor copies edited as the caller.",
-              "coverage": "missing",
-              "gap": "Requires the device (EXEC_HANDOFF sudoedit flow).",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Real kernel safe-open, privileged copyback and enforcement of the digest-bound authorization are not established by the synthetic private-file peer.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudoedit-success-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Reauthorization and digest-bound copyback.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Real kernel safe-open, privileged copyback and enforcement of the digest-bound authorization are not established by the synthetic private-file peer.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudoedit-success-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "Rejection cleanup of temporary copies.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudoedit-reject-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Multi-file behavior up to 16 targets and count validation.",
-              "coverage": "missing",
-              "gap": "Count validation on the root route (1..16) is reachable with guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid); unprivileged delegate route refuses -e.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The client handled 1, 2 and 16 files and rejected 17, but privileged safe-open and copyback were synthetic.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudoedit-reject-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudoedit-success-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -41606,13 +42437,19 @@
               "id": "r1",
               "behavior": "-k / -K reset the cached credential.",
               "coverage": "partial",
-              "gap": "The authority-route credential reset needs the /dev/bashos-auth device.",
+              "gap": "The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sudo-doas-fallback-translation",
                   "status": "PASS",
                   "run": "data-auth-corrections-static-47"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
               "fully_exercised": false,
@@ -41622,13 +42459,19 @@
               "id": "r2",
               "behavior": "-v validates.",
               "coverage": "partial",
-              "gap": "Validation itself needs the /dev/bashos-auth device.",
+              "gap": "The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sudo-doas-fallback-translation",
                   "status": "PASS",
                   "run": "data-auth-corrections-static-47"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
               "fully_exercised": false,
@@ -41638,13 +42481,19 @@
               "id": "r3",
               "behavior": "-k COMMAND resets first and a failed reset prevents the command.",
               "coverage": "partial",
-              "gap": "Reset-then-run and a failed reset preventing the command need the /dev/bashos-auth device.",
+              "gap": "The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sudo-doas-fallback-translation",
                   "status": "PASS",
                   "run": "data-auth-corrections-static-47"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
               "fully_exercised": false,
@@ -49707,9 +50556,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 272,
+        "UNRESOLVED": 268,
         "FAIL": 163,
-        "PASS": 165
+        "PASS": 169
       },
       "migration_without_complete_evidence": []
     },
@@ -52927,6 +53776,188 @@
           "candidate_unchanged": true,
           "candidate_matches_guest": true,
           "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-auth-canonical-2120-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 20,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "773c642b56ed3cd887470ba8fec52145fdc95844e5dfbc9010ad71f49ed61a2c",
+            "provenance.json": "632cc5f08f7399e7d9a11d6f75759283499da3f31ff97e098c08c79bffb17793",
+            "payload.tar": "da8ffd7ac66a05e0ba084199a06be20b9909ab19feb53043c2cb542e42989077",
+            "evidence.tar": "4d6305fc645d5be288c6b9d822a0cd33a93d1b2784e4a17fca9ce2bfb4f1c5f4"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793223035.3884318
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-system-2120-batch-01-mlock-failures-r2-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "55e2bf26d69896209b6b0fb8990b565d1a2200f7ce9fc5ca0903c66577ec06ae",
+            "provenance.json": "13b144a3fe7ac818a7cbcd01a11a8431843d11cbdf900cdf2ff188eee10239a3",
+            "payload.tar": "0fd97c9768350a95765034f342e64b401e82a67ed38fa2463531997b8ccbb598",
+            "evidence.tar": "33d6cc20a089e48f45a7d0a29c0a9e4eb079ea2d460ea7180af54ac6be35b51a"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793223171.5184767
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-system-2120-batch-04-bashkmod-policy-r2-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "a39bef2a9e0d691a92d0e7c9fffe3859379d77dd836cde0af7a6c8b7f8d8d4ba",
+            "provenance.json": "2066391afc199de1353ec18431fe06756550fa7af67ce30707458d65dd2843f8",
+            "payload.tar": "ada35dcdfafa3ffd61285b44863edefe1535cf3ee0468430cc365c9d121ebe23",
+            "evidence.tar": "bd3d179aad5ba9a4724f1c893c4614664c802761a795e7ba1d8a2c972498df8f"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793223691.8467221
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-system-2120-batch-09-mlock-enomem-r2-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "d5d9731a89a9a7a66e9e203db2f5ede3542a913c7a7832a5c5db5cba33b615fb",
+            "provenance.json": "319f43606ee347d84bb814f45e1cd4156f2adef06f94f10f3fe5d87eec3d9471",
+            "payload.tar": "50eccbe66e2d495fc498464e1f75ee4f097db75f6c4bb10e215a7e04950187ea",
+            "evidence.tar": "77627d2d285e61fd527027b04de3cea01b4d2096ed2498660e22ae1fb9bbf092"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793224100.7399123
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-system-2120-chrt-cleanup-r3-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "422ab06c8724c855852b2431054dd28845c7f29b7955fe97237ef578a524e655",
+            "provenance.json": "2c223b591ec21b2ea174aa6acf18fe544796ba572db967489d9d96ba79fc9b06",
+            "payload.tar": "62a73bd504e00b966a167dbc6d3d9c7c991a21576e22aec323c4f6dabd164f14",
+            "evidence.tar": "2a0b9c310878e37564280a47d81520b8d9cfbba5fe6b5517f9a75211ab71e3fc"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793223467.8510258
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-system-2120-ptrace-mountinfo-r2-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "5a1e6397c59bf7e48ec4dd4396be281137c2c8aeb127e3c8b3b0151404c64b88",
+            "provenance.json": "387fabaa5e650f752062e6e16db67aa58de18a7e020b30ec351cec28d3f97222",
+            "payload.tar": "1062a8d2a639c1a754caaced6ea892bb054634d2770b11f5eff305581a1b6424",
+            "evidence.tar": "313d57ff04550eab34098765733f367dfdcc9cc3a6ed81b2947e34952982ad9b"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793224207.9094956
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-system-2120-syslog-publication-r3-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "a79c2c6ad1287bb35ec1e1d12865372222a5a48f8b9bc9adc98a7494a14e246f",
+            "provenance.json": "d97e24dd7d250ef96961eb4e9cfc866e7800e6d75feb0efe197cbbb53461a2b4",
+            "payload.tar": "277584c0bb5d6eee6e6c60a372cccdeb5d1de7bbf279cfa424830e88b30f4419",
+            "evidence.tar": "05052b58612b3a28fe785017a6d6e0b70fa6264ef5303185751c0bef3364e851"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793224370.4142606
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
         }
       ],
       "entries": [
@@ -53499,9 +54530,22 @@
             {
               "id": "r3",
               "behavior": "privcmd-authz binds the request (SHA-256 digest over argv/env/target) and returns the policy decision.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The authority decision and request fields are synthetic; the request digest and real kernel binding were not independently verified.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-auth-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -53517,9 +54561,16 @@
             {
               "id": "r5",
               "behavior": "Deny/failure paths never start the child; allow paths preserve the child's status without changing host credentials.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The synthetic allow child exited 7 but the auth command reported status 0; deny/error markers remained absent.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-auth-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -53535,27 +54586,48 @@
             {
               "id": "r1",
               "behavior": "auth probe prints abi=MAJOR.MINOR features=0xHEX from the VERSION ioctl.",
-              "coverage": "missing",
-              "gap": "No device exists in the guest.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "VERSION bytes and output were supplied by an intercepted synthetic device, not a real bashos-auth driver.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-device-r2-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "auth open FDVAR opens the descriptor, binds it to FDVAR, and it is close-on-exec.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The client received close-on-exec synthetic descriptors; opening the real kernel device is not established.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-device-r2-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "auth stats FD reports per-descriptor counters.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Distinct descriptor counter vectors were supplied by the synthetic device; real kernel counter isolation is not established.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-device-r2-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -53589,25 +54661,39 @@
         {
           "topic": "auth/pty-sealed-secret-lifecycle",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "auth read-secret reads from the tty with echo disabled and restores modes.",
-              "coverage": "missing",
-              "gap": "Requires an open authority fd; the PTY driver exists but read-secret needs the device first.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-pty-r2-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "The returned handle is opaque; secret bytes never appear in argv, environment or output.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The synthetic secret is absent from saved output, argv and environment; a real kernel secret handle and enforcement were not tested.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-pty-r2-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -53634,43 +54720,71 @@
         {
           "topic": "auth/synthetic-login-and-token-mint",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "auth hash-secret produces a deterministic Argon2id PHC string for fixed salt/T/M/P/HASHLEN.",
-              "coverage": "missing",
-              "gap": "Requires a sealed slot handle from the device; no device-free hash entry point exists in auth.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Candidate PHC bytes differ from the saved independent standard PHC; no cryptographic computation was repeated here.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1",
+                  "status": "FAIL",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "auth verify-login accepts the correct synthetic credential and binds a token reference.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The synthetic good credential was accepted, but the bound token equalled raw synthetic token bytes rather than an opaque reference.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1",
+                  "status": "FAIL",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "verify-login rejects a wrong credential without binding a token.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1",
+                  "status": "FAIL",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Token references are handled only through the fd (never printed).",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The bound shell value equalled the raw synthetic token; the value was not printed, but fd-only opacity failed.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1",
+                  "status": "FAIL",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -54522,45 +55636,92 @@
             {
               "id": "r1",
               "behavior": "policy NAME reports builtin/blacklist/install/remove/softdep/options/alias-target from an isolated modprobe.d + modules.builtin tree",
-              "coverage": "missing",
-              "gap": "No case runs policy although it reads only BASHKMOD_MODPROBE_DIR(S)/BASHKMOD_MODULES_DIR fixture files.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-policy-guard-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "modprobe -n plan: softdep pre modules, then install directive or insmod chain, then softdep post, with options appended; -r prints remove directive or rmmod chain in reverse",
-              "coverage": "missing",
-              "gap": "No case for dry-run planning.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-policy-guard-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-reference-guard-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Alias-driven request for a blacklisted module is refused while an explicit name is not",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-effects-guard-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-policy-guard-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Non-dry install/remove directives execute the configured argv (argv-split exec, no shell) and their exit status propagates; directives with shell metacharacters are refused",
-              "coverage": "missing",
-              "gap": "No case. Executing an absolute-path argv needs no privilege, so this is reachable in the legacy runner. Divergence: kmod runs install/remove commands through /bin/sh -c; the candidate refuses metacharacters, which is a deliberate contract difference.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Reached candidate divergence: Install/remove commands ran in the required order and metacharacters were refused; an owned command exiting 7 was reported but returned builtin status 1 instead of 7.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-effects-guard-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r5",
               "behavior": "softdep cycles and recursion depth are rejected",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Reached candidate divergence: A softdep cycle returned status 2, but the excessive-depth candidate process terminated by SIGSEGV rather than producing the expected rejection.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-policy-guard-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -54576,18 +55737,30 @@
             {
               "id": "r7",
               "behavior": "Dependency data used by planning",
-              "coverage": "partial",
-              "gap": "Only deps text output is covered.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/bashkmod/deps-nested-chain",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-policy-guard-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-kmod-reference-guard-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -56082,63 +57255,111 @@
         {
           "topic": "bashsyslogd/forwarding_queue_replay",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Each local record is forwarded once as a UDP datagram with control bytes defanged.",
-              "coverage": "missing",
-              "gap": "No forward receiver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-forward",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "When the send fails the record is admitted to --queue as one lowercase-hex line.",
-              "coverage": "missing",
-              "gap": "No failure fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-forward",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "--queue-max-bytes bounds admission; an existing larger queue is not shrunk.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-forward",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Queued records replay in FIFO order at startup, on SIGHUP and every second once the destination works.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "FIFO replay of three queued records was observed at startup. SIGHUP and periodic replay were each observed with one post-start queued record, so FIFO ordering of multiple records under those triggers was not independently exercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-replay",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-timed",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r5",
               "behavior": "Malformed queue lines (NUL, non-hex, oversize) are skipped without hiding following records.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-replay",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "After a failed replay send the remaining valid records are kept in order.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-replay",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -56255,64 +57476,106 @@
         },
         {
           "topic": "bashsyslogd/socket_and_output_failures",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A non-socket file at the socket path is refused and left intact.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-safety-stale-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "A stale socket at the path is replaced.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-safety-stale-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "An output write error yields a nonzero exit status.",
-              "coverage": "missing",
-              "gap": "No write-failure fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-safety-stale-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Cleanup removes only the socket inode it created (a replaced path is not unlinked).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-safety-stale-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Signal dispositions (TERM/INT/HUP) are restored after run returns.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-safety-stale-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "Descriptors opened by the daemon are closed after return.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-syslog-safety-stale-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-syslog-publication-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -59316,29 +60579,50 @@
             {
               "id": "r1",
               "behavior": "chrt -p POLICY PRIO PID changes an existing owned process's policy, observed by an independent query",
-              "coverage": "missing",
-              "gap": "No fixture; legacy query-current-process is read-only.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-pid-cleanup-r3",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "--all-tasks applies the change to every thread of the target thread group (and without -a only the main thread changes)",
-              "coverage": "missing",
-              "gap": "No fixture; needs a multi-threaded fixture-owned target.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Reached candidate divergence: Reference -a set all three threads to BATCH; candidate set only the main thread on both builds.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-pid-cleanup-r3",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "SCHED_DEADLINE runtime/deadline/period validation: runtime <= deadline <= period and minimum granularity are rejected with the same status/diagnostic as util-linux",
-              "coverage": "missing",
-              "gap": "No fixture. The kernel checks __checkparam_dl before the CAP_SYS_NICE check, so invalid parameters give EINVAL even unprivileged and valid ones give EPERM. Both are observable without privilege.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-pid-cleanup-r3",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -59352,17 +60636,24 @@
             {
               "id": "r5",
               "behavior": "-R combined with -p on a PID sets the reset-on-fork flag of the target",
-              "coverage": "missing",
-              "gap": "No fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-pid-cleanup-r3",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r6",
               "behavior": "Failure behavior: nonexistent PID, EPERM on a higher policy, and invalid PID text are reported with GNU status and no partial change",
-              "coverage": "partial",
-              "gap": "Nonexistent numeric PID (ESRCH) and EPERM on FIFO/RR without RLIMIT_RTPRIO are not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -59375,82 +60666,137 @@
                   "id": "legacy/chrt/invalid-pid-with-priority",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-pid-cleanup-r3",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "chrt/deferred-policy-command",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "chrt POLICY PRIO CMD ARGS sets the child's policy for OTHER, BATCH and IDLE (priority 0), observed in the child",
-              "coverage": "missing",
-              "gap": "No fixture runs the command form. The legacy chrt cases are read-only queries (query-current-process, max-priority-*).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "FIFO and RR with valid priorities (1..99) are applied to the child",
-              "coverage": "missing",
-              "gap": "No fixture. Unprivileged uid 2000 has RLIMIT_RTPRIO hard 0, so success needs a provisioned RLIMIT_RTPRIO (or CAP_SYS_NICE) on the fixture side; without one, both sides only show EPERM (still a valid parity observation).",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Valid FIFO/RR requests were denied without CAP_SYS_NICE; actual successful real-time application remains a separate case. Real FIFO/RR success needs guest hard RLIMIT_RTPRIO at least 99 or another approved real facility.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "Invalid priorities (out of range for the policy, nonzero for OTHER/BATCH/IDLE) are rejected with GNU status and no child execution",
-              "coverage": "missing",
-              "gap": "No fixture; max-priority-short/long only print the bounds table.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "-R/--reset-on-fork sets SCHED_RESET_ON_FORK on the child, and a grandchild of a FIFO/RR/negative-nice parent reverts to OTHER",
-              "coverage": "missing",
-              "gap": "No fixture. The reset flag is observable on OTHER/BATCH unprivileged (sched_getscheduler bit 0x40000000); the revert-on-fork effect needs a FIFO/RR parent (same RLIMIT_RTPRIO need as r2).",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Reset-on-fork flag observed on a real OTHER child; actual FIFO/RR grandchild reversion remains unproven. Real FIFO/RR success needs guest hard RLIMIT_RTPRIO at least 99 or another approved real facility.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r5",
               "behavior": "Command arguments are forwarded unchanged (spaces, empty arg, leading dash) and the command is found by execvp",
-              "coverage": "missing",
-              "gap": "No fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "Child exit status and signal death propagate as chrt's status (e.g. exit 7 gives 7; SIGTERM gives the shell-visible 143)",
-              "coverage": "missing",
-              "gap": "No fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r7",
               "behavior": "No scheduler change leaks to the invoking shell (the shell's own policy is unchanged after chrt CMD)",
-              "coverage": "missing",
-              "gap": "No fixture; query-current-process observes only a baseline query.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-chrt-cleanup-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -64552,43 +65898,71 @@
         {
           "topic": "doas/authority_policy_and_verification",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Non-root allow through the v2 authority runs the command.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "An owned child ran on a synthetic allow response; actual v2 authority and credential enforcement were not exercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Policy deny never starts the command.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Synthetic denial left the owned child marker absent; real authority policy enforcement was not exercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "-n non-interactive deny when authentication would be required.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "A synthetic authentication-required response caused noninteractive denial; real authority enforcement remains untested.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "Interactive verification success/failure via the verifier child.",
-              "coverage": "missing",
-              "gap": "Requires the device and the PTY driver.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-doas-verify-client-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -75733,7 +77107,7 @@
         {
           "topic": "mlock/all-operation",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -75749,18 +77123,38 @@
             {
               "id": "r2",
               "behavior": "With a soft limit below the resident size, the candidate pre-check fails: \"rlimit: needed=N soft=S hard=H - set ulimit -l before continuing\", status 1, VmLck unchanged (0)",
-              "coverage": "missing",
-              "gap": "Reachable unprivileged via `ulimit -S -l 0`; unasserted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-all-low-guard-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-batch-01-mlock-failures-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "If mlockall itself fails (EAGAIN/ENOMEM after the pre-check passes) the diagnostic plus \"current RLIMIT_MEMLOCK: soft=.. hard=..\" is printed and status 1; no pages remain locked",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "EAGAIN and ENOMEM were independently injected on both builds; on ENOMEM the candidate omitted the required current-limit diagnostic.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-all-eagain-guard-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-batch-01-mlock-failures-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-all-enomem-guard-r2",
+                  "status": "FAIL",
+                  "run": "qual-local-system-2120-batch-09-mlock-enomem-r2-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -75777,55 +77171,90 @@
         },
         {
           "topic": "mlock/ptrace-scope-operation",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Reads /proc/sys/kernel/yama/ptrace_scope and prints \"ptrace_scope=N  <description>\" for the live level",
-              "coverage": "missing",
-              "gap": "No case; live read is unprivileged (Yama in Debian kernels) and the shell can read the same file as oracle.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-ptrace-mountinfo-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Descriptions for levels 0,1,2,3 exactly as documented",
-              "coverage": "missing",
-              "gap": "Requires controlled file contents; setting the sysctl needs CAP_SYS_ADMIN and level 3 cannot be lowered until reboot, so per-side overmounted fixture files are the safe route.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-ptrace-mountinfo-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Unknown numeric level (e.g. 7) prints \"ptrace_scope=7  unknown\"",
-              "coverage": "missing",
-              "gap": "Needs controlled content.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-ptrace-mountinfo-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Unavailable file (ENOENT) -> \"ptrace-scope: open ...: No such file or directory\" status 1",
-              "coverage": "missing",
-              "gap": "Needs overmount hiding the file.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-ptrace-mountinfo-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Malformed content (\"x\") -> \"failed to parse level\" status 1",
-              "coverage": "missing",
-              "gap": "Needs controlled content.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-ptrace-mountinfo-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -75957,7 +77386,7 @@
         {
           "topic": "mlock/unlock-operation",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -75973,20 +77402,34 @@
             {
               "id": "r2",
               "behavior": "mlock unlock without prior locks succeeds and VmLck stays 0",
-              "coverage": "missing",
-              "gap": "Reachable unprivileged now; unasserted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-unlock-ok-guard-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-batch-01-mlock-failures-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "munlockall failure is reported with status 1",
-              "coverage": "missing",
-              "gap": "Kernel munlockall does not fail normally; needs SECCOMP-FILTER injection (unprivileged).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-system-client-followup-mlock-unlock-eio-guard-r2",
+                  "status": "PASS",
+                  "run": "qual-local-system-2120-batch-01-mlock-failures-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -80117,6 +81560,18 @@
                   "id": "migration-passwd-set-fd-argon2id-independent-oracle",
                   "status": "FAIL",
                   "run": "workers-d-dynamic-63"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-passwd-add-fd-records",
+                  "status": "FAIL",
+                  "run": "workers-d-dynamic-63"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-set-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "FAIL",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -80150,8 +81605,8 @@
             {
               "id": "r4",
               "behavior": "Secret buffers are wiped / never written elsewhere; shadow file permissions preserved.",
-              "coverage": "covered",
-              "gap": "",
+              "coverage": "partial",
+              "gap": "No observation establishes that the candidate secret buffer is wiped after use or that secret bytes never reach paths outside the searched database and diagnostic files. The old mode check establishes only that shadow has no other-access bits; full pre/post shadow permission preservation was not observed.",
               "evidence": [
                 {
                   "group": "shell",
@@ -80160,20 +81615,26 @@
                   "run": "workers-d-dynamic-63"
                 }
               ],
-              "fully_exercised": true,
-              "result": "FAIL"
+              "fully_exercised": false,
+              "result": "UNRESOLVED"
             },
             {
               "id": "r5",
               "behavior": "Kernel secret-slot path (BASHPASSWD_REQUIRE_KERNEL_SECRETS=1) uses the device.",
               "coverage": "partial",
-              "gap": "The secret-slot path that uses the device needs /dev/bashos-auth.",
+              "gap": "The slot protocol used intercepted synthetic device replies; real kernel secret-slot security remains untested.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-passwd-set-fd-refusals",
                   "status": "FAIL",
                   "run": "workers-d-dynamic-63"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-set-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "FAIL",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
               "fully_exercised": false,
@@ -80255,9 +81716,16 @@
             {
               "id": "r5",
               "behavior": "Kernel-secret path variant.",
-              "coverage": "missing",
-              "gap": "Requires guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Verification used intercepted synthetic device replies; real kernel secret slots are not established.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-verify-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -89573,9 +91041,16 @@
             {
               "id": "r4",
               "behavior": "Successful password authentication when enabled",
-              "coverage": "missing",
-              "gap": "Requires the bash-os kernel auth device /dev/bashos-auth (sshd.c:165,2160-2185) used to verify the PHC hash; the Debian trixie VM kernel has no such device, and a script cannot emulate a kernel ioctl interface.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Loopback authentication succeeded for a project-style hex credential with synthetic token/device replies; standard-PHC and real kernel token authentication remain untested.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sshd-password-guarded-argon2-teardown-r3",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -90740,34 +92215,55 @@
         {
           "topic": "su/kernel-token-protocol",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Token mint request fields (target uid/gid) are filled as documented.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "The minted token is consumed immediately before the credential transition.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Synthetic consume preceded an intercepted setgroups denial; no real token enforcement or successful credential transition occurred.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "Expiry and mint/consume failures abort before any credential change.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Injected mint, consume and expiry errors aborted before observed credential calls; real kernel token expiry and enforcement were not exercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -90785,27 +92281,41 @@
         {
           "topic": "su/owned-child-status-and-signals",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Child exit status propagates.",
-              "coverage": "missing",
-              "gap": "Partially observable now: verification failure exit (1) and usage exit (2) from the owned child propagate through waitpid (su.c parent).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Child signal death maps to 128+N.",
-              "coverage": "missing",
-              "gap": "Requires a child that lives long enough to signal (target shell).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -90819,38 +92329,65 @@
             {
               "id": "r4",
               "behavior": "Parent shell state (IDs, tty modes) is preserved; repeated invocations work.",
-              "coverage": "missing",
-              "gap": "Observable now: run the failing PTY verification twice and assert `id -u`-equivalent ($UID/$EUID) and termios restoration (PTY driver records them).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "su/password-and-lockout-flow",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Correct password passes verification (reaches the token step).",
-              "coverage": "missing",
-              "gap": "Observable now through the PTY driver: correct password produces the kernel-auth diagnostic, wrong password produces the authentication failure.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The correct project-style synthetic credential reached mock MINT/CONSUME; real token authority and credential transition were not exercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Incorrect password fails with status 1 and records a failure.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -90873,9 +92410,16 @@
             {
               "id": "r5",
               "behavior": "Repeated failures lock the account until LOCKED_UNTIL; success clears the failure state.",
-              "coverage": "missing",
-              "gap": "Failure counting and lock-file content are observable; expiry after BSU_LOCK_DURATION needs waiting or a settable wall clock (CLOCK_REALTIME cannot be offset unprivileged), and success-clears-state needs a successful login, which needs the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The saved lock state and expiry handling were observed, but the expired-path su command subsequently failed at setgroups; a successful final credential transition was not shown.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -90891,9 +92435,16 @@
             {
               "id": "r1",
               "behavior": "Present user: target UID/GID/home/shell are taken from the private passwd row.",
-              "coverage": "missing",
-              "gap": "Observable only after successful authentication (exec) or via diagnostics; selection itself is internal.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The test uses only the same uid/gid 2000, so it does not establish selection among varying target IDs or a real credential transition.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -90955,125 +92506,202 @@
         },
         {
           "topic": "su/pty-echo-and-cancellation",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Password echo is suppressed during the prompt.",
-              "coverage": "missing",
-              "gap": "Not executed; PTY driver can assert the typed bytes never reach the screen.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-tty-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Terminal modes are restored after success, failure, read failure (EOF) and cancellation (^C / SIGINT).",
-              "coverage": "missing",
-              "gap": "Not executed; PTY driver records termios_before/after and supports ^C steps.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-tty-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "su/target-shell-environment-and-fds",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Login mode argv[0] '-shell' with -i, non-login argv, -c CMD argv.",
-              "coverage": "missing",
-              "gap": "Requires exec of the target shell.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Login mode changes to the target home; non-login keeps cwd.",
-              "coverage": "missing",
-              "gap": "Requires exec.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Environment filtered (default) or retained (--keep-env).",
-              "coverage": "missing",
-              "gap": "Requires exec.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Inherited descriptors above 2 are closed.",
-              "coverage": "missing",
-              "gap": "Requires exec.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Exec errors (missing/non-executable shell) return 126 with a diagnostic.",
-              "coverage": "missing",
-              "gap": "Requires reaching exec.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "sudo/authority-command-authorization",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Authorized command runs via the v2 authority.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "An owned child ran on a synthetic authority response; real v2 authority and credential enforcement were not exercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Policy denial does not run the command.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Synthetic denial left the child marker absent; real authority policy enforcement remains untested.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "-n denial when interaction is required.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Synthetic authentication-required response caused noninteractive denial; real authority enforcement remains untested.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "Verifier success/failure and fail-closed reauthorization.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudo-verify-client-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -91142,13 +92770,19 @@
               "id": "r1",
               "behavior": "-l / -ll / --list render the caller-filtered projection of the authority-advertised policy, bound to its digest.",
               "coverage": "partial",
-              "gap": "Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised.",
+              "gap": "Short/long/alias projections and mismatched digest rejection were observed with synthetic owner and authority responses; the digest was not recomputed and real authority binding is untested.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-auth-policy-list-caller-projection",
                   "status": "PASS",
                   "run": "auth-dynamic-39"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
               "fully_exercised": false,
@@ -91157,18 +92791,24 @@
             {
               "id": "r2",
               "behavior": "Empty and no-match policies render as documented.",
-              "coverage": "partial",
-              "gap": "Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-auth-policy-list-caller-projection",
                   "status": "PASS",
                   "run": "auth-dynamic-39"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -91190,13 +92830,19 @@
               "id": "r4",
               "behavior": "Listing is never an execution approval.",
               "coverage": "partial",
-              "gap": "The authority route (listing then never approving execution) needs the /dev/bashos-auth device.",
+              "gap": "Listing-with-command was rejected in the synthetic authority fixture; real authority approval enforcement remains untested.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sudo-list-delegate-only",
                   "status": "PASS",
                   "run": "data-auth-corrections-dynamic-47"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
               "fully_exercised": false,
@@ -91252,43 +92898,77 @@
         {
           "topic": "sudo/sudoedit-safe-copyback",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Kernel safe-open of policy-bound targets, private editor copies edited as the caller.",
-              "coverage": "missing",
-              "gap": "Requires the device (EXEC_HANDOFF sudoedit flow).",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Real kernel safe-open, privileged copyback and enforcement of the digest-bound authorization are not established by the synthetic private-file peer.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudoedit-success-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Reauthorization and digest-bound copyback.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Real kernel safe-open, privileged copyback and enforcement of the digest-bound authorization are not established by the synthetic private-file peer.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudoedit-success-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "Rejection cleanup of temporary copies.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudoedit-reject-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Multi-file behavior up to 16 targets and count validation.",
-              "coverage": "missing",
-              "gap": "Count validation on the root route (1..16) is reachable with guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid); unprivileged delegate route refuses -e.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The client handled 1, 2 and 16 files and rejected 17, but privileged safe-open and copyback were synthetic.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudoedit-reject-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-sudoedit-success-guarded-bootstrap-r1",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -91305,13 +92985,19 @@
               "id": "r1",
               "behavior": "-k / -K reset the cached credential.",
               "coverage": "partial",
-              "gap": "The authority-route credential reset needs the /dev/bashos-auth device.",
+              "gap": "The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sudo-doas-fallback-translation",
                   "status": "PASS",
                   "run": "data-auth-corrections-dynamic-47"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
               "fully_exercised": false,
@@ -91321,13 +93007,19 @@
               "id": "r2",
               "behavior": "-v validates.",
               "coverage": "partial",
-              "gap": "Validation itself needs the /dev/bashos-auth device.",
+              "gap": "The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sudo-doas-fallback-translation",
                   "status": "PASS",
                   "run": "data-auth-corrections-dynamic-47"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
               "fully_exercised": false,
@@ -91337,13 +93029,19 @@
               "id": "r3",
               "behavior": "-k COMMAND resets first and a failed reset prevents the command.",
               "coverage": "partial",
-              "gap": "Reset-then-run and a failed reset preventing the command need the /dev/bashos-auth device.",
+              "gap": "The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sudo-doas-fallback-translation",
                   "status": "PASS",
                   "run": "data-auth-corrections-dynamic-47"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2",
+                  "status": "PASS",
+                  "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
               "fully_exercised": false,
@@ -99406,9 +101104,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 272,
+        "UNRESOLVED": 268,
         "FAIL": 163,
-        "PASS": 165
+        "PASS": 169
       },
       "migration_without_complete_evidence": []
     }

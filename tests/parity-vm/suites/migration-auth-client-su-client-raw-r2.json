@@ -1,0 +1,145 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "su",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Original SU requirements, independently calculated Argon2id project-hex fixture and known vector, raw x86-64 UAPI requests, real /proc identity and descriptor observations, owned PTY modes, and exact child status. Device and credential results are synthetic; no root or kernel-enforcement conclusion is possible.",
+      "comparison": "The supervisor intercepts a valid SU token consume and supplies exactly one synthetic geteuid=0 to enter the client-only branch. It returns synthetic success only for the ordered setgroups([2000]), setresgid(2000,2000,2000), and setresuid(2000,2000,2000); no real credential call occurs. Invalid group/UID/GID attempts are denied, real identities are checked, and a setup control reaches a real owned bash exit 7. A private PTY drives only synthetic passwords; exact token bytes, response and transition records, execve argv/env/cwd/fds, and parent identities are retained. PR_SET_DUMPABLE is acknowledged without application so the peer can inspect owned tracees. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included. The CLI raw and encoded outputs and exact inputs are independently cross-checked and recorded. Every PTY run records the complete before, each prompt-time and after termios snapshot. Cancellation records the selected notification, verified ancestry and UID/start-time recheck, pidfd details and signal outcome.",
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-su-exec-bootstrap-r1.py": "e4ba1b779b329da28e7cf2447b94d6a7d30630424489296b813a2e72960f334d",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-argon2-cli-r1.py": "54051e50d17c3799b4143b01e583b5cd0001e7a258fd0713085a172bed9754f9",
+        "helpers/auth-client-su-observer-raw-r2.py": "d71ef168a84a4d6e735a6c076b88e71a94baa42936b52d3b3bf956c1daddf434"
+      },
+      "setup_timeout": 40,
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+      "purpose": "Target account fields, login/no-login exec, environment, closed fds, and error handling after simulated credentials.",
+      "covers": [
+        "su/private-account-lookup",
+        "su/target-shell-environment-and-fds"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-su-observer-raw-r2.py setup shell",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-su-observer-raw-r2.py \"$BASH\" shell",
+      "stdout": "su-shell lookup=yes login=yes no-login=yes env=yes argv=yes exec-errors=yes\n",
+      "diagnostic_files": [
+        "su-client-observations.jsonl",
+        "su-client-trace-control.jsonl",
+        "su-client-trace-login.jsonl",
+        "su-client-trace-no-login.jsonl",
+        "su-client-trace-keep.jsonl",
+        "su-client-trace-interactive.jsonl",
+        "su-client-trace-simple.jsonl",
+        "su-client-trace-missing.jsonl",
+        "su-client-trace-nonexec-run.jsonl",
+        "su-client-trace-control.jsonl.bootstrap",
+        "su-client-trace-login.jsonl.bootstrap",
+        "su-client-trace-no-login.jsonl.bootstrap",
+        "su-client-trace-keep.jsonl.bootstrap",
+        "su-client-trace-interactive.jsonl.bootstrap",
+        "su-client-trace-simple.jsonl.bootstrap",
+        "su-client-trace-missing.jsonl.bootstrap"
+      ]
+    },
+    {
+      "loadable": "su",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Original SU requirements, independently calculated Argon2id project-hex fixture and known vector, raw x86-64 UAPI requests, real /proc identity and descriptor observations, owned PTY modes, and exact child status. Device and credential results are synthetic; no root or kernel-enforcement conclusion is possible.",
+      "comparison": "The supervisor intercepts a valid SU token consume and supplies exactly one synthetic geteuid=0 to enter the client-only branch. It returns synthetic success only for the ordered setgroups([2000]), setresgid(2000,2000,2000), and setresuid(2000,2000,2000); no real credential call occurs. Invalid group/UID/GID attempts are denied, real identities are checked, and a setup control reaches a real owned bash exit 7. A private PTY drives only synthetic passwords; exact token bytes, response and transition records, execve argv/env/cwd/fds, and parent identities are retained. PR_SET_DUMPABLE is acknowledged without application so the peer can inspect owned tracees. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included. The CLI raw and encoded outputs and exact inputs are independently cross-checked and recorded. Every PTY run records the complete before, each prompt-time and after termios snapshot. Cancellation records the selected notification, verified ancestry and UID/start-time recheck, pidfd details and signal outcome.",
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-su-exec-bootstrap-r1.py": "e4ba1b779b329da28e7cf2447b94d6a7d30630424489296b813a2e72960f334d",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-argon2-cli-r1.py": "54051e50d17c3799b4143b01e583b5cd0001e7a258fd0713085a172bed9754f9",
+        "helpers/auth-client-su-observer-raw-r2.py": "d71ef168a84a4d6e735a6c076b88e71a94baa42936b52d3b3bf956c1daddf434"
+      },
+      "setup_timeout": 40,
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+      "purpose": "Repeat owned SU invocations for exit 7 and signal 15 while observing unchanged parent identity and PTY mode.",
+      "covers": [
+        "su/owned-child-status-and-signals"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-su-observer-raw-r2.py setup child",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-su-observer-raw-r2.py \"$BASH\" child",
+      "stdout": "su-child exits=yes signal=yes repeat-parent=yes\n",
+      "diagnostic_files": [
+        "su-client-observations.jsonl",
+        "su-client-trace-control.jsonl",
+        "su-client-trace-child.jsonl",
+        "su-client-trace-control.jsonl.bootstrap",
+        "su-client-trace-child.jsonl.bootstrap"
+      ]
+    },
+    {
+      "loadable": "su",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Original SU requirements, independently calculated Argon2id project-hex fixture and known vector, raw x86-64 UAPI requests, real /proc identity and descriptor observations, owned PTY modes, and exact child status. Device and credential results are synthetic; no root or kernel-enforcement conclusion is possible.",
+      "comparison": "The supervisor intercepts a valid SU token consume and supplies exactly one synthetic geteuid=0 to enter the client-only branch. It returns synthetic success only for the ordered setgroups([2000]), setresgid(2000,2000,2000), and setresuid(2000,2000,2000); no real credential call occurs. Invalid group/UID/GID attempts are denied, real identities are checked, and a setup control reaches a real owned bash exit 7. A private PTY drives only synthetic passwords; exact token bytes, response and transition records, execve argv/env/cwd/fds, and parent identities are retained. PR_SET_DUMPABLE is acknowledged without application so the peer can inspect owned tracees. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included. The CLI raw and encoded outputs and exact inputs are independently cross-checked and recorded. Every PTY run records the complete before, each prompt-time and after termios snapshot. Cancellation records the selected notification, verified ancestry and UID/start-time recheck, pidfd details and signal outcome.",
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-su-exec-bootstrap-r1.py": "e4ba1b779b329da28e7cf2447b94d6a7d30630424489296b813a2e72960f334d",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-argon2-cli-r1.py": "54051e50d17c3799b4143b01e583b5cd0001e7a258fd0713085a172bed9754f9",
+        "helpers/auth-client-su-observer-raw-r2.py": "d71ef168a84a4d6e735a6c076b88e71a94baa42936b52d3b3bf956c1daddf434"
+      },
+      "setup_timeout": 40,
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-auth-client-su-client-tty-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+      "purpose": "Observe echo, restoration, success and failure plus injected tty EOF, EIO and owned-child SIGINT.",
+      "covers": [
+        "su/pty-echo-and-cancellation"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-su-observer-raw-r2.py setup tty",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-su-observer-raw-r2.py \"$BASH\" tty",
+      "stdout": "su-tty echo=yes success=yes failure=yes eof=yes read-error=yes cancel=yes\n",
+      "diagnostic_files": [
+        "su-client-observations.jsonl",
+        "su-client-trace-control.jsonl",
+        "su-client-trace-tty-success.jsonl",
+        "su-client-trace-tty-failure.jsonl",
+        "su-client-trace-tty-eof.jsonl",
+        "su-client-trace-tty-eio.jsonl",
+        "su-client-trace-tty-cancel.jsonl",
+        "su-client-trace-control.jsonl.bootstrap",
+        "su-client-trace-tty-success.jsonl.bootstrap",
+        "su-client-trace-tty-failure.jsonl.bootstrap",
+        "su-client-trace-tty-eof.jsonl.bootstrap",
+        "su-client-trace-tty-eio.jsonl.bootstrap",
+        "su-client-trace-tty-cancel.jsonl.bootstrap"
+      ]
+    }
+  ]
+}

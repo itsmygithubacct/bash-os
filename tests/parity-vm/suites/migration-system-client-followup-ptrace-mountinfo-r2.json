@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Read live ptrace scope and independently controlled read-only private namespace views for valid, unknown, malformed and absent values.",
+      "oracle": "Same-process live procfs input, fixed expected descriptions and diagnostics, private read-only bind-mounted files, namespace UID/GID map and inode identity controls. No sysctl is written.",
+      "comparison": "Setup creates only private scratch data and tests good, malformed and absent views in fresh user/mount namespaces. Before mounting, the helper proves the sole UID/GID mapping is inner 0 to guest 2000, the mount namespace differs and no mounts are shared. It bind-mounts private data read-only, checks actual source/mount inode and read-only flags, then verifies bytes or absence. The candidate reads the live level and seven fresh controlled views; raw output and namespace identity records are saved. If user namespaces or bind/remount are unavailable setup is an infrastructure error, not candidate evidence.",
+      "covers": [
+        "mlock/ptrace-scope-operation"
+      ],
+      "requires": [
+        "python3",
+        "unshare"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-followup-ptrace-mountinfo-r2.py": "172b1d64ce5be221d63e532e99b38bbe4268275eebdc955536dca65e4881b218"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-ptrace-mountinfo-r2.py setup",
+      "setup_timeout": 60,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-ptrace-mountinfo-r2.py \"$BASH\"",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "ptrace-scope live=yes levels=yes unknown=yes malformed=yes absent=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "ptrace-followup-observations.jsonl"
+      ]
+    }
+  ]
+}

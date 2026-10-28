@@ -1,0 +1,175 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-system-client-followup-syslog-forward",
+      "loadable": "bashsyslogd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Forwarding defangs a private datagram once, queues raw bytes on an attributed EIO, and bounds admissions.",
+      "covers": [
+        "bashsyslogd/forwarding_queue_replay"
+      ],
+      "oracle": "A private AF_UNIX sender, independently bound loopback UDP receiver, actual /dev/full failure, inode and descriptor observations, owned-process signals and scoped syscall notification records.",
+      "comparison": "Before each candidate scenario, a guest-only control proves one destination-specific sendto EIO while unrelated UDP and UNIX datagrams succeed and a real /dev/full write fails with ENOSPC; exact before/after queue bytes, datagram bytes, owned process identity, syscall arguments and per-run bootstrap traces are saved. HUP timing must fit in the same measured monotonic startup second; a missed timing control is an infrastructure error.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-followup-syslog.py": "67aeb07b22ff4cb590213813180414fee8637ffd59607dd3a3267f98afe34134",
+        "helpers/system-client-followup-syslog-peer.py": "7b991d9ef0231f3db12a6d09e162cc7d7de32f62c390f19e69f772214f9bcb28",
+        "helpers/system-client-followup-sequence.py": "d21fbfd795262e1eeb742434c2ac3963106b00606808cd934669859c9ac76c5e"
+      },
+      "setup_timeout": 35,
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-syslog.py setup forward",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-syslog.py \"$BASH\" forward",
+      "timeout": 60,
+      "expected_status": 0,
+      "stdout": "syslog-forward sanitized=yes queue=yes limit=yes preserve-existing=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "syslog-followup-observations.jsonl",
+        "syslog-followup-control.jsonl",
+        "syslog-followup-control.jsonl.bootstrap",
+        "syslog-followup-trace-forward.jsonl",
+        "syslog-followup-trace-forward.jsonl.bootstrap",
+        "syslog-followup-trace-enqueue.jsonl",
+        "syslog-followup-trace-enqueue.jsonl.bootstrap",
+        "syslog-followup-trace-limit-empty.jsonl",
+        "syslog-followup-trace-limit-empty.jsonl.bootstrap",
+        "syslog-followup-trace-limit-existing.jsonl",
+        "syslog-followup-trace-limit-existing.jsonl.bootstrap"
+      ]
+    },
+    {
+      "id": "migration-system-client-followup-syslog-replay",
+      "loadable": "bashsyslogd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Startup replay preserves FIFO, skips malformed records, and retains unsent entries after an attributed replay failure.",
+      "covers": [
+        "bashsyslogd/forwarding_queue_replay"
+      ],
+      "oracle": "A private AF_UNIX sender, independently bound loopback UDP receiver, actual /dev/full failure, inode and descriptor observations, owned-process signals and scoped syscall notification records.",
+      "comparison": "Before each candidate scenario, a guest-only control proves one destination-specific sendto EIO while unrelated UDP and UNIX datagrams succeed and a real /dev/full write fails with ENOSPC; exact before/after queue bytes, datagram bytes, owned process identity, syscall arguments and per-run bootstrap traces are saved. HUP timing must fit in the same measured monotonic startup second; a missed timing control is an infrastructure error.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-followup-syslog.py": "67aeb07b22ff4cb590213813180414fee8637ffd59607dd3a3267f98afe34134",
+        "helpers/system-client-followup-syslog-peer.py": "7b991d9ef0231f3db12a6d09e162cc7d7de32f62c390f19e69f772214f9bcb28",
+        "helpers/system-client-followup-sequence.py": "d21fbfd795262e1eeb742434c2ac3963106b00606808cd934669859c9ac76c5e"
+      },
+      "setup_timeout": 35,
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-syslog.py setup replay",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-syslog.py \"$BASH\" replay",
+      "timeout": 60,
+      "expected_status": 0,
+      "stdout": "syslog-replay startup=yes malformed=yes failed-retained=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "syslog-followup-observations.jsonl",
+        "syslog-followup-control.jsonl",
+        "syslog-followup-control.jsonl.bootstrap",
+        "syslog-followup-trace-replay-start.jsonl",
+        "syslog-followup-trace-replay-start.jsonl.bootstrap",
+        "syslog-followup-trace-replay-malformed.jsonl",
+        "syslog-followup-trace-replay-malformed.jsonl.bootstrap",
+        "syslog-followup-trace-replay-fail.jsonl",
+        "syslog-followup-trace-replay-fail.jsonl.bootstrap"
+      ]
+    },
+    {
+      "id": "migration-system-client-followup-syslog-timed",
+      "loadable": "bashsyslogd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "An owned HUP and an independent periodic retry each replay newly seeded records under monotonic timing controls.",
+      "covers": [
+        "bashsyslogd/forwarding_queue_replay"
+      ],
+      "oracle": "A private AF_UNIX sender, independently bound loopback UDP receiver, actual /dev/full failure, inode and descriptor observations, owned-process signals and scoped syscall notification records.",
+      "comparison": "Before each candidate scenario, a guest-only control proves one destination-specific sendto EIO while unrelated UDP and UNIX datagrams succeed and a real /dev/full write fails with ENOSPC; exact before/after queue bytes, datagram bytes, owned process identity, syscall arguments and per-run bootstrap traces are saved. HUP timing must fit in the same measured monotonic startup second; a missed timing control is an infrastructure error.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-followup-syslog.py": "67aeb07b22ff4cb590213813180414fee8637ffd59607dd3a3267f98afe34134",
+        "helpers/system-client-followup-syslog-peer.py": "7b991d9ef0231f3db12a6d09e162cc7d7de32f62c390f19e69f772214f9bcb28",
+        "helpers/system-client-followup-sequence.py": "d21fbfd795262e1eeb742434c2ac3963106b00606808cd934669859c9ac76c5e"
+      },
+      "setup_timeout": 35,
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-syslog.py setup timed",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-syslog.py \"$BASH\" timed",
+      "timeout": 60,
+      "expected_status": 0,
+      "stdout": "syslog-replay hup=yes periodic=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "syslog-followup-observations.jsonl",
+        "syslog-followup-control.jsonl",
+        "syslog-followup-control.jsonl.bootstrap",
+        "syslog-followup-trace-replay-hup.jsonl",
+        "syslog-followup-trace-replay-hup.jsonl.bootstrap",
+        "syslog-followup-trace-replay-periodic.jsonl",
+        "syslog-followup-trace-replay-periodic.jsonl.bootstrap"
+      ]
+    },
+    {
+      "id": "migration-system-client-followup-syslog-safety",
+      "loadable": "bashsyslogd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Private path collisions, real /dev/full write failure, same-inode cleanup, signal restoration and descriptors are observed.",
+      "covers": [
+        "bashsyslogd/socket_and_output_failures"
+      ],
+      "oracle": "A private AF_UNIX sender, independently bound loopback UDP receiver, actual /dev/full failure, inode and descriptor observations, owned-process signals and scoped syscall notification records.",
+      "comparison": "Before each candidate scenario, a guest-only control proves one destination-specific sendto EIO while unrelated UDP and UNIX datagrams succeed and a real /dev/full write fails with ENOSPC; exact before/after queue bytes, datagram bytes, owned process identity, syscall arguments and per-run bootstrap traces are saved. HUP timing must fit in the same measured monotonic startup second; a missed timing control is an infrastructure error.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-followup-syslog.py": "67aeb07b22ff4cb590213813180414fee8637ffd59607dd3a3267f98afe34134",
+        "helpers/system-client-followup-syslog-peer.py": "7b991d9ef0231f3db12a6d09e162cc7d7de32f62c390f19e69f772214f9bcb28",
+        "helpers/system-client-followup-sequence.py": "d21fbfd795262e1eeb742434c2ac3963106b00606808cd934669859c9ac76c5e"
+      },
+      "setup_timeout": 35,
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-syslog.py setup safety",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-syslog.py \"$BASH\" safety",
+      "timeout": 60,
+      "expected_status": 0,
+      "stdout": "syslog-safety collision=yes stale=yes write=yes inode=yes signals=yes fds=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "syslog-followup-observations.jsonl",
+        "syslog-followup-control.jsonl",
+        "syslog-followup-control.jsonl.bootstrap",
+        "syslog-followup-trace-collision.jsonl",
+        "syslog-followup-trace-collision.jsonl.bootstrap",
+        "syslog-followup-trace-stale.jsonl",
+        "syslog-followup-trace-stale.jsonl.bootstrap",
+        "syslog-followup-trace-inode.jsonl",
+        "syslog-followup-trace-inode.jsonl.bootstrap",
+        "syslog-followup-trace-full.jsonl",
+        "syslog-followup-trace-full.jsonl.bootstrap"
+      ]
+    }
+  ]
+}

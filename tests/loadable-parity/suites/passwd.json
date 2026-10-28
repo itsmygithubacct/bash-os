@@ -77,13 +77,13 @@
       "id": "password_hash_updates",
       "purpose": "Future coverage for set, set-fd, change, add, and add-fd password hashing and shadow updates.",
       "kind": "deferred",
-      "reason": "Remaining obligations: r3: Not executed.; r5: The secret-slot path that uses the device needs /dev/bashos-auth."
+      "reason": "Remaining obligations: r3: Not executed.; r4: No observation establishes that the candidate secret buffer is wiped after use or that secret bytes never reach paths outside the searched database and diagnostic files. The old mode check establishes only that shadow has no other-access bits; full pre/post shadow permission preservation was not observed.; r5: The slot protocol used intercepted synthetic device replies; real kernel secret-slot security remains untested."
     },
     {
       "id": "password_verification_lockout",
       "purpose": "Future coverage for correct/wrong password results, locked/malformed shadow rows, and failure lockout state.",
       "kind": "deferred",
-      "reason": "Remaining obligations: r5: Requires guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour."
+      "reason": "Remaining obligations: r5: Verification used intercepted synthetic device replies; real kernel secret slots are not established."
     },
     {
       "id": "interactive_password_prompts",

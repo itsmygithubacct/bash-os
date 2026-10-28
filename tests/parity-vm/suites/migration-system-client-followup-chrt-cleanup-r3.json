@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "chrt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Independent Linux sched_getscheduler/sched_getparam and sched_setattr on explicitly owned tasks, util-linux chrt comparisons, exact child argv and real wait status, and same-shell /proc policy snapshots. Only real scheduler calls are used.",
+      "comparison": "Setup checks uid-2000 without CAP_SYS_NICE and RLIMIT_RTPRIO 0, verifies owned three-thread target identity, confirms util-linux single-thread/all-thread BATCH and reset-on-fork behavior, tests real OTHER/BATCH/IDLE child scheduling and an independent kernel DEADLINE EINVAL/EPERM control. The candidate exercises only remembered owned tasks; stdout/stderr, process identities, per-thread policy, child argv and statuses are retained. Privileged FIFO/RR/DEADLINE success is not simulated or claimed.",
+      "requires": [
+        "python3",
+        "chrt"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-followup-chrt-cleanup-r3.py": "a766d85f353dc728221c50267037c5702f90883b4e9eb5a77e04b579f168aedf"
+      },
+      "setup_timeout": 60,
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+      "purpose": "Command-form normal policies, arguments, invalid priorities, child statuses and parent policy.",
+      "covers": [
+        "chrt/deferred-policy-command"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-chrt-cleanup-r3.py setup command",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-chrt-cleanup-r3.py \"$BASH\" command",
+      "stdout": "chrt-command other=yes batch=yes idle=yes reset=yes args=yes exit-signal=yes invalid=yes privileged-deny=yes parent=yes\n",
+      "diagnostic_files": [
+        "chrt-followup-observations.jsonl"
+      ]
+    },
+    {
+      "loadable": "chrt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Independent Linux sched_getscheduler/sched_getparam and sched_setattr on explicitly owned tasks, util-linux chrt comparisons, exact child argv and real wait status, and same-shell /proc policy snapshots. Only real scheduler calls are used.",
+      "comparison": "Setup checks uid-2000 without CAP_SYS_NICE and RLIMIT_RTPRIO 0, verifies owned three-thread target identity, confirms util-linux single-thread/all-thread BATCH and reset-on-fork behavior, tests real OTHER/BATCH/IDLE child scheduling and an independent kernel DEADLINE EINVAL/EPERM control. The candidate exercises only remembered owned tasks; stdout/stderr, process identities, per-thread policy, child argv and statuses are retained. Privileged FIFO/RR/DEADLINE success is not simulated or claimed.",
+      "requires": [
+        "python3",
+        "chrt"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-followup-chrt-cleanup-r3.py": "a766d85f353dc728221c50267037c5702f90883b4e9eb5a77e04b579f168aedf"
+      },
+      "setup_timeout": 60,
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-system-client-followup-chrt-pid-cleanup-r3",
+      "purpose": "Owned PID single/all-thread changes, reset-on-fork, DEADLINE validation and no-change failures.",
+      "covers": [
+        "chrt/deferred-pid-deadline"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-chrt-cleanup-r3.py setup pid",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-chrt-cleanup-r3.py \"$BASH\" pid",
+      "stdout": "chrt-pid single=yes all-tasks=yes reset=yes deadline=yes failures=yes\n",
+      "diagnostic_files": [
+        "chrt-followup-observations.jsonl"
+      ]
+    }
+  ]
+}

@@ -102,7 +102,7 @@
       "id": "authentication-authorization",
       "kind": "deferred",
       "purpose": "Check authorized-key matching and restrictions, password-auth policy, forced commands, accepted environment variables, root-login policy, and forwarding authorization.",
-      "reason": "Remaining obligations: r2: The from, no-pty and no-port-forwarding restrictions are exercised. The per-key no-agent-forwarding branch remains untested.; r4: Requires the bash-os kernel auth device /dev/bashos-auth (sshd.c:165,2160-2185) used to verify the PHC hash; the Debian trixie VM kernel has no such device, and a script cannot emulate a kernel ioctl interface.; r7: PasswordAuthentication no is set in every variant; no discriminating prohibit-password password attempt, nor admitted command execution.; r8: Reverse-forward denial is still missing."
+      "reason": "Remaining obligations: r2: The from, no-pty and no-port-forwarding restrictions are exercised. The per-key no-agent-forwarding branch remains untested.; r4: Loopback authentication succeeded for a project-style hex credential with synthetic token/device replies; standard-PHC and real kernel token authentication remain untested.; r7: PasswordAuthentication no is set in every variant; no discriminating prohibit-password password attempt, nor admitted command execution.; r8: Reverse-forward denial is still missing."
     },
     {
       "id": "session-management",

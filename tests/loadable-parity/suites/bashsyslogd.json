@@ -83,13 +83,18 @@
       "id": "forwarding_queue_replay",
       "kind": "deferred",
       "purpose": "Check sanitized UDP copies, lowercase-hex queue encoding, bounded admission, FIFO replay, malformed-record handling, and recovery after send failure.",
-      "reason": "No forwarding run exists. Sends are unconnected with MSG_DONTWAIT, so a closed port does not fail; deterministic failure needs a destination with no route, which a script can create as VM root."
+      "reason": "Remaining obligations: r4: FIFO replay of three queued records was observed at startup. SIGHUP and periodic replay were each observed with one post-start queued record, so FIFO ordering of multiple records under those triggers was not independently exercised."
     },
     {
       "id": "socket_and_output_failures",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check refusal of non-socket path collisions, stale-socket replacement, write-error exit status, inode-safe cleanup, signal restoration, and descriptor cleanup.",
-      "reason": "No daemon run exists. Write failure is producible without a mock (output on a tiny tmpfs mounted by the VM-root script, or /dev/full via a relative symlink if the daemon follows links)."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-system-client-followup-syslog-safety-stale-r2"
+        }
+      ]
     }
   ]
 }

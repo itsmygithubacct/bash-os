@@ -1,0 +1,183 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-auth-client-authority-auth-r2-guarded-bootstrap-r1-record-r2",
+      "loadable": "auth",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Exact authority request fields and SHA-256; inspect deny/allow and verify a mocked allow starts a same-UID owned child with its status.",
+      "oracle": "The original obligations, published x86-64 UAPI layouts and the independent SHA-256 wire encoder described by tests/sol-doas-check.py. A controlled stateful peer checks exact argv, target, relevant environment and request digest; an actual private child under the fixture UID supplies its own exit status and records identity. The authority is synthetic and cannot establish real kernel authorization or privilege transitions.",
+      "comparison": "Seccomp redirects the exact device open to a private memfd and handles only that fd. Setup drives the peer with an independent Python UAPI encoder, executes the owned child on a valid handle, and verifies a tampered request digest is rejected. Each case retains raw input/output ioctl bytes, argv/env blobs, expected and actual digest, decision order, child identity/status, stderr and stdout. A narrowly scoped synthetic-success PR_SET_DUMPABLE(0) reply is logged where auth open uses it. Denied, auth-required and failed-reset branches must never start the child. An allow must start the actual harmless child and preserve its status. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included.",
+      "covers": [
+        "auth/authority-policy-audit-and-child-flow"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-authority-bootstrap-r1.py": "049f3814538056945f75b0407b0c233149bab3818a1e2f7092311c92e0f04038",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-authority-observer-bootstrap-r2.py": "2d2c408d7f7b2497a355d825940835d881747cc3e1864615b4f190050b0ac316"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-authority-observer-bootstrap-r2.py setup auth",
+      "setup_timeout": 35,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-authority-observer-bootstrap-r2.py \"$BASH\" auth",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "authority-auth deny=yes inspect-allow=yes failure-no-child=yes allow-owned-child-status=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "authority-observations.jsonl",
+        "authority-trace-control.jsonl",
+        "authority-trace-auth-deny.jsonl",
+        "authority-trace-auth-inspect-allow.jsonl",
+        "authority-trace-auth-error.jsonl",
+        "authority-trace-auth-allow.jsonl",
+        "authority-trace-control.jsonl.bootstrap",
+        "authority-trace-auth-deny.jsonl.bootstrap",
+        "authority-trace-auth-inspect-allow.jsonl.bootstrap",
+        "authority-trace-auth-error.jsonl.bootstrap",
+        "authority-trace-auth-allow.jsonl.bootstrap"
+      ]
+    },
+    {
+      "id": "migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2",
+      "loadable": "doas",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Nonroot doas client allow, deny and -n authentication-required routing through a controlled device.",
+      "oracle": "The original obligations, published x86-64 UAPI layouts and the independent SHA-256 wire encoder described by tests/sol-doas-check.py. A controlled stateful peer checks exact argv, target, relevant environment and request digest; an actual private child under the fixture UID supplies its own exit status and records identity. The authority is synthetic and cannot establish real kernel authorization or privilege transitions.",
+      "comparison": "Seccomp redirects the exact device open to a private memfd and handles only that fd. Setup drives the peer with an independent Python UAPI encoder, executes the owned child on a valid handle, and verifies a tampered request digest is rejected. Each case retains raw input/output ioctl bytes, argv/env blobs, expected and actual digest, decision order, child identity/status, stderr and stdout. A narrowly scoped synthetic-success PR_SET_DUMPABLE(0) reply is logged where auth open uses it. Denied, auth-required and failed-reset branches must never start the child. An allow must start the actual harmless child and preserve its status. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included.",
+      "covers": [
+        "doas/authority_policy_and_verification"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-authority-bootstrap-r1.py": "049f3814538056945f75b0407b0c233149bab3818a1e2f7092311c92e0f04038",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-authority-observer-bootstrap-r2.py": "2d2c408d7f7b2497a355d825940835d881747cc3e1864615b4f190050b0ac316"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-authority-observer-bootstrap-r2.py setup doas",
+      "setup_timeout": 35,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-authority-observer-bootstrap-r2.py \"$BASH\" doas",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "doas allow=yes deny=yes noninteractive=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "authority-observations.jsonl",
+        "authority-trace-control.jsonl",
+        "authority-trace-doas-allow.jsonl",
+        "authority-trace-doas-deny.jsonl",
+        "authority-trace-doas-auth-required.jsonl",
+        "authority-trace-control.jsonl.bootstrap",
+        "authority-trace-doas-allow.jsonl.bootstrap",
+        "authority-trace-doas-deny.jsonl.bootstrap",
+        "authority-trace-doas-auth-required.jsonl.bootstrap"
+      ]
+    },
+    {
+      "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2",
+      "loadable": "sudo",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Nonroot sudo client allow, deny and -n authentication-required routing; independent environment digest variation.",
+      "oracle": "The original obligations, published x86-64 UAPI layouts and the independent SHA-256 wire encoder described by tests/sol-doas-check.py. A controlled stateful peer checks exact argv, target, relevant environment and request digest; an actual private child under the fixture UID supplies its own exit status and records identity. The authority is synthetic and cannot establish real kernel authorization or privilege transitions.",
+      "comparison": "Seccomp redirects the exact device open to a private memfd and handles only that fd. Setup drives the peer with an independent Python UAPI encoder, executes the owned child on a valid handle, and verifies a tampered request digest is rejected. Each case retains raw input/output ioctl bytes, argv/env blobs, expected and actual digest, decision order, child identity/status, stderr and stdout. A narrowly scoped synthetic-success PR_SET_DUMPABLE(0) reply is logged where auth open uses it. Denied, auth-required and failed-reset branches must never start the child. An allow must start the actual harmless child and preserve its status. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included.",
+      "covers": [
+        "sudo/authority-command-authorization"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-authority-bootstrap-r1.py": "049f3814538056945f75b0407b0c233149bab3818a1e2f7092311c92e0f04038",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-authority-observer-bootstrap-r2.py": "2d2c408d7f7b2497a355d825940835d881747cc3e1864615b4f190050b0ac316"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-authority-observer-bootstrap-r2.py setup sudo",
+      "setup_timeout": 35,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-authority-observer-bootstrap-r2.py \"$BASH\" sudo",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "sudo allow=yes deny=yes noninteractive=yes env-binding=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "authority-observations.jsonl",
+        "authority-trace-control.jsonl",
+        "authority-trace-sudo-allow.jsonl",
+        "authority-trace-sudo-deny.jsonl",
+        "authority-trace-sudo-auth-required.jsonl",
+        "authority-trace-sudo-env-alpha.jsonl",
+        "authority-trace-sudo-env-bravo.jsonl",
+        "authority-trace-control.jsonl.bootstrap",
+        "authority-trace-sudo-allow.jsonl.bootstrap",
+        "authority-trace-sudo-deny.jsonl.bootstrap",
+        "authority-trace-sudo-auth-required.jsonl.bootstrap",
+        "authority-trace-sudo-env-alpha.jsonl.bootstrap",
+        "authority-trace-sudo-env-bravo.jsonl.bootstrap"
+      ]
+    },
+    {
+      "id": "migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2",
+      "loadable": "sudo",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Reset and validate request modes and flags, plus reset-before-command ordering on both failure and success.",
+      "oracle": "The original obligations, published x86-64 UAPI layouts and the independent SHA-256 wire encoder described by tests/sol-doas-check.py. A controlled stateful peer checks exact argv, target, relevant environment and request digest; an actual private child under the fixture UID supplies its own exit status and records identity. The authority is synthetic and cannot establish real kernel authorization or privilege transitions.",
+      "comparison": "Seccomp redirects the exact device open to a private memfd and handles only that fd. Setup drives the peer with an independent Python UAPI encoder, executes the owned child on a valid handle, and verifies a tampered request digest is rejected. Each case retains raw input/output ioctl bytes, argv/env blobs, expected and actual digest, decision order, child identity/status, stderr and stdout. A narrowly scoped synthetic-success PR_SET_DUMPABLE(0) reply is logged where auth open uses it. Denied, auth-required and failed-reset branches must never start the child. An allow must start the actual harmless child and preserve its status. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included.",
+      "covers": [
+        "sudo/timestamp-validation-flows"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-authority-bootstrap-r1.py": "049f3814538056945f75b0407b0c233149bab3818a1e2f7092311c92e0f04038",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-authority-observer-bootstrap-r2.py": "2d2c408d7f7b2497a355d825940835d881747cc3e1864615b4f190050b0ac316"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-authority-observer-bootstrap-r2.py setup timestamp",
+      "setup_timeout": 35,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-authority-observer-bootstrap-r2.py \"$BASH\" timestamp",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "timestamp reset=yes reset-all=yes validate=yes failed-reset-stops=yes successful-reset-runs=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "authority-observations.jsonl",
+        "authority-trace-control.jsonl",
+        "authority-trace-time-reset.jsonl",
+        "authority-trace-time-reset-all.jsonl",
+        "authority-trace-time-validate.jsonl",
+        "authority-trace-time-reset-failure.jsonl",
+        "authority-trace-time-reset-success.jsonl",
+        "authority-trace-control.jsonl.bootstrap",
+        "authority-trace-time-reset.jsonl.bootstrap",
+        "authority-trace-time-reset-all.jsonl.bootstrap",
+        "authority-trace-time-validate.jsonl.bootstrap",
+        "authority-trace-time-reset-failure.jsonl.bootstrap",
+        "authority-trace-time-reset-success.jsonl.bootstrap"
+      ]
+    }
+  ]
+}

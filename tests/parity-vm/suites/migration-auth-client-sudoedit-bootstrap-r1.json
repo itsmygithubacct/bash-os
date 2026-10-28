@@ -1,0 +1,95 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "sudo",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Original sudoedit obligations, independently encoded x86-64 UAPI and SHA-256 request digest, observable private guest files, controlled same-uid editor, exact raw request/reply and fd-vector traces. Synthetic OPEN/COPYBACK perform only uid-2000 scratch operations; real kernel safe-open is unproved.",
+      "comparison": "Setup independently constructs authorization requests, proves corrupted digest rejection and rejects a wrong temp descriptor, then exercises a valid synthetic two-handle OPEN/edit/COPYBACK. The peer accepts only private scratch targets, records exact bytes and transitions, uses separately minted handles, matches request digest/argv, and never changes credentials. Success invokes an owned guarded editor and checks actual private bytes; rejection checks no private target changed and every returned temp was unlinked. Sixteen targets and count/path rejection are bounded. PR_SET_DUMPABLE is acknowledged without application if requested. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included.",
+      "covers": [
+        "sudo/sudoedit-safe-copyback"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-edit-peer-bootstrap-r1.py": "23b95f22046c337c74892886fec7abfc7850487906690fa2f7ded10cd0959a20",
+        "helpers/auth-client-edit-observer-bootstrap-r1.py": "3efc855735a65cac097f2ed475a0798bf9d6432ab821201520e54a04fa1d4984",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64"
+      },
+      "setup_timeout": 40,
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-auth-client-sudoedit-success-guarded-bootstrap-r1",
+      "purpose": "Reach actual guarded editor and observe one, two and sixteen target requests and synthetic private copyback.",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-edit-observer-bootstrap-r1.py setup success",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-edit-observer-bootstrap-r1.py \"$BASH\" success",
+      "stdout": "sudo-edit single=yes multi=yes max16=yes\n",
+      "diagnostic_files": [
+        "sudo-edit-observations.jsonl",
+        "sudo-edit-trace-control.jsonl",
+        "sudo-edit-trace-ok-1.jsonl",
+        "sudo-edit-trace-ok-2.jsonl",
+        "sudo-edit-trace-ok-16.jsonl",
+        "sudo-edit-trace-control.jsonl.bootstrap",
+        "sudo-edit-trace-ok-1.jsonl.bootstrap",
+        "sudo-edit-trace-ok-2.jsonl.bootstrap",
+        "sudo-edit-trace-ok-16.jsonl.bootstrap"
+      ]
+    },
+    {
+      "loadable": "sudo",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Original sudoedit obligations, independently encoded x86-64 UAPI and SHA-256 request digest, observable private guest files, controlled same-uid editor, exact raw request/reply and fd-vector traces. Synthetic OPEN/COPYBACK perform only uid-2000 scratch operations; real kernel safe-open is unproved.",
+      "comparison": "Setup independently constructs authorization requests, proves corrupted digest rejection and rejects a wrong temp descriptor, then exercises a valid synthetic two-handle OPEN/edit/COPYBACK. The peer accepts only private scratch targets, records exact bytes and transitions, uses separately minted handles, matches request digest/argv, and never changes credentials. Success invokes an owned guarded editor and checks actual private bytes; rejection checks no private target changed and every returned temp was unlinked. Sixteen targets and count/path rejection are bounded. PR_SET_DUMPABLE is acknowledged without application if requested. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included.",
+      "covers": [
+        "sudo/sudoedit-safe-copyback"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-edit-peer-bootstrap-r1.py": "23b95f22046c337c74892886fec7abfc7850487906690fa2f7ded10cd0959a20",
+        "helpers/auth-client-edit-observer-bootstrap-r1.py": "3efc855735a65cac097f2ed475a0798bf9d6432ab821201520e54a04fa1d4984",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64"
+      },
+      "setup_timeout": 40,
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-auth-client-sudoedit-reject-guarded-bootstrap-r1",
+      "purpose": "Reject reauthorization, copyback, editor and open failures and validate target count/path limits.",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-edit-observer-bootstrap-r1.py setup reject",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-edit-observer-bootstrap-r1.py \"$BASH\" reject",
+      "stdout": "sudo-edit reauth-denied=yes copyback-denied=yes editor-failed=yes open-failed=yes invalid=yes\n",
+      "diagnostic_files": [
+        "sudo-edit-observations.jsonl",
+        "sudo-edit-trace-control.jsonl",
+        "sudo-edit-trace-reject-deny.jsonl",
+        "sudo-edit-trace-reject-copyback.jsonl",
+        "sudo-edit-trace-reject-editor.jsonl",
+        "sudo-edit-trace-reject-open.jsonl",
+        "sudo-edit-trace-over17.jsonl",
+        "sudo-edit-trace-relative.jsonl",
+        "sudo-edit-trace-control.jsonl.bootstrap",
+        "sudo-edit-trace-reject-deny.jsonl.bootstrap",
+        "sudo-edit-trace-reject-copyback.jsonl.bootstrap",
+        "sudo-edit-trace-reject-editor.jsonl.bootstrap",
+        "sudo-edit-trace-reject-open.jsonl.bootstrap",
+        "sudo-edit-trace-over17.jsonl.bootstrap",
+        "sudo-edit-trace-relative.jsonl.bootstrap"
+      ]
+    }
+  ]
+}

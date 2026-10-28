@@ -1,0 +1,182 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-auth-client-dependent-set-r4-guarded-bootstrap-r1-argon2-cli-r1",
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A private passwd set-fd call uses a synthetic slot and writes a PHC verified independently.",
+      "oracle": "Original obligations, x86-64 UAPI request layouts, independent /usr/bin/argon2 CLI against a fixed reference vector, private account files and observable Linux PTY/status semantics. This deliberately synthetic stateful peer tests only client requests; it cannot establish the missing real kernel device or privileged credential transitions.",
+      "comparison": "Setup checks an independent Argon2id known vector, slot writes and one-shot export, cross-fd and duplicate-export errors, rejected token, scoped one-shot synthetic euid reply, real UID status, and denied credential syscall. Input shadow uses the project interface hex-field representation with digest independently computed by the independent /usr/bin/argon2 CLI and recorded. The stateful device is synthetic. In SU success only, one geteuid is answered 0 after consume to reach setgroups, which is denied EPERM; actual credentials do not change. PR_SET_DUMPABLE(0) is acknowledged without applying it. Exact raw I/O, errno, statuses, tty modes and private lock state are recorded. The set-fd result is additionally checked against independently calculated canonical PHC formatting. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included. The CLI raw and encoded outputs and exact inputs are independently cross-checked and recorded.",
+      "covers": [
+        "passwd/password_hash_updates"
+      ],
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-dependent-bootstrap-r1.py": "ae3b7025c4fbcadaca80a87d0144731a25f4cc272c37d1befe0c3612e3274321",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-dependent-observer-argon2-cli-r1.py": "1c46ac9f9a2a8ef877563267f19da4e8f38d10ae900996c6e55be9af1d7171e3",
+        "helpers/auth-client-argon2-cli-r1.py": "54051e50d17c3799b4143b01e583b5cd0001e7a258fd0713085a172bed9754f9"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-dependent-observer-argon2-cli-r1.py setup set",
+      "setup_timeout": 40,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-dependent-observer-argon2-cli-r1.py \"$BASH\" set",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "passwd-set device-path=yes update=yes independent-phc=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "dependent-observations.jsonl",
+        "dependent-trace-control.jsonl",
+        "dependent-trace-set.jsonl",
+        "dependent-trace-control.jsonl.bootstrap",
+        "dependent-trace-set.jsonl.bootstrap"
+      ]
+    },
+    {
+      "id": "migration-auth-client-dependent-verify-r4-guarded-bootstrap-r1-argon2-cli-r1",
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Correct, wrong, locked and expired password verification with a synthetic slot device and private state.",
+      "oracle": "Original obligations, project documented hex-field PHC representation from the independent sol-su reference fixture, independent /usr/bin/argon2 CLI KAT and calculation, x86-64 UAPI layouts, private files, real proc UID status, and PTY/client observations. Real kernel and root behavior are not established.",
+      "comparison": "Setup checks an independent Argon2id known vector, slot writes and one-shot export, cross-fd and duplicate-export errors, rejected token, scoped one-shot synthetic euid reply, real UID status, and denied credential syscall. Input shadow uses the project interface hex-field representation with digest independently computed by the independent /usr/bin/argon2 CLI and recorded. The stateful device is synthetic. In SU success only, one geteuid is answered 0 after consume to reach setgroups, which is denied EPERM; actual credentials do not change. PR_SET_DUMPABLE(0) is acknowledged without applying it. Exact raw I/O, errno, statuses, tty modes and private lock state are recorded. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included. The CLI raw and encoded outputs and exact inputs are independently cross-checked and recorded.",
+      "covers": [
+        "passwd/password_verification_lockout"
+      ],
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-dependent-bootstrap-r1.py": "ae3b7025c4fbcadaca80a87d0144731a25f4cc272c37d1befe0c3612e3274321",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-dependent-observer-argon2-cli-r1.py": "1c46ac9f9a2a8ef877563267f19da4e8f38d10ae900996c6e55be9af1d7171e3",
+        "helpers/auth-client-argon2-cli-r1.py": "54051e50d17c3799b4143b01e583b5cd0001e7a258fd0713085a172bed9754f9"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-dependent-observer-argon2-cli-r1.py setup verify",
+      "setup_timeout": 40,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-dependent-observer-argon2-cli-r1.py \"$BASH\" verify",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "passwd-verify device-path=yes statuses=yes lockout=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "dependent-observations.jsonl",
+        "dependent-trace-control.jsonl",
+        "dependent-trace-verify.jsonl",
+        "dependent-trace-control.jsonl.bootstrap",
+        "dependent-trace-verify.jsonl.bootstrap"
+      ]
+    },
+    {
+      "id": "migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1",
+      "loadable": "su",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Private SU password failures, active and expired lockouts, and success clearing before stopped credentials.",
+      "oracle": "Original obligations, project documented hex-field PHC representation from the independent sol-su reference fixture, independent /usr/bin/argon2 CLI KAT and calculation, x86-64 UAPI layouts, private files, real proc UID status, and PTY/client observations. Real kernel and root behavior are not established.",
+      "comparison": "Setup checks an independent Argon2id known vector, slot writes and one-shot export, cross-fd and duplicate-export errors, rejected token, scoped one-shot synthetic euid reply, real UID status, and denied credential syscall. Input shadow uses the project interface hex-field representation with digest independently computed by the independent /usr/bin/argon2 CLI and recorded. The stateful device is synthetic. In SU success only, one geteuid is answered 0 after consume to reach setgroups, which is denied EPERM; actual credentials do not change. PR_SET_DUMPABLE(0) is acknowledged without applying it. Exact raw I/O, errno, statuses, tty modes and private lock state are recorded. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included. The CLI raw and encoded outputs and exact inputs are independently cross-checked and recorded.",
+      "covers": [
+        "su/password-and-lockout-flow"
+      ],
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-dependent-bootstrap-r1.py": "ae3b7025c4fbcadaca80a87d0144731a25f4cc272c37d1befe0c3612e3274321",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-dependent-observer-argon2-cli-r1.py": "1c46ac9f9a2a8ef877563267f19da4e8f38d10ae900996c6e55be9af1d7171e3",
+        "helpers/auth-client-argon2-cli-r1.py": "54051e50d17c3799b4143b01e583b5cd0001e7a258fd0713085a172bed9754f9"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-dependent-observer-argon2-cli-r1.py setup su-lockout",
+      "setup_timeout": 40,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-dependent-observer-argon2-cli-r1.py \"$BASH\" su-lockout",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "su-lockout failures=yes duration=yes active-denied=yes expired-success-clears=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "dependent-observations.jsonl",
+        "dependent-trace-control.jsonl",
+        "dependent-trace-lock-wrong-1.jsonl",
+        "dependent-trace-lock-wrong-2.jsonl",
+        "dependent-trace-lock-wrong-3.jsonl",
+        "dependent-trace-lock-wrong-4.jsonl",
+        "dependent-trace-lock-wrong-5.jsonl",
+        "dependent-trace-lock-active.jsonl",
+        "dependent-trace-lock-expired.jsonl",
+        "dependent-trace-control.jsonl.bootstrap",
+        "dependent-trace-lock-wrong-1.jsonl.bootstrap",
+        "dependent-trace-lock-wrong-2.jsonl.bootstrap",
+        "dependent-trace-lock-wrong-3.jsonl.bootstrap",
+        "dependent-trace-lock-wrong-4.jsonl.bootstrap",
+        "dependent-trace-lock-wrong-5.jsonl.bootstrap",
+        "dependent-trace-lock-active.jsonl.bootstrap"
+      ]
+    },
+    {
+      "id": "migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1",
+      "loadable": "su",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic SU token fields and failure ordering through the first prevented credential call, with a scoped effective-UID response.",
+      "oracle": "Original obligations, project documented hex-field PHC representation from the independent sol-su reference fixture, independent /usr/bin/argon2 CLI KAT and calculation, x86-64 UAPI layouts, private files, real proc UID status, and PTY/client observations. Real kernel and root behavior are not established.",
+      "comparison": "Setup checks an independent Argon2id known vector, slot writes and one-shot export, cross-fd and duplicate-export errors, rejected token, scoped one-shot synthetic euid reply, real UID status, and denied credential syscall. Input shadow uses the project interface hex-field representation with digest independently computed by the independent /usr/bin/argon2 CLI and recorded. The stateful device is synthetic. In SU success only, one geteuid is answered 0 after consume to reach setgroups, which is denied EPERM; actual credentials do not change. PR_SET_DUMPABLE(0) is acknowledged without applying it. Exact raw I/O, errno, statuses, tty modes and private lock state are recorded. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included. The CLI raw and encoded outputs and exact inputs are independently cross-checked and recorded.",
+      "covers": [
+        "su/kernel-token-protocol"
+      ],
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-dependent-bootstrap-r1.py": "ae3b7025c4fbcadaca80a87d0144731a25f4cc272c37d1befe0c3612e3274321",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-dependent-observer-argon2-cli-r1.py": "1c46ac9f9a2a8ef877563267f19da4e8f38d10ae900996c6e55be9af1d7171e3",
+        "helpers/auth-client-argon2-cli-r1.py": "54051e50d17c3799b4143b01e583b5cd0001e7a258fd0713085a172bed9754f9"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-dependent-observer-argon2-cli-r1.py setup su-token",
+      "setup_timeout": 40,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-dependent-observer-argon2-cli-r1.py \"$BASH\" su-token",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "su-token mint-and-consume-order=yes mint-failure=yes consume-failure=yes expiry-failure=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "dependent-observations.jsonl",
+        "dependent-trace-control.jsonl",
+        "dependent-trace-su-success.jsonl",
+        "dependent-trace-su-mint-failure.jsonl",
+        "dependent-trace-su-consume-failure.jsonl",
+        "dependent-trace-su-expired.jsonl",
+        "dependent-trace-control.jsonl.bootstrap",
+        "dependent-trace-su-success.jsonl.bootstrap",
+        "dependent-trace-su-mint-failure.jsonl.bootstrap",
+        "dependent-trace-su-consume-failure.jsonl.bootstrap",
+        "dependent-trace-su-expired.jsonl.bootstrap"
+      ]
+    }
+  ]
+}

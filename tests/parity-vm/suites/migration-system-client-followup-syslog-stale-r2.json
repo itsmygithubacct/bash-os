@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-system-client-followup-syslog-safety-stale-r2",
+      "loadable": "bashsyslogd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Private path collisions, real /dev/full write failure, same-inode cleanup, signal restoration and descriptors are observed.",
+      "covers": [
+        "bashsyslogd/socket_and_output_failures"
+      ],
+      "oracle": "A private AF_UNIX sender, independently bound loopback UDP receiver, actual /dev/full failure, inode and descriptor observations, owned-process signals and scoped syscall notification records.",
+      "comparison": "Before each candidate scenario, a guest-only control proves one destination-specific sendto EIO while unrelated UDP and UNIX datagrams succeed and a real /dev/full write fails with ENOSPC; exact before/after queue bytes, datagram bytes, owned process identity, syscall arguments and per-run bootstrap traces are saved. HUP timing must fit in the same measured monotonic startup second; a missed timing control is an infrastructure error.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-followup-syslog-peer.py": "7b991d9ef0231f3db12a6d09e162cc7d7de32f62c390f19e69f772214f9bcb28",
+        "helpers/system-client-followup-sequence.py": "d21fbfd795262e1eeb742434c2ac3963106b00606808cd934669859c9ac76c5e",
+        "helpers/system-client-followup-syslog-stale-r2.py": "6a6144156d3ccbe35a04e22476773c5b242f759f8028ddbc0818de403313d9ae"
+      },
+      "setup_timeout": 35,
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-syslog-stale-r2.py setup safety",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-syslog-stale-r2.py \"$BASH\" safety",
+      "timeout": 60,
+      "expected_status": 0,
+      "stdout": "syslog-safety collision=yes stale=yes write=yes inode=yes signals=yes fds=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "syslog-followup-observations.jsonl",
+        "syslog-followup-control.jsonl",
+        "syslog-followup-control.jsonl.bootstrap",
+        "syslog-followup-trace-collision.jsonl",
+        "syslog-followup-trace-collision.jsonl.bootstrap",
+        "syslog-followup-trace-stale.jsonl",
+        "syslog-followup-trace-stale.jsonl.bootstrap",
+        "syslog-followup-trace-inode.jsonl",
+        "syslog-followup-trace-inode.jsonl.bootstrap",
+        "syslog-followup-trace-full.jsonl",
+        "syslog-followup-trace-full.jsonl.bootstrap"
+      ]
+    }
+  ]
+}

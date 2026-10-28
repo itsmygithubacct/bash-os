@@ -1,0 +1,93 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Independent x86-64 UAPI encoding, SHA-256 request binding and controlled seccomp replies, with real owned child wait, PTY modes and parent identity. No verifier executes or authenticates in the synthetic acknowledgement case.",
+      "comparison": "Setup independently constructs AUTHZ and EXEC_VERIFY, rejects a mutated digest, and validates both success and EACCES synthetic replies. On an owned PTY, require failed verifier launch to abort; after a synthetic success acknowledgement require the client to reauthorize the same digest and fail closed on denial or a repeated authentication-required reply. Assert no command marker or handoff, unchanged parent UID/EUID and restored PTY modes. The success reply does not replace the child with a real verifier and cannot establish successful credential verification or an authorized command. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-verify-peer-bootstrap-r1.py": "973707a2b861f5d06f0e0283d95ec286c32da8501503ee25bf7a8a6ba5457d5d",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-verify-observer-bootstrap-r2.py": "68dca50b4131a1a4315c238cd75e6abaa25abf06efba85f1e6586bc829dfd1f7"
+      },
+      "setup_timeout": 40,
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-auth-client-doas-verify-client-guarded-bootstrap-r1-record-r2",
+      "loadable": "doas",
+      "purpose": "Fail closed on synthetic verifier failure and reauthorization denial for doas.",
+      "covers": [
+        "doas/authority_policy_and_verification"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-verify-observer-bootstrap-r2.py setup doas",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-verify-observer-bootstrap-r2.py \"$BASH\" doas",
+      "stdout": "doas-verifier failed=yes denied=yes still-required=yes\n",
+      "diagnostic_files": [
+        "auth-verify-observations.jsonl",
+        "auth-verify-trace-control-ok.jsonl",
+        "auth-verify-trace-control-fail.jsonl",
+        "auth-verify-trace-doas-fail.jsonl",
+        "auth-verify-trace-doas-deny.jsonl",
+        "auth-verify-trace-doas-again.jsonl",
+        "auth-verify-trace-control-ok.jsonl.bootstrap",
+        "auth-verify-trace-control-fail.jsonl.bootstrap",
+        "auth-verify-trace-doas-fail.jsonl.bootstrap",
+        "auth-verify-trace-doas-deny.jsonl.bootstrap",
+        "auth-verify-trace-doas-again.jsonl.bootstrap"
+      ]
+    },
+    {
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Independent x86-64 UAPI encoding, SHA-256 request binding and controlled seccomp replies, with real owned child wait, PTY modes and parent identity. No verifier executes or authenticates in the synthetic acknowledgement case.",
+      "comparison": "Setup independently constructs AUTHZ and EXEC_VERIFY, rejects a mutated digest, and validates both success and EACCES synthetic replies. On an owned PTY, require failed verifier launch to abort; after a synthetic success acknowledgement require the client to reauthorize the same digest and fail closed on denial or a repeated authentication-required reply. Assert no command marker or handoff, unchanged parent UID/EUID and restored PTY modes. The success reply does not replace the child with a real verifier and cannot establish successful credential verification or an authorized command. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-verify-peer-bootstrap-r1.py": "973707a2b861f5d06f0e0283d95ec286c32da8501503ee25bf7a8a6ba5457d5d",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-verify-observer-bootstrap-r2.py": "68dca50b4131a1a4315c238cd75e6abaa25abf06efba85f1e6586bc829dfd1f7"
+      },
+      "setup_timeout": 40,
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-auth-client-sudo-verify-client-guarded-bootstrap-r1-record-r2",
+      "loadable": "sudo",
+      "purpose": "Fail closed on synthetic verifier failure and reauthorization denial for sudo.",
+      "covers": [
+        "sudo/authority-command-authorization"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-verify-observer-bootstrap-r2.py setup sudo",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-verify-observer-bootstrap-r2.py \"$BASH\" sudo",
+      "stdout": "sudo-verifier failed=yes denied=yes still-required=yes\n",
+      "diagnostic_files": [
+        "auth-verify-observations.jsonl",
+        "auth-verify-trace-control-ok.jsonl",
+        "auth-verify-trace-control-fail.jsonl",
+        "auth-verify-trace-sudo-fail.jsonl",
+        "auth-verify-trace-sudo-deny.jsonl",
+        "auth-verify-trace-sudo-again.jsonl",
+        "auth-verify-trace-control-ok.jsonl.bootstrap",
+        "auth-verify-trace-control-fail.jsonl.bootstrap",
+        "auth-verify-trace-sudo-fail.jsonl.bootstrap",
+        "auth-verify-trace-sudo-deny.jsonl.bootstrap",
+        "auth-verify-trace-sudo-again.jsonl.bootstrap"
+      ]
+    }
+  ]
+}

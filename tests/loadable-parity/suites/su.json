@@ -46,19 +46,19 @@
       "id": "private-account-lookup",
       "kind": "deferred",
       "purpose": "Check account lookup for present, absent, malformed, and unreadable synthetic passwd records, including target UID/GID/home/shell selection.",
-      "reason": "Remaining obligations: r1: Observable only after successful authentication (exec) or via diagnostics; selection itself is internal."
+      "reason": "Remaining obligations: r1: The test uses only the same uid/gid 2000, so it does not establish selection among varying target IDs or a real credential transition."
     },
     {
       "id": "password-and-lockout-flow",
       "kind": "deferred",
       "purpose": "Check correct and incorrect passwords, locked or malformed shadow entries, bounded password input, failure lockout, and success cleanup.",
-      "reason": "su reads PHCLIB_PASSWD/PHCLIB_SHADOW (su.c bsu_passwd_path/bsu_shadow_path) and BPW-style lock files under its lock dir, so account lookup, parsing and password verification run unprivileged on private files; the token mint (su.c bsu_kernel_proof) and credential drop happen only after verification. Verification and failure accounting are now observable via the PTY driver with OpenSSL-generated PHC vectors; only lock expiry timing and post-success cleanup are blocked."
+      "reason": "Remaining obligations: r1: The correct project-style synthetic credential reached mock MINT/CONSUME; real token authority and credential transition were not exercised.; r3: Not executed.; r4: Not executed.; r5: The saved lock state and expiry handling were observed, but the expired-path su command subsequently failed at setgroups; a successful final credential transition was not shown."
     },
     {
       "id": "kernel-token-protocol",
       "kind": "deferred",
       "purpose": "Check token mint/consume request fields, expiry, failure handling, and request cleanup before any credential transition.",
-      "reason": "Only the absent-device fail-closed path is observable; the protocol itself needs guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour."
+      "reason": "Remaining obligations: r2: Synthetic consume preceded an intercepted setgroups denial; no real token enforcement or successful credential transition occurred.; r3: Injected mint, consume and expiry errors aborted before observed credential calls; real kernel token expiry and enforcement were not exercised.; r4: Observable now via the PTY password path (correct password -> 'kernel auth: /dev/bashos-auth: No such file or directory', status 1, no target shell marker)."
     },
     {
       "id": "credential-transition",
@@ -68,21 +68,31 @@
     },
     {
       "id": "target-shell-environment-and-fds",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check login and no-login argv, working directory, filtered and retained environment, descriptor closure, and exec errors using a controlled target shell.",
-      "reason": "All obligations are observed after exec, which follows the kernel token. Blocked by guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour (plus guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid) for the root route)."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2"
+        }
+      ]
     },
     {
       "id": "owned-child-status-and-signals",
       "kind": "deferred",
       "purpose": "Check child exit and signal status propagation, fork/wait errors, parent-shell state preservation, and repeated invocation behavior.",
-      "reason": "Failure-status propagation, parent state preservation and repetition are observable now through the PTY verification-failure path; signal mapping and successful-child status need the device."
+      "reason": "Remaining obligations: r3: Requires injection."
     },
     {
       "id": "pty-echo-and-cancellation",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check tty password echo suppression and terminal restoration after success, read failure, and cancellation.",
-      "reason": "The PTY driver exists and the verify step is device-free, so all paths except post-success restoration are observable."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-auth-client-su-client-tty-guarded-bootstrap-r1-argon2-cli-r1-raw-r2"
+        }
+      ]
     }
   ]
 }

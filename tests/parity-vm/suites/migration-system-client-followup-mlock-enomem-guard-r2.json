@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Same-process /proc VmLck and VmRSS, actual RLIMIT_MEMLOCK, independent libc syscall controls, and recorded seccomp syscall replies. No mock is used to assert a real successful lock.",
+      "comparison": "Setup proves a real munlockall success on an unlocked owned process, and validates independent ENOMEM mlockall and EIO munlockall injections. Candidate calls run only in disposable shells; raw outputs, actual limits, VmLck/VmRSS and syscall replies are retained. The mlockall injection case first measures the actual candidate resident size in the VM and requires a hard limit at least resident plus 2 MiB before running; otherwise setup reports the required guest limit instead of treating an unreached syscall as a candidate failure. A guarded precompiled listener records its bootstrap stages for each notification trace.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-followup-mlock-enomem-guard-r2.py": "cd98090afbb02268106f3346cdf1566a330ef1481daaf9f3a46d825aad85794b",
+        "helpers/system-client-followup-guarded-sequence.py": "027c8e593b5aba157c4246f16404f22256d9bffce7459dbab5805d38f902f036"
+      },
+      "setup_timeout": 45,
+      "expected_status": 0,
+      "timeout": 35,
+      "stderr": "",
+      "id": "migration-system-client-followup-mlock-all-enomem-guard-r2",
+      "purpose": "A reached mlockall ENOMEM reports the actual limits with no locked pages.",
+      "covers": [
+        "mlock/all-operation"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-mlock-enomem-guard-r2.py setup all-enomem",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-mlock-enomem-guard-r2.py \"$BASH\" all-enomem",
+      "stdout": "mlock-all-enomem=yes\n",
+      "diagnostic_files": [
+        "mlock-followup-observations.jsonl",
+        "mlock-followup-control-all.jsonl",
+        "mlock-followup-control-unlock-fail.jsonl",
+        "mlock-followup-trace-enomem.jsonl",
+        "mlock-followup-control-all.jsonl.bootstrap",
+        "mlock-followup-control-unlock-fail.jsonl.bootstrap",
+        "mlock-followup-trace-enomem.jsonl.bootstrap"
+      ]
+    }
+  ]
+}

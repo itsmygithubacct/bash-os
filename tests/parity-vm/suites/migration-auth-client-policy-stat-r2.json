@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2",
+      "loadable": "sudo",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Project only the caller-matching advertised policy, reject changed content or metadata, and never treat listing as approval.",
+      "oracle": "The previously qualified caller-projection fixture, independent SHA-256 over private policy bytes, x86-64 UAPI fields, scoped per-inode stat controls and exact observed output. Root ownership is simulated only for the policy descriptor; actual root ownership and kernel policy enforcement are not proved.",
+      "comparison": "Setup proves a policy file actually owned by uid 2000 receives a synthetic uid-0 fstat response only for its inode, unrelated file stats remain real, and malformed policy-info size is rejected. Raw policy-info replies contain independently computed digest, real inode/times/mode, a private path, and a synthetic uid 0. Candidate -l/-ll/--list must render only the caller entry; empty and no-match cases return no entries; wrong digest, changing generation, real nonroot ownership, unsafe uid, and list-with-command are rejected without output or child marker. No AUTHZ/HANDOFF may occur. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included. Setup records and validates every synthetic metadata result against the private target device/inode and actual fields; repeated observations of that same inode are allowed. The real-owner control remains mandatory.",
+      "covers": [
+        "sudo/policy-list-projection"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-policy-peer-bootstrap-r1.py": "1a96b5fd2c0f93f277b7b33c58cde8ca9f963f44cfc6de8321c24423191e15f2",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-policy-observer-stat-r2.py": "38f1fa7670e4d7fcb378cf7ec6110a1816a873f724f52a949abb99a7a40ba41f"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-policy-observer-stat-r2.py setup",
+      "setup_timeout": 40,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-policy-observer-stat-r2.py \"$BASH\"",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "sudo-list projection=yes empty=yes binding=yes metadata=yes no-approval=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "sudo-list-observations.jsonl",
+        "sudo-list-trace-control-spoof.jsonl",
+        "sudo-list-trace-control-real.jsonl",
+        "sudo-list-trace-short.jsonl",
+        "sudo-list-trace-long.jsonl",
+        "sudo-list-trace-alias.jsonl",
+        "sudo-list-trace-empty.jsonl",
+        "sudo-list-trace-nomatch.jsonl",
+        "sudo-list-trace-digest.jsonl",
+        "sudo-list-trace-generation.jsonl",
+        "sudo-list-trace-real-owner.jsonl",
+        "sudo-list-trace-unsafe.jsonl",
+        "sudo-list-trace-command.jsonl",
+        "sudo-list-trace-control-spoof.jsonl.bootstrap",
+        "sudo-list-trace-control-real.jsonl.bootstrap",
+        "sudo-list-trace-short.jsonl.bootstrap"
+      ]
+    }
+  ]
+}

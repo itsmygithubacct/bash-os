@@ -101,13 +101,13 @@
       "id": "deferred-policy-command",
       "kind": "deferred",
       "purpose": "Exercise policy selection, priority boundaries, reset-on-fork, argv forwarding, and child exit-status propagation without changing host process scheduling.",
-      "reason": "Only read-only bounds and current-process queries execute. The candidate implements the command form (loadables/chrt.c bchrt_run_command: fork, bchrt_set_pid(0,...), execvp), but no fixture drives it."
+      "reason": "Remaining obligations: r2: Valid FIFO/RR requests were denied without CAP_SYS_NICE; actual successful real-time application remains a separate case. Real FIFO/RR success needs guest hard RLIMIT_RTPRIO at least 99 or another approved real facility.; r4: Reset-on-fork flag observed on a real OTHER child; actual FIFO/RR grandchild reversion remains unproven. Real FIFO/RR success needs guest hard RLIMIT_RTPRIO at least 99 or another approved real facility."
     },
     {
       "id": "deferred-pid-deadline",
       "kind": "deferred",
       "purpose": "Exercise existing-PID/all-thread policy changes and SCHED_DEADLINE parameter validation only against an isolated target.",
-      "reason": "Only parser errors for nonnumeric PIDs execute. Existing-PID changes, all-tasks, deadline validation and reset-on-fork on a PID have no fixture. Only a successful DEADLINE assignment needs a privilege that uid 2000 cannot have."
+      "reason": "Remaining obligations: r2: Reached candidate divergence: Reference -a set all three threads to BATCH; candidate set only the main thread on both builds.; r4: Requires CAP_SYS_NICE (root) for the fixture side: an unprivileged task can never enter SCHED_DEADLINE."
     },
     {
       "id": "invalid-pid-with-priority",

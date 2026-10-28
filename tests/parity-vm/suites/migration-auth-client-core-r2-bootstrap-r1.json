@@ -1,0 +1,120 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-auth-client-device-r2-guarded-bootstrap-r1",
+      "loadable": "auth",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "VERSION, independent per-open scripted STATS, variable-bound device descriptors and close-on-exec.",
+      "oracle": "Client-side protocol only: the published flattened bashos-auth UAPI, independently encoded x86-64 ioctl constants and layouts, actual guest PTY/exec semantics, and synthetic peer-controlled records. The independent argon2 CLI supplies the standard PHC vector where used. This mock neither implements nor establishes kernel authorization, slot security, token enforcement or credential changes.",
+      "comparison": "An unprivileged stateful seccomp supervisor redirects only exact /dev/bashos-auth opens to private per-open memfds and answers only ioctls on those fds. Setup validates positive slot transitions, cross-fd isolation, one-shot export, unknown ioctl and unrelated-fd negatives, actual returned bytes, and CLOEXEC. The mock logs raw ioctl inputs/outputs and transitions. It intercepts PR_SET_DUMPABLE(0) with a logged synthetic success solely to inspect the owned child; confidentiality and dumpability enforcement are explicitly untested. For tty cases an owned PTY observes echo during prompts, full mode restoration, synthetic input, command line, environment and terminal output. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included.",
+      "covers": [
+        "auth/device-abi-and-fd-lifecycle"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-device-bootstrap-r1.py": "38fe4a9c9d39549c3560c7a184159ae40659e9a83f46234ad9b5d29eb4293aae",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-observer-bootstrap-r1.py": "00bf52e91de31a700a7daa4d77dd5927ac102c16f217479fc1e70a55c2883743"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-observer-bootstrap-r1.py setup device",
+      "setup_timeout": 40,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-observer-bootstrap-r1.py \"$BASH\" device",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "device version-and-stats=yes distinct=yes cloexec=yes mock-deviation-recorded=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "auth-observations.jsonl",
+        "auth-trace-control.jsonl",
+        "auth-trace-device.jsonl",
+        "auth-trace-control.jsonl.bootstrap",
+        "auth-trace-device.jsonl.bootstrap"
+      ]
+    },
+    {
+      "id": "migration-auth-client-pty-r2-guarded-bootstrap-r1",
+      "loadable": "auth",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic tty input, echo-off and full terminal restoration; opaque handle and exact secret-slot protocol without argv/env/output leakage.",
+      "oracle": "Client-side protocol only: the published flattened bashos-auth UAPI, independently encoded x86-64 ioctl constants and layouts, actual guest PTY/exec semantics, and synthetic peer-controlled records. The independent argon2 CLI supplies the standard PHC vector where used. This mock neither implements nor establishes kernel authorization, slot security, token enforcement or credential changes.",
+      "comparison": "An unprivileged stateful seccomp supervisor redirects only exact /dev/bashos-auth opens to private per-open memfds and answers only ioctls on those fds. Setup validates positive slot transitions, cross-fd isolation, one-shot export, unknown ioctl and unrelated-fd negatives, actual returned bytes, and CLOEXEC. The mock logs raw ioctl inputs/outputs and transitions. It intercepts PR_SET_DUMPABLE(0) with a logged synthetic success solely to inspect the owned child; confidentiality and dumpability enforcement are explicitly untested. For tty cases an owned PTY observes echo during prompts, full mode restoration, synthetic input, command line, environment and terminal output. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included.",
+      "covers": [
+        "auth/pty-sealed-secret-lifecycle"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-device-bootstrap-r1.py": "38fe4a9c9d39549c3560c7a184159ae40659e9a83f46234ad9b5d29eb4293aae",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-observer-bootstrap-r1.py": "00bf52e91de31a700a7daa4d77dd5927ac102c16f217479fc1e70a55c2883743"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-observer-bootstrap-r1.py setup pty",
+      "setup_timeout": 40,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-observer-bootstrap-r1.py \"$BASH\" pty",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "secret tty-noecho=yes restored=yes protocol=yes no-argv-env-output-leak=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "auth-observations.jsonl",
+        "auth-trace-control.jsonl",
+        "auth-trace-pty.jsonl",
+        "auth-trace-control.jsonl.bootstrap",
+        "auth-trace-pty.jsonl.bootstrap"
+      ]
+    },
+    {
+      "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1",
+      "loadable": "auth",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Fixed Argon2id PHC and correct/wrong verification with a synthetic authority reply; raw token remains outside shell-visible data.",
+      "oracle": "Client-side protocol only: the published flattened bashos-auth UAPI, independently encoded x86-64 ioctl constants and layouts, actual guest PTY/exec semantics, and synthetic peer-controlled records. The independent argon2 CLI supplies the standard PHC vector where used. This mock neither implements nor establishes kernel authorization, slot security, token enforcement or credential changes.",
+      "comparison": "An unprivileged stateful seccomp supervisor redirects only exact /dev/bashos-auth opens to private per-open memfds and answers only ioctls on those fds. Setup validates positive slot transitions, cross-fd isolation, one-shot export, unknown ioctl and unrelated-fd negatives, actual returned bytes, and CLOEXEC. The mock logs raw ioctl inputs/outputs and transitions. It intercepts PR_SET_DUMPABLE(0) with a logged synthetic success solely to inspect the owned child; confidentiality and dumpability enforcement are explicitly untested. For tty cases an owned PTY observes echo during prompts, full mode restoration, synthetic input, command line, environment and terminal output. Listener bootstrap is precompiled and sends its listener before supervised operations; diagnostic stage files record the handoff. The source-review ownership and embedded-payload guard repairs are included.",
+      "covers": [
+        "auth/synthetic-login-and-token-mint"
+      ],
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-device-bootstrap-r1.py": "38fe4a9c9d39549c3560c7a184159ae40659e9a83f46234ad9b5d29eb4293aae",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-client-observer-bootstrap-r1.py": "00bf52e91de31a700a7daa4d77dd5927ac102c16f217479fc1e70a55c2883743"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-observer-bootstrap-r1.py setup synthetic",
+      "setup_timeout": 40,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-client-observer-bootstrap-r1.py \"$BASH\" synthetic",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "synthetic phc-standard=yes good-accepted=yes token-opaque=yes wrong-denied=yes protocol=yes tty-restored=yes no-leak=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "auth-observations.jsonl",
+        "auth-trace-control.jsonl",
+        "auth-trace-synthetic.jsonl",
+        "auth-trace-control.jsonl.bootstrap",
+        "auth-trace-synthetic.jsonl.bootstrap"
+      ]
+    }
+  ]
+}

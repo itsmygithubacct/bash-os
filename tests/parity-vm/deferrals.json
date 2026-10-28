@@ -499,7 +499,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r3: Requires the device.; r4: Requires the device.; r5: Requires the device.",
+      "current_reason": "Remaining obligations: r3: The authority decision and request fields are synthetic; the request digest and real kernel binding were not independently verified.; r4: Requires the device.; r5: The synthetic allow child exited 7 but the auth command reported status 0; deny/error markers remained absent.",
       "requirements": [
         {
           "id": "r1",
@@ -538,9 +538,22 @@
         {
           "id": "r3",
           "behavior": "privcmd-authz binds the request (SHA-256 digest over argv/env/target) and returns the policy decision.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-authority-auth-r2-guarded-bootstrap-r1-record-r2",
+              "assertion": "Original obligation: privcmd-authz binds the request (SHA-256 digest over argv/env/target) and returns the policy decision. Static framework FAIL: Synthetic allow child ran with uid/gid 2000 and exit_code=7, but auth returned operation-status 0; deny and ioctl-error markers were absent. Dynamic framework FAIL: Synthetic allow child ran with uid/gid 2000 and exit_code=7, but auth returned operation-status 0; deny and ioctl-error markers were absent. Raw guest observations: decoded/static/migration-auth-client-authority-auth-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-auth-r2-guarded-bootstrap-r1-record-r2.json.",
+              "definition_sha256": "41377885befd4d5f6f2973a3a50f39cc3c7acd73984dfd33dce16026c93c4a80"
+            },
+            {
+              "group": "shell",
+              "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2",
+              "assertion": "Original obligation: privcmd-authz binds the request (SHA-256 digest over argv/env/target) and returns the policy decision. Static framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Dynamic framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Raw guest observations: decoded/static/migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2.json.",
+              "definition_sha256": "5f4d6044b1fd164308d83fd93aeb114ba179f62e6098292e5f85d95665b284f1"
+            }
+          ],
+          "gap": "The authority decision and request fields are synthetic; the request digest and real kernel binding were not independently verified."
         },
         {
           "id": "r4",
@@ -552,12 +565,19 @@
         {
           "id": "r5",
           "behavior": "Deny/failure paths never start the child; allow paths preserve the child's status without changing host credentials.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-authority-auth-r2-guarded-bootstrap-r1-record-r2",
+              "assertion": "Original obligation: Deny/failure paths never start the child; allow paths preserve the child's status without changing host credentials. Static framework FAIL: Synthetic allow child ran with uid/gid 2000 and exit_code=7, but auth returned operation-status 0; deny and ioctl-error markers were absent. Dynamic framework FAIL: Synthetic allow child ran with uid/gid 2000 and exit_code=7, but auth returned operation-status 0; deny and ioctl-error markers were absent. Raw guest observations: decoded/static/migration-auth-client-authority-auth-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-auth-r2-guarded-bootstrap-r1-record-r2.json.",
+              "definition_sha256": "41377885befd4d5f6f2973a3a50f39cc3c7acd73984dfd33dce16026c93c4a80"
+            }
+          ],
+          "gap": "The synthetic allow child exited 7 but the auth command reported status 0; deny/error markers remained absent."
         }
       ],
-      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "auth/device-abi-and-fd-lifecycle",
@@ -569,28 +589,49 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: No device exists in the guest.; r2: Not executed.; r3: Not executed.; r4: Not executed.",
+      "current_reason": "Remaining obligations: r1: VERSION bytes and output were supplied by an intercepted synthetic device, not a real bashos-auth driver.; r2: The client received close-on-exec synthetic descriptors; opening the real kernel device is not established.; r3: Distinct descriptor counter vectors were supplied by the synthetic device; real kernel counter isolation is not established.; r4: Not executed.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "auth probe prints abi=MAJOR.MINOR features=0xHEX from the VERSION ioctl.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No device exists in the guest."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-device-r2-guarded-bootstrap-r1",
+              "assertion": "Original obligation: auth probe prints abi=MAJOR.MINOR features=0xHEX from the VERSION ioctl. Static framework PASS: Mock VERSION 1.5/features 0xf, two distinct counters 201\u2013206/301\u2013306, descriptors close-on-exec; PR_SET_DUMPABLE was acknowledged without enforcement. Dynamic framework PASS: Mock VERSION 1.5/features 0xf, two distinct counters 201\u2013206/301\u2013306, descriptors close-on-exec; PR_SET_DUMPABLE was acknowledged without enforcement. Raw guest observations: decoded/static/migration-auth-client-device-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-device-r2-guarded-bootstrap-r1.json.",
+              "definition_sha256": "d7ffa304da3bed0f83d65a653a7f82c73a4752e209e5e711af41dce7d90c4eeb"
+            }
+          ],
+          "gap": "VERSION bytes and output were supplied by an intercepted synthetic device, not a real bashos-auth driver."
         },
         {
           "id": "r2",
           "behavior": "auth open FDVAR opens the descriptor, binds it to FDVAR, and it is close-on-exec.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-device-r2-guarded-bootstrap-r1",
+              "assertion": "Original obligation: auth open FDVAR opens the descriptor, binds it to FDVAR, and it is close-on-exec. Static framework PASS: Mock VERSION 1.5/features 0xf, two distinct counters 201\u2013206/301\u2013306, descriptors close-on-exec; PR_SET_DUMPABLE was acknowledged without enforcement. Dynamic framework PASS: Mock VERSION 1.5/features 0xf, two distinct counters 201\u2013206/301\u2013306, descriptors close-on-exec; PR_SET_DUMPABLE was acknowledged without enforcement. Raw guest observations: decoded/static/migration-auth-client-device-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-device-r2-guarded-bootstrap-r1.json.",
+              "definition_sha256": "d7ffa304da3bed0f83d65a653a7f82c73a4752e209e5e711af41dce7d90c4eeb"
+            }
+          ],
+          "gap": "The client received close-on-exec synthetic descriptors; opening the real kernel device is not established."
         },
         {
           "id": "r3",
           "behavior": "auth stats FD reports per-descriptor counters.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-device-r2-guarded-bootstrap-r1",
+              "assertion": "Original obligation: auth stats FD reports per-descriptor counters. Static framework PASS: Mock VERSION 1.5/features 0xf, two distinct counters 201\u2013206/301\u2013306, descriptors close-on-exec; PR_SET_DUMPABLE was acknowledged without enforcement. Dynamic framework PASS: Mock VERSION 1.5/features 0xf, two distinct counters 201\u2013206/301\u2013306, descriptors close-on-exec; PR_SET_DUMPABLE was acknowledged without enforcement. Raw guest observations: decoded/static/migration-auth-client-device-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-device-r2-guarded-bootstrap-r1.json.",
+              "definition_sha256": "d7ffa304da3bed0f83d65a653a7f82c73a4752e209e5e711af41dce7d90c4eeb"
+            }
+          ],
+          "gap": "Distinct descriptor counter vectors were supplied by the synthetic device; real kernel counter isolation is not established."
         },
         {
           "id": "r4",
@@ -614,7 +655,7 @@
           "gap": ""
         }
       ],
-      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "auth/pty-sealed-secret-lifecycle",
@@ -624,23 +665,37 @@
         "purpose": "Future operation coverage for echo-disabled secret input, opaque slot handles, same-secret comparison, explicit clearing, and close-time slot cleanup.",
         "reason": "Requires an owned PTY driver plus a disposable auth-device mock or VM implementation of secret-slot ioctls. Use only synthetic input and assert that secret bytes do not appear in argv, environment, or output. The current runner does not provide the terminal/device mock needed to validate the documented lifecycle."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "The PTY driver is available (terminal group), so the historic 'owned PTY driver' gap is closed; every obligation still needs guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour.",
+      "current_reason": "Remaining obligations: r2: The synthetic secret is absent from saved output, argv and environment; a real kernel secret handle and enforcement were not tested.; r3: Not executed.; r4: Not executed.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "auth read-secret reads from the tty with echo disabled and restores modes.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires an open authority fd; the PTY driver exists but read-secret needs the device first."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-pty-r2-guarded-bootstrap-r1",
+              "assertion": "Original obligation: auth read-secret reads from the tty with echo disabled and restores modes. Static framework PASS: PTY ECHO was clear while waiting and modes restored; captured screen 'Fixture: \\r\\nhandle=4097\\r\\n'. Dynamic framework PASS: PTY ECHO was clear while waiting and modes restored; captured screen 'Fixture: \\r\\nhandle=4097\\r\\n'. Raw guest observations: decoded/static/migration-auth-client-pty-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-pty-r2-guarded-bootstrap-r1.json.",
+              "definition_sha256": "9bdfbf31855cf463f757a1dde476fa88eefc5fda102a71c8baa4031328e476e8"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "The returned handle is opaque; secret bytes never appear in argv, environment or output.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-pty-r2-guarded-bootstrap-r1",
+              "assertion": "Original obligation: The returned handle is opaque; secret bytes never appear in argv, environment or output. Static framework PASS: PTY ECHO was clear while waiting and modes restored; captured screen 'Fixture: \\r\\nhandle=4097\\r\\n'. Dynamic framework PASS: PTY ECHO was clear while waiting and modes restored; captured screen 'Fixture: \\r\\nhandle=4097\\r\\n'. Raw guest observations: decoded/static/migration-auth-client-pty-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-pty-r2-guarded-bootstrap-r1.json.",
+              "definition_sha256": "9bdfbf31855cf463f757a1dde476fa88eefc5fda102a71c8baa4031328e476e8"
+            }
+          ],
+          "gap": "The synthetic secret is absent from saved output, argv and environment; a real kernel secret handle and enforcement were not tested."
         },
         {
           "id": "r3",
@@ -657,7 +712,7 @@
           "gap": "Not executed."
         }
       ],
-      "notes": "auth.c read-secret / same-secret / clear."
+      "notes": "auth.c read-secret / same-secret / clear. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "auth/synthetic-login-and-token-mint",
@@ -667,40 +722,68 @@
         "purpose": "Future operation coverage for deterministic Argon2id PHC generation and login verification with valid and invalid synthetic credentials, including token-reference handling.",
         "reason": "Requires an independent Argon2id reference encoder with fixed test vectors and a disposable auth-device implementation that accepts synthetic credential responses and returns test token references. No installed credentials or live token authority may be used; those dependencies are absent from this fixture runner."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "The Argon2id oracle gap is now closable (OpenSSL 3.5 in the guest); the operations still require guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour.",
+      "current_reason": "Remaining obligations: r1: Candidate PHC bytes differ from the saved independent standard PHC; no cryptographic computation was repeated here.; r2: The synthetic good credential was accepted, but the bound token equalled raw synthetic token bytes rather than an opaque reference.; r4: The bound shell value equalled the raw synthetic token; the value was not printed, but fd-only opacity failed.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "auth hash-secret produces a deterministic Argon2id PHC string for fixed salt/T/M/P/HASHLEN.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires a sealed slot handle from the device; no device-free hash entry point exists in auth."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1",
+              "assertion": "Original obligation: auth hash-secret produces a deterministic Argon2id PHC string for fixed salt/T/M/P/HASHLEN. Static framework FAIL: Candidate PHC bytes differ from the saved independent standard PHC, and the returned synthetic token equals its raw bytes; correct credential binds and wrong credential does not. No KDF was recomputed. Dynamic framework FAIL: Candidate PHC bytes differ from the saved independent standard PHC, and the returned synthetic token equals its raw bytes; correct credential binds and wrong credential does not. No KDF was recomputed. Raw guest observations: decoded/static/migration-auth-client-synthetic-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-synthetic-r2-guarded-bootstrap-r1.json.",
+              "definition_sha256": "bac0968016a802f7df4947c4e14acb618e614f8423f75b747796e26494f8d2ab"
+            }
+          ],
+          "gap": "Candidate PHC bytes differ from the saved independent standard PHC; no cryptographic computation was repeated here."
         },
         {
           "id": "r2",
           "behavior": "auth verify-login accepts the correct synthetic credential and binds a token reference.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1",
+              "assertion": "Original obligation: auth verify-login accepts the correct synthetic credential and binds a token reference. Static framework FAIL: Candidate PHC bytes differ from the saved independent standard PHC, and the returned synthetic token equals its raw bytes; correct credential binds and wrong credential does not. No KDF was recomputed. Dynamic framework FAIL: Candidate PHC bytes differ from the saved independent standard PHC, and the returned synthetic token equals its raw bytes; correct credential binds and wrong credential does not. No KDF was recomputed. Raw guest observations: decoded/static/migration-auth-client-synthetic-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-synthetic-r2-guarded-bootstrap-r1.json.",
+              "definition_sha256": "bac0968016a802f7df4947c4e14acb618e614f8423f75b747796e26494f8d2ab"
+            }
+          ],
+          "gap": "The synthetic good credential was accepted, but the bound token equalled raw synthetic token bytes rather than an opaque reference."
         },
         {
           "id": "r3",
           "behavior": "verify-login rejects a wrong credential without binding a token.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1",
+              "assertion": "Original obligation: verify-login rejects a wrong credential without binding a token. Static framework FAIL: Candidate PHC bytes differ from the saved independent standard PHC, and the returned synthetic token equals its raw bytes; correct credential binds and wrong credential does not. No KDF was recomputed. Dynamic framework FAIL: Candidate PHC bytes differ from the saved independent standard PHC, and the returned synthetic token equals its raw bytes; correct credential binds and wrong credential does not. No KDF was recomputed. Raw guest observations: decoded/static/migration-auth-client-synthetic-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-synthetic-r2-guarded-bootstrap-r1.json.",
+              "definition_sha256": "bac0968016a802f7df4947c4e14acb618e614f8423f75b747796e26494f8d2ab"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Token references are handled only through the fd (never printed).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1",
+              "assertion": "Original obligation: Token references are handled only through the fd (never printed). Static framework FAIL: Candidate PHC bytes differ from the saved independent standard PHC, and the returned synthetic token equals its raw bytes; correct credential binds and wrong credential does not. No KDF was recomputed. Dynamic framework FAIL: Candidate PHC bytes differ from the saved independent standard PHC, and the returned synthetic token equals its raw bytes; correct credential binds and wrong credential does not. No KDF was recomputed. Raw guest observations: decoded/static/migration-auth-client-synthetic-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-synthetic-r2-guarded-bootstrap-r1.json.",
+              "definition_sha256": "bac0968016a802f7df4947c4e14acb618e614f8423f75b747796e26494f8d2ab"
+            }
+          ],
+          "gap": "The bound shell value equalled the raw synthetic token; the value was not printed, but fd-only opacity failed."
         }
       ],
-      "notes": "Note: passwd and su compute Argon2id in userland (monocypher crypto_argon2), so the same OpenSSL vectors also serve passwd/su topics."
+      "notes": "Note: passwd and su compute Argon2id in userland (monocypher crypto_argon2), so the same OpenSSL vectors also serve passwd/su topics. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "bashclear/pty-terminal-attributes",
@@ -1539,42 +1622,89 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Policy planning and directive execution need only fixture files and an exec of an absolute path. They are not privileged, and no case exercises them. Only module-syscall effects need privilege.",
+      "current_reason": "Remaining obligations: r4: Reached candidate divergence: Install/remove commands ran in the required order and metacharacters were refused; an owned command exiting 7 was reported but returned builtin status 1 instead of 7.; r5: Reached candidate divergence: A softdep cycle returned status 2, but the excessive-depth candidate process terminated by SIGSEGV rather than producing the expected rejection.; r6: Requires PRIV-ROOT module syscalls, same as defer-kernel-module-transitions.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "policy NAME reports builtin/blacklist/install/remove/softdep/options/alias-target from an isolated modprobe.d + modules.builtin tree",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case runs policy although it reads only BASHKMOD_MODPROBE_DIR(S)/BASHKMOD_MODULES_DIR fixture files."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-kmod-policy-guard-r2",
+              "assertion": "Original obligation: policy NAME reports builtin/blacklist/install/remove/softdep/options/alias-target from an isolated modprobe.d + modules.builtin tree Static framework FAIL: Cycle was refused with result 2, while recursion-depth scenario terminated 139; planning and blacklist subcalls are retained. Dynamic framework FAIL: Cycle was refused with result 2, while recursion-depth scenario terminated 139; planning and blacklist subcalls are retained. Raw guest observations: decoded/static/migration-system-client-followup-kmod-policy-guard-r2.json and decoded/dynamic/migration-system-client-followup-kmod-policy-guard-r2.json.",
+              "definition_sha256": "4db854081249754a5a72549e81db7c65ad8bb70e748349b52d5ad445c0e8deee"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "modprobe -n plan: softdep pre modules, then install directive or insmod chain, then softdep post, with options appended; -r prints remove directive or rmmod chain in reverse",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case for dry-run planning."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-kmod-policy-guard-r2",
+              "assertion": "Original obligation: modprobe -n plan: softdep pre modules, then install directive or insmod chain, then softdep post, with options appended; -r prints remove directive or rmmod chain in reverse Static framework FAIL: Cycle was refused with result 2, while recursion-depth scenario terminated 139; planning and blacklist subcalls are retained. Dynamic framework FAIL: Cycle was refused with result 2, while recursion-depth scenario terminated 139; planning and blacklist subcalls are retained. Raw guest observations: decoded/static/migration-system-client-followup-kmod-policy-guard-r2.json and decoded/dynamic/migration-system-client-followup-kmod-policy-guard-r2.json.",
+              "definition_sha256": "4db854081249754a5a72549e81db7c65ad8bb70e748349b52d5ad445c0e8deee"
+            },
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-kmod-reference-guard-r2",
+              "assertion": "Original obligation: modprobe -n plan: softdep pre modules, then install directive or insmod chain, then softdep post, with options appended; -r prints remove directive or rmmod chain in reverse Static framework PASS: Saved native modprobe plan matches its expected bytes; candidate plan and intercepted module attempts are retained. Dynamic framework PASS: Saved native modprobe plan matches its expected bytes; candidate plan and intercepted module attempts are retained. Raw guest observations: decoded/static/migration-system-client-followup-kmod-reference-guard-r2.json and decoded/dynamic/migration-system-client-followup-kmod-reference-guard-r2.json.",
+              "definition_sha256": "4e4f81df1cbcf21404a93c37c1b427ada97099eebb379e5b5e6aa9e3d15defe4"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Alias-driven request for a blacklisted module is refused while an explicit name is not",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-kmod-effects-guard-r2",
+              "assertion": "Original obligation: Alias-driven request for a blacklisted module is refused while an explicit name is not Static framework FAIL: Saved install effects in pre_a/pre_b/main/post_a order; configured child exit 7 was diagnosed but candidate returned 1; metacharacters returned 2 without effects. Dynamic framework FAIL: Saved install effects in pre_a/pre_b/main/post_a order; configured child exit 7 was diagnosed but candidate returned 1; metacharacters returned 2 without effects. Raw guest observations: decoded/static/migration-system-client-followup-kmod-effects-guard-r2.json and decoded/dynamic/migration-system-client-followup-kmod-effects-guard-r2.json.",
+              "definition_sha256": "d29f69dc4771504f07f53f02f9fbbea86065ebf5dcf6538e1e59fd1314a9634e"
+            },
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-kmod-policy-guard-r2",
+              "assertion": "Original obligation: Alias-driven request for a blacklisted module is refused while an explicit name is not Static framework FAIL: Cycle was refused with result 2, while recursion-depth scenario terminated 139; planning and blacklist subcalls are retained. Dynamic framework FAIL: Cycle was refused with result 2, while recursion-depth scenario terminated 139; planning and blacklist subcalls are retained. Raw guest observations: decoded/static/migration-system-client-followup-kmod-policy-guard-r2.json and decoded/dynamic/migration-system-client-followup-kmod-policy-guard-r2.json.",
+              "definition_sha256": "4db854081249754a5a72549e81db7c65ad8bb70e748349b52d5ad445c0e8deee"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Non-dry install/remove directives execute the configured argv (argv-split exec, no shell) and their exit status propagates; directives with shell metacharacters are refused",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case. Executing an absolute-path argv needs no privilege, so this is reachable in the legacy runner. Divergence: kmod runs install/remove commands through /bin/sh -c; the candidate refuses metacharacters, which is a deliberate contract difference."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-kmod-effects-guard-r2",
+              "assertion": "Original obligation: Non-dry install/remove directives execute the configured argv (argv-split exec, no shell) and their exit status propagates; directives with shell metacharacters are refused Static framework FAIL: Saved install effects in pre_a/pre_b/main/post_a order; configured child exit 7 was diagnosed but candidate returned 1; metacharacters returned 2 without effects. Dynamic framework FAIL: Saved install effects in pre_a/pre_b/main/post_a order; configured child exit 7 was diagnosed but candidate returned 1; metacharacters returned 2 without effects. Raw guest observations: decoded/static/migration-system-client-followup-kmod-effects-guard-r2.json and decoded/dynamic/migration-system-client-followup-kmod-effects-guard-r2.json.",
+              "definition_sha256": "d29f69dc4771504f07f53f02f9fbbea86065ebf5dcf6538e1e59fd1314a9634e"
+            }
+          ],
+          "gap": "Reached candidate divergence: Install/remove commands ran in the required order and metacharacters were refused; an owned command exiting 7 was reported but returned builtin status 1 instead of 7."
         },
         {
           "id": "r5",
           "behavior": "softdep cycles and recursion depth are rejected",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-kmod-policy-guard-r2",
+              "assertion": "Original obligation: softdep cycles and recursion depth are rejected Static framework FAIL: Cycle was refused with result 2, while recursion-depth scenario terminated 139; planning and blacklist subcalls are retained. Dynamic framework FAIL: Cycle was refused with result 2, while recursion-depth scenario terminated 139; planning and blacklist subcalls are retained. Raw guest observations: decoded/static/migration-system-client-followup-kmod-policy-guard-r2.json and decoded/dynamic/migration-system-client-followup-kmod-policy-guard-r2.json.",
+              "definition_sha256": "4db854081249754a5a72549e81db7c65ad8bb70e748349b52d5ad445c0e8deee"
+            }
+          ],
+          "gap": "Reached candidate divergence: A softdep cycle returned status 2, but the excessive-depth candidate process terminated by SIGSEGV rather than producing the expected rejection."
         },
         {
           "id": "r6",
@@ -1586,19 +1716,31 @@
         {
           "id": "r7",
           "behavior": "Dependency data used by planning",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/bashkmod/deps-nested-chain",
               "assertion": "parity: transitive order from fixture modules.dep vs independent DFS",
               "definition_sha256": "8efbdc0c9e4e56ce6da13ec0febdcb581bc1313c1d5e35f2ab3f212762b9bbd3"
+            },
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-kmod-policy-guard-r2",
+              "assertion": "Original obligation: Dependency data used by planning Static framework FAIL: Cycle was refused with result 2, while recursion-depth scenario terminated 139; planning and blacklist subcalls are retained. Dynamic framework FAIL: Cycle was refused with result 2, while recursion-depth scenario terminated 139; planning and blacklist subcalls are retained. Raw guest observations: decoded/static/migration-system-client-followup-kmod-policy-guard-r2.json and decoded/dynamic/migration-system-client-followup-kmod-policy-guard-r2.json.",
+              "definition_sha256": "4db854081249754a5a72549e81db7c65ad8bb70e748349b52d5ad445c0e8deee"
+            },
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-kmod-reference-guard-r2",
+              "assertion": "Original obligation: Dependency data used by planning Static framework PASS: Saved native modprobe plan matches its expected bytes; candidate plan and intercepted module attempts are retained. Dynamic framework PASS: Saved native modprobe plan matches its expected bytes; candidate plan and intercepted module attempts are retained. Raw guest observations: decoded/static/migration-system-client-followup-kmod-reference-guard-r2.json and decoded/dynamic/migration-system-client-followup-kmod-reference-guard-r2.json.",
+              "definition_sha256": "4e4f81df1cbcf21404a93c37c1b427ada97099eebb379e5b5e6aa9e3d15defe4"
             }
           ],
-          "gap": "Only deps text output is covered."
+          "gap": ""
         }
       ],
-      "notes": "Candidate: bk_policy_read loadables/bashkmod.c:864-1040, bk_policy_cmd :1045-1081, bk_plan_modprobe :1110-1210, bk_modprobe_apply_plan :1314-1383, bk_run_directive :701-765 (execvp with candidate PATH=/empty requires absolute argv[0]), shell-meta refusal :681."
+      "notes": "Candidate: bk_policy_read loadables/bashkmod.c:864-1040, bk_policy_cmd :1045-1081, bk_plan_modprobe :1110-1210, bk_modprobe_apply_plan :1314-1383, bk_run_directive :701-765 (execvp with candidate PATH=/empty requires absolute argv[0]), shell-meta refusal :681. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "bashlogger/descriptor-safety",
@@ -3034,54 +3176,102 @@
         "purpose": "Check sanitized UDP copies, lowercase-hex queue encoding, bounded admission, FIFO replay, malformed-record handling, and recovery after send failure.",
         "reason": "Requires a future disposable VM with a private loopback receiver and reviewed deterministic send/clock failure shims to exercise queue admission and replay without relying on real network failures. No forwarding operation is run here."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "No forwarding run exists. Sends are unconnected with MSG_DONTWAIT, so a closed port does not fail; deterministic failure needs a destination with no route, which a script can create as VM root.",
+      "current_reason": "Remaining obligations: r4: FIFO replay of three queued records was observed at startup. SIGHUP and periodic replay were each observed with one post-start queued record, so FIFO ordering of multiple records under those triggers was not independently exercised.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Each local record is forwarded once as a UDP datagram with control bytes defanged.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No forward receiver."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-syslog-forward",
+              "assertion": "Original obligation: Each local record is forwarded once as a UDP datagram with control bytes defanged. Static framework PASS: Captured one sanitized UDP datagram, failed-send lower-hex queue bytes, and retained oversized queue after the admission limit; frozen decoded record deferral-migration/resume-20261028/auth-system-evidence-review-138/decoded/static/migration-system-client-followup-syslog-forward.json. Dynamic framework PASS: Captured one sanitized UDP datagram, failed-send lower-hex queue bytes, and retained oversized queue after the admission limit; frozen decoded record deferral-migration/resume-20261028/auth-system-evidence-review-138/decoded/dynamic/migration-system-client-followup-syslog-forward.json.",
+              "definition_sha256": "147f25951ccc82b8f08067a5f2c1e0aada31b0e69a788406586dd6179b91d18b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "When the send fails the record is admitted to --queue as one lowercase-hex line.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No failure fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-syslog-forward",
+              "assertion": "Original obligation: When the send fails the record is admitted to --queue as one lowercase-hex line. Static framework PASS: Captured one sanitized UDP datagram, failed-send lower-hex queue bytes, and retained oversized queue after the admission limit; frozen decoded record deferral-migration/resume-20261028/auth-system-evidence-review-138/decoded/static/migration-system-client-followup-syslog-forward.json. Dynamic framework PASS: Captured one sanitized UDP datagram, failed-send lower-hex queue bytes, and retained oversized queue after the admission limit; frozen decoded record deferral-migration/resume-20261028/auth-system-evidence-review-138/decoded/dynamic/migration-system-client-followup-syslog-forward.json.",
+              "definition_sha256": "147f25951ccc82b8f08067a5f2c1e0aada31b0e69a788406586dd6179b91d18b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "--queue-max-bytes bounds admission; an existing larger queue is not shrunk.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-syslog-forward",
+              "assertion": "Original obligation: --queue-max-bytes bounds admission; an existing larger queue is not shrunk. Static framework PASS: Captured one sanitized UDP datagram, failed-send lower-hex queue bytes, and retained oversized queue after the admission limit; frozen decoded record deferral-migration/resume-20261028/auth-system-evidence-review-138/decoded/static/migration-system-client-followup-syslog-forward.json. Dynamic framework PASS: Captured one sanitized UDP datagram, failed-send lower-hex queue bytes, and retained oversized queue after the admission limit; frozen decoded record deferral-migration/resume-20261028/auth-system-evidence-review-138/decoded/dynamic/migration-system-client-followup-syslog-forward.json.",
+              "definition_sha256": "147f25951ccc82b8f08067a5f2c1e0aada31b0e69a788406586dd6179b91d18b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Queued records replay in FIFO order at startup, on SIGHUP and every second once the destination works.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-syslog-replay",
+              "assertion": "Original obligation: Queued records replay in FIFO order at startup, on SIGHUP and every second once the destination works. Static framework PASS: Raw startup UDP datagrams were FIFO; malformed lines did not hide the following record; failed replay retained later hex records in order; frozen decoded record deferral-migration/resume-20261028/auth-system-evidence-review-138/decoded/static/migration-system-client-followup-syslog-replay.json. Dynamic framework PASS: Raw startup UDP datagrams were FIFO; malformed lines did not hide the following record; failed replay retained later hex records in order; frozen decoded record deferral-migration/resume-20261028/auth-system-evidence-review-138/decoded/dynamic/migration-system-client-followup-syslog-replay.json.",
+              "definition_sha256": "02a02cc0511f1637065e978aabaf554f7e77c84325c81bd85fd8c39a9d1790c9"
+            },
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-syslog-timed",
+              "assertion": "Original obligation: Queued records replay in FIFO order at startup, on SIGHUP and every second once the destination works. Static framework PASS: Owned SIGHUP preceded replay, and periodic replay followed the seed by 1.002 s; frozen decoded record deferral-migration/resume-20261028/auth-system-evidence-review-138/decoded/static/migration-system-client-followup-syslog-timed.json. Dynamic framework PASS: Owned SIGHUP preceded replay, and periodic replay followed the seed by 1.002 s; frozen decoded record deferral-migration/resume-20261028/auth-system-evidence-review-138/decoded/dynamic/migration-system-client-followup-syslog-timed.json.",
+              "definition_sha256": "546a605364a7972f905090a0ed891e31c304dba45510398c8dd47161ad6b0d7d"
+            }
+          ],
+          "gap": "FIFO replay of three queued records was observed at startup. SIGHUP and periodic replay were each observed with one post-start queued record, so FIFO ordering of multiple records under those triggers was not independently exercised."
         },
         {
           "id": "r5",
           "behavior": "Malformed queue lines (NUL, non-hex, oversize) are skipped without hiding following records.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-syslog-replay",
+              "assertion": "Original obligation: Malformed queue lines (NUL, non-hex, oversize) are skipped without hiding following records. Static framework PASS: Raw startup UDP datagrams were FIFO; malformed lines did not hide the following record; failed replay retained later hex records in order; frozen decoded record deferral-migration/resume-20261028/auth-system-evidence-review-138/decoded/static/migration-system-client-followup-syslog-replay.json. Dynamic framework PASS: Raw startup UDP datagrams were FIFO; malformed lines did not hide the following record; failed replay retained later hex records in order; frozen decoded record deferral-migration/resume-20261028/auth-system-evidence-review-138/decoded/dynamic/migration-system-client-followup-syslog-replay.json.",
+              "definition_sha256": "02a02cc0511f1637065e978aabaf554f7e77c84325c81bd85fd8c39a9d1790c9"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "After a failed replay send the remaining valid records are kept in order.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-syslog-replay",
+              "assertion": "Original obligation: After a failed replay send the remaining valid records are kept in order. Static framework PASS: Raw startup UDP datagrams were FIFO; malformed lines did not hide the following record; failed replay retained later hex records in order; frozen decoded record deferral-migration/resume-20261028/auth-system-evidence-review-138/decoded/static/migration-system-client-followup-syslog-replay.json. Dynamic framework PASS: Raw startup UDP datagrams were FIFO; malformed lines did not hide the following record; failed replay retained later hex records in order; frozen decoded record deferral-migration/resume-20261028/auth-system-evidence-review-138/decoded/dynamic/migration-system-client-followup-syslog-replay.json.",
+              "definition_sha256": "02a02cc0511f1637065e978aabaf554f7e77c84325c81bd85fd8c39a9d1790c9"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/bashsyslogd.c:589-602 forward with MSG_DONTWAIT; :608-626 queue line reader; :632-690 drain/rewrite; :400-450 forward socket."
+      "notes": "loadables/bashsyslogd.c:589-602 forward with MSG_DONTWAIT; :608-626 queue line reader; :632-690 drain/rewrite; :400-450 forward socket. Original archived suite and complete four-case draft are preserved; no old companion is removed. Primary preparation 161 retains the original two case assertions but keeps r4 partial until multi-record FIFO at the HUP and periodic triggers is independently established or the primary explicitly accepts a supported compositional proof."
     },
     {
       "topic": "bashsyslogd/local_datagram_routing",
@@ -3196,54 +3386,96 @@
         "purpose": "Check refusal of non-socket path collisions, stale-socket replacement, write-error exit status, inode-safe cleanup, signal restoration, and descriptor cleanup.",
         "reason": "Requires a future disposable VM with private AF_UNIX paths and an owned child daemon, plus a reviewed output-write failure mock for deterministic error coverage. No daemon, signals, or special device paths are exercised here."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No daemon run exists. Write failure is producible without a mock (output on a tiny tmpfs mounted by the VM-root script, or /dev/full via a relative symlink if the daemon follows links).",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A non-socket file at the socket path is refused and left intact.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-syslog-safety-stale-r2",
+              "assertion": "Original obligation: A non-socket file at the socket path is refused and left intact. The non-socket path has the same device, inode and bytes after refusal and the saved daemon status is 1. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "20463b7cd9278b896d6b5d7b02787c36ad6335da39cb1285d582cfc54a2ac32b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "A stale socket at the path is replaced.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-syslog-safety-stale-r2",
+              "assertion": "Original obligation: A stale socket at the path is replaced. The saved stale socket and replacement have different inodes; the replacement is a socket and the owned socket disappears on cleanup. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "20463b7cd9278b896d6b5d7b02787c36ad6335da39cb1285d582cfc54a2ac32b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "An output write error yields a nonzero exit status.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No write-failure fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-syslog-safety-stale-r2",
+              "assertion": "Original obligation: An output write error yields a nonzero exit status. A recorded write to /dev/full is continued to the kernel; stderr records ENOSPC and the daemon returns 1. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "20463b7cd9278b896d6b5d7b02787c36ad6335da39cb1285d582cfc54a2ac32b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Cleanup removes only the socket inode it created (a replaced path is not unlinked).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-syslog-safety-stale-r2",
+              "assertion": "Original obligation: Cleanup removes only the socket inode it created (a replaced path is not unlinked). The foreign replacement socket has a different inode from the created socket and its device/inode remain present after cleanup. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "20463b7cd9278b896d6b5d7b02787c36ad6335da39cb1285d582cfc54a2ac32b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Signal dispositions (TERM/INT/HUP) are restored after run returns.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-syslog-safety-stale-r2",
+              "assertion": "Original obligation: Signal dispositions (TERM/INT/HUP) are restored after run returns. The guest installs HUP, INT and TERM traps before run; after return all three saved trap messages are observed. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "20463b7cd9278b896d6b5d7b02787c36ad6335da39cb1285d582cfc54a2ac32b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "Descriptors opened by the daemon are closed after return.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-syslog-safety-stale-r2",
+              "assertion": "Original obligation: Descriptors opened by the daemon are closed after return. The saved before/after descriptor lists are 0,1,2 for every recorded daemon scenario. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "20463b7cd9278b896d6b5d7b02787c36ad6335da39cb1285d582cfc54a2ac32b"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/bashsyslogd.c:86-110 refuses non-socket; :800-910 run loop with sigaction save/restore of TERM/INT/HUP (:802-804) and cleanup :902-908."
+      "notes": "loadables/bashsyslogd.c:86-110 refuses non-socket; :800-910 run loop with sigaction save/restore of TERM/INT/HUP (:802-804) and cleanup :902-908. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "bashtermraw/deferred-ansi-output",
@@ -6160,28 +6392,49 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Only parser errors for nonnumeric PIDs execute. Existing-PID changes, all-tasks, deadline validation and reset-on-fork on a PID have no fixture. Only a successful DEADLINE assignment needs a privilege that uid 2000 cannot have.",
+      "current_reason": "Remaining obligations: r2: Reached candidate divergence: Reference -a set all three threads to BATCH; candidate set only the main thread on both builds.; r4: Requires CAP_SYS_NICE (root) for the fixture side: an unprivileged task can never enter SCHED_DEADLINE.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "chrt -p POLICY PRIO PID changes an existing owned process's policy, observed by an independent query",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture; legacy query-current-process is read-only."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-chrt-pid-cleanup-r3",
+              "assertion": "Original obligation: chrt -p POLICY PRIO PID changes an existing owned process's policy, observed by an independent query Static framework FAIL: Native all-tasks policy snapshot [3,3,3], candidate [3,0,0]; other PID/deadline snapshots and owned-target cleanup are retained. Dynamic framework FAIL: Native all-tasks policy snapshot [3,3,3], candidate [3,0,0]; other PID/deadline snapshots and owned-target cleanup are retained. Raw guest observations: decoded/static/migration-system-client-followup-chrt-pid-cleanup-r3.json and decoded/dynamic/migration-system-client-followup-chrt-pid-cleanup-r3.json.",
+              "definition_sha256": "37cfe6e33531637e3f23b5f731030f8efa1b5457e8965963f284f71ebce1dc77"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "--all-tasks applies the change to every thread of the target thread group (and without -a only the main thread changes)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture; needs a multi-threaded fixture-owned target."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-chrt-pid-cleanup-r3",
+              "assertion": "Original obligation: --all-tasks applies the change to every thread of the target thread group (and without -a only the main thread changes) Static framework FAIL: Native all-tasks policy snapshot [3,3,3], candidate [3,0,0]; other PID/deadline snapshots and owned-target cleanup are retained. Dynamic framework FAIL: Native all-tasks policy snapshot [3,3,3], candidate [3,0,0]; other PID/deadline snapshots and owned-target cleanup are retained. Raw guest observations: decoded/static/migration-system-client-followup-chrt-pid-cleanup-r3.json and decoded/dynamic/migration-system-client-followup-chrt-pid-cleanup-r3.json.",
+              "definition_sha256": "37cfe6e33531637e3f23b5f731030f8efa1b5457e8965963f284f71ebce1dc77"
+            }
+          ],
+          "gap": "Reached candidate divergence: Reference -a set all three threads to BATCH; candidate set only the main thread on both builds."
         },
         {
           "id": "r3",
           "behavior": "SCHED_DEADLINE runtime/deadline/period validation: runtime <= deadline <= period and minimum granularity are rejected with the same status/diagnostic as util-linux",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture. The kernel checks __checkparam_dl before the CAP_SYS_NICE check, so invalid parameters give EINVAL even unprivileged and valid ones give EPERM. Both are observable without privilege."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-chrt-pid-cleanup-r3",
+              "assertion": "Original obligation: SCHED_DEADLINE runtime/deadline/period validation: runtime <= deadline <= period and minimum granularity are rejected with the same status/diagnostic as util-linux Static framework FAIL: Native all-tasks policy snapshot [3,3,3], candidate [3,0,0]; other PID/deadline snapshots and owned-target cleanup are retained. Dynamic framework FAIL: Native all-tasks policy snapshot [3,3,3], candidate [3,0,0]; other PID/deadline snapshots and owned-target cleanup are retained. Raw guest observations: decoded/static/migration-system-client-followup-chrt-pid-cleanup-r3.json and decoded/dynamic/migration-system-client-followup-chrt-pid-cleanup-r3.json.",
+              "definition_sha256": "37cfe6e33531637e3f23b5f731030f8efa1b5457e8965963f284f71ebce1dc77"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
@@ -6193,14 +6446,21 @@
         {
           "id": "r5",
           "behavior": "-R combined with -p on a PID sets the reset-on-fork flag of the target",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-chrt-pid-cleanup-r3",
+              "assertion": "Original obligation: -R combined with -p on a PID sets the reset-on-fork flag of the target Static framework FAIL: Native all-tasks policy snapshot [3,3,3], candidate [3,0,0]; other PID/deadline snapshots and owned-target cleanup are retained. Dynamic framework FAIL: Native all-tasks policy snapshot [3,3,3], candidate [3,0,0]; other PID/deadline snapshots and owned-target cleanup are retained. Raw guest observations: decoded/static/migration-system-client-followup-chrt-pid-cleanup-r3.json and decoded/dynamic/migration-system-client-followup-chrt-pid-cleanup-r3.json.",
+              "definition_sha256": "37cfe6e33531637e3f23b5f731030f8efa1b5457e8965963f284f71ebce1dc77"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "Failure behavior: nonexistent PID, EPERM on a higher policy, and invalid PID text are reported with GNU status and no partial change",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -6213,12 +6473,18 @@
               "id": "legacy/chrt/invalid-pid-with-priority",
               "assertion": "nonnumeric PID with priority rejected",
               "definition_sha256": "f02d53af76dffbee6dd8eab4c2bf09504f00528a785632e3a2bcdf27a463f073"
+            },
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-chrt-pid-cleanup-r3",
+              "assertion": "Original obligation: Failure behavior: nonexistent PID, EPERM on a higher policy, and invalid PID text are reported with GNU status and no partial change Static framework FAIL: Native all-tasks policy snapshot [3,3,3], candidate [3,0,0]; other PID/deadline snapshots and owned-target cleanup are retained. Dynamic framework FAIL: Native all-tasks policy snapshot [3,3,3], candidate [3,0,0]; other PID/deadline snapshots and owned-target cleanup are retained. Raw guest observations: decoded/static/migration-system-client-followup-chrt-pid-cleanup-r3.json and decoded/dynamic/migration-system-client-followup-chrt-pid-cleanup-r3.json.",
+              "definition_sha256": "37cfe6e33531637e3f23b5f731030f8efa1b5457e8965963f284f71ebce1dc77"
             }
           ],
-          "gap": "Nonexistent numeric PID (ESRCH) and EPERM on FIFO/RR without RLIMIT_RTPRIO are not exercised."
+          "gap": ""
         }
       ],
-      "notes": "loadables/chrt.c:218 uses SYS_sched_setattr for DEADLINE; :260 query branch. Kernel order of checks (kernel/sched/syscalls.c __sched_setscheduler): valid_policy, then __checkparam_dl (EINVAL), then user_check_sched_setscheduler (EPERM). Recheck on the guest kernel 6.12."
+      "notes": "loadables/chrt.c:218 uses SYS_sched_setattr for DEADLINE; :260 query branch. Kernel order of checks (kernel/sched/syscalls.c __sched_setscheduler): valid_policy, then __checkparam_dl (EINVAL), then user_check_sched_setscheduler (EPERM). Recheck on the guest kernel 6.12. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "chrt/deferred-policy-command",
@@ -6228,61 +6494,110 @@
         "purpose": "Exercise policy selection, priority boundaries, reset-on-fork, argv forwarding, and child exit-status propagation without changing host process scheduling.",
         "reason": "Requires a disposable VM with scheduling changes confined to disposable child processes, or an independently reviewed syscall mock for sched_setscheduler plus fork/exec/wait. The future fixture should cover OTHER/BATCH/IDLE/FIFO/RR, valid and invalid priorities, -R, command arguments, and child exit/signal status."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Only read-only bounds and current-process queries execute. The candidate implements the command form (loadables/chrt.c bchrt_run_command: fork, bchrt_set_pid(0,...), execvp), but no fixture drives it.",
+      "current_reason": "Remaining obligations: r2: Valid FIFO/RR requests were denied without CAP_SYS_NICE; actual successful real-time application remains a separate case. Real FIFO/RR success needs guest hard RLIMIT_RTPRIO at least 99 or another approved real facility.; r4: Reset-on-fork flag observed on a real OTHER child; actual FIFO/RR grandchild reversion remains unproven. Real FIFO/RR success needs guest hard RLIMIT_RTPRIO at least 99 or another approved real facility.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "chrt POLICY PRIO CMD ARGS sets the child's policy for OTHER, BATCH and IDLE (priority 0), observed in the child",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture runs the command form. The legacy chrt cases are read-only queries (query-current-process, max-priority-*)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+              "assertion": "Original obligation: chrt POLICY PRIO CMD ARGS sets the child's policy for OTHER, BATCH and IDLE (priority 0), observed in the child Static framework PASS: Saved candidate/native command policy probes, argv, exit/signal statuses and unchanged parent policy; FIFO/RR were denied with hard RTPRIO 0. Dynamic framework PASS: Saved candidate/native command policy probes, argv, exit/signal statuses and unchanged parent policy; FIFO/RR were denied with hard RTPRIO 0. Raw guest observations: decoded/static/migration-system-client-followup-chrt-command-cleanup-r3.json and decoded/dynamic/migration-system-client-followup-chrt-command-cleanup-r3.json.",
+              "definition_sha256": "42d5a9fd15e6646cde54e109dde26aec9e77edcaeeb9b5a893bd412a3c293c6d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "FIFO and RR with valid priorities (1..99) are applied to the child",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture. Unprivileged uid 2000 has RLIMIT_RTPRIO hard 0, so success needs a provisioned RLIMIT_RTPRIO (or CAP_SYS_NICE) on the fixture side; without one, both sides only show EPERM (still a valid parity observation)."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+              "assertion": "Original obligation: FIFO and RR with valid priorities (1..99) are applied to the child Static framework PASS: Saved candidate/native command policy probes, argv, exit/signal statuses and unchanged parent policy; FIFO/RR were denied with hard RTPRIO 0. Dynamic framework PASS: Saved candidate/native command policy probes, argv, exit/signal statuses and unchanged parent policy; FIFO/RR were denied with hard RTPRIO 0. Raw guest observations: decoded/static/migration-system-client-followup-chrt-command-cleanup-r3.json and decoded/dynamic/migration-system-client-followup-chrt-command-cleanup-r3.json.",
+              "definition_sha256": "42d5a9fd15e6646cde54e109dde26aec9e77edcaeeb9b5a893bd412a3c293c6d"
+            }
+          ],
+          "gap": "Valid FIFO/RR requests were denied without CAP_SYS_NICE; actual successful real-time application remains a separate case. Real FIFO/RR success needs guest hard RLIMIT_RTPRIO at least 99 or another approved real facility."
         },
         {
           "id": "r3",
           "behavior": "Invalid priorities (out of range for the policy, nonzero for OTHER/BATCH/IDLE) are rejected with GNU status and no child execution",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture; max-priority-short/long only print the bounds table."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+              "assertion": "Original obligation: Invalid priorities (out of range for the policy, nonzero for OTHER/BATCH/IDLE) are rejected with GNU status and no child execution Static framework PASS: Saved candidate/native command policy probes, argv, exit/signal statuses and unchanged parent policy; FIFO/RR were denied with hard RTPRIO 0. Dynamic framework PASS: Saved candidate/native command policy probes, argv, exit/signal statuses and unchanged parent policy; FIFO/RR were denied with hard RTPRIO 0. Raw guest observations: decoded/static/migration-system-client-followup-chrt-command-cleanup-r3.json and decoded/dynamic/migration-system-client-followup-chrt-command-cleanup-r3.json.",
+              "definition_sha256": "42d5a9fd15e6646cde54e109dde26aec9e77edcaeeb9b5a893bd412a3c293c6d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "-R/--reset-on-fork sets SCHED_RESET_ON_FORK on the child, and a grandchild of a FIFO/RR/negative-nice parent reverts to OTHER",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture. The reset flag is observable on OTHER/BATCH unprivileged (sched_getscheduler bit 0x40000000); the revert-on-fork effect needs a FIFO/RR parent (same RLIMIT_RTPRIO need as r2)."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+              "assertion": "Original obligation: -R/--reset-on-fork sets SCHED_RESET_ON_FORK on the child, and a grandchild of a FIFO/RR/negative-nice parent reverts to OTHER Static framework PASS: Saved candidate/native command policy probes, argv, exit/signal statuses and unchanged parent policy; FIFO/RR were denied with hard RTPRIO 0. Dynamic framework PASS: Saved candidate/native command policy probes, argv, exit/signal statuses and unchanged parent policy; FIFO/RR were denied with hard RTPRIO 0. Raw guest observations: decoded/static/migration-system-client-followup-chrt-command-cleanup-r3.json and decoded/dynamic/migration-system-client-followup-chrt-command-cleanup-r3.json.",
+              "definition_sha256": "42d5a9fd15e6646cde54e109dde26aec9e77edcaeeb9b5a893bd412a3c293c6d"
+            }
+          ],
+          "gap": "Reset-on-fork flag observed on a real OTHER child; actual FIFO/RR grandchild reversion remains unproven. Real FIFO/RR success needs guest hard RLIMIT_RTPRIO at least 99 or another approved real facility."
         },
         {
           "id": "r5",
           "behavior": "Command arguments are forwarded unchanged (spaces, empty arg, leading dash) and the command is found by execvp",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+              "assertion": "Original obligation: Command arguments are forwarded unchanged (spaces, empty arg, leading dash) and the command is found by execvp Static framework PASS: Saved candidate/native command policy probes, argv, exit/signal statuses and unchanged parent policy; FIFO/RR were denied with hard RTPRIO 0. Dynamic framework PASS: Saved candidate/native command policy probes, argv, exit/signal statuses and unchanged parent policy; FIFO/RR were denied with hard RTPRIO 0. Raw guest observations: decoded/static/migration-system-client-followup-chrt-command-cleanup-r3.json and decoded/dynamic/migration-system-client-followup-chrt-command-cleanup-r3.json.",
+              "definition_sha256": "42d5a9fd15e6646cde54e109dde26aec9e77edcaeeb9b5a893bd412a3c293c6d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "Child exit status and signal death propagate as chrt's status (e.g. exit 7 gives 7; SIGTERM gives the shell-visible 143)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+              "assertion": "Original obligation: Child exit status and signal death propagate as chrt's status (e.g. exit 7 gives 7; SIGTERM gives the shell-visible 143) Static framework PASS: Saved candidate/native command policy probes, argv, exit/signal statuses and unchanged parent policy; FIFO/RR were denied with hard RTPRIO 0. Dynamic framework PASS: Saved candidate/native command policy probes, argv, exit/signal statuses and unchanged parent policy; FIFO/RR were denied with hard RTPRIO 0. Raw guest observations: decoded/static/migration-system-client-followup-chrt-command-cleanup-r3.json and decoded/dynamic/migration-system-client-followup-chrt-command-cleanup-r3.json.",
+              "definition_sha256": "42d5a9fd15e6646cde54e109dde26aec9e77edcaeeb9b5a893bd412a3c293c6d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r7",
           "behavior": "No scheduler change leaks to the invoking shell (the shell's own policy is unchanged after chrt CMD)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture; query-current-process observes only a baseline query."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-chrt-command-cleanup-r3",
+              "assertion": "Original obligation: No scheduler change leaks to the invoking shell (the shell's own policy is unchanged after chrt CMD) Static framework PASS: Saved candidate/native command policy probes, argv, exit/signal statuses and unchanged parent policy; FIFO/RR were denied with hard RTPRIO 0. Dynamic framework PASS: Saved candidate/native command policy probes, argv, exit/signal statuses and unchanged parent policy; FIFO/RR were denied with hard RTPRIO 0. Raw guest observations: decoded/static/migration-system-client-followup-chrt-command-cleanup-r3.json and decoded/dynamic/migration-system-client-followup-chrt-command-cleanup-r3.json.",
+              "definition_sha256": "42d5a9fd15e6646cde54e109dde26aec9e77edcaeeb9b5a893bd412a3c293c6d"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/chrt.c:346 bchrt_run_command, :289 bchrt_set_pid. The policy is set in the forked child before execvp, so the shell itself is never re-scheduled. SCHED_RESET_ON_FORK is 0x40000000. Unprivileged Linux may switch its own task among OTHER/BATCH/IDLE; IDLE to OTHER is allowed when RLIMIT_NICE permits (since 2.6.39)."
+      "notes": "loadables/chrt.c:346 bchrt_run_command, :289 bchrt_set_pid. The policy is set in the forked child before execvp, so the shell itself is never re-scheduled. SCHED_RESET_ON_FORK is 0x40000000. Unprivileged Linux may switch its own task among OTHER/BATCH/IDLE; IDLE to OTHER is allowed when RLIMIT_NICE permits (since 2.6.39). This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "claude/api_transport_mock",
@@ -11189,40 +11504,68 @@
         "purpose": "Exercise non-root allow, deny, non-interactive deny, and interactive verification behavior at the authority boundary.",
         "reason": "Requires a disposable VM with a purpose-built /dev/bashos-auth ioctl mock, deterministic private caller/target account rows, and a controlled verifier child. Capture the request fields and verify denied requests never start the command; no live authority device or password path is suitable here."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "All obligations depend on guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour. Without it the builtin routes to the external delegate (separate topic).",
+      "current_reason": "Remaining obligations: r1: An owned child ran on a synthetic allow response; actual v2 authority and credential enforcement were not exercised.; r2: Synthetic denial left the owned child marker absent; real authority policy enforcement was not exercised.; r3: A synthetic authentication-required response caused noninteractive denial; real authority enforcement remains untested.; r4: A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Non-root allow through the v2 authority runs the command.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2",
+              "assertion": "Original obligation: Non-root allow through the v2 authority runs the command. Static framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Dynamic framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Raw guest observations: decoded/static/migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2.json.",
+              "definition_sha256": "8d1352f990548015a9c79c1ef4b16306a2c763ecadc3a26801fa2a09cfba8eb5"
+            }
+          ],
+          "gap": "An owned child ran on a synthetic allow response; actual v2 authority and credential enforcement were not exercised."
         },
         {
           "id": "r2",
           "behavior": "Policy deny never starts the command.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2",
+              "assertion": "Original obligation: Policy deny never starts the command. Static framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Dynamic framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Raw guest observations: decoded/static/migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2.json.",
+              "definition_sha256": "8d1352f990548015a9c79c1ef4b16306a2c763ecadc3a26801fa2a09cfba8eb5"
+            }
+          ],
+          "gap": "Synthetic denial left the owned child marker absent; real authority policy enforcement was not exercised."
         },
         {
           "id": "r3",
           "behavior": "-n non-interactive deny when authentication would be required.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2",
+              "assertion": "Original obligation: -n non-interactive deny when authentication would be required. Static framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Dynamic framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Raw guest observations: decoded/static/migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2.json.",
+              "definition_sha256": "8d1352f990548015a9c79c1ef4b16306a2c763ecadc3a26801fa2a09cfba8eb5"
+            }
+          ],
+          "gap": "A synthetic authentication-required response caused noninteractive denial; real authority enforcement remains untested."
         },
         {
           "id": "r4",
           "behavior": "Interactive verification success/failure via the verifier child.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device and the PTY driver."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-doas-verify-client-guarded-bootstrap-r1-record-r2",
+              "assertion": "Original obligation: Interactive verification success/failure via the verifier child. Static framework PASS: Synthetic verifier-launch failure=126, denial=125, and reauthorization still requiring authentication=1; successful interactive verifier was not exercised. Dynamic framework PASS: Synthetic verifier-launch failure=126, denial=125, and reauthorization still requiring authentication=1; successful interactive verifier was not exercised. Raw guest observations: decoded/static/migration-auth-client-doas-verify-client-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-doas-verify-client-guarded-bootstrap-r1-record-r2.json.",
+              "definition_sha256": "58be86641df880c5ae9b8863e6403ec26f7d417eede09376a46da055791bdfb4"
+            }
+          ],
+          "gap": "A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic."
         }
       ],
-      "notes": "doas.c bda_run_authority, bda_open_authority_if_available."
+      "notes": "doas.c bda_run_authority, bda_open_authority_if_available. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "doas/child_argv_environment_status",
@@ -22118,9 +22461,9 @@
         "purpose": "Validate mlockall(MCL_CURRENT|MCL_FUTURE) success and its RLIMIT_MEMLOCK failure path, including whether failure leaves process state unchanged.",
         "reason": "Requires a disposable Linux VM or reviewed mlockall/getrlimit syscall mock with a controlled RLIMIT_MEMLOCK, observable VmLck before and after, and guaranteed process teardown. The operation locks the shell's current and future pages, so it is not invoked by this fixture suite."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "The failure paths need no privilege and have no fixture. The success path needs a per-case RLIMIT_MEMLOCK at least as large as the shell's mapped size. Raising the hard limit needs CAP_SYS_RESOURCE (setrlimit returns EPERM under uid 2000), so the fixture cannot set it itself. RLIMIT_MEMLOCK in both the legacy runner and the plain driver is inherited from the guest default (kernel default 8 MiB, not pinned by either driver). Lowering it with `ulimit -l` is unprivileged. Raising the hard limit needs CAP_SYS_RESOURCE, which only the root controller holds. Not a privilege block for the fixture: the guest controller already runs as root and sets rlimits in terminal.child_limits before setuid(2000), so a per-case RLIMIT_MEMLOCK option there is a small existing-driver extension (root-owned), not a new privileged driver.",
+      "current_reason": "Remaining obligations: r1: No case. Whether the guest default limit (8 MiB) suffices for mlockall of the 15 MB static candidate mappings is unknown; a deterministic success needs the controller to set the limit per case.; r3: EAGAIN and ENOMEM were independently injected on both builds; on ENOMEM the candidate omitted the required current-limit diagnostic.; r4: Implicit in per-side processes; not asserted.",
       "requirements": [
         {
           "id": "r1",
@@ -22132,16 +22475,36 @@
         {
           "id": "r2",
           "behavior": "With a soft limit below the resident size, the candidate pre-check fails: \"rlimit: needed=N soft=S hard=H - set ulimit -l before continuing\", status 1, VmLck unchanged (0)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Reachable unprivileged via `ulimit -S -l 0`; unasserted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-mlock-all-low-guard-r2",
+              "assertion": "Original obligation: With a soft limit below the resident size, the candidate pre-check fails: \"rlimit: needed=N soft=S hard=H - set ulimit -l before continuing\", status 1, VmLck unchanged (0) Static framework PASS: Saved mlock subcall all-low: 'before-VmLck=0\\nbefore-VmRSS=4228\\nstatus=1\\nafter-VmLck=0\\nafter-VmRSS=4356\\n'; stderr 'fixture: line 10: mlock: rlimit: needed=4395008 soft=0 hard=8388608 - set ulimit -l before continuing\\n'; observer events []. Dynamic framework PASS: Saved mlock subcall all-low: 'before-VmLck=0\\nbefore-VmRSS=5736\\nstatus=1\\nafter-VmLck=0\\nafter-VmRSS=5928\\n'; stderr 'fixture: line 10: mlock: rlimit: needed=6004736 soft=0 hard=8388608 - set ulimit -l before continuing\\n'; observer events []. Raw guest observations: decoded/static/migration-system-client-followup-mlock-all-low-guard-r2.json and decoded/dynamic/migration-system-client-followup-mlock-all-low-guard-r2.json.",
+              "definition_sha256": "684c804a05e5bb90bebe102b32effaadd6496f4b6cfd6be6606920dcce56238d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "If mlockall itself fails (EAGAIN/ENOMEM after the pre-check passes) the diagnostic plus \"current RLIMIT_MEMLOCK: soft=.. hard=..\" is printed and status 1; no pages remain locked",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-mlock-all-eagain-guard-r2",
+              "assertion": "Original obligation: If mlockall itself fails (EAGAIN/ENOMEM after the pre-check passes) the diagnostic plus \"current RLIMIT_MEMLOCK: soft=.. hard=..\" is printed and status 1; no pages remain locked Static framework PASS: Saved mlock subcall all-eagain: 'before-VmLck=0\\nbefore-VmRSS=4220\\nstatus=1\\nafter-VmLck=0\\nafter-VmRSS=4348\\n'; stderr 'fixture: line 10: mlock: mlockall: Resource temporarily unavailable\\nfixture: line 10: mlock:   current RLIMIT_MEMLOCK: soft=8388608 hard=8388608\\n'; observer events [{'arg0': 3, 'reply': 'errno:11', 'syscall': 'mlockall'}]. Dynamic framework PASS: Saved mlock subcall all-eagain: 'before-VmLck=0\\nbefore-VmRSS=5788\\nstatus=1\\nafter-VmLck=0\\nafter-VmRSS=5980\\n'; stderr 'fixture: line 10: mlock: mlockall: Resource temporarily unavailable\\nfixture: line 10: mlock:   current RLIMIT_MEMLOCK: soft=8388608 hard=8388608\\n'; observer events [{'arg0': 3, 'reply': 'errno:11', 'syscall': 'mlockall'}]. Raw guest observations: decoded/static/migration-system-client-followup-mlock-all-eagain-guard-r2.json and decoded/dynamic/migration-system-client-followup-mlock-all-eagain-guard-r2.json.",
+              "definition_sha256": "09f45140b6590c886a72de99383e4694fd0a86b016660f7d98d5c32c14991e1c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-mlock-all-enomem-guard-r2",
+              "assertion": "Original obligation: If mlockall itself fails (EAGAIN/ENOMEM after the pre-check passes) the diagnostic plus \"current RLIMIT_MEMLOCK: soft=.. hard=..\" is printed and status 1; no pages remain locked Static framework FAIL: Saved mlock subcall all-enomem: 'before-VmLck=0\\nbefore-VmRSS=4220\\nstatus=1\\nafter-VmLck=0\\nafter-VmRSS=4288\\n'; stderr 'fixture: line 10: mlock: mlockall: Cannot allocate memory\\n'; observer events [{'arg0': 3, 'reply': 'errno:12', 'syscall': 'mlockall'}]. Dynamic framework FAIL: Saved mlock subcall all-enomem: 'before-VmLck=0\\nbefore-VmRSS=5708\\nstatus=1\\nafter-VmLck=0\\nafter-VmRSS=5772\\n'; stderr 'fixture: line 10: mlock: mlockall: Cannot allocate memory\\n'; observer events [{'arg0': 3, 'reply': 'errno:12', 'syscall': 'mlockall'}]. Raw guest observations: decoded/static/migration-system-client-followup-mlock-all-enomem-guard-r2.json and decoded/dynamic/migration-system-client-followup-mlock-all-enomem-guard-r2.json.",
+              "definition_sha256": "4d8b33a93d4d57c57b0066e09468bd6dc681000b1e7dd61a8f93f3f4e7cbabab"
+            }
+          ],
+          "gap": "EAGAIN and ENOMEM were independently injected on both builds; on ENOMEM the candidate omitted the required current-limit diagnostic."
         },
         {
           "id": "r4",
@@ -22151,7 +22514,7 @@
           "gap": "Implicit in per-side processes; not asserted."
         }
       ],
-      "notes": "Candidate: bm_all_cmd loadables/mlock.c:112-139, pre-check bm_check_rlimit_for :71-89 (needed = statm resident * page). RLIMIT_MEMLOCK in both the legacy runner and the plain driver is inherited from the guest default (kernel default 8 MiB, not pinned by either driver). Lowering it with `ulimit -l` is unprivileged. Raising the hard limit needs CAP_SYS_RESOURCE, which only the root controller holds. [214 merge: reclassified from requires_capability to implement_fixture per design-update.txt (no inflated capability claims).]"
+      "notes": "Candidate: bm_all_cmd loadables/mlock.c:112-139, pre-check bm_check_rlimit_for :71-89 (needed = statm resident * page). RLIMIT_MEMLOCK in both the legacy runner and the plain driver is inherited from the guest default (kernel default 8 MiB, not pinned by either driver). Lowering it with `ulimit -l` is unprivileged. Raising the hard limit needs CAP_SYS_RESOURCE, which only the root controller holds. [214 merge: reclassified from requires_capability to implement_fixture per design-update.txt (no inflated capability claims).] This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "mlock/ptrace-scope-operation",
@@ -22161,47 +22524,82 @@
         "purpose": "Check parsing and descriptions for Yama ptrace_scope levels 0 through 3, unknown numeric levels, and unavailable or malformed procfs data.",
         "reason": "Requires an isolated procfs fixture or reviewed open/read mock for /proc/sys/kernel/yama/ptrace_scope with controlled contents and error modes. The host's procfs state is not an acceptable oracle and is not queried by this suite."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Not a capability block. The live read can be checked now, and controlled contents need only RUNNER-BINDS: a per-side bind mount of fixture files over /proc/sys/kernel/yama/ptrace_scope inside a USERNS mount namespace in the plain driver. A preflight must confirm that the kernel allows a procfs file overmount from a user namespace; if it does not, the fallback is a controller-made bind (CAP_SYS_ADMIN held by the root controller). Writing the real sysctl (global, CAP_SYS_ADMIN, level 3 irreversible) is neither needed nor safe. No fixture exists.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Reads /proc/sys/kernel/yama/ptrace_scope and prints \"ptrace_scope=N  <description>\" for the live level",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; live read is unprivileged (Yama in Debian kernels) and the shell can read the same file as oracle."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2",
+              "assertion": "Original obligation: Reads /proc/sys/kernel/yama/ptrace_scope and prints \"ptrace_scope=N  <description>\" for the live level The saved same-process guest live read is level 0, and the candidate prints the level-0 description with status 0. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "17e87e0703619e03669d00850a2e1be81833218a91552971cb88463950ce04f4"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Descriptions for levels 0,1,2,3 exactly as documented",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires controlled file contents; setting the sysctl needs CAP_SYS_ADMIN and level 3 cannot be lowered until reboot, so per-side overmounted fixture files are the safe route."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2",
+              "assertion": "Original obligation: Descriptions for levels 0,1,2,3 exactly as documented Private read-only mounted input values 0, 1, 2 and 3 produce the four exact saved documented description lines and status 0. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "17e87e0703619e03669d00850a2e1be81833218a91552971cb88463950ce04f4"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Unknown numeric level (e.g. 7) prints \"ptrace_scope=7  unknown\"",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs controlled content."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2",
+              "assertion": "Original obligation: Unknown numeric level (e.g. 7) prints \"ptrace_scope=7  unknown\" Private mounted value 7 produces ptrace_scope=7  unknown and status 0. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "17e87e0703619e03669d00850a2e1be81833218a91552971cb88463950ce04f4"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Unavailable file (ENOENT) -> \"ptrace-scope: open ...: No such file or directory\" status 1",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs overmount hiding the file."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2",
+              "assertion": "Original obligation: Unavailable file (ENOENT) -> \"ptrace-scope: open ...: No such file or directory\" status 1 The private absent view produces a No such file or directory diagnostic and status 1. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "17e87e0703619e03669d00850a2e1be81833218a91552971cb88463950ce04f4"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Malformed content (\"x\") -> \"failed to parse level\" status 1",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs controlled content."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2",
+              "assertion": "Original obligation: Malformed content (\"x\") -> \"failed to parse level\" status 1 The private malformed value x produces failed to parse level and status 1. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "17e87e0703619e03669d00850a2e1be81833218a91552971cb88463950ce04f4"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: bm_ptrace_scope_cmd loadables/mlock.c:261-299 (fscanf %d accepts \"1junk\" as 1, an unasserted leniency)."
+      "notes": "Candidate: bm_ptrace_scope_cmd loadables/mlock.c:261-299 (fscanf %d accepts \"1junk\" as 1, an unasserted leniency). This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "mlock/try-lock-operation",
@@ -22332,9 +22730,9 @@
         "purpose": "Verify munlockall releases a known locked mapping and does not leave locked pages after the call.",
         "reason": "Requires a disposable Linux VM or reviewed mmap/mlock/munlockall mock that seeds a known locked region and observes lock accounting before and after. The operation changes process-wide memory-lock state; it is not invoked here."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Seeding needs the same per-case RLIMIT_MEMLOCK driver option as all-operation, because raising the hard limit returns EPERM without CAP_SYS_RESOURCE. The no-lock and injected-error paths need no privilege. No fixture exists. Not a privilege block for the fixture: the guest controller already runs as root and sets rlimits in terminal.child_limits before setuid(2000), so a per-case RLIMIT_MEMLOCK option there is a small existing-driver extension (root-owned), not a new privileged driver.",
+      "current_reason": "Remaining obligations: r1: No case; seeding the lock depends on the mlock all success path.",
       "requirements": [
         {
           "id": "r1",
@@ -22346,19 +22744,33 @@
         {
           "id": "r2",
           "behavior": "mlock unlock without prior locks succeeds and VmLck stays 0",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Reachable unprivileged now; unasserted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-mlock-unlock-ok-guard-r2",
+              "assertion": "Original obligation: mlock unlock without prior locks succeeds and VmLck stays 0 Static framework PASS: Saved mlock subcall unlock-ok: 'before-VmLck=0\\nbefore-VmRSS=4228\\nstatus=0\\nafter-VmLck=0\\nafter-VmRSS=4292\\n'; stderr ''; observer events []. Dynamic framework PASS: Saved mlock subcall unlock-ok: 'before-VmLck=0\\nbefore-VmRSS=5800\\nstatus=0\\nafter-VmLck=0\\nafter-VmRSS=5864\\n'; stderr ''; observer events []. Raw guest observations: decoded/static/migration-system-client-followup-mlock-unlock-ok-guard-r2.json and decoded/dynamic/migration-system-client-followup-mlock-unlock-ok-guard-r2.json.",
+              "definition_sha256": "a6c39fb1053cdf01214b9dfc0750ecd20899b4eb6c3d06e9a235107c2ee8ac14"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "munlockall failure is reported with status 1",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Kernel munlockall does not fail normally; needs SECCOMP-FILTER injection (unprivileged)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-system-client-followup-mlock-unlock-eio-guard-r2",
+              "assertion": "Original obligation: munlockall failure is reported with status 1 Static framework PASS: Saved mlock subcall unlock-eio: 'before-VmLck=0\\nbefore-VmRSS=4224\\nstatus=1\\nafter-VmLck=0\\nafter-VmRSS=4288\\n'; stderr 'fixture: line 10: mlock: munlockall: Input/output error\\n'; observer events [{'arg0': 826407584, 'reply': 'errno:5', 'syscall': 'munlockall'}]. Dynamic framework PASS: Saved mlock subcall unlock-eio: 'before-VmLck=0\\nbefore-VmRSS=5756\\nstatus=1\\nafter-VmLck=0\\nafter-VmRSS=5820\\n'; stderr 'fixture: line 10: mlock: munlockall: Input/output error\\n'; observer events [{'arg0': 1731879808, 'reply': 'errno:5', 'syscall': 'munlockall'}]. Raw guest observations: decoded/static/migration-system-client-followup-mlock-unlock-eio-guard-r2.json and decoded/dynamic/migration-system-client-followup-mlock-unlock-eio-guard-r2.json.",
+              "definition_sha256": "2265f5d3171737d44c8724b9985201bd3aad697817cf66c69415ca01fe1c8e69"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: bm_unlock_cmd loadables/mlock.c:141-151. [214 merge: reclassified from requires_capability to implement_fixture per design-update.txt (no inflated capability claims).]"
+      "notes": "Candidate: bm_unlock_cmd loadables/mlock.c:141-151. [214 merge: reclassified from requires_capability to implement_fixture per design-update.txt (no inflated capability claims).] This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "more/interactive_pty_navigation",
@@ -26349,7 +26761,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r3: Not executed.; r5: The secret-slot path that uses the device needs /dev/bashos-auth.",
+      "current_reason": "Remaining obligations: r3: Not executed.; r4: No observation establishes that the candidate secret buffer is wiped after use or that secret bytes never reach paths outside the searched database and diagnostic files. The old mode check establishes only that shadow has no other-access bits; full pre/post shadow permission preservation was not observed.; r5: The slot protocol used intercepted synthetic device replies; real kernel secret-slot security remains untested.",
       "requirements": [
         {
           "id": "r1",
@@ -26361,6 +26773,18 @@
               "id": "migration-passwd-set-fd-argon2id-independent-oracle",
               "assertion": "PHC parameters for PHCLIB_* and defaults, 16/32-byte salt/hash, fresh salt; encoding is hex instead of standard PHC B64 and aging is reset (FAIL)",
               "definition_sha256": "368ae15e01429f3a96b2087420058704cbf3965c4a28141136650b03e2c299be"
+            },
+            {
+              "group": "shell",
+              "id": "migration-passwd-add-fd-records",
+              "assertion": "Existing selected static and dynamic framework FAILs: add-fd returned 0 and the saved shadow projection matched an Argon2id v19 header with m=1024,t=1,p=1 and hexadecimal fields. The old script accepted hex fields with a regex and did not retain the full created PHC, validate standard base64 or run an independent KDF for add-fd; the FAILs also include unrelated account-record divergences.",
+              "definition_sha256": "9841cc0147bcc0a06041215814d8b49a8acd8ca6591473f170025573983b61cf"
+            },
+            {
+              "group": "shell",
+              "id": "migration-auth-client-dependent-set-r4-guarded-bootstrap-r1-argon2-cli-r1",
+              "assertion": "New static and dynamic framework FAILs: synthetic set-fd returned 0 and changed the private shadow; the recorded PHC fields decode as 24/48 bytes rather than expected 16/32 in standard base64. The new case did not recompute a KDF; the original independent set-fd companion remains intact.",
+              "definition_sha256": "578d1c78aa3d70574261831e5cecab5b9c6c1b6c1bee7a4abf188a2b2a4d3494"
             }
           ],
           "gap": ""
@@ -26389,7 +26813,7 @@
         {
           "id": "r4",
           "behavior": "Secret buffers are wiped / never written elsewhere; shadow file permissions preserved.",
-          "coverage": "covered",
+          "coverage": "partial",
           "evidence": [
             {
               "group": "shell",
@@ -26398,7 +26822,7 @@
               "definition_sha256": "368ae15e01429f3a96b2087420058704cbf3965c4a28141136650b03e2c299be"
             }
           ],
-          "gap": ""
+          "gap": "No observation establishes that the candidate secret buffer is wiped after use or that secret bytes never reach paths outside the searched database and diagnostic files. The old mode check establishes only that shadow has no other-access bits; full pre/post shadow permission preservation was not observed."
         },
         {
           "id": "r5",
@@ -26410,12 +26834,18 @@
               "id": "migration-passwd-set-fd-refusals",
               "assertion": "BASHPASSWD_REQUIRE_KERNEL_SECRETS=1 with the device absent fails closed (nonzero status, files unchanged, no residue).",
               "definition_sha256": "d20ed5fb47756808957f930dc8eb4a3f0a8b7eae8cabc0bc9be3edd562ee679a"
+            },
+            {
+              "group": "shell",
+              "id": "migration-auth-client-dependent-set-r4-guarded-bootstrap-r1-argon2-cli-r1",
+              "assertion": "On both builds, saved interception records show the synthetic device VERSION, secret-slot new, write, seal, export and clear operations; no real bashos-auth kernel device was exercised. The same case is a framework FAIL because the written standard-PHC field lengths are wrong. Existing absent-device refusal evidence is preserved.",
+              "definition_sha256": "578d1c78aa3d70574261831e5cecab5b9c6c1b6c1bee7a4abf188a2b2a4d3494"
             }
           ],
-          "gap": "The secret-slot path that uses the device needs /dev/bashos-auth."
+          "gap": "The slot protocol used intercepted synthetic device replies; real kernel secret-slot security remains untested."
         }
       ],
-      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "passwd/password_verification_lockout",
@@ -26427,7 +26857,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r5: Requires guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour.",
+      "current_reason": "Remaining obligations: r5: Verification used intercepted synthetic device replies; real kernel secret slots are not established.",
       "requirements": [
         {
           "id": "r1",
@@ -26488,12 +26918,19 @@
         {
           "id": "r5",
           "behavior": "Kernel-secret path variant.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-dependent-verify-r4-guarded-bootstrap-r1-argon2-cli-r1",
+              "assertion": "Original obligation: Kernel-secret path variant. Static framework PASS: Synthetic secret-device path records wrong/correct statuses and a five-failure lockout with clearing after successful verification. Dynamic framework PASS: Synthetic secret-device path records wrong/correct statuses and a five-failure lockout with clearing after successful verification. Raw guest observations: decoded/static/migration-auth-client-dependent-verify-r4-guarded-bootstrap-r1-argon2-cli-r1.json and decoded/dynamic/migration-auth-client-dependent-verify-r4-guarded-bootstrap-r1-argon2-cli-r1.json.",
+              "definition_sha256": "9fa12d4a27ff34989d17933f5241c48fec9576b9f858fc727cd691f0d14a681d"
+            }
+          ],
+          "gap": "Verification used intercepted synthetic device replies; real kernel secret slots are not established."
         }
       ],
-      "notes": "Root review (2026-10-27) reconciled workers-d-63/64 raw VM records on both unchanged builds against the original obligations. Covered requirements may PASS or FAIL. Pane-214 batch 9 (fstrim-selection, 5de79f06) and pane-217 A4r1/A5/A6 (account-files 750929ff, hash 95c46e75, verify 648c98c2) ran unchanged in workers-d-63. Pane-214 batch 13 cred: migration-cred-drop's verify.sh printed a deleted log on its second observation (ipcobs.py calls removes LOG while the helper keeps appending), a fixture defect corrected by root without changing expectations; all five cred cases re-ran in workers-d-64 and workers-d-63's cred records are not used."
+      "notes": "Root review (2026-10-27) reconciled workers-d-63/64 raw VM records on both unchanged builds against the original obligations. Covered requirements may PASS or FAIL. Pane-214 batch 9 (fstrim-selection, 5de79f06) and pane-217 A4r1/A5/A6 (account-files 750929ff, hash 95c46e75, verify 648c98c2) ran unchanged in workers-d-63. Pane-214 batch 13 cred: migration-cred-drop's verify.sh printed a deleted log on its second observation (ipcobs.py calls removes LOG while the helper keeps appending), a fixture defect corrected by root without changing expectations; all five cred cases re-ran in workers-d-64 and workers-d-63's cred records are not used. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "passwd/readonly_database_queries",
@@ -35580,7 +36017,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r2: The from, no-pty and no-port-forwarding restrictions are exercised. The per-key no-agent-forwarding branch remains untested.; r4: Requires the bash-os kernel auth device /dev/bashos-auth (sshd.c:165,2160-2185) used to verify the PHC hash; the Debian trixie VM kernel has no such device, and a script cannot emulate a kernel ioctl interface.; r7: PasswordAuthentication no is set in every variant; no discriminating prohibit-password password attempt, nor admitted command execution.; r8: Reverse-forward denial is still missing.",
+      "current_reason": "Remaining obligations: r2: The from, no-pty and no-port-forwarding restrictions are exercised. The per-key no-agent-forwarding branch remains untested.; r4: Loopback authentication succeeded for a project-style hex credential with synthetic token/device replies; standard-PHC and real kernel token authentication remain untested.; r7: PasswordAuthentication no is set in every variant; no discriminating prohibit-password password attempt, nor admitted command execution.; r8: Reverse-forward denial is still missing.",
       "requirements": [
         {
           "id": "r1",
@@ -35651,9 +36088,16 @@
         {
           "id": "r4",
           "behavior": "Successful password authentication when enabled",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the bash-os kernel auth device /dev/bashos-auth (sshd.c:165,2160-2185) used to verify the PHC hash; the Debian trixie VM kernel has no such device, and a script cannot emulate a kernel ioctl interface."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-sshd-password-guarded-argon2-teardown-r3",
+              "assertion": "Original obligation: Successful password authentication when enabled Static framework PASS: Loopback SSH correct/wrong statuses 0/255 and saved auth output; exact server identity was SIGTERM-signalled, pidfd observed exit, supervisor reaped, port closed; secret-device replies synthetic. Dynamic framework PASS: Loopback SSH correct/wrong statuses 0/255 and saved auth output; exact server identity was SIGTERM-signalled, pidfd observed exit, supervisor reaped, port closed; secret-device replies synthetic. Raw guest observations: decoded/static/migration-auth-client-sshd-password-guarded-argon2-teardown-r3.json and decoded/dynamic/migration-auth-client-sshd-password-guarded-argon2-teardown-r3.json.",
+              "definition_sha256": "ecda829b6285df137c2c673abfbe6789e7ff6e05c80d96cf95725c74cff2ca04"
+            }
+          ],
+          "gap": "Loopback authentication succeeded for a project-style hex credential with synthetic token/device replies; standard-PHC and real kernel token authentication remain untested."
         },
         {
           "id": "r5",
@@ -35736,7 +36180,7 @@
           "gap": "Reverse-forward denial is still missing."
         }
       ],
-      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "sshd/configuration-policy",
@@ -36789,30 +37233,51 @@
         "purpose": "Check token mint/consume request fields, expiry, failure handling, and request cleanup before any credential transition.",
         "reason": "Requires an independently reviewed mock for /dev/bashos-auth in a disposable VM or syscall fixture. The live authority device and kernel authorization are not exercised."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Only the absent-device fail-closed path is observable; the protocol itself needs guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour.",
+      "current_reason": "Remaining obligations: r2: Synthetic consume preceded an intercepted setgroups denial; no real token enforcement or successful credential transition occurred.; r3: Injected mint, consume and expiry errors aborted before observed credential calls; real kernel token expiry and enforcement were not exercised.; r4: Observable now via the PTY password path (correct password -> 'kernel auth: /dev/bashos-auth: No such file or directory', status 1, no target shell marker).",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Token mint request fields (target uid/gid) are filled as documented.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1",
+              "assertion": "Original obligation: Token mint request fields (target uid/gid) are filled as documented. Static framework PASS: Synthetic mint precedes consume, then setgroups is intercepted and denied; mint, consume and expiry failure paths make no credential-change attempt. Dynamic framework PASS: Synthetic mint precedes consume, then setgroups is intercepted and denied; mint, consume and expiry failure paths make no credential-change attempt. Raw guest observations: decoded/static/migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1.json and decoded/dynamic/migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1.json.",
+              "definition_sha256": "5aca1c354db328abe0a9a7c6f3ba3f4a3f2a679e56e2687f8db5fc5d14bc20b0"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "The minted token is consumed immediately before the credential transition.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1",
+              "assertion": "Original obligation: The minted token is consumed immediately before the credential transition. Static framework PASS: Synthetic mint precedes consume, then setgroups is intercepted and denied; mint, consume and expiry failure paths make no credential-change attempt. Dynamic framework PASS: Synthetic mint precedes consume, then setgroups is intercepted and denied; mint, consume and expiry failure paths make no credential-change attempt. Raw guest observations: decoded/static/migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1.json and decoded/dynamic/migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1.json.",
+              "definition_sha256": "5aca1c354db328abe0a9a7c6f3ba3f4a3f2a679e56e2687f8db5fc5d14bc20b0"
+            }
+          ],
+          "gap": "Synthetic consume preceded an intercepted setgroups denial; no real token enforcement or successful credential transition occurred."
         },
         {
           "id": "r3",
           "behavior": "Expiry and mint/consume failures abort before any credential change.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1",
+              "assertion": "Original obligation: Expiry and mint/consume failures abort before any credential change. Static framework PASS: Synthetic mint precedes consume, then setgroups is intercepted and denied; mint, consume and expiry failure paths make no credential-change attempt. Dynamic framework PASS: Synthetic mint precedes consume, then setgroups is intercepted and denied; mint, consume and expiry failure paths make no credential-change attempt. Raw guest observations: decoded/static/migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1.json and decoded/dynamic/migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1.json.",
+              "definition_sha256": "5aca1c354db328abe0a9a7c6f3ba3f4a3f2a679e56e2687f8db5fc5d14bc20b0"
+            }
+          ],
+          "gap": "Injected mint, consume and expiry errors aborted before observed credential calls; real kernel token expiry and enforcement were not exercised."
         },
         {
           "id": "r4",
@@ -36822,7 +37287,7 @@
           "gap": "Observable now via the PTY password path (correct password -> 'kernel auth: /dev/bashos-auth: No such file or directory', status 1, no target shell marker)."
         }
       ],
-      "notes": "su.c bsu_kernel_proof, bsu_consume_auth_token_fd."
+      "notes": "su.c bsu_kernel_proof, bsu_consume_auth_token_fd. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "su/owned-child-status-and-signals",
@@ -36832,23 +37297,37 @@
         "purpose": "Check child exit and signal status propagation, fork/wait errors, parent-shell state preservation, and repeated invocation behavior.",
         "reason": "Requires a bounded disposable child-process fixture with mocked authentication and credential operations. Any signals must target only owned fixture children; this suite sends none."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Failure-status propagation, parent state preservation and repetition are observable now through the PTY verification-failure path; signal mapping and successful-child status need the device.",
+      "current_reason": "Remaining obligations: r3: Requires injection.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Child exit status propagates.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Partially observable now: verification failure exit (1) and usage exit (2) from the owned child propagate through waitpid (su.c parent)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+              "assertion": "Original obligation: Child exit status propagates. Static framework PASS: Owned child exit 7 and self-SIGTERM 143 propagated; repeat parent uid/gid remained 2000 and terminal restored; credential replies were synthetic. Dynamic framework PASS: Owned child exit 7 and self-SIGTERM 143 propagated; repeat parent uid/gid remained 2000 and terminal restored; credential replies were synthetic. Raw guest observations: decoded/static/migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2.json and decoded/dynamic/migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2.json.",
+              "definition_sha256": "af1561423ec04d6b59b49a35463ad9bb4db742a9e3a1a8c04c84244066cb4762"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Child signal death maps to 128+N.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires a child that lives long enough to signal (target shell)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+              "assertion": "Original obligation: Child signal death maps to 128+N. Static framework PASS: Owned child exit 7 and self-SIGTERM 143 propagated; repeat parent uid/gid remained 2000 and terminal restored; credential replies were synthetic. Dynamic framework PASS: Owned child exit 7 and self-SIGTERM 143 propagated; repeat parent uid/gid remained 2000 and terminal restored; credential replies were synthetic. Raw guest observations: decoded/static/migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2.json and decoded/dynamic/migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2.json.",
+              "definition_sha256": "af1561423ec04d6b59b49a35463ad9bb4db742a9e3a1a8c04c84244066cb4762"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
@@ -36860,12 +37339,19 @@
         {
           "id": "r4",
           "behavior": "Parent shell state (IDs, tty modes) is preserved; repeated invocations work.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Observable now: run the failing PTY verification twice and assert `id -u`-equivalent ($UID/$EUID) and termios restoration (PTY driver records them)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+              "assertion": "Original obligation: Parent shell state (IDs, tty modes) is preserved; repeated invocations work. Static framework PASS: Owned child exit 7 and self-SIGTERM 143 propagated; repeat parent uid/gid remained 2000 and terminal restored; credential replies were synthetic. Dynamic framework PASS: Owned child exit 7 and self-SIGTERM 143 propagated; repeat parent uid/gid remained 2000 and terminal restored; credential replies were synthetic. Raw guest observations: decoded/static/migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2.json and decoded/dynamic/migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2.json.",
+              "definition_sha256": "af1561423ec04d6b59b49a35463ad9bb4db742a9e3a1a8c04c84244066cb4762"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "su.c parent waitpid loop and tty snapshot restore."
+      "notes": "su.c parent waitpid loop and tty snapshot restore. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "su/password-and-lockout-flow",
@@ -36875,23 +37361,43 @@
         "purpose": "Check correct and incorrect passwords, locked or malformed shadow entries, bounded password input, failure lockout, and success cleanup.",
         "reason": "Requires a future disposable VM with a private PTY, synthetic PHC shadow records, an independent Argon2id oracle, private lock files and injected password-read outcomes. No installed credentials or host shadow data may be used."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "su reads PHCLIB_PASSWD/PHCLIB_SHADOW (su.c bsu_passwd_path/bsu_shadow_path) and BPW-style lock files under its lock dir, so account lookup, parsing and password verification run unprivileged on private files; the token mint (su.c bsu_kernel_proof) and credential drop happen only after verification. Verification and failure accounting are now observable via the PTY driver with OpenSSL-generated PHC vectors; only lock expiry timing and post-success cleanup are blocked.",
+      "current_reason": "Remaining obligations: r1: The correct project-style synthetic credential reached mock MINT/CONSUME; real token authority and credential transition were not exercised.; r3: Not executed.; r4: Not executed.; r5: The saved lock state and expiry handling were observed, but the expired-path su command subsequently failed at setgroups; a successful final credential transition was not shown.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Correct password passes verification (reaches the token step).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Observable now through the PTY driver: correct password produces the kernel-auth diagnostic, wrong password produces the authentication failure."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1",
+              "assertion": "Original obligation: Correct password passes verification (reaches the token step). Static framework PASS: Five wrong attempts and active lock produced status 1; saved count is 5 and lock lasts 900 s. The expired credential reached setgroups, which was denied, so no successful su command is established. Dynamic framework PASS: Five wrong attempts and active lock produced status 1; saved count is 5 and lock lasts 900 s. The expired credential reached setgroups, which was denied, so no successful su command is established. Raw guest observations: decoded/static/migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1.json and decoded/dynamic/migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1.json.",
+              "definition_sha256": "512873a0c6ac232ee2038b8e1480fb16671862ea3816e08dfccb99db0c5f456c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1",
+              "assertion": "Original obligation: Correct password passes verification (reaches the token step). Static framework PASS: Synthetic mint precedes consume, then setgroups is intercepted and denied; mint, consume and expiry failure paths make no credential-change attempt. Dynamic framework PASS: Synthetic mint precedes consume, then setgroups is intercepted and denied; mint, consume and expiry failure paths make no credential-change attempt. Raw guest observations: decoded/static/migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1.json and decoded/dynamic/migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1.json.",
+              "definition_sha256": "5aca1c354db328abe0a9a7c6f3ba3f4a3f2a679e56e2687f8db5fc5d14bc20b0"
+            }
+          ],
+          "gap": "The correct project-style synthetic credential reached mock MINT/CONSUME; real token authority and credential transition were not exercised."
         },
         {
           "id": "r2",
           "behavior": "Incorrect password fails with status 1 and records a failure.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1",
+              "assertion": "Original obligation: Incorrect password fails with status 1 and records a failure. Static framework PASS: Five wrong attempts and active lock produced status 1; saved count is 5 and lock lasts 900 s. The expired credential reached setgroups, which was denied, so no successful su command is established. Dynamic framework PASS: Five wrong attempts and active lock produced status 1; saved count is 5 and lock lasts 900 s. The expired credential reached setgroups, which was denied, so no successful su command is established. Raw guest observations: decoded/static/migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1.json and decoded/dynamic/migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1.json.",
+              "definition_sha256": "512873a0c6ac232ee2038b8e1480fb16671862ea3816e08dfccb99db0c5f456c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
@@ -36910,12 +37416,19 @@
         {
           "id": "r5",
           "behavior": "Repeated failures lock the account until LOCKED_UNTIL; success clears the failure state.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Failure counting and lock-file content are observable; expiry after BSU_LOCK_DURATION needs waiting or a settable wall clock (CLOCK_REALTIME cannot be offset unprivileged), and success-clears-state needs a successful login, which needs the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1",
+              "assertion": "Original obligation: Repeated failures lock the account until LOCKED_UNTIL; success clears the failure state. Static framework PASS: Five wrong attempts and active lock produced status 1; saved count is 5 and lock lasts 900 s. The expired credential reached setgroups, which was denied, so no successful su command is established. Dynamic framework PASS: Five wrong attempts and active lock produced status 1; saved count is 5 and lock lasts 900 s. The expired credential reached setgroups, which was denied, so no successful su command is established. Raw guest observations: decoded/static/migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1.json and decoded/dynamic/migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1.json.",
+              "definition_sha256": "512873a0c6ac232ee2038b8e1480fb16671862ea3816e08dfccb99db0c5f456c"
+            }
+          ],
+          "gap": "The saved lock state and expiry handling were observed, but the expired-path su command subsequently failed at setgroups; a successful final credential transition was not shown."
         }
       ],
-      "notes": "su.c bsu_check_lockout, bsu_record_failure, bsu_shadow_phc."
+      "notes": "su.c bsu_check_lockout, bsu_record_failure, bsu_shadow_phc. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "su/private-account-lookup",
@@ -36927,14 +37440,21 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: Observable only after successful authentication (exec) or via diagnostics; selection itself is internal.",
+      "current_reason": "Remaining obligations: r1: The test uses only the same uid/gid 2000, so it does not establish selection among varying target IDs or a real credential transition.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Present user: target UID/GID/home/shell are taken from the private passwd row.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Observable only after successful authentication (exec) or via diagnostics; selection itself is internal."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+              "assertion": "Original obligation: Present user: target UID/GID/home/shell are taken from the private passwd row. Static framework PASS: Saved seven PTY subcalls and independently decoded target exec argv, cwd, environment and fds; missing/nonexecuting shell returned 126; credential replies were synthetic. Dynamic framework PASS: Saved seven PTY subcalls and independently decoded target exec argv, cwd, environment and fds; missing/nonexecuting shell returned 126; credential replies were synthetic. Raw guest observations: decoded/static/migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2.json and decoded/dynamic/migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2.json.",
+              "definition_sha256": "acd0a362be6186711eaf4e1fef0ff363bf317de265423fc069a5a1eecdbf677e"
+            }
+          ],
+          "gap": "The test uses only the same uid/gid 2000, so it does not establish selection among varying target IDs or a real credential transition."
         },
         {
           "id": "r2",
@@ -36985,7 +37505,7 @@
           "gap": ""
         }
       ],
-      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "su/pty-echo-and-cancellation",
@@ -36995,26 +37515,40 @@
         "purpose": "Check tty password echo suppression and terminal restoration after success, read failure, and cancellation.",
         "reason": "Requires a private PTY driver, deterministic password input, and a mockable child/auth path in a disposable VM. No interactive su session is started here."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "The PTY driver exists and the verify step is device-free, so all paths except post-success restoration are observable.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Password echo is suppressed during the prompt.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed; PTY driver can assert the typed bytes never reach the screen."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-su-client-tty-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+              "assertion": "Original obligation: Password echo is suppressed during the prompt. On both builds the prompt termios has ECHO clear; synthetic correct and wrong input bytes do not appear in the corresponding screens. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "7d05e5c8dd5aab7f20fb981eb4f9cf67f0e3e686d7a458b1888f596f6418f04c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Terminal modes are restored after success, failure, read failure (EOF) and cancellation (^C / SIGINT).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed; PTY driver records termios_before/after and supports ^C steps."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-su-client-tty-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+              "assertion": "Original obligation: Terminal modes are restored after success, failure, read failure (EOF) and cancellation (^C / SIGINT). Before/after termios match for success, wrong password, injected EOF, injected EIO and owned-child SIGINT; statuses are 0, 1, 1, 2 and 130. Credential replies were synthetic. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "7d05e5c8dd5aab7f20fb981eb4f9cf67f0e3e686d7a458b1888f596f6418f04c"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "su.c parent restores saved_tty after waitpid even if the child is killed."
+      "notes": "su.c parent restores saved_tty after waitpid even if the child is killed. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "su/target-shell-environment-and-fds",
@@ -37024,47 +37558,82 @@
         "purpose": "Check login and no-login argv, working directory, filtered and retained environment, descriptor closure, and exec errors using a controlled target shell.",
         "reason": "Requires a future disposable VM or reviewed credential/token syscall mock with a private synthetic account and a fixture shell executable that records argv, environment, cwd and inherited descriptors. No installed shell is launched through su in this suite."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "All obligations are observed after exec, which follows the kernel token. Blocked by guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour (plus guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid) for the root route).",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Login mode argv[0] '-shell' with -i, non-login argv, -c CMD argv.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires exec of the target shell."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+              "assertion": "Original obligation: Login mode argv[0] '-shell' with -i, non-login argv, -c CMD argv. At exec the captured argv are login [-bash,-c,exit 0], non-login [/bin/bash,-c,exit 0], interactive [-bash,-i] and simple [/bin/bash]; the last two exec attempts were intentionally failed after argv capture. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "acd0a362be6186711eaf4e1fef0ff363bf317de265423fc069a5a1eecdbf677e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Login mode changes to the target home; non-login keeps cwd.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires exec."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+              "assertion": "Original obligation: Login mode changes to the target home; non-login keeps cwd. Exec trace records login cwd at the target home and non-login cwd at the prior work directory, after synthetic credential replies. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "acd0a362be6186711eaf4e1fef0ff363bf317de265423fc069a5a1eecdbf677e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Environment filtered (default) or retained (--keep-env).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires exec."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+              "assertion": "Original obligation: Environment filtered (default) or retained (--keep-env). The default exec environment omits KEEP_ME; --keep-env retains KEEP_ME and strips dangerous PYTHONPATH/BASHSU_TEST. Credential replies were synthetic. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "acd0a362be6186711eaf4e1fef0ff363bf317de265423fc069a5a1eecdbf677e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Inherited descriptors above 2 are closed.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires exec."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+              "assertion": "Original obligation: Inherited descriptors above 2 are closed. The parent reports its inherited descriptor present; each of seven exec records contains only descriptors 0, 1 and 2. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "acd0a362be6186711eaf4e1fef0ff363bf317de265423fc069a5a1eecdbf677e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Exec errors (missing/non-executable shell) return 126 with a diagnostic.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires reaching exec."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
+              "assertion": "Original obligation: Exec errors (missing/non-executable shell) return 126 with a diagnostic. The missing and non-executable targets reach exec and report status 126 with, respectively, No such file or directory and Permission denied. Exact per-build raw pins and observations: deferral-migration/resume-20261028/auth-system-review-followup-151/clause-review.json.",
+              "definition_sha256": "acd0a362be6186711eaf4e1fef0ff363bf317de265423fc069a5a1eecdbf677e"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "su.c bsu_exec_user, bsu_close_fds."
+      "notes": "su.c bsu_exec_user, bsu_close_fds. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "sudo/authority-command-authorization",
@@ -37074,40 +37643,68 @@
         "purpose": "Exercise an authorized command, a policy denial, non-interactive denial, verifier success/failure, and fail-closed reauthorization on the v2 authority route.",
         "reason": "Requires a disposable bash-os VM with a provisioned v2 /dev/bashos-auth implementation, synthetic policy and identities, and a controlled verifier response. The live authority and sudo invocation are prohibited in this environment."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Shared doas backend; all paths require guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour.",
+      "current_reason": "Remaining obligations: r1: An owned child ran on a synthetic authority response; real v2 authority and credential enforcement were not exercised.; r2: Synthetic denial left the child marker absent; real authority policy enforcement remains untested.; r3: Synthetic authentication-required response caused noninteractive denial; real authority enforcement remains untested.; r4: A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Authorized command runs via the v2 authority.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2",
+              "assertion": "Original obligation: Authorized command runs via the v2 authority. Static framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Dynamic framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Raw guest observations: decoded/static/migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2.json.",
+              "definition_sha256": "5f4d6044b1fd164308d83fd93aeb114ba179f62e6098292e5f85d95665b284f1"
+            }
+          ],
+          "gap": "An owned child ran on a synthetic authority response; real v2 authority and credential enforcement were not exercised."
         },
         {
           "id": "r2",
           "behavior": "Policy denial does not run the command.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2",
+              "assertion": "Original obligation: Policy denial does not run the command. Static framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Dynamic framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Raw guest observations: decoded/static/migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2.json.",
+              "definition_sha256": "5f4d6044b1fd164308d83fd93aeb114ba179f62e6098292e5f85d95665b284f1"
+            }
+          ],
+          "gap": "Synthetic denial left the child marker absent; real authority policy enforcement remains untested."
         },
         {
           "id": "r3",
           "behavior": "-n denial when interaction is required.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2",
+              "assertion": "Original obligation: -n denial when interaction is required. Static framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Dynamic framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Raw guest observations: decoded/static/migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2.json.",
+              "definition_sha256": "5f4d6044b1fd164308d83fd93aeb114ba179f62e6098292e5f85d95665b284f1"
+            }
+          ],
+          "gap": "Synthetic authentication-required response caused noninteractive denial; real authority enforcement remains untested."
         },
         {
           "id": "r4",
           "behavior": "Verifier success/failure and fail-closed reauthorization.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-sudo-verify-client-guarded-bootstrap-r1-record-r2",
+              "assertion": "Original obligation: Verifier success/failure and fail-closed reauthorization. Static framework PASS: Synthetic verifier-launch failure=126, denial=125, and reauthorization still requiring authentication=1; successful interactive verifier was not exercised. Dynamic framework PASS: Synthetic verifier-launch failure=126, denial=125, and reauthorization still requiring authentication=1; successful interactive verifier was not exercised. Raw guest observations: decoded/static/migration-auth-client-sudo-verify-client-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-sudo-verify-client-guarded-bootstrap-r1-record-r2.json.",
+              "definition_sha256": "4080a898e7944f742701c6285b76577bcece245bc10381fbbd825c0e1b69797c"
+            }
+          ],
+          "gap": "A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic."
         }
       ],
-      "notes": "sudo.c delegates to doas.c bashdoas_dispatch(1, ...)."
+      "notes": "sudo.c delegates to doas.c bashdoas_dispatch(1, ...). This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "sudo/login-shell-and-command-quoting",
@@ -37169,7 +37766,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised.; r2: Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised.; r4: The authority route (listing then never approving execution) needs the /dev/bashos-auth device.",
+      "current_reason": "Remaining obligations: r1: Short/long/alias projections and mismatched digest rejection were observed with synthetic owner and authority responses; the digest was not recomputed and real authority binding is untested.; r4: Listing-with-command was rejected in the synthetic authority fixture; real authority approval enforcement remains untested.",
       "requirements": [
         {
           "id": "r1",
@@ -37181,23 +37778,35 @@
               "id": "migration-auth-policy-list-caller-projection",
               "assertion": "Shared renderer subchecks: short/long caller projection, normalized renderer/parser digest agreement, empty/no-match summary entries=0. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
               "definition_sha256": "6650fd03cef955148cb484375e5303173a2cd9fe76fcd19ee2a3294a0208d4b3"
+            },
+            {
+              "group": "shell",
+              "id": "migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2",
+              "assertion": "Original obligation: -l / -ll / --list render the caller-filtered projection of the authority-advertised policy, bound to its digest. Static framework PASS: Short/long/alias projections and empty, no-match, digest/generation/owner/unsafe failures retained; fstat owner and authority are synthetic, digest was not recomputed. Dynamic framework PASS: Short/long/alias projections and empty, no-match, digest/generation/owner/unsafe failures retained; fstat owner and authority are synthetic, digest was not recomputed. Raw guest observations: decoded/static/migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2.json and decoded/dynamic/migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2.json.",
+              "definition_sha256": "427c530ea2318e673387be46ee0435e3d852556505ccc43678ee9e612d37b57c"
             }
           ],
-          "gap": "Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised."
+          "gap": "Short/long/alias projections and mismatched digest rejection were observed with synthetic owner and authority responses; the digest was not recomputed and real authority binding is untested."
         },
         {
           "id": "r2",
           "behavior": "Empty and no-match policies render as documented.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-auth-policy-list-caller-projection",
               "assertion": "Shared renderer subchecks: short/long caller projection, normalized renderer/parser digest agreement, empty/no-match summary entries=0. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
               "definition_sha256": "6650fd03cef955148cb484375e5303173a2cd9fe76fcd19ee2a3294a0208d4b3"
+            },
+            {
+              "group": "shell",
+              "id": "migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2",
+              "assertion": "Original obligation: Empty and no-match policies render as documented. Static framework PASS: Short/long/alias projections and empty, no-match, digest/generation/owner/unsafe failures retained; fstat owner and authority are synthetic, digest was not recomputed. Dynamic framework PASS: Short/long/alias projections and empty, no-match, digest/generation/owner/unsafe failures retained; fstat owner and authority are synthetic, digest was not recomputed. Raw guest observations: decoded/static/migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2.json and decoded/dynamic/migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2.json.",
+              "definition_sha256": "427c530ea2318e673387be46ee0435e3d852556505ccc43678ee9e612d37b57c"
             }
           ],
-          "gap": "Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised."
+          "gap": ""
         },
         {
           "id": "r3",
@@ -37223,12 +37832,18 @@
               "id": "migration-sudo-list-delegate-only",
               "assertion": "On the delegate route '-l id' is handed to the listing delegate only and the command is not run.",
               "definition_sha256": "3ab0e8db504b10b77af20d069f4ec8ecb77003e7117cc3d99f37818202deccb6"
+            },
+            {
+              "group": "shell",
+              "id": "migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2",
+              "assertion": "Original obligation: Listing is never an execution approval. Static framework PASS: Short/long/alias projections and empty, no-match, digest/generation/owner/unsafe failures retained; fstat owner and authority are synthetic, digest was not recomputed. Dynamic framework PASS: Short/long/alias projections and empty, no-match, digest/generation/owner/unsafe failures retained; fstat owner and authority are synthetic, digest was not recomputed. Raw guest observations: decoded/static/migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2.json and decoded/dynamic/migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2.json.",
+              "definition_sha256": "427c530ea2318e673387be46ee0435e3d852556505ccc43678ee9e612d37b57c"
             }
           ],
-          "gap": "The authority route (listing then never approving execution) needs the /dev/bashos-auth device."
+          "gap": "Listing-with-command was rejected in the synthetic authority fixture; real authority approval enforcement remains untested."
         }
       ],
-      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "sudo/root-credential-drop",
@@ -37281,40 +37896,74 @@
         "purpose": "Exercise sudoedit over private relative fixture files: safe open, private editor copies, reauthorization, digest-bound copyback, rejection cleanup, and multi-file behavior.",
         "reason": "The production path depends on kernel safe-open and copyback mediation plus the sudoedit_live gate. It needs a disposable VM with that authority or an independently reviewed syscall mock operating only on private fixture files."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "The unprivileged sudoedit flow is kernel-mediated; it cannot be observed without guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour.",
+      "current_reason": "Remaining obligations: r1: Real kernel safe-open, privileged copyback and enforcement of the digest-bound authorization are not established by the synthetic private-file peer.; r2: Real kernel safe-open, privileged copyback and enforcement of the digest-bound authorization are not established by the synthetic private-file peer.; r4: The client handled 1, 2 and 16 files and rejected 17, but privileged safe-open and copyback were synthetic.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Kernel safe-open of policy-bound targets, private editor copies edited as the caller.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device (EXEC_HANDOFF sudoedit flow)."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-sudoedit-success-guarded-bootstrap-r1",
+              "assertion": "Original obligation: Kernel safe-open of policy-bound targets, private editor copies edited as the caller. Static framework PASS: Saved 1, 2 and 16 exact edited target files and empty temporary directories with authz/open/authz/copyback ordering; kernel safe-open and copyback were synthetic. Dynamic framework PASS: Saved 1, 2 and 16 exact edited target files and empty temporary directories with authz/open/authz/copyback ordering; kernel safe-open and copyback were synthetic. Raw guest observations: decoded/static/migration-auth-client-sudoedit-success-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-sudoedit-success-guarded-bootstrap-r1.json.",
+              "definition_sha256": "98665b87de6cd1b97b31f87aef88860a57a9cdbca6027460d0670cc402e6567b"
+            }
+          ],
+          "gap": "Real kernel safe-open, privileged copyback and enforcement of the digest-bound authorization are not established by the synthetic private-file peer."
         },
         {
           "id": "r2",
           "behavior": "Reauthorization and digest-bound copyback.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-sudoedit-success-guarded-bootstrap-r1",
+              "assertion": "Original obligation: Reauthorization and digest-bound copyback. Static framework PASS: Saved 1, 2 and 16 exact edited target files and empty temporary directories with authz/open/authz/copyback ordering; kernel safe-open and copyback were synthetic. Dynamic framework PASS: Saved 1, 2 and 16 exact edited target files and empty temporary directories with authz/open/authz/copyback ordering; kernel safe-open and copyback were synthetic. Raw guest observations: decoded/static/migration-auth-client-sudoedit-success-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-sudoedit-success-guarded-bootstrap-r1.json.",
+              "definition_sha256": "98665b87de6cd1b97b31f87aef88860a57a9cdbca6027460d0670cc402e6567b"
+            }
+          ],
+          "gap": "Real kernel safe-open, privileged copyback and enforcement of the digest-bound authorization are not established by the synthetic private-file peer."
         },
         {
           "id": "r3",
           "behavior": "Rejection cleanup of temporary copies.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-sudoedit-reject-guarded-bootstrap-r1",
+              "assertion": "Original obligation: Rejection cleanup of temporary copies. Static framework PASS: Synthetic deny/copyback/editor/open rejections returned 1; captured targets remained unchanged and temporary directories empty; 17 files and relative path returned 2. Dynamic framework PASS: Synthetic deny/copyback/editor/open rejections returned 1; captured targets remained unchanged and temporary directories empty; 17 files and relative path returned 2. Raw guest observations: decoded/static/migration-auth-client-sudoedit-reject-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-sudoedit-reject-guarded-bootstrap-r1.json.",
+              "definition_sha256": "16b26b90d7a5f014c73434c270b6342f7ca62ecca977c0ffd82592ee32d6c370"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Multi-file behavior up to 16 targets and count validation.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Count validation on the root route (1..16) is reachable with guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid); unprivileged delegate route refuses -e."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-client-sudoedit-reject-guarded-bootstrap-r1",
+              "assertion": "Original obligation: Multi-file behavior up to 16 targets and count validation. Static framework PASS: Synthetic deny/copyback/editor/open rejections returned 1; captured targets remained unchanged and temporary directories empty; 17 files and relative path returned 2. Dynamic framework PASS: Synthetic deny/copyback/editor/open rejections returned 1; captured targets remained unchanged and temporary directories empty; 17 files and relative path returned 2. Raw guest observations: decoded/static/migration-auth-client-sudoedit-reject-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-sudoedit-reject-guarded-bootstrap-r1.json.",
+              "definition_sha256": "16b26b90d7a5f014c73434c270b6342f7ca62ecca977c0ffd82592ee32d6c370"
+            },
+            {
+              "group": "shell",
+              "id": "migration-auth-client-sudoedit-success-guarded-bootstrap-r1",
+              "assertion": "Original obligation: Multi-file behavior up to 16 targets and count validation. Static framework PASS: Saved 1, 2 and 16 exact edited target files and empty temporary directories with authz/open/authz/copyback ordering; kernel safe-open and copyback were synthetic. Dynamic framework PASS: Saved 1, 2 and 16 exact edited target files and empty temporary directories with authz/open/authz/copyback ordering; kernel safe-open and copyback were synthetic. Raw guest observations: decoded/static/migration-auth-client-sudoedit-success-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-sudoedit-success-guarded-bootstrap-r1.json.",
+              "definition_sha256": "98665b87de6cd1b97b31f87aef88860a57a9cdbca6027460d0670cc402e6567b"
+            }
+          ],
+          "gap": "The client handled 1, 2 and 16 files and rejected 17, but privileged safe-open and copyback were synthetic."
         }
       ],
-      "notes": "doas.c bda_run_sudoedit, bda_spawn_editor."
+      "notes": "doas.c bda_run_sudoedit, bda_spawn_editor. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "sudo/timestamp-validation-flows",
@@ -37326,7 +37975,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: The authority-route credential reset needs the /dev/bashos-auth device.; r2: Validation itself needs the /dev/bashos-auth device.; r3: Reset-then-run and a failed reset preventing the command need the /dev/bashos-auth device.",
+      "current_reason": "Remaining obligations: r1: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.; r2: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.; r3: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.",
       "requirements": [
         {
           "id": "r1",
@@ -37338,9 +37987,15 @@
               "id": "migration-sudo-doas-fallback-translation",
               "assertion": "On the doas delegate route -k and -K are translated to 'doas -L'.",
               "definition_sha256": "66d0153ef22965b8870cfda66e69fa9aabc514fe7bbcb91b4fc27295584a2eee"
+            },
+            {
+              "group": "shell",
+              "id": "migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2",
+              "assertion": "Original obligation: -k / -K reset the cached credential. Static framework PASS: Synthetic reset/reset-all/validate returned 0; failed reset stopped with 1 and successful reset reached child status 7. Dynamic framework PASS: Synthetic reset/reset-all/validate returned 0; failed reset stopped with 1 and successful reset reached child status 7. Raw guest observations: decoded/static/migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2.json.",
+              "definition_sha256": "3e5f7e649d7e6b1a3176d76b5bcd5a9a23bdf8cc2308236782ab4c1addf75720"
             }
           ],
-          "gap": "The authority-route credential reset needs the /dev/bashos-auth device."
+          "gap": "The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established."
         },
         {
           "id": "r2",
@@ -37352,9 +38007,15 @@
               "id": "migration-sudo-doas-fallback-translation",
               "assertion": "The doas delegate route refuses -v with status 1 and doas not run.",
               "definition_sha256": "66d0153ef22965b8870cfda66e69fa9aabc514fe7bbcb91b4fc27295584a2eee"
+            },
+            {
+              "group": "shell",
+              "id": "migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2",
+              "assertion": "Original obligation: -v validates. Static framework PASS: Synthetic reset/reset-all/validate returned 0; failed reset stopped with 1 and successful reset reached child status 7. Dynamic framework PASS: Synthetic reset/reset-all/validate returned 0; failed reset stopped with 1 and successful reset reached child status 7. Raw guest observations: decoded/static/migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2.json.",
+              "definition_sha256": "3e5f7e649d7e6b1a3176d76b5bcd5a9a23bdf8cc2308236782ab4c1addf75720"
             }
           ],
-          "gap": "Validation itself needs the /dev/bashos-auth device."
+          "gap": "The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established."
         },
         {
           "id": "r3",
@@ -37366,12 +38027,18 @@
               "id": "migration-sudo-doas-fallback-translation",
               "assertion": "The doas delegate route refuses -k COMMAND with status 1 and doas not run.",
               "definition_sha256": "66d0153ef22965b8870cfda66e69fa9aabc514fe7bbcb91b4fc27295584a2eee"
+            },
+            {
+              "group": "shell",
+              "id": "migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2",
+              "assertion": "Original obligation: -k COMMAND resets first and a failed reset prevents the command. Static framework PASS: Synthetic reset/reset-all/validate returned 0; failed reset stopped with 1 and successful reset reached child status 7. Dynamic framework PASS: Synthetic reset/reset-all/validate returned 0; failed reset stopped with 1 and successful reset reached child status 7. Raw guest observations: decoded/static/migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2.json.",
+              "definition_sha256": "3e5f7e649d7e6b1a3176d76b5bcd5a9a23bdf8cc2308236782ab4c1addf75720"
             }
           ],
-          "gap": "Reset-then-run and a failed reset preventing the command need the /dev/bashos-auth device."
+          "gap": "The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established."
         }
       ],
-      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
     },
     {
       "topic": "sv/deferred-activation-protocols",

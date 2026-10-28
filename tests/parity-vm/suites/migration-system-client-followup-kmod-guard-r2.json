@@ -1,0 +1,133 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "bashkmod",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Independent private module/policy fixtures, guarded owned argv-recording command, explicitly expected plan, util-linux kmod modprobe --show-depends on a separately copied real guest module, and seccomp controls that prevent module syscalls.",
+      "comparison": "Setup proves all three module syscalls are denied before the kernel and exercises a guarded owned command with exit 0 and 7. Candidate policy, dry-run plans, alias blacklist, cycle/depth errors and non-dry install/remove directives use only private files and the owned command. A separate reference case copies one dependency-free guest module into a private tree, builds a private depmod index and compares its --show-depends output. Every attempted module syscall is recorded and fails the no-module assertion; real kernel module effects are not simulated as success. A guarded precompiled listener records its bootstrap stages for each notification trace.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-followup-kmod-guard-r2.py": "fe73d47e23c50c6671fd083e6c7a252eb0ce25dadc9fe9a6dccd3b949b1e4982",
+        "helpers/system-client-followup-guarded-sequence.py": "027c8e593b5aba157c4246f16404f22256d9bffce7459dbab5805d38f902f036"
+      },
+      "setup_timeout": 60,
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-system-client-followup-kmod-policy-guard-r2",
+      "purpose": "Inspect private policy, softdep order, chain/options, reverse removal, blacklist and graph errors.",
+      "covers": [
+        "bashkmod/defer-policy-command-effects"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-kmod-guard-r2.py setup policy",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-kmod-guard-r2.py \"$BASH\" policy",
+      "stdout": "kmod-policy projection=yes softdep=yes chain=yes reverse=yes remove=yes blacklist=yes graph=yes\n",
+      "diagnostic_files": [
+        "kmod-followup-observations.jsonl",
+        "kmod-followup-trace-control.jsonl",
+        "kmod-followup-effect-control.jsonl",
+        "kmod-followup-trace-control.jsonl.bootstrap",
+        "kmod-followup-trace-policy.jsonl.bootstrap",
+        "kmod-followup-trace-plan.jsonl.bootstrap",
+        "kmod-followup-trace-chain.jsonl.bootstrap",
+        "kmod-followup-trace-reverse.jsonl.bootstrap",
+        "kmod-followup-trace-remove-plan.jsonl.bootstrap",
+        "kmod-followup-trace-alias.jsonl.bootstrap",
+        "kmod-followup-trace-direct.jsonl.bootstrap",
+        "kmod-followup-trace-cycle.jsonl.bootstrap",
+        "kmod-followup-trace-depth.jsonl.bootstrap"
+      ]
+    },
+    {
+      "loadable": "bashkmod",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Independent private module/policy fixtures, guarded owned argv-recording command, explicitly expected plan, util-linux kmod modprobe --show-depends on a separately copied real guest module, and seccomp controls that prevent module syscalls.",
+      "comparison": "Setup proves all three module syscalls are denied before the kernel and exercises a guarded owned command with exit 0 and 7. Candidate policy, dry-run plans, alias blacklist, cycle/depth errors and non-dry install/remove directives use only private files and the owned command. A separate reference case copies one dependency-free guest module into a private tree, builds a private depmod index and compares its --show-depends output. Every attempted module syscall is recorded and fails the no-module assertion; real kernel module effects are not simulated as success. A guarded precompiled listener records its bootstrap stages for each notification trace.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-followup-kmod-guard-r2.py": "fe73d47e23c50c6671fd083e6c7a252eb0ce25dadc9fe9a6dccd3b949b1e4982",
+        "helpers/system-client-followup-guarded-sequence.py": "027c8e593b5aba157c4246f16404f22256d9bffce7459dbab5805d38f902f036"
+      },
+      "setup_timeout": 60,
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-system-client-followup-kmod-effects-guard-r2",
+      "purpose": "Execute only guarded owned install/remove argv and refuse shell metacharacters.",
+      "covers": [
+        "bashkmod/defer-policy-command-effects"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-kmod-guard-r2.py setup effects",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-kmod-guard-r2.py \"$BASH\" effects",
+      "stdout": "kmod-effects install=yes remove=yes exit=yes metachar=yes blacklist=yes\n",
+      "diagnostic_files": [
+        "kmod-followup-observations.jsonl",
+        "kmod-followup-trace-control.jsonl",
+        "kmod-followup-effect-control.jsonl",
+        "kmod-followup-trace-control.jsonl.bootstrap",
+        "kmod-followup-trace-install.jsonl.bootstrap",
+        "kmod-followup-trace-remove.jsonl.bootstrap",
+        "kmod-followup-trace-badexit.jsonl.bootstrap",
+        "kmod-followup-trace-unsafe.jsonl.bootstrap",
+        "kmod-followup-trace-live-alias.jsonl.bootstrap",
+        "kmod-followup-trace-live-direct.jsonl.bootstrap"
+      ]
+    },
+    {
+      "loadable": "bashkmod",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Independent private module/policy fixtures, guarded owned argv-recording command, explicitly expected plan, util-linux kmod modprobe --show-depends on a separately copied real guest module, and seccomp controls that prevent module syscalls.",
+      "comparison": "Setup proves all three module syscalls are denied before the kernel and exercises a guarded owned command with exit 0 and 7. Candidate policy, dry-run plans, alias blacklist, cycle/depth errors and non-dry install/remove directives use only private files and the owned command. A separate reference case copies one dependency-free guest module into a private tree, builds a private depmod index and compares its --show-depends output. Every attempted module syscall is recorded and fails the no-module assertion; real kernel module effects are not simulated as success. A guarded precompiled listener records its bootstrap stages for each notification trace.",
+      "requires": [
+        "python3",
+        "modprobe",
+        "depmod"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-followup-kmod-guard-r2.py": "fe73d47e23c50c6671fd083e6c7a252eb0ce25dadc9fe9a6dccd3b949b1e4982",
+        "helpers/system-client-followup-guarded-sequence.py": "027c8e593b5aba157c4246f16404f22256d9bffce7459dbab5805d38f902f036"
+      },
+      "setup_timeout": 60,
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-system-client-followup-kmod-reference-guard-r2",
+      "purpose": "Compare an isolated one-module dry-run plan to kmod --show-depends.",
+      "covers": [
+        "bashkmod/defer-policy-command-effects"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-kmod-guard-r2.py setup reference",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-kmod-guard-r2.py \"$BASH\" reference",
+      "stdout": "kmod-reference plan=yes\n",
+      "diagnostic_files": [
+        "kmod-followup-observations.jsonl",
+        "kmod-followup-trace-control.jsonl",
+        "kmod-followup-effect-control.jsonl",
+        "kmod-followup-trace-reference.jsonl",
+        "kmod-followup-trace-control.jsonl.bootstrap",
+        "kmod-followup-trace-reference.jsonl.bootstrap",
+        "kmod-followup-trace-reference-candidate.jsonl.bootstrap"
+      ]
+    }
+  ]
+}

@@ -35,13 +35,13 @@
       "id": "all-operation",
       "kind": "deferred",
       "purpose": "Validate mlockall(MCL_CURRENT|MCL_FUTURE) success and its RLIMIT_MEMLOCK failure path, including whether failure leaves process state unchanged.",
-      "reason": "The failure paths need no privilege and have no fixture. The success path needs a per-case RLIMIT_MEMLOCK at least as large as the shell's mapped size. Raising the hard limit needs CAP_SYS_RESOURCE (setrlimit returns EPERM under uid 2000), so the fixture cannot set it itself. RLIMIT_MEMLOCK in both the legacy runner and the plain driver is inherited from the guest default (kernel default 8 MiB, not pinned by either driver). Lowering it with `ulimit -l` is unprivileged. Raising the hard limit needs CAP_SYS_RESOURCE, which only the root controller holds. Not a privilege block for the fixture: the guest controller already runs as root and sets rlimits in terminal.child_limits before setuid(2000), so a per-case RLIMIT_MEMLOCK option there is a small existing-driver extension (root-owned), not a new privileged driver."
+      "reason": "Remaining obligations: r1: No case. Whether the guest default limit (8 MiB) suffices for mlockall of the 15 MB static candidate mappings is unknown; a deterministic success needs the controller to set the limit per case.; r3: EAGAIN and ENOMEM were independently injected on both builds; on ENOMEM the candidate omitted the required current-limit diagnostic.; r4: Implicit in per-side processes; not asserted."
     },
     {
       "id": "unlock-operation",
       "kind": "deferred",
       "purpose": "Verify munlockall releases a known locked mapping and does not leave locked pages after the call.",
-      "reason": "Seeding needs the same per-case RLIMIT_MEMLOCK driver option as all-operation, because raising the hard limit returns EPERM without CAP_SYS_RESOURCE. The no-lock and injected-error paths need no privilege. No fixture exists. Not a privilege block for the fixture: the guest controller already runs as root and sets rlimits in terminal.child_limits before setuid(2000), so a per-case RLIMIT_MEMLOCK option there is a small existing-driver extension (root-owned), not a new privileged driver."
+      "reason": "Remaining obligations: r1: No case; seeding the lock depends on the mlock all success path."
     },
     {
       "id": "check-operation",
@@ -62,9 +62,14 @@
     },
     {
       "id": "ptrace-scope-operation",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check parsing and descriptions for Yama ptrace_scope levels 0 through 3, unknown numeric levels, and unavailable or malformed procfs data.",
-      "reason": "Not a capability block. The live read can be checked now, and controlled contents need only RUNNER-BINDS: a per-side bind mount of fixture files over /proc/sys/kernel/yama/ptrace_scope inside a USERNS mount namespace in the plain driver. A preflight must confirm that the kernel allows a procfs file overmount from a user namespace; if it does not, the fallback is a controller-made bind (CAP_SYS_ADMIN held by the root controller). Writing the real sysctl (global, CAP_SYS_ADMIN, level 3 irreversible) is neither needed nor safe. No fixture exists."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-system-client-followup-mlock-ptrace-mountinfo-r2"
+        }
+      ]
     }
   ]
 }

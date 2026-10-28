@@ -46,7 +46,7 @@
       "id": "authority-command-authorization",
       "kind": "deferred",
       "purpose": "Exercise an authorized command, a policy denial, non-interactive denial, verifier success/failure, and fail-closed reauthorization on the v2 authority route.",
-      "reason": "Shared doas backend; all paths require guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour."
+      "reason": "Remaining obligations: r1: An owned child ran on a synthetic authority response; real v2 authority and credential enforcement were not exercised.; r2: Synthetic denial left the child marker absent; real authority policy enforcement remains untested.; r3: Synthetic authentication-required response caused noninteractive denial; real authority enforcement remains untested.; r4: A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic."
     },
     {
       "id": "root-credential-drop",
@@ -64,19 +64,19 @@
       "id": "timestamp-validation-flows",
       "kind": "deferred",
       "purpose": "Verify -k, -K, -v, and -k COMMAND ordering, including that a failed reset prevents the requested action.",
-      "reason": "Remaining obligations: r1: The authority-route credential reset needs the /dev/bashos-auth device.; r2: Validation itself needs the /dev/bashos-auth device.; r3: Reset-then-run and a failed reset preventing the command need the /dev/bashos-auth device."
+      "reason": "Remaining obligations: r1: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.; r2: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.; r3: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established."
     },
     {
       "id": "sudoedit-safe-copyback",
       "kind": "deferred",
       "purpose": "Exercise sudoedit over private relative fixture files: safe open, private editor copies, reauthorization, digest-bound copyback, rejection cleanup, and multi-file behavior.",
-      "reason": "The unprivileged sudoedit flow is kernel-mediated; it cannot be observed without guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour."
+      "reason": "Remaining obligations: r1: Real kernel safe-open, privileged copyback and enforcement of the digest-bound authorization are not established by the synthetic private-file peer.; r2: Real kernel safe-open, privileged copyback and enforcement of the digest-bound authorization are not established by the synthetic private-file peer.; r4: The client handled 1, 2 and 16 files and rejected 17, but privileged safe-open and copyback were synthetic."
     },
     {
       "id": "policy-list-projection",
       "kind": "deferred",
       "purpose": "Check -l, -ll, and --list against a caller-readable private policy snapshot, including digest binding and empty/no-match behavior, without treating listing as execution approval.",
-      "reason": "Remaining obligations: r1: Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised.; r2: Native sudo CLI, authority-advertised snapshot, raw-byte digest binding, metadata/revalidation and native empty/no-match path remain unexercised.; r4: The authority route (listing then never approving execution) needs the /dev/bashos-auth device."
+      "reason": "Remaining obligations: r1: Short/long/alias projections and mismatched digest rejection were observed with synthetic owner and authority responses; the digest was not recomputed and real authority binding is untested.; r4: Listing-with-command was rejected in the synthetic authority fixture; real authority approval enforcement remains untested."
     }
   ]
 }
