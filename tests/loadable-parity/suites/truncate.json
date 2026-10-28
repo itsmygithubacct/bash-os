@@ -136,9 +136,14 @@
     },
     {
       "id": "block_special_file_behavior",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise behavior when truncate is given a block-special-file operand.",
-      "reason": "The block-special operand itself is the missing fixture object. A loop device needs CAP_SYS_ADMIN to attach. Once it exists, it can be chowned to uid 2000 so the side itself runs unprivileged."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-truncate-block-device-root"
+        }
+      ]
     },
     {
       "id": "links-and-private-modes",

@@ -142,8 +142,13 @@
     {
       "id": "finfo-device-nodes",
       "purpose": "Exercise the full-summary major/minor and device-type fields for character and block nodes.",
-      "kind": "deferred",
-      "reason": "Character (r1) and block (r2) fields can be implemented now: /dev/null in legacy, /dev/vda via stat in the modern plain driver. Synthetic major/minor values (r3, r4) need nodes created with CAP_MKNOD (DEV-NODES); device mknod is denied even in USERNS."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-finfo-device-nodes-root"
+        }
+      ]
     }
   ]
 }

@@ -140,9 +140,14 @@
     },
     {
       "id": "mknod-device-nodes-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Cover the loadable's character and block device-node operations when a safe privileged fixture becomes available.",
-      "reason": "Successful node creation needs CAP_MKNOD (r1, r2). The denial, existing-path and parse paths are unexecuted fixtures available unprivileged now."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-coreutils-mknod-devices-root"
+        }
+      ]
     },
     {
       "id": "fifo-modes-and-umask",

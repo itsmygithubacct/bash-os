@@ -1,0 +1,371 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-chmod-setgid-drop-root",
+      "loadable": "chmod",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "chmod/foreign-owner-and-group"
+      ],
+      "purpose": "Root prepares files and directories owned by uid 2000 in non-member group 3002 and in the caller's own group 2000; a nested shell of the same side runs chmod g+s, 2755, 6755 and u+s,g+s as uid/gid 2000 with no supplementary groups, and the resulting mode is read with /usr/bin/stat after every step: the kernel silently drops S_ISGID for the non-member group (files and directories) and keeps it for the member group.",
+      "oracle": "GNU coreutils 9.7 chmod run by the same uid in the same layout",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix, each followed by /usr/bin/stat %a %u:%g of the operand.",
+      "requires": [
+        "setpriv",
+        "stat",
+        "chown",
+        "chmod",
+        "sed",
+        "tr",
+        "touch",
+        "mkdir"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\n/usr/bin/mkdir -m 0755 own; /usr/bin/touch own/fg own/fg2 own/mine; /usr/bin/mkdir own/dfg own/dmine\n/usr/bin/chown 2000:3002 own/fg own/fg2 own/dfg; /usr/bin/chown 2000:2000 own/mine own/dmine\n/usr/bin/chmod 0644 own/fg own/fg2 own/mine; /usr/bin/chmod 0755 own/dfg own/dmine\nst() { echo \"  $(/usr/bin/stat -c '%n %a %u:%g' \"$1\")\"; }\nu fg-g+s 'chmod g+s own/fg'; st own/fg\nu fg-2755 'chmod 2755 own/fg'; st own/fg\nu fg-6755 'chmod 6755 own/fg'; st own/fg\nu fg2-us-gs 'chmod u+s,g+s own/fg2'; st own/fg2\nu dfg-g+s 'chmod g+s own/dfg'; st own/dfg\nu dfg-2775 'chmod 2775 own/dfg'; st own/dfg\nu mine-2755 'chmod 2755 own/mine'; st own/mine\nu dmine-g+s 'chmod g+s own/dmine'; st own/dmine\nu mine-g-s 'chmod g-s own/mine'; st own/mine\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "migration-losetup-attach-options-root",
+      "loadable": "losetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "losetup/automatic-attach-options"
+      ],
+      "purpose": "losetup -f --show attaches a relative 64 KiB backing file and prints the device; -r, -P, -o 4096 and --sizelimit 8192 (alone and with -o) are applied, read back from /sys/block/loopN (ro, loop/offset, loop/sizelimit, loop/partscan) and blockdev --getsize64; invalid byte counts (negative, trailing text, empty) for -o and --sizelimit are usage errors and attach nothing.",
+      "oracle": "util-linux 2.41 losetup",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; device attributes from sysfs and /usr/sbin/blockdev, then util-linux losetup -a (fixture view) to show nothing was left attached. Loop devices are attached to per-side images under /tmp/rt (outside the compared tree), detached by the fixture, and checked by the harness for leftovers after each side.",
+      "requires": [
+        "losetup",
+        "blockdev",
+        "python3",
+        "sed",
+        "tr",
+        "cat"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\ncd $RT; seed img 65536\nattr() { local d=${1#/dev/}; echo \"  ro=$(< /sys/block/$d/ro) offset=$(< /sys/block/$d/loop/offset) sizelimit=$(< /sys/block/$d/loop/sizelimit) partscan=$(< /sys/block/$d/loop/partscan) size=$(sz $1)\"; }\nfor opts in \"\" \"-r\" \"-P\" \"-o 4096\" \"--sizelimit 8192\" \"-o 4096 --sizelimit 8192\" \"-r -o 512\"; do\n  r \"attach[$opts]\" losetup $opts -f --show img; d=$(< /tmp/rf.out); settle\n  [[ $d == /dev/loop* ]] && { attr $d; detach $d; }\ndone\nfor bad in -1 12x \"\" 0x; do r \"offset[$bad]\" losetup -o \"$bad\" -f --show img; r \"sizelimit[$bad]\" losetup --sizelimit \"$bad\" -f --show img; done\necho \"attached: $(att -a | /usr/bin/tr '\\n' '|')\"\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "migration-losetup-associated-root",
+      "loadable": "losetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "losetup/associated-file-aliases"
+      ],
+      "purpose": "Two loops back image A and one backs image B; losetup -j and --associated list only the loops of the named file (by relative path, absolute path, a symlink and a hard link to it, matched by device and inode), and a file with no loop prints nothing (or only a header) with status 0.",
+      "oracle": "util-linux 2.41 losetup",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix. Loop devices are attached to per-side images under /tmp/rt (outside the compared tree), detached by the fixture, and checked by the harness for leftovers after each side.",
+      "requires": [
+        "losetup",
+        "python3",
+        "ln",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\ncd $RT; seed a 65536; seed b 65536; seed c 4096; /usr/bin/ln -s a sym; /usr/bin/ln a hard\nl1=$(att -f --show a); l2=$(att -f --show a); l3=$(att -f --show b)\necho \"fixture: $l1 $l2 -> a, $l3 -> b\"\nr rel losetup -j a\nr long losetup --associated a\nr abs losetup -j $RT/a\nr symlink losetup -j sym\nr hardlink losetup -j hard\nr other losetup -j b\nr nomatch losetup -j c\nr missing losetup -j nosuch\ndetach $l1 $l2 $l3\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "migration-losetup-detach-root",
+      "loadable": "losetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "losetup/detach-and-ownership"
+      ],
+      "purpose": "losetup -d detaches an association made by the case (sysfs backing_file disappears); detach errors for an unattached device, a missing node, an unreadable node (uid 2000, node 0660 root:disk) and a missing operand; an association made by the fixture and held open survives a denied detach by uid 2000, and root's detach of the busy device sets autoclear so the association remains until the holder closes it.",
+      "oracle": "util-linux 2.41 losetup",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; sysfs backing_file and loop/autoclear read before and after. Loop devices are attached to per-side images under /tmp/rt (outside the compared tree), detached by the fixture, and checked by the harness for leftovers after each side.",
+      "requires": [
+        "losetup",
+        "setpriv",
+        "python3",
+        "sleep",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\ncd $RT; seed img 65536\nbf() { local d=${1#/dev/}; if [[ -e /sys/block/$d/loop/backing_file ]]; then echo \"  $d backing=$(< /sys/block/$d/loop/backing_file) autoclear=$(< /sys/block/$d/loop/autoclear)\"; else echo \"  $d unattached\"; fi; }\nd=$(att -f --show img); bf $d\nr detach losetup -d $d; gone $d; bf $d\nr detach-again losetup -d $d\nr missing-node losetup -d /dev/loop-nosuch\nr no-operand losetup -d\nd=$(att -f --show img)\nu unprivileged \"losetup -d $d\"; bf $d\n/usr/bin/sleep 30 < $d & holder=$!; settle\nr busy-detach losetup -d $d; bf $d\nkill $holder; wait $holder 2>/dev/null\nfor i in 1 2 3 4 5 6 7 8 9 10; do [[ -e /sys/block/${d#/dev/}/loop/backing_file ]] || break; /usr/bin/sleep 0.2; done\necho \"after holder closed:\"; bf $d\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "migration-losetup-selected-root",
+      "loadable": "losetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "losetup/selected-attach-and-validation"
+      ],
+      "purpose": "losetup /dev/loopN FILE attaches to the named free device, --show prints it, options after operands are accepted and -- ends options for a dash-prefixed file; incompatible or surplus operands are usage errors before any device access; attaching to a busy device fails with EBUSY and leaves the association unchanged.",
+      "oracle": "util-linux 2.41 losetup",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; sysfs backing_file of the named devices. Loop devices are attached to per-side images under /tmp/rt (outside the compared tree), detached by the fixture, and checked by the harness for leftovers after each side.",
+      "requires": [
+        "losetup",
+        "python3",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\ncd $RT; seed img 65536; seed ./-dash 65536; seed other 65536\nd=$(att -f); echo \"fixture free device: $d\"\nbf() { local x=${1#/dev/}; [[ -e /sys/block/$x/loop/backing_file ]] && echo \"  $x backing=$(< /sys/block/$x/loop/backing_file)\" || echo \"  $x unattached\"; }\nr named losetup $d img; settle; bf $d; detach $d\nr named-show losetup --show $d img; settle; bf $d; detach $d\nr show-after losetup $d img --show; settle; bf $d; detach $d\nr dashdash losetup -- $d -dash; settle; bf $d\nr busy losetup $d other; settle; bf $d\ndetach $d\nr three losetup $d img other\nr d-file losetup -d $d img\nr d-show losetup -d $d --show\nr f-file-dev losetup -f $d img\nr l-dev losetup -l $d\nr j-dev losetup -j img $d\nr show-alone losetup --show\nr show-file losetup --show img\necho \"attached: $(att -a | /usr/bin/tr '\\n' '|')\"\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "migration-losetup-list-root",
+      "loadable": "losetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "losetup/list-sysfs-rows"
+      ],
+      "purpose": "The default listing, -a, -l and --list with two attached loops (one read-only with an offset); then, in the side's mount namespace, a bind-mounted synthetic /sys/block holding an unattached loop entry, a non-loop name, a loopX name and a loop entry missing optional attributes; then a tmpfs over /sys so /sys/block is absent.",
+      "oracle": "util-linux 2.41 losetup",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix. Loop devices are attached to per-side images under /tmp/rt (outside the compared tree), detached by the fixture, and checked by the harness for leftovers after each side.",
+      "requires": [
+        "losetup",
+        "python3",
+        "mount",
+        "umount",
+        "sed",
+        "tr",
+        "mkdir"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\ncd $RT; seed a 65536; seed b 65536\nl1=$(att -f --show a); l2=$(att -r -o 1024 -f --show b)\nr default losetup\nr all losetup -a\nr long losetup -l\nr list losetup --list\nF=$RT/fakesys; /usr/bin/mkdir -p $F/loop7 $F/vda $F/loopX/loop $F/loop5/loop\n: > $F/loop7/ro; /usr/bin/mkdir $F/loop7/loop; : > $F/loop7/loop/backing_file\necho 0 > $F/loopX/ro; echo /x > $F/loopX/loop/backing_file; echo /y > $F/loop5/loop/backing_file\n/usr/bin/mount --bind $F /sys/block || echo SETUP-FAILED\nr fake-default losetup\nr fake-all losetup -a\nr fake-long losetup -l\n/usr/bin/umount /sys/block\n/usr/bin/mount -t tmpfs nosys /sys || echo SETUP-FAILED\nr absent-default losetup\nr absent-all losetup -a\n/usr/bin/umount /sys\ndetach $l1 $l2\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "migration-losetup-find-free-root",
+      "loadable": "losetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "losetup/find-free-and-exhaustion"
+      ],
+      "purpose": "losetup -f and --find print the first free device in the same state as util-linux, before and after attaching the device it named; with /dev/loop-control replaced (in the side's mount namespace) by an inaccessible node and by nothing, the open error and status are reported.",
+      "oracle": "util-linux 2.41 losetup",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix. Loop devices are attached to per-side images under /tmp/rt (outside the compared tree), detached by the fixture, and checked by the harness for leftovers after each side.",
+      "requires": [
+        "losetup",
+        "python3",
+        "mount",
+        "umount",
+        "sed",
+        "tr",
+        "mknod"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\ncd $RT; seed img 65536\nr find losetup -f\nr find-long losetup --find\nd=$(att -f --show img); echo \"fixture attached $d\"\nr find-next losetup -f\nu find-unprivileged 'losetup -f'\ndetach $d\n: > $RT/empty; /usr/bin/mount --bind $RT/empty /dev/loop-control || echo SETUP-FAILED\nr control-not-device losetup -f\n/usr/bin/umount /dev/loop-control\n/usr/bin/mkdir $RT/devdir; /usr/bin/mount -t tmpfs nodev $RT/devdir; /usr/bin/mount --bind $RT/devdir /dev || echo SETUP-FAILED\nr control-absent losetup -f\n/usr/bin/umount /dev\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "migration-losetup-readonly-fallback-root",
+      "loadable": "losetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "losetup/readonly-fallback-and-rollback"
+      ],
+      "purpose": "Attaching a 0444 backing file as root without CAP_DAC_OVERRIDE (setpriv drops it from the bounding set) and a file on a read-only bind mount: the attach falls back to read-only and /sys/block/loopN/ro reads 1; a writable control attaches read-write.",
+      "oracle": "util-linux 2.41 losetup with the same credentials",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; ro read from sysfs. Loop devices are attached to per-side images under /tmp/rt (outside the compared tree), detached by the fixture, and checked by the harness for leftovers after each side.",
+      "requires": [
+        "losetup",
+        "setpriv",
+        "python3",
+        "mount",
+        "umount",
+        "chmod",
+        "sed",
+        "tr",
+        "mkdir"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\ncd $RT; seed rw 65536; seed ro444 65536; /usr/bin/chmod 0444 ro444\n/usr/bin/mkdir robind; seed robind/img 65536; /usr/bin/mount --bind -o ro robind robind || echo SETUP-FAILED\nnodac() { /usr/bin/setpriv --bounding-set=-dac_override,-dac_read_search --inh-caps=-dac_override,-dac_read_search -- \"$BASH\" --noprofile --norc -c \"$1\" >/tmp/rf.out 2>/tmp/rf.err; }\nro() { local d=$(< /tmp/rf.out); settle; [[ $d == /dev/loop* ]] && { echo \"  ro=$(< /sys/block/${d#/dev/}/ro)\"; detach $d; }; }\nnodac 'losetup -f --show rw'; show rw-control $?; ro\nnodac 'losetup -f --show ro444'; show eacces-fallback $?; ro\nr erofs-fallback losetup -f --show robind/img; ro\n/usr/bin/umount robind\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "migration-truncate-block-device-root",
+      "loadable": "truncate",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "truncate/block_special_file_behavior"
+      ],
+      "purpose": "truncate -s on a loop device backed by a 64 KiB per-side image: the device size itself, a different size, +0, +512, %4096, %5000, <4096 and >100000 size modes; after every attempt the device size (blockdev --getsize64) and the backing image digest are read; the device is detached at the end.",
+      "oracle": "GNU coreutils 9.7 truncate",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix, each followed by the device size and the image's sha256 prefix. Loop devices are attached to per-side images under /tmp/rt (outside the compared tree), detached by the fixture, and checked by the harness for leftovers after each side.",
+      "requires": [
+        "truncate",
+        "losetup",
+        "blockdev",
+        "python3",
+        "sha256sum",
+        "cut",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\ncd $RT; seed img 65536; d=$(att -f --show img); echo \"image $(sha img)\"\nfor s in 65536 4096 +0 +512 %4096 %5000 '<4096' '>100000' 0; do r \"size[$s]\" truncate -s \"$s\" $d; echo \"  size=$(sz $d) image=$(sha img)\"; done\nr no-create truncate -c -s 65536 $d; echo \"  size=$(sz $d)\"\nr reference truncate -r img $d; echo \"  size=$(sz $d) image=$(sha img)\"\ndetach $d; echo \"detached: $(att -a | /usr/bin/tr '\\n' '|')\"\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "migration-dd-raw-device-root",
+      "loadable": "dd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "dd/raw_device_copy"
+      ],
+      "purpose": "dd on a loop device backed by a seeded 64 KiB image (128 sectors): a bs/skip/count read compared with the same byte range of the image; a seek/conv=notrunc write of one sector, after which the detached image differs from its original only in that sector; a write crossing the device end (short write, ENOSPC, nonzero status, record counts) and reads at and past the end (EOF counts).",
+      "oracle": "GNU coreutils 9.7 dd",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix (status=noxfer drops timing); an independent Python reader of the image reports the changed byte ranges. Loop devices are attached to per-side images under /tmp/rt (outside the compared tree), detached by the fixture, and checked by the harness for leftovers after each side.",
+      "requires": [
+        "dd",
+        "losetup",
+        "python3",
+        "sha256sum",
+        "cut",
+        "sed",
+        "tr",
+        "cp"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\ncd $RT; seed img 65536; /usr/bin/cp img orig; seed src 1024\nd=$(att -f --show img)\nr read-range dd if=$d of=$RT/out bs=512 skip=3 count=5 status=noxfer\n/usr/bin/python3 -c 'import sys; i=open(\"orig\",\"rb\").read(); o=open(\"out\",\"rb\").read(); print(\"  read matches image[1536:4096]:\", o==i[1536:4096], len(o))'\nr write-sector dd if=src of=$d bs=512 seek=10 count=1 conv=notrunc status=noxfer\nr cross-end dd if=src of=$d bs=512 seek=127 count=2 iflag=fullblock status=noxfer\nr read-at-end dd if=$d of=$RT/end bs=512 skip=127 count=4 status=noxfer\nr read-past-end dd if=$d of=$RT/past bs=512 skip=128 count=1 status=noxfer\nr skip-beyond dd if=$d of=$RT/beyond bs=512 skip=200 count=1 status=noxfer\ndetach $d\n/usr/bin/python3 -c '\ni=open(\"orig\",\"rb\").read(); n=open(\"img\",\"rb\").read(); s=open(\"src\",\"rb\").read()\ndiff=[k for k in range(len(i)) if i[k]!=n[k]]\nruns=[]\nfor k in diff:\n    if runs and runs[-1][1]==k: runs[-1][1]=k+1\n    else: runs.append([k,k+1])\nprint(\"  changed ranges:\", runs, \"sector10==src[:512]:\", n[5120:5632]==s[:512], \"last==src[:512]:\", n[65024:]==s[:512], \"size:\", len(n))'\necho \"detached: $(att -a | /usr/bin/tr '\\n' '|')\"\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "migration-hexdump-device-input-root",
+      "loadable": "hexdump",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "hexdump/device-input-boundary"
+      ],
+      "purpose": "hexdump on device inputs: -n/-s bounded reads of /dev/zero, empty /dev/null, /dev/tty without a controlling terminal followed by a later operand, a loop device backed by a seeded image (-C -n 64 -s 512), and a device-mapper device whose first 16 sectors map the loop device and next 16 are an error target, read through the boundary (EIO mid-stream).",
+      "oracle": "util-linux 2.41 hexdump",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; stdout of each read is shown verbatim (newlines as |). Loop devices are attached to per-side images under /tmp/rt (outside the compared tree), detached by the fixture, and checked by the harness for leftovers after each side. The dm device is removed by the fixture and by the harness cleanup.",
+      "requires": [
+        "hexdump",
+        "losetup",
+        "dmsetup",
+        "python3",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\ncd $RT; seed img 65536\nr zero-n hexdump -n 40 /dev/zero\nr zero-skip-C hexdump -C -s 7 -n 21 /dev/zero\nr null hexdump /dev/null\nr null-C hexdump -C /dev/null\nr tty-then-zero hexdump -n 4 /dev/tty /dev/zero\nd=$(att -f --show img)\nr loop-C hexdump -C -n 64 -s 512 $d\nr loop-tail hexdump -C -s 65520 $d\nprintf '0 16 linear %s 0\\n16 16 error\\n' $d | /usr/sbin/dmsetup create --noudevsync rf-err || echo SETUP-FAILED\nm=$(/usr/sbin/dmsetup info -c --noheadings -o minor rf-err); echo \"fixture dm-$m\"\nr dm-eio hexdump -C -s 8160 /dev/dm-$m\nr dm-eio-n hexdump -n 16 -s 8184 /dev/dm-$m\n/usr/sbin/dmsetup remove --noudevsync rf-err; detach $d\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "migration-coreutils-mknod-devices-root",
+      "loadable": "coreutils",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "coreutils/mknod-device-nodes-deferred"
+      ],
+      "purpose": "coreutils mknod (the candidate dispatcher; GNU mknod on the reference side) as root creates character and block nodes with exact type, mode and rdev, including large major/minor numbers; an existing path gives EEXIST and is preserved; as uid 2000 node creation is denied (EPERM, no entry) while a FIFO succeeds; missing major/minor for b/c, major/minor for p and an invalid -m are rejected.",
+      "oracle": "GNU coreutils 9.7 mknod",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; /usr/bin/stat %n %F %a %Hr:%Lr of each node; nodes are also compared in the tree snapshot (type, mode, major, minor).",
+      "requires": [
+        "mknod",
+        "stat",
+        "setpriv",
+        "sed",
+        "tr",
+        "ls"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\ncu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\nr char cu mknod -m 0640 cnode c 1 3\nr block cu mknod -m 0600 bnode b 7 200\nr large-char cu mknod clarge c 4095 1048575\nr large-block cu mknod -m 0444 blarge b 300 70000\nr fifo cu mknod -m 0600 fnode p\n/usr/bin/stat -c '  %n %F %a %Hr:%Lr' cnode bnode clarge blarge fnode\nr exists cu mknod cnode c 1 5; /usr/bin/stat -c '  %n %F %a %Hr:%Lr' cnode\n/usr/bin/chmod 0777 .\nu unpriv-char \"$(declare -f cu); cu mknod unode c 1 3\"\nu unpriv-fifo \"$(declare -f cu); cu mknod ufifo p\"\necho \"  entries: $(/usr/bin/ls | /usr/bin/tr '\\n' ' ')\"\nr no-minor cu mknod x1 c 1\nr no-numbers cu mknod x2 b\nr fifo-numbers cu mknod x3 p 1 2\nr bad-mode cu mknod -m 999 x4 c 1 3\nr bad-type cu mknod x5 q 1 2\necho \"  entries: $(/usr/bin/ls | /usr/bin/tr '\\n' ' ')\"\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "migration-finfo-device-nodes-root",
+      "loadable": "finfo",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "finfo/finfo-device-nodes"
+      ],
+      "purpose": "finfo's summary for /dev/null, /dev/zero, the guest block device and root-created synthetic nodes (c 4095:1048575, b 300:70000, c 256:256, b 7:200): the \"Device (major/minor)\", \"Mode: (octal) S_IF*\" and \"Device type\" lines, checked on the reference side against values rebuilt from GNU stat %Hr/%Lr/%f/%F with glibc makedev and int truncation; nodes are removed afterwards.",
+      "oracle": "GNU coreutils 9.7 stat with the documented makedev encoding (reference-side emulation)",
+      "comparison": "Byte parity of stdout and status: the candidate's summary is filtered to the three lines (the mode line up to its S_IF token); the reference prints the same lines from stat. The final listing shows the nodes removed.",
+      "requires": [
+        "stat",
+        "mknod",
+        "sed",
+        "ls",
+        "rm"
+      ],
+      "script": "if ! builtin type finfo >/dev/null 2>&1; then\n  # Reference: the three device lines of finfo's summary, rebuilt from GNU stat.\n  finfo() { local p=$1 ma mi d f t\n    read -r ma mi f t < <(/usr/bin/stat -c '%Hr %Lr %f %F' -- \"$p\") || return 1\n    d=$(( ((ma & 0xfff) << 8) | (mi & 0xff) | ((mi & ~0xff) << 12) | ((ma & ~0xfff) << 32) ))\n    d=$(( d & 0xffffffff )); (( d >= 2147483648 )) && d=$(( d - 4294967296 ))\n    case $t in 'character special file') t=S_IFCHR;; 'block special file') t=S_IFBLK;; 'regular empty file'|'regular file') t=S_IFREG;; *) t=?;; esac\n    printf 'Device (major/minor): %d (%d/%d)\\nMode: (%o) %s\\nDevice type: %d\\n' \"$d\" \"$ma\" \"$mi\" \"0x$f\" \"$t\" \"$d\"; }\n  pick() { finfo \"$1\"; }\nelse\n  pick() { finfo \"$1\" | /usr/bin/sed -nE 's/^(Device \\(major\\/minor\\): .*|Device type: .*)$/\\1/p; s/^(Mode: \\([0-7]+\\) S_IF[A-Z]+) .*/\\1/p'; }\nfi\n/usr/bin/mknod c1 c 4095 1048575; /usr/bin/mknod b1 b 300 70000; /usr/bin/mknod c2 c 256 256; /usr/bin/mknod b2 b 7 200\nblk=$(for x in /dev/vda /dev/sda /dev/nvme0n1; do [[ -b $x ]] && { echo $x; break; }; done)\nfor p in /dev/null /dev/zero $blk c1 b1 c2 b2; do echo \"== $p\"; pick $p; echo \"status=$?\"; done\n/usr/bin/rm c1 b1 c2 b2; echo \"left: $(/usr/bin/ls)\"\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "migration-tar-device-nodes-root",
+      "loadable": "tar",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "tar/device-node-archive"
+      ],
+      "purpose": "tar with device entries: create an archive of /dev/null and root-created character and block nodes (typeflag 3/4 with devmajor/devminor, read by an independent header reader); list (-tf and -tvf) an independently generated archive with character and block members; extract it as uid 2000 (mknod denied) and as root (nodes created with exact rdev); round-trip a block node.",
+      "oracle": "GNU tar 1.35",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; archives and extracted nodes live under /tmp/rt outside the compared tree; header fields come from a Python ustar reader and node fields from /usr/bin/stat %n %F %Hr:%Lr.",
+      "requires": [
+        "tar",
+        "python3",
+        "mknod",
+        "stat",
+        "setpriv",
+        "sed",
+        "tr",
+        "mkdir",
+        "chmod",
+        "find",
+        "sort"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT/src $RT/u $RT/r $RT/rt; cd $RT; /usr/bin/chmod 0777 u\n/usr/bin/mknod -m 0640 src/cnode c 10 200; /usr/bin/mknod -m 0600 src/bnode b 7 201\nr create-devnull tar cf a.tar -C /dev null; /usr/bin/python3 /tmp/parity-case/tarhdr.py a.tar\nr create-nodes tar cf b.tar -C src cnode bnode; /usr/bin/python3 /tmp/parity-case/tarhdr.py b.tar\n/usr/bin/python3 /tmp/parity-case/gentar.py gen.tar\nr list tar -tf gen.tar\nr list-verbose tar -tvf gen.tar\nu extract-unpriv 'tar xf gen.tar -C u'; echo \"  u: $(cd u && /usr/bin/find . -mindepth 1 | /usr/bin/sort | /usr/bin/tr '\\n' ' ')\"\nr extract-root tar xf gen.tar -C r; /usr/bin/stat -c '  %n %F %Hr:%Lr' r/dev/cdev r/dev/bdev r/dev/big 2>&1\nr roundtrip-create tar cf rt.tar -C src bnode\nr roundtrip-extract tar xf rt.tar -C rt; /usr/bin/stat -c '  %n %F %Hr:%Lr' rt/bnode 2>&1\n",
+      "expected_status": 0,
+      "timeout": 40,
+      "files": {
+        "tarhdr.py": "# SPDX-License-Identifier: MIT\n# Independent ustar header reader: name, typeflag, devmajor, devminor per member.\nimport sys\ndata = open(sys.argv[1], 'rb').read()\noff = 0\nwhile off + 512 <= len(data):\n    h = data[off:off + 512]\n    if h == bytes(512):\n        break\n    name = h[0:100].rstrip(b'\\0').decode()\n    prefix = h[345:500].rstrip(b'\\0').decode() if h[257:262] == b'ustar' else ''\n    size = int(h[124:136].rstrip(b'\\0 ').decode() or '0', 8)\n    tf = chr(h[156]) if h[156] else '0'\n    num = lambda b: int(b.rstrip(b'\\0 ').decode() or '0', 8)\n    if tf not in 'xgL':\n        print('  member %s type=%s dev=%d,%d' % ((prefix + '/' if prefix else '') + name, tf, num(h[329:337]), num(h[337:345])))\n    off += 512 + (size + 511) // 512 * 512\n",
+        "gentar.py": "# SPDX-License-Identifier: MIT\n# Independently generated archive with character and block device members.\nimport tarfile, sys\nwith tarfile.open(sys.argv[1], 'w', format=tarfile.USTAR_FORMAT) as t:\n    for name, kind, ma, mi in (('dev/cdev', tarfile.CHRTYPE, 1, 3), ('dev/bdev', tarfile.BLKTYPE, 7, 200), ('dev/big', tarfile.CHRTYPE, 4095, 1048575)):\n        i = tarfile.TarInfo(name); i.type = kind; i.devmajor = ma; i.devminor = mi\n        i.mode = 0o640; i.mtime = 1700000000; i.uid = i.gid = 0; i.uname = i.gname = 'root'\n        t.addfile(i)\n"
+      }
+    }
+  ]
+}

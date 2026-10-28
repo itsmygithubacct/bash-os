@@ -5110,9 +5110,9 @@
         "purpose": "Check chmod permission denial and set-ID clearing when operating on files not owned by the caller or belonging to an unrelated group.",
         "reason": "Requires a future disposable VM provisioned with at least two unprivileged UIDs and controlled group membership (or a separately reviewed ownership syscall mock). The current fixture namespace exposes one identity, and this suite must not create/change host accounts or ownership. No operation was run and this is not a pass."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: root-a-76 shows the directory result (2775 on a caller-owned directory in non-member group 3002 leaves 775, as GNU) but a later mixed chmod overwrote the files' modes before any stat, so the file S_ISGID drop is unobserved; a per-step stat case follows in root batch B.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -5132,16 +5132,22 @@
         {
           "id": "r2",
           "behavior": "Set-ID clearing: when the caller owns the file but it belongs to a group the caller is not a member of, chmod g+s / an octal mode with 2000 silently drops S_ISGID (kernel behavior without CAP_FSETID); compare resulting mode with GNU.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-chmod-foreign-owner-root",
               "assertion": "Directory half only: chmod g+s and 2775 by the owner (uid 2000) on a directory in non-member group 3002 succeed with status 0 and leave 775 (S_ISGID dropped), equal to GNU 9.7. The file results were overwritten by a later mixed chmod before any stat.",
               "definition_sha256": "94f50bee1c1b09e71232f4276ae541ef31e7987aa64757447a20d0fc17c9f3ed"
+            },
+            {
+              "group": "shell",
+              "id": "migration-chmod-setgid-drop-root",
+              "assertion": "As uid 2000 without supplementary groups, stat after every step: g+s and 2755 on an owned file in non-member group 3002 leave 644/755 (S_ISGID dropped), 6755 leaves 4755, u+s,g+s leaves 4644, g+s and 2775 on such a directory leave 755/775, while the member-group controls keep 2755; byte parity with GNU 9.7 PASS.",
+              "definition_sha256": "6b6302e63b8dbc375cde41f46520c6455c07748dbc5f2d69bf1dacee45fa7181"
             }
           ],
-          "gap": "root-a-76 shows the directory result (2775 on a caller-owned directory in non-member group 3002 leaves 775, as GNU) but a later mixed chmod overwrote the files' modes before any stat, so the file S_ISGID drop is unobserved; a per-step stat case follows in root batch B.",
+          "gap": "",
           "next_step": "requires_capability"
         },
         {
@@ -5160,7 +5166,7 @@
           "next_step": "requires_capability"
         }
       ],
-      "notes": "Root batch A on the rented VM host (root-a-76, privilege=root sides in per-side namespaces, root-isolation selfcheck PASS); both builds identical, raw records reviewed."
+      "notes": "Root batch B on the rented VM host (root-b-78; supersedes root-b-77, whose loop fixtures raced udev probing). privilege=root sides, per-side loop devices and a dm-error device, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "chown/distinct_identity_transfer",
@@ -6192,47 +6198,82 @@
         "purpose": "Cover the loadable's character and block device-node operations when a safe privileged fixture becomes available.",
         "reason": "Character/block node creation needs a disposable VM or a reviewed mknod syscall mock with synthetic major/minor numbers. A future case should verify node type, mode, device numbers, existing-path behavior, and the expected permission-denied path. The current capability-free fixture covers FIFO creation only."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Successful node creation needs CAP_MKNOD (r1, r2). The denial, existing-path and parse paths are unexecuted fixtures available unprivileged now.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "`coreutils mknod -m MODE path c MAJ MIN` creates a character node with the exact type, mode and rdev (major and minor).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Creating a device node needs CAP_MKNOD in the initial user namespace (vfs_mknod), and every driver drops capabilities."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-coreutils-mknod-devices-root",
+              "assertion": "coreutils mknod -m 0640 c 1 3 and c 4095 1048575 create character nodes with the exact type, mode and rdev (stat and tree), equal to GNU mknod.",
+              "definition_sha256": "73eeb10add7861b2a9e0c7c9908e585ebc1c591b4154201a3d93cf680ba16f97"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "`... b MAJ MIN` creates a block node with the exact type, mode and rdev.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same capability requirement."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-coreutils-mknod-devices-root",
+              "assertion": "b 7 200 and b 300 70000 (-m 0444) create block nodes with exact type, mode and rdev, equal to GNU.",
+              "definition_sha256": "73eeb10add7861b2a9e0c7c9908e585ebc1c591b4154201a3d93cf680ba16f97"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "An existing path gives EEXIST, and the existing entry and its mode are preserved.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted, but reachable now: the kernel returns EEXIST from filename_create before the CAP_MKNOD check, so uid 2000 observes it."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-coreutils-mknod-devices-root",
+              "assertion": "An existing path fails with EEXIST and status 1 and keeps the node; the candidate prefixes 'coreutils: mknod:'. Parity FAIL (wording).",
+              "definition_sha256": "73eeb10add7861b2a9e0c7c9908e585ebc1c591b4154201a3d93cf680ba16f97"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Unprivileged device creation is denied with EPERM, a diagnostic, nonzero status and no entry created, matching GNU mknod.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted, but reachable now as uid 2000 in the legacy runner."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-coreutils-mknod-devices-root",
+              "assertion": "As uid 2000 a character node is denied (status 1, EPERM, no entry) while a FIFO succeeds, on both sides; wording differs as in r3.",
+              "definition_sha256": "73eeb10add7861b2a9e0c7c9908e585ebc1c591b4154201a3d93cf680ba16f97"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Argument validation: missing major/minor for b/c, major/minor given for p, and an invalid -m value.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted, and no privilege is needed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-coreutils-mknod-devices-root",
+              "assertion": "Missing major/minor, a bad mode and a bad type: GNU exits 1 with its operand messages, the candidate exits 2 with its usage; 'p 1 2' is rejected by GNU ('Fifos do not have major and minor device numbers') but accepted by the candidate (status 0, x3 created). Parity FAIL.",
+              "definition_sha256": "73eeb10add7861b2a9e0c7c9908e585ebc1c591b4154201a3d93cf680ba16f97"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Source: loadables/coreutils.c:1844-1866 (bcu_mknod_cmd; its documentation says block/char nodes are root only). Related executed FIFO cases: legacy/coreutils/mknod-private-fifo, fifo-modes-and-umask and fifo-errors-preserve-entry-and-umask (parity) cover only type p."
+      "notes": "Root batch B on the rented VM host (root-b-78; supersedes root-b-77, whose loop fixtures raced udev probing). privilege=root sides, per-side loop devices and a dm-error device, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "cp/special_destination_deferred",
@@ -7705,40 +7746,68 @@
         "purpose": "Qualify dd's raw block-device read/write and seek boundaries without touching host hardware.",
         "reason": "Requires a disposable VM with an exclusive loop device backed by a tiny seeded image and no host device passthrough. A future case must verify exact sectors written and unchanged bytes outside the requested range against an independent image reader. No device path is accessed here."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No driver provisions a block device. The loop device must be attached by a controller with CAP_SYS_ADMIN, while dd itself can run unprivileged on a node chowned to uid 2000.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Reading from a raw block device with bs/skip/count copies exactly the requested sectors from a seeded image.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "There is no block device in any driver. Loop attach needs CAP_SYS_ADMIN."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dd-raw-device-root",
+              "assertion": "bs=512 skip=3 count=5 from the loop device copies exactly image[1536:4096] (independent check true), 5+0 records, equal to GNU 9.7.",
+              "definition_sha256": "df902753249c4745ceb3803b6545437acdb5f58bfea592c3d6b9edb38bca6f9e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Writing to a raw block device with seek and conv=notrunc changes exactly the requested sectors and leaves bytes outside the range unchanged, verified by an independent image reader.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. There is no driver-side image comparison."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dd-raw-device-root",
+              "assertion": "seek=10 count=1 conv=notrunc changes exactly bytes 5120-5631 to the source sector (Python reader of the detached image), equal to GNU.",
+              "definition_sha256": "df902753249c4745ceb3803b6545437acdb5f58bfea592c3d6b9edb38bca6f9e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Device-size boundaries: a write crossing the device end gives a short write, ENOSPC, a diagnostic and nonzero status, and a read past the end gives EOF, matching GNU dd record counts.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dd-raw-device-root",
+              "assertion": "Crossing the end writes one sector then fails ENOSPC with 2+0 in / 1+0 out and status 1 on both, reads at and past the end give 1+0 and 0+0; GNU says \"error writing '/dev/loop0'\" and \"cannot skip\" with record counts, the candidate 'write: No space left on device' and 'skip lseek: Invalid argument' without counts. Parity FAIL.",
+              "definition_sha256": "df902753249c4745ceb3803b6545437acdb5f58bfea592c3d6b9edb38bca6f9e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Only an exclusive per-side loop device backed by a tiny seeded image is used, and it is detached with no leak.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "There is no BLOCK-DEV driver."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dd-raw-device-root",
+              "assertion": "A per-side loop device on a /tmp/rt image only, detached; losetup -a empty and no harness leftovers.",
+              "definition_sha256": "df902753249c4745ceb3803b6545437acdb5f58bfea592c3d6b9edb38bca6f9e"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Source: loadables/dd.c:563-605. The candidate truncates only regular files when seeking (S_ISREG check at :596-597), as GNU does. GNU prints records-in/out on stderr, so compare stderr with an exact policy or normalize with status=none on both sides."
+      "notes": "Root batch B on the rented VM host (root-b-78; supersedes root-b-77, whose loop fixtures raced udev probing). privilege=root sides, per-side loop devices and a dm-error device, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "df/df-mount-inventory-deferred",
@@ -11055,40 +11124,68 @@
         "kind": "deferred",
         "reason": "Requires a disposable VM or reviewed privileged fixture builder that can create synthetic character and block device nodes with known major/minor values and remove them afterward. The provided unprivileged fixture sandbox cannot safely create such nodes; no device operation is executed here."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Character (r1) and block (r2) fields can be implemented now: /dev/null in legacy, /dev/vda via stat in the modern plain driver. Synthetic major/minor values (r3, r4) need nodes created with CAP_MKNOD (DEV-NODES); device mknod is denied even in USERNS.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "The full summary for a character device reports 'Device (major/minor)', the 'Mode' line with S_IFCHR, and 'Device type' derived from st_rdev, checked against an independent GNU stat %t/%T/%Hr/%Lr and %F.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. A character node is reachable unprivileged now: /dev/null (1,3) and /dev/zero (1,5) exist in the legacy bwrap /dev and the guest /dev."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-finfo-device-nodes-root",
+              "assertion": "For /dev/null and /dev/zero the 'Device (major/minor)', 'Mode: (20666) S_IFCHR' and 'Device type' lines equal values rebuilt from GNU stat (259 (1/3), 261 (1/5)). PASS.",
+              "definition_sha256": "2f5f0c5d00ec18032557dedff56c720bc46d844518962afa55cf99104ed2879f"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "The same fields for a block device (S_IFBLK).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The legacy sandbox has no block node. The modern plain driver sees the guest devtmpfs, where /dev/vda is a block node, and lstat on it is unprivileged (no open needed), so its S_IFBLK fields are observable now. The numbers are VM-config-dependent but identical across sides."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-finfo-device-nodes-root",
+              "assertion": "For the guest block device (/dev/vda, 254/0) and a root-created b 7:200 node the lines show S_IFBLK and 65024 / 1992, equal to the stat rebuild. PASS.",
+              "definition_sha256": "2f5f0c5d00ec18032557dedff56c720bc46d844518962afa55cf99104ed2879f"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Synthetic major/minor values beyond 8-bit minor and 12-bit major exercise the makedev encoding and the int truncation in 'Device type: %d'.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Synthetic numbers need mknod with CAP_MKNOD."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-finfo-device-nodes-root",
+              "assertion": "c 4095:1048575 prints -1, b 300:70000 286338160 and c 256:256 1114112, matching glibc makedev with int truncation from stat %Hr/%Lr. PASS.",
+              "definition_sha256": "2f5f0c5d00ec18032557dedff56c720bc46d844518962afa55cf99104ed2879f"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Nodes are removed afterward.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs driver teardown for DEV-NODES; /dev/null needs none."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-finfo-device-nodes-root",
+              "assertion": "The synthetic nodes are removed and the final listing is empty on both sides.",
+              "definition_sha256": "2f5f0c5d00ec18032557dedff56c720bc46d844518962afa55cf99104ed2879f"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Source: build/bash-5.3/examples/loadables/finfo.c:266-299. printst prints 'Device (major/minor)' from st_rdev, not st_dev, so a regular file shows 0 (0/0); 'Device type: %d' is (int)st_rdev. The finfo exclusions note that the full summary is not compared because of the inode and time fields, which this proposal avoids by filtering lines."
+      "notes": "Root batch B on the rented VM host (root-b-78; supersedes root-b-77, whose loop fixtures raced udev probing). privilege=root sides, per-side loop devices and a dm-error device, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "fold/incremental_open_producer",
@@ -12799,47 +12896,82 @@
         "purpose": "Exercise bounded reads and errors when the input is a device-backed special file.",
         "reason": "No real or host device may be opened in this suite. Future coverage requires a disposable VM with a purpose-built harmless device or a reviewed syscall mock that supplies a bounded deterministic byte stream and failure mode; record expected bytes and status independently, and do not use raw disks or host device paths."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Character-device cases (r1 to r3) are only missing fixtures, using VM-local sandbox nodes. A device read error (r5) uses SECCOMP-NOTIFY. Only block-device input (r4) needs a driver-provisioned loop device: the guest's /dev/vda is root:disk 0660 and loop attach needs CAP_SYS_ADMIN.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Bounded reads (-n N, plus -s skip) from a character device that supplies a deterministic stream (/dev/zero) terminate with exactly N bytes formatted, matching util-linux hexdump.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. /dev/zero is present in the legacy bwrap /dev, so this is reachable unprivileged now."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-hexdump-device-input-root",
+              "assertion": "-n 40 and -C -s 7 -n 21 on /dev/zero give exactly the bounded output, equal to util-linux.",
+              "definition_sha256": "8cbc3dbe055c76d41bc2eb47a57c02a6540834305c37068f7fc702ab06e8cbdb"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Reading an empty character device (/dev/null) gives the empty-input output and status.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-hexdump-device-input-root",
+              "assertion": "/dev/null with and without -C gives empty output and status 0, equal to util-linux.",
+              "definition_sha256": "8cbc3dbe055c76d41bc2eb47a57c02a6540834305c37068f7fc702ab06e8cbdb"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "A device open failure, such as /dev/tty without a controlling terminal (ENXIO under bwrap --new-session), gives a diagnostic and status that match the reference, and later operands continue.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-hexdump-device-input-root",
+              "assertion": "/dev/tty without a controlling terminal fails (ENXIO) and the later /dev/zero operand is still dumped, status 1, equal to util-linux.",
+              "definition_sha256": "8cbc3dbe055c76d41bc2eb47a57c02a6540834305c37068f7fc702ab06e8cbdb"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Bounded reads from a block-device-backed input with a deterministic image.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "There is no block device. Needs BLOCK-DEV."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-hexdump-device-input-root",
+              "assertion": "-C -n 64 -s 512 and the tail from 65520 on a loop device of a seeded image equal util-linux.",
+              "definition_sha256": "8cbc3dbe055c76d41bc2eb47a57c02a6540834305c37068f7fc702ab06e8cbdb"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "A device read error mid-stream (EIO) gives the reference diagnostic and status.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No unprivileged device returns EIO on read. SECCOMP-NOTIFY (modern plain driver) can fail the Nth read(2) on the /dev/zero descriptor with EIO for both util-linux hexdump and the candidate. A dm-error BLOCK-DEV is an optional real-device variant."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-hexdump-device-input-root",
+              "assertion": "A dm device (16 linear sectors then an error target) read through the boundary: both print the rows up to 0x2000 and an EIO diagnostic, but util-linux exits 0 with 'hexdump: /dev/dm-0: Input/output error' and the candidate exits 1 with '...: read error: Input/output error'. Parity FAIL.",
+              "definition_sha256": "8cbc3dbe055c76d41bc2eb47a57c02a6540834305c37068f7fc702ab06e8cbdb"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Source: loadables/hexdump.c:595-660 reads with fread, skipping by reading, and reports ferror. util-linux skips by fseek on regular files and reads otherwise; /dev/zero gives zeros either way. The VM-local /dev paths need root's acceptance of the FORMAT.md absolute-path rule."
+      "notes": "Root batch B on the rented VM host (root-b-78; supersedes root-b-77, whose loop fixtures raced udev probing). privilege=root sides, per-side loop devices and a dm-error device, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "hostid/controlled-etc-hostid",
@@ -17441,33 +17573,54 @@
         "purpose": "Verify -j/--associated filtering for a backing file, no match, and a symlink or inode-equivalent path, including the list header.",
         "reason": "Future requirement: use an isolated syscall/filesystem mock that redirects /sys and stats only relative fixture files, or a disposable VM with private loop devices. The mock must supply stable backing paths and inode metadata; no host path may be used."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-j FILE / --associated FILE lists only loops whose backing file is FILE, with the list header.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-associated-root",
+              "assertion": "-j a and --associated a list exactly the two loops of a (not b's); util-linux prints '/dev/loop1: [0055]:5 (/tmp/rt/a)' rows without a header, the candidate prints its NAME/RO/OFFSET/DIO/BACK-FILE table. Parity FAIL (format).",
+              "definition_sha256": "bc3457873e173ddcde59f79209454deb2af0acf5fbedc537b935331f78f74101"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "No match prints only the header (status 0, util-linux prints nothing).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; reachable unprivileged now (no loops visible), with parity against util-linux."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-associated-root",
+              "assertion": "A file with no loop and a missing path: util-linux prints nothing with status 0; the candidate prints only its header with status 0. Parity FAIL.",
+              "definition_sha256": "bc3457873e173ddcde59f79209454deb2af0acf5fbedc537b935331f78f74101"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "A symlink or hard-link path to the backing file matches through st_dev/st_ino equality.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; needs an attached loop."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-associated-root",
+              "assertion": "A symlink and a hard link to a match the same two loops on both sides (device/inode equality).",
+              "definition_sha256": "bc3457873e173ddcde59f79209454deb2af0acf5fbedc537b935331f78f74101"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: loadables/losetup.c:69-106 list_loops (header always; reads /sys/block/loop*/loop/backing_file, offset, ro, dio), :109-120 get_free, :122-154 attach (EACCES/EROFS read-only fallback :124-128, LOOP_SET_STATUS64 failure rollback :142-150), :156-205 option parsing/compatibility checks, :207-216 detach. tests/sol-losetup-shim.c is historical host material, not evidence. Source-predicted divergence: the candidate prints its own 'NAME RO OFFSET DIO BACK-FILE' table for -a, -l and -j, whereas util-linux uses the old '/dev/loopN: []: (file)' format for -a/-j and a different default column set for -l; parity cases must record this as FAIL, not normalize."
+      "notes": "Root batch B on the rented VM host (root-b-78; supersedes root-b-77, whose loop fixtures raced udev probing). privilege=root sides, per-side loop devices and a dm-error device, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "losetup/automatic-attach-options",
@@ -17477,33 +17630,54 @@
         "purpose": "Verify -f --show attachment of a small relative backing file and construction of read-only, partition-scan, offset, and size-limit settings.",
         "reason": "Future requirement: use a stateful ioctl mock that confines all backing-file access to the private fixture tree and records LOOP_SET_FD/LOOP_SET_STATUS64 requests, or use a disposable VM with private loop devices. Assert the selected device, flags, offset, size limit, and show output from the independent mock state."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted. Attaching requires access to /dev/loop-control and the loop node, which uid 2000 lacks.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-f --show FILE attaches a small relative backing file to the first free device and prints its name.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-attach-options-root",
+              "assertion": "-f --show attaches the relative 64 KiB file to the first free device (/dev/loop0) and prints it, equal to util-linux.",
+              "definition_sha256": "35ab08b2ec4900bdfb72129e98e6b5b422b15685899ead6d656e67cebb55855b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "-r sets read-only, -P sets partition scan, -o OFFSET and --sizelimit N set the loop offset/size limit; resulting device size equals min(file-offset, sizelimit).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-attach-options-root",
+              "assertion": "-r gives ro=1, -P partscan=1, -o 4096 offset=4096 size 61440, --sizelimit 8192 size 8192, both together size 8192, -r -o 512 ro=1 size 65024 (sysfs and blockdev), equal to util-linux.",
+              "definition_sha256": "35ab08b2ec4900bdfb72129e98e6b5b422b15685899ead6d656e67cebb55855b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Invalid byte counts (negative, trailing text, empty) for -o/--sizelimit are usage errors before any device access.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; reachable unprivileged now (parse_bytes at losetup.c:41-50 runs during option parsing, before get_free)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-attach-options-root",
+              "assertion": "Negative, trailing-text, empty and bare-0x counts attach nothing (losetup -a empty afterwards) on both sides, but util-linux exits 1 with \"failed to parse offset: '-1': Invalid argument\" while the candidate exits 2 with '-o: invalid byte count: -1'. Parity FAIL.",
+              "definition_sha256": "35ab08b2ec4900bdfb72129e98e6b5b422b15685899ead6d656e67cebb55855b"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: loadables/losetup.c:69-106 list_loops (header always; reads /sys/block/loop*/loop/backing_file, offset, ro, dio), :109-120 get_free, :122-154 attach (EACCES/EROFS read-only fallback :124-128, LOOP_SET_STATUS64 failure rollback :142-150), :156-205 option parsing/compatibility checks, :207-216 detach. tests/sol-losetup-shim.c is historical host material, not evidence. Source-predicted divergence: the candidate prints its own 'NAME RO OFFSET DIO BACK-FILE' table for -a, -l and -j, whereas util-linux uses the old '/dev/loopN: []: (file)' format for -a/-j and a different default column set for -l; parity cases must record this as FAIL, not normalize."
+      "notes": "Root batch B on the rented VM host (root-b-78; supersedes root-b-77, whose loop fixtures raced udev probing). privilege=root sides, per-side loop devices and a dm-error device, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "losetup/detach-and-ownership",
@@ -17513,33 +17687,54 @@
         "purpose": "Verify successful detach, detach error handling, and preservation of an association owned by another caller.",
         "reason": "Future requirement: use a stateful loop ioctl mock that models a foreign association and LOOP_CLR_FD outcomes, or a disposable VM with isolated private loop devices. Assert both the reported result and final association state; never use host loop devices."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-d /dev/loopN detaches an association created by the case; sysfs backing_file disappears; status 0.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-detach-root",
+              "assertion": "-d on the case-created association detaches it (sysfs backing_file gone), status 0, equal to util-linux.",
+              "definition_sha256": "04f8a5ebd2830ec09cfbb93b18aa8f1038cf63ee6f11f7df7f83f9d46e9d6fec"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Detach errors: unattached device (ENXIO), missing node (ENOENT), unreadable node, missing -d operand.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; '-d' without operand and a missing relative path are reachable unprivileged now."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-detach-root",
+              "assertion": "Unattached device, missing node, unreadable node (uid 2000) and missing operand all fail on both sides; statuses agree except the missing operand (util-linux 1, candidate 2), and the diagnostics differ ('LOOP_CLR_FD: No such device or address' vs 'detach failed: ...'). Parity FAIL.",
+              "definition_sha256": "04f8a5ebd2830ec09cfbb93b18aa8f1038cf63ee6f11f7df7f83f9d46e9d6fec"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "An association owned by another caller (controller-created, held open) is preserved when the case does not own it, i.e. the case's failing/denied detach leaves it attached; with permission, LOOP_CLR_FD on a busy device sets autoclear and the association remains until close.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-detach-root",
+              "assertion": "A fixture-held association survives the denied uid-2000 detach; root detach of the busy device returns 0 and sets autoclear=1 with the association kept until the holder exits, then it disappears, on both sides.",
+              "definition_sha256": "04f8a5ebd2830ec09cfbb93b18aa8f1038cf63ee6f11f7df7f83f9d46e9d6fec"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: loadables/losetup.c:69-106 list_loops (header always; reads /sys/block/loop*/loop/backing_file, offset, ro, dio), :109-120 get_free, :122-154 attach (EACCES/EROFS read-only fallback :124-128, LOOP_SET_STATUS64 failure rollback :142-150), :156-205 option parsing/compatibility checks, :207-216 detach. tests/sol-losetup-shim.c is historical host material, not evidence. Source-predicted divergence: the candidate prints its own 'NAME RO OFFSET DIO BACK-FILE' table for -a, -l and -j, whereas util-linux uses the old '/dev/loopN: []: (file)' format for -a/-j and a different default column set for -l; parity cases must record this as FAIL, not normalize."
+      "notes": "Root batch B on the rented VM host (root-b-78; supersedes root-b-77, whose loop fixtures raced udev probing). privilege=root sides, per-side loop devices and a dm-error device, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "losetup/find-free-and-exhaustion",
@@ -17549,33 +17744,47 @@
         "purpose": "Verify -f/--find selection, the returned device name, and the no-free-device error when allocation is exhausted.",
         "reason": "Future requirement: provide a private loop-control ioctl mock with configured free/busy device state, or a disposable VM with private loop support and no host device mappings. The case must assert the selected index and exhaustion status without touching host loop devices."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted.",
+      "current_reason": "Remaining obligations: r2: Real exhaustion is unreachable on the guest kernel 6.12: in root-b-77 reloading loop with max_loop=1 still let LOOP_CTL_GET_FREE allocate loop1. Needs an errno injector for LOOP_CTL_GET_FREE.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-f/--find prints the first free loop device returned by LOOP_CTL_GET_FREE, equal to util-linux 'losetup -f' in the same state.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-find-free-root",
+              "assertion": "-f and --find print /dev/loop0, then /dev/loop1 after the fixture attaches loop0, equal to util-linux.",
+              "definition_sha256": "2278496bce3f64af41da674ecfa590c8d23ea644f55a7fac52c1024c7842aebe"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Exhaustion: when no free device can be allocated, the command fails with the LOOP_CTL_GET_FREE diagnostic and status 1.",
           "coverage": "missing",
           "evidence": [],
-          "gap": "No executed case; real exhaustion requires the loop module loaded with a small max_loop and all devices busy (preflight must verify the kernel honours max_loop for on-demand allocation), otherwise an ioctl errno injector."
+          "gap": "Real exhaustion is unreachable on the guest kernel 6.12: in root-b-77 reloading loop with max_loop=1 still let LOOP_CTL_GET_FREE allocate loop1. Needs an errno injector for LOOP_CTL_GET_FREE."
         },
         {
           "id": "r3",
           "behavior": "/dev/loop-control absent or unopenable reports the open error with status 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; reachable unprivileged now (legacy runner has no /dev/loop-control; plain driver gets EACCES)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-find-free-root",
+              "assertion": "/dev/loop-control unopenable (uid 2000), not a device (bind-mounted regular file) and absent (/dev replaced): the candidate reports the open/ioctl error with status 1; util-linux falls back to scanning and prints a device with status 0. Parity FAIL.",
+              "definition_sha256": "2278496bce3f64af41da674ecfa590c8d23ea644f55a7fac52c1024c7842aebe"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: loadables/losetup.c:69-106 list_loops (header always; reads /sys/block/loop*/loop/backing_file, offset, ro, dio), :109-120 get_free, :122-154 attach (EACCES/EROFS read-only fallback :124-128, LOOP_SET_STATUS64 failure rollback :142-150), :156-205 option parsing/compatibility checks, :207-216 detach. tests/sol-losetup-shim.c is historical host material, not evidence. Source-predicted divergence: the candidate prints its own 'NAME RO OFFSET DIO BACK-FILE' table for -a, -l and -j, whereas util-linux uses the old '/dev/loopN: []: (file)' format for -a/-j and a different default column set for -l; parity cases must record this as FAIL, not normalize."
+      "notes": "Root batch B on the rented VM host (root-b-78; supersedes root-b-77, whose loop fixtures raced udev probing). privilege=root sides, per-side loop devices and a dm-error device, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "losetup/list-sysfs-rows",
@@ -17585,33 +17794,54 @@
         "purpose": "Verify default listing and -a/-l/--list headers, row fields, ignored malformed entries, and optional sysfs attributes.",
         "reason": "Future requirement: run with a private sysfs fixture and deterministic backing-file metadata, or in a disposable VM with private loop devices. The fixture must control /sys/block/loop* and must not expose host devices; compare row formatting and status to util-linux losetup there."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted. r3 needs no privilege; r2's malformed tree needs a mount over /sys/block in a private mount namespace.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Default listing (no options) and -a/-l/--list print a header and one row per attached loop with NAME, RO, OFFSET, DIO, BACK-FILE from sysfs.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No losetup listing is executed in any case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-list-root",
+              "assertion": "Default, -a, -l and --list with two loops (one ro with offset 1024): util-linux prints its NAME SIZELIMIT OFFSET AUTOCLEAR RO BACK-FILE DIO LOG-SEC table (and the -a '/dev/loopN: [dev]:ino (file), offset N' form); the candidate prints NAME RO OFFSET DIO BACK-FILE for all four. Parity FAIL (format).",
+              "definition_sha256": "c85f697d1dcd93b201fca1ebe85b4a2a63b6726d4f4b8241595afe1c2e7cdda6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Unattached loop entries (empty backing_file) and non-loopN names are skipped; malformed rows (non-numeric suffix such as loopX, missing optional attributes) are ignored or defaulted.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case. A real kernel never exposes malformed loop entries; the candidate has no sysfs path override, so this needs a bind-mounted fake /sys/block."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-list-root",
+              "assertion": "With a bind-mounted synthetic /sys/block (unattached loop7, vda, loopX, loop5 without ro): util-linux lists nothing; the candidate skips the unattached, non-loop and loopX entries and lists loop5 /y with defaulted RO 0. Parity FAIL.",
+              "definition_sha256": "c85f697d1dcd93b201fca1ebe85b4a2a63b6726d4f4b8241595afe1c2e7cdda6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Absent /sys/block prints only the header with status 0; other open errors report failure.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; reachable unprivileged now in the legacy runner (no /sys mounted)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-list-root",
+              "assertion": "With /sys/block absent (tmpfs over /sys): the candidate prints only its header with status 0; util-linux still lists both real loops (falls back to /dev). Parity FAIL.",
+              "definition_sha256": "c85f697d1dcd93b201fca1ebe85b4a2a63b6726d4f4b8241595afe1c2e7cdda6"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: loadables/losetup.c:69-106 list_loops (header always; reads /sys/block/loop*/loop/backing_file, offset, ro, dio), :109-120 get_free, :122-154 attach (EACCES/EROFS read-only fallback :124-128, LOOP_SET_STATUS64 failure rollback :142-150), :156-205 option parsing/compatibility checks, :207-216 detach. tests/sol-losetup-shim.c is historical host material, not evidence. Source-predicted divergence: the candidate prints its own 'NAME RO OFFSET DIO BACK-FILE' table for -a, -l and -j, whereas util-linux uses the old '/dev/loopN: []: (file)' format for -a/-j and a different default column set for -l; parity cases must record this as FAIL, not normalize."
+      "notes": "Root batch B on the rented VM host (root-b-78; supersedes root-b-77, whose loop fixtures raced udev probing). privilege=root sides, per-side loop devices and a dm-error device, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "losetup/readonly-fallback-and-rollback",
@@ -17621,33 +17851,40 @@
         "purpose": "Verify the documented read-only backing-file fallback on EACCES/EROFS and rollback behavior after loop status configuration failures, including rollback failure reporting.",
         "reason": "Future requirement: use a fault-injecting syscall mock for open and loop ioctls, with per-call errno controls and an inspectable association state. A disposable VM alone cannot safely or deterministically produce these errno sequences."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted. The historical reason claims a VM cannot produce EACCES/EROFS deterministically; that is stale for r1, but r2/r3 do need fault injection.",
+      "current_reason": "Remaining obligations: r2: LOOP_SET_STATUS64 does not fail for the candidate argument set on a real kernel; needs an ioctl errno injector.; r3: Needs injection on two ioctls (LOOP_SET_STATUS64 and LOOP_CLR_FD).",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Read-only fallback: when the backing file cannot be opened read-write (EACCES from a 0444 file for a non-DAC-override caller, EROFS from a read-only mount) the attach proceeds read-only and the device reports ro=1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case. Deterministic without a mock: PRIV-ROOT caller without CAP_DAC_OVERRIDE on a 0444 file (EACCES), and a read-only bind/tmpfs mount for EROFS."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-readonly-fallback-root",
+              "assertion": "Root without CAP_DAC_OVERRIDE on a 0444 file (EACCES) and a file on a read-only bind mount (EROFS) attach read-only (ro=1); a writable control attaches ro=0; byte parity with util-linux PASS.",
+              "definition_sha256": "47f1c293d60873cbcd8c5c9399f8f8da3780e43b1666ead8939ba2d7cda6c2ad"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "LOOP_SET_STATUS64 failure after LOOP_SET_FD rolls back with LOOP_CLR_FD so the device is left unattached, with status 1.",
           "coverage": "missing",
           "evidence": [],
-          "gap": "No executed case; a real kernel does not fail LOOP_SET_STATUS64 for the candidate's argument set, so errno injection is needed."
+          "gap": "LOOP_SET_STATUS64 does not fail for the candidate argument set on a real kernel; needs an ioctl errno injector."
         },
         {
           "id": "r3",
           "behavior": "Rollback failure (LOOP_CLR_FD also failing) is reported with the 'rollback LOOP_CLR_FD' diagnostic.",
           "coverage": "missing",
           "evidence": [],
-          "gap": "No executed case; needs injection on two ioctls."
+          "gap": "Needs injection on two ioctls (LOOP_SET_STATUS64 and LOOP_CLR_FD)."
         }
       ],
-      "notes": "Candidate: loadables/losetup.c:69-106 list_loops (header always; reads /sys/block/loop*/loop/backing_file, offset, ro, dio), :109-120 get_free, :122-154 attach (EACCES/EROFS read-only fallback :124-128, LOOP_SET_STATUS64 failure rollback :142-150), :156-205 option parsing/compatibility checks, :207-216 detach. tests/sol-losetup-shim.c is historical host material, not evidence. Source-predicted divergence: the candidate prints its own 'NAME RO OFFSET DIO BACK-FILE' table for -a, -l and -j, whereas util-linux uses the old '/dev/loopN: []: (file)' format for -a/-j and a different default column set for -l; parity cases must record this as FAIL, not normalize."
+      "notes": "Root batch B on the rented VM host (root-b-78; supersedes root-b-77, whose loop fixtures raced udev probing). privilege=root sides, per-side loop devices and a dm-error device, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "losetup/selected-attach-and-validation",
@@ -17657,33 +17894,54 @@
         "purpose": "Verify explicit loop-device attachment, --show output, option ordering and -- termination, plus incompatible or surplus operand rejection before device access.",
         "reason": "Future requirement: use an ioctl/open mock that records exact relative fixture inputs and proves invalid argument combinations make no device calls, or a disposable VM with private loop devices. The mock must model attachment state and keep all paths inside the fixture tree."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "losetup /dev/loopN FILE attaches to the named device; --show prints it; options may precede or follow operands; -- ends options for dash-prefixed file names.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-selected-root",
+              "assertion": "Attach to the named free device, with --show before or after the operands and -- before a dash-prefixed file: same devices and sysfs backing files as util-linux.",
+              "definition_sha256": "0af52d9c0c24758370791c562aceb461fda394aa0279b7225c671b906a6f87f8"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Incompatible or surplus operands (three operands, -d with FILE/--show/config options, -f with FILE, -l with a device, -j with a device, --show without -f or device+file) are rejected with a usage status before any device access.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; reachable unprivileged now (checks at losetup.c:199-204 precede all opens)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-selected-root",
+              "assertion": "Surplus/incompatible operands: the candidate rejects all eight forms with status 2 'incompatible options or operands' / 'too many operands'; util-linux accepts three operands and -l DEV / -j FILE DEV (status 0) and rejects the rest with status 1. Parity FAIL.",
+              "definition_sha256": "0af52d9c0c24758370791c562aceb461fda394aa0279b7225c671b906a6f87f8"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Attaching to an already-busy device fails with EBUSY and leaves the existing association untouched.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-losetup-selected-root",
+              "assertion": "Attaching to the busy device fails with EBUSY (status 1) and the existing association (-dash) is unchanged on both sides; wording differs. Parity FAIL (wording).",
+              "definition_sha256": "0af52d9c0c24758370791c562aceb461fda394aa0279b7225c671b906a6f87f8"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: loadables/losetup.c:69-106 list_loops (header always; reads /sys/block/loop*/loop/backing_file, offset, ro, dio), :109-120 get_free, :122-154 attach (EACCES/EROFS read-only fallback :124-128, LOOP_SET_STATUS64 failure rollback :142-150), :156-205 option parsing/compatibility checks, :207-216 detach. tests/sol-losetup-shim.c is historical host material, not evidence. Source-predicted divergence: the candidate prints its own 'NAME RO OFFSET DIO BACK-FILE' table for -a, -l and -j, whereas util-linux uses the old '/dev/loopN: []: (file)' format for -a/-j and a different default column set for -l; parity cases must record this as FAIL, not normalize."
+      "notes": "Root batch B on the rented VM host (root-b-78; supersedes root-b-77, whose loop fixtures raced udev probing). privilege=root sides, per-side loop devices and a dm-error device, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "lpr/cancel_owned_child",
@@ -32227,40 +32485,68 @@
         "purpose": "Character and block device tar entries are outside the private regular-file fixture contract.",
         "reason": "GNU parity for device-node headers needs a future disposable VM with an isolated synthetic mknod/stat fixture or reviewed syscall mock. Host device paths and raw-device access are explicitly out of scope; this case executes no command."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "The candidate does not implement device entries: creation rejects them (pax.c:628-629) and extraction rejects them (pax.c:400-402). Unprivileged fixtures can still record the mismatch: archive /dev/null, and list or extract independent typeflag-3 archives. Successful extraction would additionally need CAP_MKNOD (DEV-NODES).",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Creating an archive that contains a character-device entry produces typeflag '3' with devmajor and devminor, which GNU tar does unprivileged for an existing node such as /dev/null.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. The candidate refuses non-regular, non-FIFO types (loadables/pax.c:628-629, 'unsupported file type for ustar'), so a FAIL is predicted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-tar-device-nodes-root",
+              "assertion": "GNU tar archives /dev/null and root-created c 10:200 / b 7:201 nodes as typeflag 3/4 with devmajor/devminor (independent header reader); the candidate refuses each with 'unsupported file type for ustar' (status 2). Parity FAIL.",
+              "definition_sha256": "9028e0e027dbf42d30ce9d8e68cd58b773e077ff7e3a1686be240a1c9c22740b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Listing (-tv) of independently generated archives with typeflag 3 and 4 members shows names, and the device numbers where GNU prints them.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. The candidate's -tv prints 'typeflag mode size name' (pax.c:303), not GNU's long format; plain -t names are comparable."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-tar-device-nodes-root",
+              "assertion": "-tf of an independently generated archive lists the same three names on both sides; -tvf prints GNU's long format with '1,3' style device numbers, the candidate '3 000640 0 dev/cdev'. Parity FAIL (format).",
+              "definition_sha256": "9028e0e027dbf42d30ce9d8e68cd58b773e077ff7e3a1686be240a1c9c22740b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Extracting device members: without privilege GNU tar fails mknod and reports an error, and with CAP_MKNOD it creates nodes with exact rdev.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. The candidate rejects typeflag 3/4 on extraction (pax.c:400-402, \"unsupported typeflag '%c' (device)\"), so it never creates device nodes even with privilege."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-tar-device-nodes-root",
+              "assertion": "Extraction as uid 2000: GNU reports 'Cannot mknod: Operation not permitted' for each node and exits 2 (directory dev created); as root GNU creates nodes with exact rdev (1:3, 7:200, 4095:1048575). The candidate rejects every member with \"unsupported typeflag '3' (device)\" in both cases and creates nothing. Parity FAIL.",
+              "definition_sha256": "9028e0e027dbf42d30ce9d8e68cd58b773e077ff7e3a1686be240a1c9c22740b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "A block-device entry round-trips (typeflag 4).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Creating a block node to archive needs CAP_MKNOD, or BLOCK-DEV for a real loop node."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-tar-device-nodes-root",
+              "assertion": "A block node round trip: GNU archives b 7:201 and restores it with the same rdev; the candidate cannot archive it. Parity FAIL.",
+              "definition_sha256": "9028e0e027dbf42d30ce9d8e68cd58b773e077ff7e3a1686be240a1c9c22740b"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "pax.c:12 documents explicit rejection, and tar.c:151 lists 'sparse/device entries' as unsupported. Related executed cases: legacy/tar/fifo-archive-roundtrip and independent-fifo-modes-and-umask (parity) for typeflag 6 only."
+      "notes": "Root batch B on the rented VM host (root-b-78; supersedes root-b-77, whose loop fixtures raced udev probing). privilege=root sides, per-side loop devices and a dm-error device, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "taskset/deferred-command-wrapper",
@@ -33910,40 +34196,68 @@
         "purpose": "Exercise behavior when truncate is given a block-special-file operand.",
         "reason": "Requires a disposable VM with a safely created loop-backed block device and an isolated disposable filesystem. The namespace fixture runner exposes no such fixture, and host devices are outside scope."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "The block-special operand itself is the missing fixture object. A loop device needs CAP_SYS_ADMIN to attach. Once it exists, it can be chowned to uid 2000 so the side itself runs unprivileged.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "truncate -s N on a block-special operand: status and diagnostic match GNU truncate, whose ftruncate on a block device fails while it treats a size equal to the device size specially.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "There is no block device in any driver. Attaching a loop device needs CAP_SYS_ADMIN (loop-control)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-truncate-block-device-root",
+              "assertion": "truncate -s on a loop device fails with status 1 for every size on both sides, including the device's own size (GNU 9.7 also reports EINVAL there); GNU says \"failed to truncate '/dev/loop0' at 65536 bytes\", the candidate 'cannot truncate /dev/loop0'. Parity FAIL (wording).",
+              "definition_sha256": "89cbc08d69d2000ce1c1d560344b4f616d3aa749763fe59c85c8490a1a5cbced"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Relative and rounding size modes (+N, %N, <N) use the device size as the base, as GNU does via lseek, and the results are compared.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Predicted mismatch: the candidate uses st_size from fstat (loadables/truncate.c:226-252), which is 0 for block devices, so relative modes compute from 0."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-truncate-block-device-root",
+              "assertion": "Relative and rounding modes: GNU's diagnostics show the device size as the base (+512 -> 66048, %5000 -> 70000, <4096 -> 4096); the candidate's do not show the computed size; statuses and effects agree. Parity FAIL.",
+              "definition_sha256": "89cbc08d69d2000ce1c1d560344b4f616d3aa749763fe59c85c8490a1a5cbced"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Device contents and size are unchanged after the attempt, checked through the backing image.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs a driver-side image reader."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-truncate-block-device-root",
+              "assertion": "After every attempt the device size stays 65536 (blockdev) and the image digest is unchanged on both sides.",
+              "definition_sha256": "89cbc08d69d2000ce1c1d560344b4f616d3aa749763fe59c85c8490a1a5cbced"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "No host device is touched: only a driver-owned loop device backed by a per-side image is used, and it is detached afterward.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "There is no BLOCK-DEV driver."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-truncate-block-device-root",
+              "assertion": "Only a per-side loop device on a /tmp/rt image is used and detached; losetup -a is empty at the end and the harness found no leftovers.",
+              "definition_sha256": "89cbc08d69d2000ce1c1d560344b4f616d3aa749763fe59c85c8490a1a5cbced"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Adjacent unprivileged finding, outside this topic: the candidate opens without O_NONBLOCK (truncate.c:217), so `mkfifo p; truncate -s 0 p` would block until the timeout. GNU truncate opens with O_NONBLOCK and fails fast with ENXIO. A legacy parity case would expose this now."
+      "notes": "Root batch B on the rented VM host (root-b-78; supersedes root-b-77, whose loop fixtures raced udev probing). privilege=root sides, per-side loop devices and a dm-error device, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "ts/upstream_tree_sitter_differential",

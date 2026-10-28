@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "89e5ec5ab942ef985a458bb18cd420a573596c0a550e375c2585623686f971a7",
+  "ledger_sha256": "a12824af8cd5b64ec2e5a6ecaebb0a82336d4f95e07a66b6ff3bde8386d59b42",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 104,
-    "none": 299,
-    "full": 197
+    "partial": 105,
+    "none": 286,
+    "full": 209
   },
   "migrations": {
-    "deferred": 403,
-    "replacement": 197
+    "deferred": 391,
+    "replacement": 209
   },
   "pending_full_topics": [],
   "builds": {
@@ -1757,6 +1757,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793149581.2497232
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "root-b-static-78",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 14,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "3788cf1f6fbea2f52c96cb6247ee1e2f09a1ddcd9b10fb4dbf33f5786a158806",
+            "provenance.json": "91281a6401142e17035fe5d0a9932cc84737843c1439164688b88b64a5ea9ea6",
+            "payload.tar": "1c1ed46a46c7abc09584c75533841f89017aa994204258d13e9029084ce1a7e2",
+            "evidence.tar": "e4dd180f9fdb7a2e1bb38dc1cab98b11239d5f5fa8fc57d18ec4a453b43e3a85"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793150352.1443875
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -7104,10 +7130,10 @@
         },
         {
           "topic": "chmod/foreign-owner-and-group",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -7128,18 +7154,24 @@
             {
               "id": "r2",
               "behavior": "Set-ID clearing: when the caller owns the file but it belongs to a group the caller is not a member of, chmod g+s / an octal mode with 2000 silently drops S_ISGID (kernel behavior without CAP_FSETID); compare resulting mode with GNU.",
-              "coverage": "partial",
-              "gap": "root-a-76 shows the directory result (2775 on a caller-owned directory in non-member group 3002 leaves 775, as GNU) but a later mixed chmod overwrote the files' modes before any stat, so the file S_ISGID drop is unobserved; a per-step stat case follows in root batch B.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-chmod-foreign-owner-root",
                   "status": "FAIL",
                   "run": "root-a-static-76"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-chmod-setgid-drop-root",
+                  "status": "PASS",
+                  "run": "root-b-static-78"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -8237,55 +8269,90 @@
         },
         {
           "topic": "coreutils/mknod-device-nodes-deferred",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "`coreutils mknod -m MODE path c MAJ MIN` creates a character node with the exact type, mode and rdev (major and minor).",
-              "coverage": "missing",
-              "gap": "Creating a device node needs CAP_MKNOD in the initial user namespace (vfs_mknod), and every driver drops capabilities.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-coreutils-mknod-devices-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "`... b MAJ MIN` creates a block node with the exact type, mode and rdev.",
-              "coverage": "missing",
-              "gap": "Same capability requirement.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-coreutils-mknod-devices-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "An existing path gives EEXIST, and the existing entry and its mode are preserved.",
-              "coverage": "missing",
-              "gap": "Unexecuted, but reachable now: the kernel returns EEXIST from filename_create before the CAP_MKNOD check, so uid 2000 observes it.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-coreutils-mknod-devices-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Unprivileged device creation is denied with EPERM, a diagnostic, nonzero status and no entry created, matching GNU mknod.",
-              "coverage": "missing",
-              "gap": "Unexecuted, but reachable now as uid 2000 in the legacy runner.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-coreutils-mknod-devices-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "Argument validation: missing major/minor for b/c, major/minor given for p, and an invalid -m value.",
-              "coverage": "missing",
-              "gap": "Unexecuted, and no privilege is needed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-coreutils-mknod-devices-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -9819,46 +9886,74 @@
         },
         {
           "topic": "dd/raw_device_copy",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Reading from a raw block device with bs/skip/count copies exactly the requested sectors from a seeded image.",
-              "coverage": "missing",
-              "gap": "There is no block device in any driver. Loop attach needs CAP_SYS_ADMIN.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dd-raw-device-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Writing to a raw block device with seek and conv=notrunc changes exactly the requested sectors and leaves bytes outside the range unchanged, verified by an independent image reader.",
-              "coverage": "missing",
-              "gap": "Unexecuted. There is no driver-side image comparison.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dd-raw-device-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Device-size boundaries: a write crossing the device end gives a short write, ENOSPC, a diagnostic and nonzero status, and a read past the end gives EOF, matching GNU dd record counts.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dd-raw-device-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Only an exclusive per-side loop device backed by a tiny seeded image is used, and it is detached with no leak.",
-              "coverage": "missing",
-              "gap": "There is no BLOCK-DEV driver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dd-raw-device-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -13297,46 +13392,74 @@
         },
         {
           "topic": "finfo/finfo-device-nodes",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "The full summary for a character device reports 'Device (major/minor)', the 'Mode' line with S_IFCHR, and 'Device type' derived from st_rdev, checked against an independent GNU stat %t/%T/%Hr/%Lr and %F.",
-              "coverage": "missing",
-              "gap": "Unexecuted. A character node is reachable unprivileged now: /dev/null (1,3) and /dev/zero (1,5) exist in the legacy bwrap /dev and the guest /dev.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-finfo-device-nodes-root",
+                  "status": "PASS",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "The same fields for a block device (S_IFBLK).",
-              "coverage": "missing",
-              "gap": "The legacy sandbox has no block node. The modern plain driver sees the guest devtmpfs, where /dev/vda is a block node, and lstat on it is unprivileged (no open needed), so its S_IFBLK fields are observable now. The numbers are VM-config-dependent but identical across sides.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-finfo-device-nodes-root",
+                  "status": "PASS",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Synthetic major/minor values beyond 8-bit minor and 12-bit major exercise the makedev encoding and the int truncation in 'Device type: %d'.",
-              "coverage": "missing",
-              "gap": "Synthetic numbers need mknod with CAP_MKNOD.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-finfo-device-nodes-root",
+                  "status": "PASS",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Nodes are removed afterward.",
-              "coverage": "missing",
-              "gap": "Needs driver teardown for DEV-NODES; /dev/null needs none.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-finfo-device-nodes-root",
+                  "status": "PASS",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -15067,55 +15190,90 @@
         },
         {
           "topic": "hexdump/device-input-boundary",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Bounded reads (-n N, plus -s skip) from a character device that supplies a deterministic stream (/dev/zero) terminate with exactly N bytes formatted, matching util-linux hexdump.",
-              "coverage": "missing",
-              "gap": "Unexecuted. /dev/zero is present in the legacy bwrap /dev, so this is reachable unprivileged now.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-hexdump-device-input-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Reading an empty character device (/dev/null) gives the empty-input output and status.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-hexdump-device-input-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "A device open failure, such as /dev/tty without a controlling terminal (ENXIO under bwrap --new-session), gives a diagnostic and status that match the reference, and later operands continue.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-hexdump-device-input-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Bounded reads from a block-device-backed input with a deterministic image.",
-              "coverage": "missing",
-              "gap": "There is no block device. Needs BLOCK-DEV.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-hexdump-device-input-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "A device read error mid-stream (EIO) gives the reference diagnostic and status.",
-              "coverage": "missing",
-              "gap": "No unprivileged device returns EIO on read. SECCOMP-NOTIFY (modern plain driver) can fail the Nth read(2) on the /dev/zero descriptor with EIO for both util-linux hexdump and the candidate. A dm-error BLOCK-DEV is an optional real-device variant.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-hexdump-device-input-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -19865,133 +20023,203 @@
         },
         {
           "topic": "losetup/associated-file-aliases",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-j FILE / --associated FILE lists only loops whose backing file is FILE, with the list header.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-associated-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "No match prints only the header (status 0, util-linux prints nothing).",
-              "coverage": "missing",
-              "gap": "No executed case; reachable unprivileged now (no loops visible), with parity against util-linux.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-associated-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "A symlink or hard-link path to the backing file matches through st_dev/st_ino equality.",
-              "coverage": "missing",
-              "gap": "No executed case; needs an attached loop.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-associated-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "losetup/automatic-attach-options",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-f --show FILE attaches a small relative backing file to the first free device and prints its name.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-attach-options-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "-r sets read-only, -P sets partition scan, -o OFFSET and --sizelimit N set the loop offset/size limit; resulting device size equals min(file-offset, sizelimit).",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-attach-options-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Invalid byte counts (negative, trailing text, empty) for -o/--sizelimit are usage errors before any device access.",
-              "coverage": "missing",
-              "gap": "No executed case; reachable unprivileged now (parse_bytes at losetup.c:41-50 runs during option parsing, before get_free).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-attach-options-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "losetup/detach-and-ownership",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-d /dev/loopN detaches an association created by the case; sysfs backing_file disappears; status 0.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-detach-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Detach errors: unattached device (ENXIO), missing node (ENOENT), unreadable node, missing -d operand.",
-              "coverage": "missing",
-              "gap": "No executed case; '-d' without operand and a missing relative path are reachable unprivileged now.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-detach-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "An association owned by another caller (controller-created, held open) is preserved when the case does not own it, i.e. the case's failing/denied detach leaves it attached; with permission, LOOP_CLR_FD on a busy device sets autoclear and the association remains until close.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-detach-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "losetup/find-free-and-exhaustion",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-f/--find prints the first free loop device returned by LOOP_CTL_GET_FREE, equal to util-linux 'losetup -f' in the same state.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-find-free-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Exhaustion: when no free device can be allocated, the command fails with the LOOP_CTL_GET_FREE diagnostic and status 1.",
               "coverage": "missing",
-              "gap": "No executed case; real exhaustion requires the loop module loaded with a small max_loop and all devices busy (preflight must verify the kernel honours max_loop for on-demand allocation), otherwise an ioctl errno injector.",
+              "gap": "Real exhaustion is unreachable on the guest kernel 6.12: in root-b-77 reloading loop with max_loop=1 still let LOOP_CTL_GET_FREE allocate loop1. Needs an errno injector for LOOP_CTL_GET_FREE.",
               "evidence": [],
               "fully_exercised": false,
               "result": "UNRESOLVED"
@@ -19999,71 +20227,106 @@
             {
               "id": "r3",
               "behavior": "/dev/loop-control absent or unopenable reports the open error with status 1.",
-              "coverage": "missing",
-              "gap": "No executed case; reachable unprivileged now (legacy runner has no /dev/loop-control; plain driver gets EACCES).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-find-free-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "losetup/list-sysfs-rows",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Default listing (no options) and -a/-l/--list print a header and one row per attached loop with NAME, RO, OFFSET, DIO, BACK-FILE from sysfs.",
-              "coverage": "missing",
-              "gap": "No losetup listing is executed in any case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-list-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Unattached loop entries (empty backing_file) and non-loopN names are skipped; malformed rows (non-numeric suffix such as loopX, missing optional attributes) are ignored or defaulted.",
-              "coverage": "missing",
-              "gap": "No executed case. A real kernel never exposes malformed loop entries; the candidate has no sysfs path override, so this needs a bind-mounted fake /sys/block.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-list-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Absent /sys/block prints only the header with status 0; other open errors report failure.",
-              "coverage": "missing",
-              "gap": "No executed case; reachable unprivileged now in the legacy runner (no /sys mounted).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-list-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "losetup/readonly-fallback-and-rollback",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Read-only fallback: when the backing file cannot be opened read-write (EACCES from a 0444 file for a non-DAC-override caller, EROFS from a read-only mount) the attach proceeds read-only and the device reports ro=1.",
-              "coverage": "missing",
-              "gap": "No executed case. Deterministic without a mock: PRIV-ROOT caller without CAP_DAC_OVERRIDE on a 0444 file (EACCES), and a read-only bind/tmpfs mount for EROFS.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-readonly-fallback-root",
+                  "status": "PASS",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "LOOP_SET_STATUS64 failure after LOOP_SET_FD rolls back with LOOP_CLR_FD so the device is left unattached, with status 1.",
               "coverage": "missing",
-              "gap": "No executed case; a real kernel does not fail LOOP_SET_STATUS64 for the candidate's argument set, so errno injection is needed.",
+              "gap": "LOOP_SET_STATUS64 does not fail for the candidate argument set on a real kernel; needs an ioctl errno injector.",
               "evidence": [],
               "fully_exercised": false,
               "result": "UNRESOLVED"
@@ -20072,7 +20335,7 @@
               "id": "r3",
               "behavior": "Rollback failure (LOOP_CLR_FD also failing) is reported with the 'rollback LOOP_CLR_FD' diagnostic.",
               "coverage": "missing",
-              "gap": "No executed case; needs injection on two ioctls.",
+              "gap": "Needs injection on two ioctls (LOOP_SET_STATUS64 and LOOP_CLR_FD).",
               "evidence": [],
               "fully_exercised": false,
               "result": "UNRESOLVED"
@@ -20081,37 +20344,58 @@
         },
         {
           "topic": "losetup/selected-attach-and-validation",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "losetup /dev/loopN FILE attaches to the named device; --show prints it; options may precede or follow operands; -- ends options for dash-prefixed file names.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-selected-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Incompatible or surplus operands (three operands, -d with FILE/--show/config options, -f with FILE, -l with a device, -j with a device, --show without -f or device+file) are rejected with a usage status before any device access.",
-              "coverage": "missing",
-              "gap": "No executed case; reachable unprivileged now (checks at losetup.c:199-204 precede all opens).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-selected-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Attaching to an already-busy device fails with EBUSY and leaves the existing association untouched.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-selected-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -35130,46 +35414,74 @@
         },
         {
           "topic": "tar/device-node-archive",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Creating an archive that contains a character-device entry produces typeflag '3' with devmajor and devminor, which GNU tar does unprivileged for an existing node such as /dev/null.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The candidate refuses non-regular, non-FIFO types (loadables/pax.c:628-629, 'unsupported file type for ustar'), so a FAIL is predicted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-tar-device-nodes-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Listing (-tv) of independently generated archives with typeflag 3 and 4 members shows names, and the device numbers where GNU prints them.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The candidate's -tv prints 'typeflag mode size name' (pax.c:303), not GNU's long format; plain -t names are comparable.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-tar-device-nodes-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Extracting device members: without privilege GNU tar fails mknod and reports an error, and with CAP_MKNOD it creates nodes with exact rdev.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The candidate rejects typeflag 3/4 on extraction (pax.c:400-402, \"unsupported typeflag '%c' (device)\"), so it never creates device nodes even with privilege.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-tar-device-nodes-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "A block-device entry round-trips (typeflag 4).",
-              "coverage": "missing",
-              "gap": "Creating a block node to archive needs CAP_MKNOD, or BLOCK-DEV for a real loop node.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-tar-device-nodes-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -36865,46 +37177,74 @@
         },
         {
           "topic": "truncate/block_special_file_behavior",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "truncate -s N on a block-special operand: status and diagnostic match GNU truncate, whose ftruncate on a block device fails while it treats a size equal to the device size specially.",
-              "coverage": "missing",
-              "gap": "There is no block device in any driver. Attaching a loop device needs CAP_SYS_ADMIN (loop-control).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-truncate-block-device-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Relative and rounding size modes (+N, %N, <N) use the device size as the base, as GNU does via lseek, and the results are compared.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Predicted mismatch: the candidate uses st_size from fstat (loadables/truncate.c:226-252), which is 0 for block devices, so relative modes compute from 0.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-truncate-block-device-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Device contents and size are unchanged after the attempt, checked through the backing image.",
-              "coverage": "missing",
-              "gap": "Needs a driver-side image reader.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-truncate-block-device-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "No host device is touched: only a driver-owned loop device backed by a per-side image is used, and it is detached afterward.",
-              "coverage": "missing",
-              "gap": "There is no BLOCK-DEV driver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-truncate-block-device-root",
+                  "status": "FAIL",
+                  "run": "root-b-static-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -40622,9 +40962,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 403,
-        "FAIL": 93,
-        "PASS": 104
+        "UNRESOLVED": 391,
+        "FAIL": 104,
+        "PASS": 105
       },
       "migration_without_complete_evidence": []
     },
@@ -42371,6 +42711,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793149581.1032119
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "root-b-dynamic-78",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 14,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "865f778aebdc3e6f6be3aa7fc05d29f998d419e284ce26b88fe2fa263f721d9a",
+            "provenance.json": "e3a64a6302908cd2ab15a5328ae2c400e98924dc894968c01c2f7ab9dc17c838",
+            "payload.tar": "cbd8d853528011b81feb4f4d4891005c1a1a54aec64a3994f3271549f998cf12",
+            "evidence.tar": "27705524c0ffe6935db8c923fddb8466990dac3ae7a2aac71291e892a8858671"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793150354.001629
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -47718,10 +48084,10 @@
         },
         {
           "topic": "chmod/foreign-owner-and-group",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -47742,18 +48108,24 @@
             {
               "id": "r2",
               "behavior": "Set-ID clearing: when the caller owns the file but it belongs to a group the caller is not a member of, chmod g+s / an octal mode with 2000 silently drops S_ISGID (kernel behavior without CAP_FSETID); compare resulting mode with GNU.",
-              "coverage": "partial",
-              "gap": "root-a-76 shows the directory result (2775 on a caller-owned directory in non-member group 3002 leaves 775, as GNU) but a later mixed chmod overwrote the files' modes before any stat, so the file S_ISGID drop is unobserved; a per-step stat case follows in root batch B.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-chmod-foreign-owner-root",
                   "status": "FAIL",
                   "run": "root-a-dynamic-76"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-chmod-setgid-drop-root",
+                  "status": "PASS",
+                  "run": "root-b-dynamic-78"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -48851,55 +49223,90 @@
         },
         {
           "topic": "coreutils/mknod-device-nodes-deferred",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "`coreutils mknod -m MODE path c MAJ MIN` creates a character node with the exact type, mode and rdev (major and minor).",
-              "coverage": "missing",
-              "gap": "Creating a device node needs CAP_MKNOD in the initial user namespace (vfs_mknod), and every driver drops capabilities.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-coreutils-mknod-devices-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "`... b MAJ MIN` creates a block node with the exact type, mode and rdev.",
-              "coverage": "missing",
-              "gap": "Same capability requirement.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-coreutils-mknod-devices-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "An existing path gives EEXIST, and the existing entry and its mode are preserved.",
-              "coverage": "missing",
-              "gap": "Unexecuted, but reachable now: the kernel returns EEXIST from filename_create before the CAP_MKNOD check, so uid 2000 observes it.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-coreutils-mknod-devices-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Unprivileged device creation is denied with EPERM, a diagnostic, nonzero status and no entry created, matching GNU mknod.",
-              "coverage": "missing",
-              "gap": "Unexecuted, but reachable now as uid 2000 in the legacy runner.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-coreutils-mknod-devices-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "Argument validation: missing major/minor for b/c, major/minor given for p, and an invalid -m value.",
-              "coverage": "missing",
-              "gap": "Unexecuted, and no privilege is needed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-coreutils-mknod-devices-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -50433,46 +50840,74 @@
         },
         {
           "topic": "dd/raw_device_copy",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Reading from a raw block device with bs/skip/count copies exactly the requested sectors from a seeded image.",
-              "coverage": "missing",
-              "gap": "There is no block device in any driver. Loop attach needs CAP_SYS_ADMIN.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dd-raw-device-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Writing to a raw block device with seek and conv=notrunc changes exactly the requested sectors and leaves bytes outside the range unchanged, verified by an independent image reader.",
-              "coverage": "missing",
-              "gap": "Unexecuted. There is no driver-side image comparison.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dd-raw-device-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Device-size boundaries: a write crossing the device end gives a short write, ENOSPC, a diagnostic and nonzero status, and a read past the end gives EOF, matching GNU dd record counts.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dd-raw-device-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Only an exclusive per-side loop device backed by a tiny seeded image is used, and it is detached with no leak.",
-              "coverage": "missing",
-              "gap": "There is no BLOCK-DEV driver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dd-raw-device-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -53911,46 +54346,74 @@
         },
         {
           "topic": "finfo/finfo-device-nodes",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "The full summary for a character device reports 'Device (major/minor)', the 'Mode' line with S_IFCHR, and 'Device type' derived from st_rdev, checked against an independent GNU stat %t/%T/%Hr/%Lr and %F.",
-              "coverage": "missing",
-              "gap": "Unexecuted. A character node is reachable unprivileged now: /dev/null (1,3) and /dev/zero (1,5) exist in the legacy bwrap /dev and the guest /dev.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-finfo-device-nodes-root",
+                  "status": "PASS",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "The same fields for a block device (S_IFBLK).",
-              "coverage": "missing",
-              "gap": "The legacy sandbox has no block node. The modern plain driver sees the guest devtmpfs, where /dev/vda is a block node, and lstat on it is unprivileged (no open needed), so its S_IFBLK fields are observable now. The numbers are VM-config-dependent but identical across sides.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-finfo-device-nodes-root",
+                  "status": "PASS",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Synthetic major/minor values beyond 8-bit minor and 12-bit major exercise the makedev encoding and the int truncation in 'Device type: %d'.",
-              "coverage": "missing",
-              "gap": "Synthetic numbers need mknod with CAP_MKNOD.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-finfo-device-nodes-root",
+                  "status": "PASS",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Nodes are removed afterward.",
-              "coverage": "missing",
-              "gap": "Needs driver teardown for DEV-NODES; /dev/null needs none.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-finfo-device-nodes-root",
+                  "status": "PASS",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -55681,55 +56144,90 @@
         },
         {
           "topic": "hexdump/device-input-boundary",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Bounded reads (-n N, plus -s skip) from a character device that supplies a deterministic stream (/dev/zero) terminate with exactly N bytes formatted, matching util-linux hexdump.",
-              "coverage": "missing",
-              "gap": "Unexecuted. /dev/zero is present in the legacy bwrap /dev, so this is reachable unprivileged now.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-hexdump-device-input-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Reading an empty character device (/dev/null) gives the empty-input output and status.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-hexdump-device-input-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "A device open failure, such as /dev/tty without a controlling terminal (ENXIO under bwrap --new-session), gives a diagnostic and status that match the reference, and later operands continue.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-hexdump-device-input-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Bounded reads from a block-device-backed input with a deterministic image.",
-              "coverage": "missing",
-              "gap": "There is no block device. Needs BLOCK-DEV.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-hexdump-device-input-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "A device read error mid-stream (EIO) gives the reference diagnostic and status.",
-              "coverage": "missing",
-              "gap": "No unprivileged device returns EIO on read. SECCOMP-NOTIFY (modern plain driver) can fail the Nth read(2) on the /dev/zero descriptor with EIO for both util-linux hexdump and the candidate. A dm-error BLOCK-DEV is an optional real-device variant.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-hexdump-device-input-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -60479,133 +60977,203 @@
         },
         {
           "topic": "losetup/associated-file-aliases",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-j FILE / --associated FILE lists only loops whose backing file is FILE, with the list header.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-associated-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "No match prints only the header (status 0, util-linux prints nothing).",
-              "coverage": "missing",
-              "gap": "No executed case; reachable unprivileged now (no loops visible), with parity against util-linux.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-associated-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "A symlink or hard-link path to the backing file matches through st_dev/st_ino equality.",
-              "coverage": "missing",
-              "gap": "No executed case; needs an attached loop.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-associated-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "losetup/automatic-attach-options",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-f --show FILE attaches a small relative backing file to the first free device and prints its name.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-attach-options-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "-r sets read-only, -P sets partition scan, -o OFFSET and --sizelimit N set the loop offset/size limit; resulting device size equals min(file-offset, sizelimit).",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-attach-options-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Invalid byte counts (negative, trailing text, empty) for -o/--sizelimit are usage errors before any device access.",
-              "coverage": "missing",
-              "gap": "No executed case; reachable unprivileged now (parse_bytes at losetup.c:41-50 runs during option parsing, before get_free).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-attach-options-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "losetup/detach-and-ownership",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-d /dev/loopN detaches an association created by the case; sysfs backing_file disappears; status 0.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-detach-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Detach errors: unattached device (ENXIO), missing node (ENOENT), unreadable node, missing -d operand.",
-              "coverage": "missing",
-              "gap": "No executed case; '-d' without operand and a missing relative path are reachable unprivileged now.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-detach-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "An association owned by another caller (controller-created, held open) is preserved when the case does not own it, i.e. the case's failing/denied detach leaves it attached; with permission, LOOP_CLR_FD on a busy device sets autoclear and the association remains until close.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-detach-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "losetup/find-free-and-exhaustion",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-f/--find prints the first free loop device returned by LOOP_CTL_GET_FREE, equal to util-linux 'losetup -f' in the same state.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-find-free-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Exhaustion: when no free device can be allocated, the command fails with the LOOP_CTL_GET_FREE diagnostic and status 1.",
               "coverage": "missing",
-              "gap": "No executed case; real exhaustion requires the loop module loaded with a small max_loop and all devices busy (preflight must verify the kernel honours max_loop for on-demand allocation), otherwise an ioctl errno injector.",
+              "gap": "Real exhaustion is unreachable on the guest kernel 6.12: in root-b-77 reloading loop with max_loop=1 still let LOOP_CTL_GET_FREE allocate loop1. Needs an errno injector for LOOP_CTL_GET_FREE.",
               "evidence": [],
               "fully_exercised": false,
               "result": "UNRESOLVED"
@@ -60613,71 +61181,106 @@
             {
               "id": "r3",
               "behavior": "/dev/loop-control absent or unopenable reports the open error with status 1.",
-              "coverage": "missing",
-              "gap": "No executed case; reachable unprivileged now (legacy runner has no /dev/loop-control; plain driver gets EACCES).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-find-free-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "losetup/list-sysfs-rows",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Default listing (no options) and -a/-l/--list print a header and one row per attached loop with NAME, RO, OFFSET, DIO, BACK-FILE from sysfs.",
-              "coverage": "missing",
-              "gap": "No losetup listing is executed in any case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-list-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Unattached loop entries (empty backing_file) and non-loopN names are skipped; malformed rows (non-numeric suffix such as loopX, missing optional attributes) are ignored or defaulted.",
-              "coverage": "missing",
-              "gap": "No executed case. A real kernel never exposes malformed loop entries; the candidate has no sysfs path override, so this needs a bind-mounted fake /sys/block.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-list-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Absent /sys/block prints only the header with status 0; other open errors report failure.",
-              "coverage": "missing",
-              "gap": "No executed case; reachable unprivileged now in the legacy runner (no /sys mounted).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-list-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "losetup/readonly-fallback-and-rollback",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Read-only fallback: when the backing file cannot be opened read-write (EACCES from a 0444 file for a non-DAC-override caller, EROFS from a read-only mount) the attach proceeds read-only and the device reports ro=1.",
-              "coverage": "missing",
-              "gap": "No executed case. Deterministic without a mock: PRIV-ROOT caller without CAP_DAC_OVERRIDE on a 0444 file (EACCES), and a read-only bind/tmpfs mount for EROFS.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-readonly-fallback-root",
+                  "status": "PASS",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "LOOP_SET_STATUS64 failure after LOOP_SET_FD rolls back with LOOP_CLR_FD so the device is left unattached, with status 1.",
               "coverage": "missing",
-              "gap": "No executed case; a real kernel does not fail LOOP_SET_STATUS64 for the candidate's argument set, so errno injection is needed.",
+              "gap": "LOOP_SET_STATUS64 does not fail for the candidate argument set on a real kernel; needs an ioctl errno injector.",
               "evidence": [],
               "fully_exercised": false,
               "result": "UNRESOLVED"
@@ -60686,7 +61289,7 @@
               "id": "r3",
               "behavior": "Rollback failure (LOOP_CLR_FD also failing) is reported with the 'rollback LOOP_CLR_FD' diagnostic.",
               "coverage": "missing",
-              "gap": "No executed case; needs injection on two ioctls.",
+              "gap": "Needs injection on two ioctls (LOOP_SET_STATUS64 and LOOP_CLR_FD).",
               "evidence": [],
               "fully_exercised": false,
               "result": "UNRESOLVED"
@@ -60695,37 +61298,58 @@
         },
         {
           "topic": "losetup/selected-attach-and-validation",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "losetup /dev/loopN FILE attaches to the named device; --show prints it; options may precede or follow operands; -- ends options for dash-prefixed file names.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-selected-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Incompatible or surplus operands (three operands, -d with FILE/--show/config options, -f with FILE, -l with a device, -j with a device, --show without -f or device+file) are rejected with a usage status before any device access.",
-              "coverage": "missing",
-              "gap": "No executed case; reachable unprivileged now (checks at losetup.c:199-204 precede all opens).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-selected-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Attaching to an already-busy device fails with EBUSY and leaves the existing association untouched.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-losetup-selected-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -75744,46 +76368,74 @@
         },
         {
           "topic": "tar/device-node-archive",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Creating an archive that contains a character-device entry produces typeflag '3' with devmajor and devminor, which GNU tar does unprivileged for an existing node such as /dev/null.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The candidate refuses non-regular, non-FIFO types (loadables/pax.c:628-629, 'unsupported file type for ustar'), so a FAIL is predicted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-tar-device-nodes-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Listing (-tv) of independently generated archives with typeflag 3 and 4 members shows names, and the device numbers where GNU prints them.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The candidate's -tv prints 'typeflag mode size name' (pax.c:303), not GNU's long format; plain -t names are comparable.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-tar-device-nodes-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Extracting device members: without privilege GNU tar fails mknod and reports an error, and with CAP_MKNOD it creates nodes with exact rdev.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The candidate rejects typeflag 3/4 on extraction (pax.c:400-402, \"unsupported typeflag '%c' (device)\"), so it never creates device nodes even with privilege.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-tar-device-nodes-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "A block-device entry round-trips (typeflag 4).",
-              "coverage": "missing",
-              "gap": "Creating a block node to archive needs CAP_MKNOD, or BLOCK-DEV for a real loop node.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-tar-device-nodes-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -77479,46 +78131,74 @@
         },
         {
           "topic": "truncate/block_special_file_behavior",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "truncate -s N on a block-special operand: status and diagnostic match GNU truncate, whose ftruncate on a block device fails while it treats a size equal to the device size specially.",
-              "coverage": "missing",
-              "gap": "There is no block device in any driver. Attaching a loop device needs CAP_SYS_ADMIN (loop-control).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-truncate-block-device-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Relative and rounding size modes (+N, %N, <N) use the device size as the base, as GNU does via lseek, and the results are compared.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Predicted mismatch: the candidate uses st_size from fstat (loadables/truncate.c:226-252), which is 0 for block devices, so relative modes compute from 0.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-truncate-block-device-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Device contents and size are unchanged after the attempt, checked through the backing image.",
-              "coverage": "missing",
-              "gap": "Needs a driver-side image reader.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-truncate-block-device-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "No host device is touched: only a driver-owned loop device backed by a per-side image is used, and it is detached afterward.",
-              "coverage": "missing",
-              "gap": "There is no BLOCK-DEV driver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-truncate-block-device-root",
+                  "status": "FAIL",
+                  "run": "root-b-dynamic-78"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -81236,9 +81916,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 403,
-        "FAIL": 93,
-        "PASS": 104
+        "UNRESOLVED": 391,
+        "FAIL": 104,
+        "PASS": 105
       },
       "migration_without_complete_evidence": []
     }

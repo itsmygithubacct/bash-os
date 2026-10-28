@@ -131,9 +131,14 @@
     },
     {
       "id": "device-input-boundary",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise bounded reads and errors when the input is a device-backed special file.",
-      "reason": "Character-device cases (r1 to r3) are only missing fixtures, using VM-local sandbox nodes. A device read error (r5) uses SECCOMP-NOTIFY. Only block-device input (r4) needs a driver-provisioned loop device: the guest's /dev/vda is root:disk 0660 and loop attach needs CAP_SYS_ADMIN."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-hexdump-device-input-root"
+        }
+      ]
     },
     {
       "id": "zero-count-formats",

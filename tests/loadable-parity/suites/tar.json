@@ -163,9 +163,14 @@
     },
     {
       "id": "device-node-archive",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Character and block device tar entries are outside the private regular-file fixture contract.",
-      "reason": "The candidate does not implement device entries: creation rejects them (pax.c:628-629) and extraction rejects them (pax.c:400-402). Unprivileged fixtures can still record the mismatch: archive /dev/null, and list or extract independent typeflag-3 archives. Successful extraction would additionally need CAP_MKNOD (DEV-NODES)."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-tar-device-nodes-root"
+        }
+      ]
     },
     {
       "id": "independent-gzip-ustar",

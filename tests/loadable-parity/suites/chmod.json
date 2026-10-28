@@ -233,9 +233,18 @@
     },
     {
       "id": "foreign-owner-and-group",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check chmod permission denial and set-ID clearing when operating on files not owned by the caller or belonging to an unrelated group.",
-      "reason": "Remaining obligations: r2: root-a-76 shows the directory result (2775 on a caller-owned directory in non-member group 3002 leaves 775, as GNU) but a later mixed chmod overwrote the files' modes before any stat, so the file S_ISGID drop is unobserved; a per-step stat case follows in root batch B."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-chmod-foreign-owner-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-chmod-setgid-drop-root"
+        }
+      ]
     },
     {
       "id": "numeric-looking-missing-operand",

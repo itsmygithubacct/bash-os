@@ -33,45 +33,70 @@
     },
     {
       "id": "list-sysfs-rows",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify default listing and -a/-l/--list headers, row fields, ignored malformed entries, and optional sysfs attributes.",
-      "reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted. r3 needs no privilege; r2's malformed tree needs a mount over /sys/block in a private mount namespace."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-losetup-list-root"
+        }
+      ]
     },
     {
       "id": "associated-file-aliases",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify -j/--associated filtering for a backing file, no match, and a symlink or inode-equivalent path, including the list header.",
-      "reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-losetup-associated-root"
+        }
+      ]
     },
     {
       "id": "find-free-and-exhaustion",
       "kind": "deferred",
       "purpose": "Verify -f/--find selection, the returned device name, and the no-free-device error when allocation is exhausted.",
-      "reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted."
+      "reason": "Remaining obligations: r2: Real exhaustion is unreachable on the guest kernel 6.12: in root-b-77 reloading loop with max_loop=1 still let LOOP_CTL_GET_FREE allocate loop1. Needs an errno injector for LOOP_CTL_GET_FREE."
     },
     {
       "id": "automatic-attach-options",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify -f --show attachment of a small relative backing file and construction of read-only, partition-scan, offset, and size-limit settings.",
-      "reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted. Attaching requires access to /dev/loop-control and the loop node, which uid 2000 lacks."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-losetup-attach-options-root"
+        }
+      ]
     },
     {
       "id": "selected-attach-and-validation",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify explicit loop-device attachment, --show output, option ordering and -- termination, plus incompatible or surplus operand rejection before device access.",
-      "reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-losetup-selected-root"
+        }
+      ]
     },
     {
       "id": "readonly-fallback-and-rollback",
       "kind": "deferred",
       "purpose": "Verify the documented read-only backing-file fallback on EACCES/EROFS and rollback behavior after loop status configuration failures, including rollback failure reporting.",
-      "reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted. The historical reason claims a VM cannot produce EACCES/EROFS deterministically; that is stale for r1, but r2/r3 do need fault injection."
+      "reason": "Remaining obligations: r2: LOOP_SET_STATUS64 does not fail for the candidate argument set on a real kernel; needs an ioctl errno injector.; r3: Needs injection on two ioctls (LOOP_SET_STATUS64 and LOOP_CLR_FD)."
     },
     {
       "id": "detach-and-ownership",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify successful detach, detach error handling, and preservation of an association owned by another caller.",
-      "reason": "uid 2000 cannot open /dev/loop-control or /dev/loopN (root:disk 0660, groups dropped) and LOOP_SET_FD/LOOP_CLR_FD/LOOP_CTL_* therefore never run; in the legacy runner /dev has no loop nodes and /sys is not mounted."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-losetup-detach-root"
+        }
+      ]
     }
   ]
 }
