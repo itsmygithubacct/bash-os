@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "9a3efd8d76cf84c55d1328fa7e377a2c34dc60bf751504f5278a7fe27f166511",
+  "ledger_sha256": "c69e4fd053c7a7c09f3171c1accf79243f72a611a56a298cae839d5e226a67a5",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 123,
+    "partial": 121,
     "none": 151,
-    "full": 326
+    "full": 328
   },
   "migrations": {
-    "deferred": 274,
-    "replacement": 326
+    "deferred": 272,
+    "replacement": 328
   },
   "pending_full_topics": [],
   "builds": {
@@ -3171,6 +3171,58 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793200525.2705376
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "terminal-qualified132-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "09af8ec90942e50dce2d5aa48809594ab161744dafef11915027e4659e299df4",
+            "provenance.json": "7a4679b421a8b544e1e99b3b747e53f51608e4c19fe02207ef05dd34d292dc47",
+            "payload.tar": "990d05a4a93d016149116086cfdefcba5801b7a28541ad61bb88105860f2fbc1",
+            "evidence.tar": "dba1126a1834f7864c5da7d8a7eee482b98a2386fde644d3d0b6a43ec91b607a"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793225677.2312799
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "terminal-timeout133-v6-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "7786b35de20da5628c1cd7e1701ea5ce9516bb2d0330c0a89c791502953827a0",
+            "provenance.json": "a3fa5d4b2dc3849bb8535c42558c9dbe96dd74ec7326de60b9405e717ca975d0",
+            "payload.tar": "605f7da7e90bb227aa328f5d0c9dc3767fb65c37c5896cec6424bffa552c9fb2",
+            "evidence.tar": "c597e40f36633c4b119ae3a24c8f10970bb24f5933e02a0ff9336a7be179246d"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793226927.8092601
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -18056,10 +18108,10 @@
         },
         {
           "topic": "gpu/kitty-presentation-transports",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -18142,8 +18194,8 @@
             {
               "id": "r4",
               "behavior": "synchronization and acknowledgements (q=2 suppression, error replies) are handled; a rejecting terminal causes fallback or the documented error",
-              "coverage": "partial",
-              "gap": "Wrong-ID-then-matching probe remains withheld; unrelated-ID rejection is not independently reached.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -18204,10 +18256,22 @@
                   "id": "migration-terminal-platform-gpu-input-late-probe-audit121-r3",
                   "status": "PASS",
                   "run": "terminal-platform-b01-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-matching-probe-id-followup124-r1",
+                  "status": "PASS",
+                  "run": "terminal-qualified132-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-matching-probe-timeout-traced133-r6",
+                  "status": "PASS",
+                  "run": "terminal-timeout133-v6-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -47969,16 +48033,16 @@
         },
         {
           "topic": "vt/pty-client-integration",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "vt consumes a client's output from a PTY master (vt feed-fd on the master of a pty spawned child) and renders the client's screen.",
-              "coverage": "partial",
-              "gap": "The client was created with Python os.openpty; the pty spawn builtin was never exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -48003,10 +48067,16 @@
                   "id": "migration-terminal-platform-vt-client-resize-audit121-r3",
                   "status": "PASS",
                   "run": "terminal-platform-b03-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-spawn-echo-followup124-r1",
+                  "status": "PASS",
+                  "run": "terminal-qualified132-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -48019,6 +48089,12 @@
                   "id": "migration-terminal-platform-vt-client-echo-audit121-r3",
                   "status": "PASS",
                   "run": "terminal-platform-b03-static-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-spawn-echo-followup124-r1",
+                  "status": "PASS",
+                  "run": "terminal-qualified132-static"
                 }
               ],
               "fully_exercised": true,
@@ -49631,9 +49707,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 274,
-        "FAIL": 162,
-        "PASS": 164
+        "UNRESOLVED": 272,
+        "FAIL": 163,
+        "PASS": 165
       },
       "migration_without_complete_evidence": []
     },
@@ -52794,6 +52870,58 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793200752.7049048
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "terminal-qualified132-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "d29b0d2fe4934cb49aab8478d52f67875e80aa50157e95bc782fd2aa0135e0b1",
+            "provenance.json": "734495da249dc958071771a3383083f32226b4d940895f5b5cb031a71d46f650",
+            "payload.tar": "e2898b21d78340c422f8d2543f0d0b27ef88b4d0b475292fc17f0aadbb1cbfe6",
+            "evidence.tar": "55f955043e24caa986534bdb3fed1240903922cdb55bf3130cd4a4174aa976c6"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793225802.3635395
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "terminal-timeout133-v6-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "99f5efab363e6d586d57f5fb673259200c1e07844363b5357fce3fa21bb91aa2",
+            "provenance.json": "22ad7b2df575b6a0164dddab85d83163b26a0a26490367c2b4b2a071f334fe21",
+            "payload.tar": "418e242c02e03cc10ed761ab7dffbcef877d887cdfac42ff6d2e97ac6eaad7d1",
+            "evidence.tar": "a9ec91fd9f5e7a847719a35b24b9d856c3d180c0635b54e3c8327a5603845e0d"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793227067.426704
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -67679,10 +67807,10 @@
         },
         {
           "topic": "gpu/kitty-presentation-transports",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -67765,8 +67893,8 @@
             {
               "id": "r4",
               "behavior": "synchronization and acknowledgements (q=2 suppression, error replies) are handled; a rejecting terminal causes fallback or the documented error",
-              "coverage": "partial",
-              "gap": "Wrong-ID-then-matching probe remains withheld; unrelated-ID rejection is not independently reached.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -67827,10 +67955,22 @@
                   "id": "migration-terminal-platform-gpu-input-late-probe-audit121-r3",
                   "status": "PASS",
                   "run": "terminal-platform-b01-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-matching-probe-id-followup124-r1",
+                  "status": "PASS",
+                  "run": "terminal-qualified132-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-gpu-matching-probe-timeout-traced133-r6",
+                  "status": "PASS",
+                  "run": "terminal-timeout133-v6-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -97592,16 +97732,16 @@
         },
         {
           "topic": "vt/pty-client-integration",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "vt consumes a client's output from a PTY master (vt feed-fd on the master of a pty spawned child) and renders the client's screen.",
-              "coverage": "partial",
-              "gap": "The client was created with Python os.openpty; the pty spawn builtin was never exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -97626,10 +97766,16 @@
                   "id": "migration-terminal-platform-vt-client-resize-audit121-r3",
                   "status": "PASS",
                   "run": "terminal-platform-b03-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-spawn-echo-followup124-r1",
+                  "status": "PASS",
+                  "run": "terminal-qualified132-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -97642,6 +97788,12 @@
                   "id": "migration-terminal-platform-vt-client-echo-audit121-r3",
                   "status": "PASS",
                   "run": "terminal-platform-b03-dynamic-123"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-platform-vt-client-spawn-echo-followup124-r1",
+                  "status": "PASS",
+                  "run": "terminal-qualified132-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -99254,9 +99406,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 274,
-        "FAIL": 162,
-        "PASS": 164
+        "UNRESOLVED": 272,
+        "FAIL": 163,
+        "PASS": 165
       },
       "migration_without_complete_evidence": []
     }

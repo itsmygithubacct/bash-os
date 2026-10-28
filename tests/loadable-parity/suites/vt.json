@@ -97,9 +97,30 @@
     },
     {
       "id": "pty-client-integration",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise vt with a client connected to a pseudo-terminal, including terminal input forwarding and resize events.",
-      "reason": "Remaining obligations: r1: The client was created with Python os.openpty; the pty spawn builtin was never exercised."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-vt-client-da-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-vt-client-dsr-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-vt-client-echo-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-vt-client-resize-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-vt-client-spawn-echo-followup124-r1"
+        }
+      ]
     },
     {
       "id": "external-terminal-conformance",

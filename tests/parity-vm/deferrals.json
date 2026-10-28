@@ -14367,9 +14367,9 @@
         "purpose": "Validate full frames, damage patches, scroll composition, synchronization, terminal rejection/fallback, and shared-memory cleanup for inline and shared-memory transports.",
         "reason": "A future disposable VM needs a bounded PTY terminal peer implementing the Kitty graphics protocol and private shared-memory acknowledgements. The current declarative runner supplies no PTY peer, and no real terminal is within scope."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r4: Wrong-ID-then-matching probe remains withheld; unrelated-ID rejection is not independently reached.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "The bounded synchronization and acknowledgement obligations are reached by the preserved companion cases plus the staged matching probe and supplemental observed timeout on both builds; other candidate FAIL records remain FAIL.",
       "requirements": [
         {
           "id": "r1",
@@ -14446,7 +14446,7 @@
         {
           "id": "r4",
           "behavior": "synchronization and acknowledgements (q=2 suppression, error replies) are handled; a rejecting terminal causes fallback or the documented error",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -14507,12 +14507,24 @@
               "id": "migration-terminal-platform-gpu-input-late-probe-audit121-r3",
               "assertion": "Reached on both builds. Actual PTY protocol, phase/mode records and result bytes match the frozen bounded scenario; source-specific controls and limits are in the per-build observation. Original scenario: After rejected shm and accepted inline probe, inject obsolete shm reply during the next real input poll; it must be consumed as a reply and native key X must remain the single input event.",
               "definition_sha256": "f2332c3200f0cbd2c7f41f8c0cedaa4ab7d54db985e8728ccbe686b61d9a32e7"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-matching-probe-id-followup124-r1",
+              "assertion": "On each build, the software PTY peer stages an unrelated-ID error and a malformed response in separate windows with drained input queue and continuing owned-tty poll, then sends the matching acknowledgement. The GPU start succeeds and the saved two inline chunks reconstruct the 4096-byte canvas. Queue drainage and renewed polling support the inference of consumption; reads were not syscall-traced.",
+              "definition_sha256": "2c89fd910b700ed50f1fdf0dde70b70bd97415b1a8fcbdd9bc556a7e5fc38c10"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-gpu-matching-probe-timeout-traced133-r6",
+              "assertion": "Supplemental timeout on each build: an owned positive-duration tty poll returns zero after the two staged-response observation windows; a successful tty settings ioctl is followed by a readback of that child\u2019s pre-candidate tty baseline, then only q=2 quiet deletes are written. The traced writes reconstruct the saved PTY stream. Start returns 1 with the no-reply diagnostic and no later canvas/present/input phase. This does not replace the existing rejection and fallback companions.",
+              "definition_sha256": "4efce698c7cf17918f85e13aafd990fb1cb476393a2ac34bfab7890ebbf50375"
             }
           ],
-          "gap": "Wrong-ID-then-matching probe remains withheld; unrelated-ID rejection is not independently reached."
+          "gap": ""
         }
       ],
-      "notes": "Coverage means the original bounded obligation was reached and independently reviewed on both builds; retained FAIL outcomes remain FAIL. Existing legacy and earlier companions are preserved. See private raw review and explicit gaps."
+      "notes": "Reviewed evidence: software peer and direct-child trace, with no independent tee or complete lifecycle trace. Read and timing limitations are documented in terminal-platform-evidence-review-149. Primary accepted the additive evidence in batch157; prior evidence and stated observation limits remain visible."
     },
     {
       "topic": "gpu/terminal-input-and-restoration",
@@ -43620,14 +43632,14 @@
         "purpose": "Exercise vt with a client connected to a pseudo-terminal, including terminal input forwarding and resize events.",
         "reason": "Requires a future disposable VM fixture with a private PTY driver and a client transcript that controls terminal size, sends input, and captures replies. The current bounded contract cases exercise only vt's in-memory feed/model interface."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: The client was created with Python os.openpty; the pty spawn builtin was never exercised.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "The original PTY-client obligations are reached on both builds, including actual spawned-client screen feeding and input forwarding; previously reached candidate FAIL records remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "vt consumes a client's output from a PTY master (vt feed-fd on the master of a pty spawned child) and renders the client's screen.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -43652,9 +43664,15 @@
               "id": "migration-terminal-platform-vt-client-resize-audit121-r3",
               "assertion": "Reached on both builds. The client PTY read/write and model observations match the fixed pyte comparison; the client uses os.openpty rather than the pty spawn builtin. Original scenario: Owned PTY master and cooperative native client: resize",
               "definition_sha256": "3ee936074f79d418e17e59fb4681012b9e42bfbde5047252f50786144e83d04d"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-client-spawn-echo-followup124-r1",
+              "assertion": "On each build, actual pty spawn provides a master and an identified native client; vt feed-fd consumes from the master and the VT screen matches the client\u2019s observed initial and echo output. Client termios is checked against its own original baseline before close; waitpid and natural exit are reached. Child write records and feed counts are not an independent master-read syscall tee.",
+              "definition_sha256": "555d2bd50a852f05263c06c3593f1ff3bf7447119e85aebebdf969abd7f098d6"
             }
           ],
-          "gap": "The client was created with Python os.openpty; the pty spawn builtin was never exercised."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -43666,6 +43684,12 @@
               "id": "migration-terminal-platform-vt-client-echo-audit121-r3",
               "assertion": "Reached on both builds. The client PTY read/write and model observations match the fixed pyte comparison; the client uses os.openpty rather than the pty spawn builtin. Original scenario: Owned PTY master and cooperative native client: echo",
               "definition_sha256": "b1e5e890462ee7a3e5eaec8b74a9b2850bbc3dec3e237b82a94d6f9d292f3ace"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terminal-platform-vt-client-spawn-echo-followup124-r1",
+              "assertion": "On each build, xyz is written to the spawned PTY master after client readiness, the identified client records reading xyz and writing ECHO:xyz, and that text appears in the VT model. No independent master-read syscall tee is claimed.",
+              "definition_sha256": "555d2bd50a852f05263c06c3593f1ff3bf7447119e85aebebdf969abd7f098d6"
             }
           ],
           "gap": ""
@@ -43705,7 +43729,7 @@
           "gap": ""
         }
       ],
-      "notes": "Coverage means the original bounded obligation was reached and independently reviewed on both builds; retained FAIL outcomes remain FAIL. Existing legacy and earlier companions are preserved. See private raw review and explicit gaps."
+      "notes": "Reviewed evidence: client writes and feed counts are not an independent master-read tee, and emergency descendant cleanup is not completely traced. Primary accepted the additive evidence in batch157; prior evidence and stated observation limits remain visible."
     },
     {
       "topic": "w/live-procps-parity",

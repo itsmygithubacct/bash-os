@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terminal-platform-vt-client-spawn-echo-followup124-r1",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Candidate pty spawn creates and owns the client and its master; vt consumes actual client PTY bytes and forwards input, with independently observed client state and cleanup.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-followup124-r1.py spawn-client reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-followup124-r1.py spawn-client candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-followup124-r1.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/pty-client-integration"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-followup124-r1.py": "3bd65ea4e6e44a0278683c2b363ec70a6b3e6be267a391444c88cf69568941a5"
+      },
+      "files": {
+        "scenario.json": "{\n  \"client\": \"echo\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "client.json",
+        "client-writes.raw",
+        "spawn.json",
+        "spawn-wait",
+        "spawn-master-link"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data. Candidate uses actual pty spawn and its remembered child/master, while the native Python PTY reference is a separate control; exact client bytes and pyte model are fixed independently.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim. Owned broker ancestry, child identity, master descriptor, fixed output/input bytes, client termios, builtin waitpid status, close and shell exit are captured."
+    }
+  ]
+}

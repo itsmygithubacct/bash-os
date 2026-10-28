@@ -42,9 +42,66 @@
     },
     {
       "id": "kitty-presentation-transports",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate full frames, damage patches, scroll composition, synchronization, terminal rejection/fallback, and shared-memory cleanup for inline and shared-memory transports.",
-      "reason": "Remaining obligations: r4: Wrong-ID-then-matching probe remains withheld; unrelated-ID rejection is not independently reached."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-auto-inline-fallback-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-damage-noop-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-inline-chunked-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-input-late-probe-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-matching-probe-id-followup124-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-matching-probe-timeout-traced133-r6"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-reject-inline-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-reject-shm-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-scroll-compose-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-scroll-patch-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-shm-consume-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-shm-query-ack-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-shm-ring-fallback-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-shm-stop-cleanup-audit121-r3"
+        }
+      ]
     },
     {
       "id": "terminal-input-and-restoration",

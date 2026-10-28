@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terminal-platform-gpu-matching-probe-timeout-traced133-r6",
+      "loadable": "gpu",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Wrong-ID and malformed reply without matching acknowledgement must produce the genuine bounded probe timeout, not success or terminal rejection.",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-graphics-timeout-traced133-r6.py setup\n",
+      "setup_timeout": 35,
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-graphics-timeout-traced133-r6.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-graphics-timeout-traced133-r6.py run candidate \"$BASH\"\n",
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 50,
+      "covers": [
+        "gpu/kitty-presentation-transports"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "scenario.json": "{\n  \"kind\": \"gpu\",\n  \"description\": \"An unrelated-ID error cannot satisfy the outstanding probe; valid matching acknowledgement still permits exact chunked frame.\",\n  \"geometry\": [\n    12,\n    40,\n    400,\n    240\n  ],\n  \"width\": 32,\n  \"height\": 32,\n  \"transport\": \"inline\",\n  \"fullscreen\": true,\n  \"peer\": {\n    \"kilix_frames\": true,\n    \"wrong_id\": true,\n    \"causal_probe\": true,\n    \"withhold_match\": true\n  },\n  \"query_transports\": [\n    \"d\"\n  ],\n  \"operations\": [],\n  \"inputs\": [],\n  \"expected_result\": {\n    \"frames\": [],\n    \"inputs\": []\n  },\n  \"nonfinal_chunks\": 0,\n  \"causal_timeout\": true,\n  \"start_status\": 1\n}\n"
+      },
+      "helpers_sha256": {
+        "helpers/terminal-platform-graphics-timeout-traced133-r6.py": "f7d2645ff91cfc420e9683ad8d50669514747deeb1da52013bfbf8be23e48107"
+      },
+      "diagnostic_files": [
+        "assertions.json",
+        "phases.json",
+        "oracle.json",
+        "terminal.raw",
+        "terminal.json",
+        "protocol.json",
+        "shared-memory.json",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "model-control.json",
+        "shm-control.json",
+        "native.json",
+        "setup-terminal.json",
+        "setup-protocol.json",
+        "reference-control.json"
+      ],
+      "oracle": "Independent finite Kitty direct RGB/RGBA and POSIX shared-memory consumer follows the official graphics protocol; query success/rejection, m continuation, q quiet replies, complete-image placement, C cursor policy and typed geometry are decoded from actual PTY bytes. Frame1 a=f replacement and a=c/N=2 composition are explicitly a Kilix profile, not general Kitty conformance. Native guarded Python PTY query/reply and owned shm read/unlink, literal positive/negative consumer controls, independently decoded PNG/PPM assets, Python Unicode and separate canvas math validate expectations in setup. No GNU GPU API, GLES, shader, DMABUF or physical rendering equivalence is claimed. Causal phase controls use independently behaving good, deliberately wrong and timeout native poll clients; wrong-ID and malformed matching-ID replies are observed separately before any matching reply. In the timeout control the valid reply is deliberately withheld through the actual guest deadline. Supplemental guest-only owned-child syscall observer records real tty poll timeout and pre-cleanup termios restoration; native positive and five distinct live negative controls precede behavioral execution.",
+      "comparison": "Exact result.json pixels/cursor/geometry/input-variable bytes and canvas.rgba versus independently authored fixture data rechecked by guest reference math. Full untouched PTY wire, per-packet payloads and intermediate composition pixels, actual helper replies/suppression, owned shm inode/data/unlink observations, geometry, syscall readiness, modes before/during/after input, elapsed intervals and original shell output stay in diagnostics. No sent key or FAIL implies an unexecuted later phase. The peer records exact wrong/malformed/matching bytes, remembered-PID owned-tty poll, zero queued input, raw termios, time, no terminal modes and no command acknowledgement before releasing the matching reply. Expected nonzero start must say no reply, not terminal rejection, within the declared bounded interval. The unmodified owned-child syscall trace is independently bound to the full actual PTY stream; quiet delete cleanup is accepted only after a real positive-duration poll returns zero and a successful independently verified tty restoration. Unobservable syscall styles or incomplete trace are fixture-invalid, not candidate failures."
+    }
+  ]
+}
