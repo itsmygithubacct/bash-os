@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Capture exact response bytes, terminal EOF or reset, shell accept status and raw diagnostic independently; exact bytes, clean EOF and nonzero accept remain required.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-observation-r3.py": "2ae9447dd1ec5230ad110bf56ca84006356d4c3935986c6cf9abe23299c30990"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-control-observation-r3",
+      "purpose": "Test byte and EOF oracle plus changed bytes, stalled peer, and a complete response followed by a synthetic reset.",
+      "covers": [],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-observation-r3.py control",
+      "stdout": "http-control=ok\n",
+      "timeout": 6,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Capture exact response bytes, terminal EOF or reset, shell accept status and raw diagnostic independently; exact bytes, clean EOF and nonzero accept remain required.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-observation-r3.py": "2ae9447dd1ec5230ad110bf56ca84006356d4c3935986c6cf9abe23299c30990"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-overlarge-head-observation-r3",
+      "purpose": "Capture complete HTTP 431, TCP terminal event and accept status for a 9216-byte head; exact reply, EOF and nonzero accept are required.",
+      "covers": [
+        "httpd/deferred_request_errors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-observation-r3.py \"$BASH\" overlarge-head",
+      "stdout": "http-overlarge-head=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    }
+  ]
+}

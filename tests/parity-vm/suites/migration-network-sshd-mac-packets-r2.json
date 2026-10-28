@@ -1,0 +1,97 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-sshd-mac-packets-standard-r2",
+      "loadable": "sshd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "sshd/encrypted-ssh-interoperability"
+      ],
+      "requires": [
+        "python3",
+        "ssh",
+        "ssh-keygen",
+        "sshd"
+      ],
+      "timeout": 60,
+      "setup_timeout": 60,
+      "expected_status": 0,
+      "stderr": "",
+      "helpers_sha256": {
+        "helpers/sshd-mac-packet-observer-r2.py": "0b44d777953ef1988156a219682c2921504ae6a6f4f97125824c3d93a240120d"
+      },
+      "purpose": "Observe actual default/permissive/restricted KEXINIT MAC bytes, retain full allowed encrypted commands and supported disallowed refusal for hmac-sha2-256,hmac-sha2-512.",
+      "oracle": "Independent OpenSSH client/server and RFC4253 sections6/7.1/7.3. A byte-preserving loopback relay retains both entire initial streams, exact packet offsets, lengths, padding and hashes. The guarded parser reads version/clear packets and10 name-lists, validates reserved/tail fields, and stops each direction at NEWKEYS; following bytes remain opaque. All peers force non-AEAD aes256-ctr and curve25519-sha256; the actual separate MAC must appear in both raw proposals and client negotiated-direction diagnostics. Setup ssh-Q checks the real client supports both MACs, then OpenSSH independently proves default-allowed, permissive-allowed, permissive-other and restricted-allowed encrypted commands, plus actual restricted-other MAC mismatch/refusal. Candidate repeats all5 probes using fresh fixture keys and strict known_hosts. Standard preserves the revision98 MAC choices; etm exercises another source-advertised real-MAC framing path. Neither variant substitutes implicit AEAD authentication for the MAC requirement.",
+      "comparison": "Exact ordered booleans distinguish advertisement, clear KEX/ECDH/NEWKEYS progress, full encrypted auth/command and policy. Successful encrypted command requires status0, exact marker/stdout, strict fixture host-key verification, authenticated client log and expected non-AEAD cipher/real MAC in both directions. Refusal requires255, the matching MAC diagnostic, both raw MAC intersections empty, other KEX/cipher intersections still valid, no NEWKEYS or command marker. Full policy boolean is gated by successful default, both permissive MACs and restricted-allowed encrypted commands. Raw proposal filtering/early refusal cannot pass that gate if a baseline encryption path fails. Normal server exits, relay thread cleanup and no forced kills remain required. Server phase ports differ; readiness needs the exact Popen child alive plus its own post-bind announcement and the loopback listener, preventing the stale-listener problem observed in109.",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-mac-packet-observer-r2.py setup /bin/bash standard",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-mac-packet-observer-r2.py run \"$BASH\" standard",
+      "stdout": "default-server-owned-ready=yes\ndefault-both-macs-advertised=yes\ndefault-allowed-encrypted-command=yes\ndefault-server-stopped=yes\nbaseline-server-owned-ready=yes\nbaseline-both-macs-advertised=yes\nbaseline-allowed-pre-encryption-kex=yes\nbaseline-allowed-encrypted-command=yes\nbaseline-other-pre-encryption-kex=yes\nbaseline-other-encrypted-command=yes\nbaseline-server-stopped=yes\nrestricted-server-owned-ready=yes\nrestricted-only-allowed-mac-advertised=yes\nrestricted-allowed-pre-encryption-kex=yes\nrestricted-allowed-encrypted-command=yes\nrestricted-other-wire-mac-mismatch-refusal=yes\nsupported-disallowed-mac-policy-enforced=yes\ndisallowed-command-not-run=yes\nrestricted-server-stopped=yes\nunforced-cleanup=yes\n",
+      "diagnostic_files": [
+        "mac-client-supported.json",
+        "mac-control-results.json",
+        "mac-control-transcripts.json",
+        "mac-behavior-results.json",
+        "mac-behavior-transcripts.json",
+        "mac-control-default-allowed-wire.json",
+        "mac-control-baseline-allowed-wire.json",
+        "mac-control-baseline-other-wire.json",
+        "mac-control-restricted-allowed-wire.json",
+        "mac-control-restricted-other-wire.json",
+        "mac-behavior-default-allowed-wire.json",
+        "mac-behavior-baseline-allowed-wire.json",
+        "mac-behavior-baseline-other-wire.json",
+        "mac-behavior-restricted-allowed-wire.json",
+        "mac-behavior-restricted-other-wire.json"
+      ]
+    },
+    {
+      "id": "migration-sshd-mac-packets-etm-r2",
+      "loadable": "sshd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "sshd/encrypted-ssh-interoperability"
+      ],
+      "requires": [
+        "python3",
+        "ssh",
+        "ssh-keygen",
+        "sshd"
+      ],
+      "timeout": 60,
+      "setup_timeout": 60,
+      "expected_status": 0,
+      "stderr": "",
+      "helpers_sha256": {
+        "helpers/sshd-mac-packet-observer-r2.py": "0b44d777953ef1988156a219682c2921504ae6a6f4f97125824c3d93a240120d"
+      },
+      "purpose": "Observe actual default/permissive/restricted KEXINIT MAC bytes, retain full allowed encrypted commands and supported disallowed refusal for hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com.",
+      "oracle": "Independent OpenSSH client/server and RFC4253 sections6/7.1/7.3. A byte-preserving loopback relay retains both entire initial streams, exact packet offsets, lengths, padding and hashes. The guarded parser reads version/clear packets and10 name-lists, validates reserved/tail fields, and stops each direction at NEWKEYS; following bytes remain opaque. All peers force non-AEAD aes256-ctr and curve25519-sha256; the actual separate MAC must appear in both raw proposals and client negotiated-direction diagnostics. Setup ssh-Q checks the real client supports both MACs, then OpenSSH independently proves default-allowed, permissive-allowed, permissive-other and restricted-allowed encrypted commands, plus actual restricted-other MAC mismatch/refusal. Candidate repeats all5 probes using fresh fixture keys and strict known_hosts. Standard preserves the revision98 MAC choices; etm exercises another source-advertised real-MAC framing path. Neither variant substitutes implicit AEAD authentication for the MAC requirement.",
+      "comparison": "Exact ordered booleans distinguish advertisement, clear KEX/ECDH/NEWKEYS progress, full encrypted auth/command and policy. Successful encrypted command requires status0, exact marker/stdout, strict fixture host-key verification, authenticated client log and expected non-AEAD cipher/real MAC in both directions. Refusal requires255, the matching MAC diagnostic, both raw MAC intersections empty, other KEX/cipher intersections still valid, no NEWKEYS or command marker. Full policy boolean is gated by successful default, both permissive MACs and restricted-allowed encrypted commands. Raw proposal filtering/early refusal cannot pass that gate if a baseline encryption path fails. Normal server exits, relay thread cleanup and no forced kills remain required. Server phase ports differ; readiness needs the exact Popen child alive plus its own post-bind announcement and the loopback listener, preventing the stale-listener problem observed in109.",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-mac-packet-observer-r2.py setup /bin/bash etm",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-mac-packet-observer-r2.py run \"$BASH\" etm",
+      "stdout": "default-server-owned-ready=yes\ndefault-both-macs-advertised=yes\ndefault-allowed-encrypted-command=yes\ndefault-server-stopped=yes\nbaseline-server-owned-ready=yes\nbaseline-both-macs-advertised=yes\nbaseline-allowed-pre-encryption-kex=yes\nbaseline-allowed-encrypted-command=yes\nbaseline-other-pre-encryption-kex=yes\nbaseline-other-encrypted-command=yes\nbaseline-server-stopped=yes\nrestricted-server-owned-ready=yes\nrestricted-only-allowed-mac-advertised=yes\nrestricted-allowed-pre-encryption-kex=yes\nrestricted-allowed-encrypted-command=yes\nrestricted-other-wire-mac-mismatch-refusal=yes\nsupported-disallowed-mac-policy-enforced=yes\ndisallowed-command-not-run=yes\nrestricted-server-stopped=yes\nunforced-cleanup=yes\n",
+      "diagnostic_files": [
+        "mac-client-supported.json",
+        "mac-control-results.json",
+        "mac-control-transcripts.json",
+        "mac-behavior-results.json",
+        "mac-behavior-transcripts.json",
+        "mac-control-default-allowed-wire.json",
+        "mac-control-baseline-allowed-wire.json",
+        "mac-control-baseline-other-wire.json",
+        "mac-control-restricted-allowed-wire.json",
+        "mac-control-restricted-other-wire.json",
+        "mac-behavior-default-allowed-wire.json",
+        "mac-behavior-baseline-allowed-wire.json",
+        "mac-behavior-baseline-other-wire.json",
+        "mac-behavior-restricted-allowed-wire.json",
+        "mac-behavior-restricted-other-wire.json"
+      ]
+    }
+  ]
+}

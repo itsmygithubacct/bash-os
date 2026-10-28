@@ -15159,9 +15159,9 @@
         "purpose": "Verify malformed request handling and the documented 400, 413, and 431 refusals, including an oversized Content-Length rejected before a body is sent.",
         "reason": "Requires a future disposable VM or deterministic socket mock that can submit bounded raw requests and capture replies. The current task forbids network activity, so accept is not invoked."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: The 9216-byte request produced all bytes of a 431 response, then the peer recorded a TCP reset; clean EOF and the accept status were not retained. The separate 8192-byte boundary case recorded 431 and EOF. Retain the strictly over-limit reset and accept-status observation gap.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -15180,7 +15180,7 @@
         {
           "id": "r2",
           "behavior": "A request head over 8 KiB is answered 431.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -15193,9 +15193,15 @@
               "id": "protocol-wire-http-overlarge-head-r2",
               "assertion": "Expected: A request head over 8 KiB is answered 431. The 9216-byte request captured HTTP/1.1 431 Request Header Fields Too Large, body length 0; reset recorded; EOF and accept status not retained.",
               "definition_sha256": "e8d714d424296af011bae54c9a23fcda8a07308a35aeb83da1ede4847463a5f5"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-http-overlarge-head-observation-r3",
+              "assertion": "A 9216-byte request produced the exact complete 431, accept status 1 and unbound variables on both builds. The peer observed ECONNRESET (104), not clean EOF; the fixture records a reached FAIL.",
+              "definition_sha256": "ba184983f378dff386f5d0f6bc3eb4cc63861910250ca5526ac3b8fbbae536f4"
             }
           ],
-          "gap": "The 9216-byte request produced all bytes of a 431 response, then the peer recorded a TCP reset; clean EOF and the accept status were not retained. The separate 8192-byte boundary case recorded 431 and EOF. Retain the strictly over-limit reset and accept-status observation gap."
+          "gap": ""
         },
         {
           "id": "r3",
@@ -15258,7 +15264,7 @@
           "gap": ""
         }
       ],
-      "notes": "Review uses the named paired records and retains existing companion references. A reached mismatch remains FAIL; missing input or output observations remain gaps."
+      "notes": "Retain all existing evidence and original obligations. FAIL remains a reached mismatch; locally accepted send bytes do not prove candidate receipt."
     },
     {
       "topic": "httpd/deferred_socket_lifecycle",
@@ -29678,40 +29684,80 @@
         "purpose": "Check Basic and MD5 Digest challenges, session headers, CSeq progression, and GET_PARAMETER keepalive behavior.",
         "reason": "Requires a future disposable VM with a scripted loopback RTSP peer and synthetic fixture-only credentials. Independently calculate Basic encoding and RFC 1321/RFC Digest response values, then inspect request headers and keepalive exchange. No installed credentials or network targets are used here."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "No executed fixture provides an RTSP server. A per-side python helper on loopback can issue challenges and log headers.",
+      "current_reason": "Remaining obligations: r1: The retried Basic header decodes to the fixture user and password; the actual 401 challenge bytes were not retained.; r2: Digest request headers were captured, but the actual challenge bytes were not retained and this review did not perform digest arithmetic under the no-crypto constraint.; r3: CSeq and Session request headers were captured; the SETUP response that assigned the session was not retained.; r4: One keepalive interval is timed; repeated intervals, the SETUP response and candidate-side media receipt remain unverified.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "On 401 with WWW-Authenticate: Basic, the retried request carries 'Authorization: Basic base64(user:pass)'.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-basic-media-r3",
+              "assertion": "Both builds sent an OPTIONS retry with a Basic header decoding to the synthetic user:pass; challenge bytes were not recorded.",
+              "definition_sha256": "4a3153719f5645ba499ff311ef4b3cd219b414dd197fa17abc7547633331434e"
+            }
+          ],
+          "gap": "The retried Basic header decodes to the fixture user and password; the actual 401 challenge bytes were not retained."
         },
         {
           "id": "r2",
           "behavior": "On 401 with Digest realm/nonce (and qop), the retried request carries an RFC 2617/7616 MD5 response computed over the method and URI.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-digest-media-r3",
+              "assertion": "Both builds sent Digest authorization headers on the retry; challenge bytes and independent digest arithmetic are not verified in this review.",
+              "definition_sha256": "9caf66cd929f03ac36fc0e2278a3c6b837803b5f4e7f2fd488ad187391afc78d"
+            }
+          ],
+          "gap": "Digest request headers were captured, but the actual challenge bytes were not retained and this review did not perform digest arithmetic under the no-crypto constraint."
         },
         {
           "id": "r3",
           "behavior": "CSeq increases by one per request and the Session header from SETUP is sent on PLAY, GET_PARAMETER and TEARDOWN.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-basic-media-r3",
+              "assertion": "Both builds sent an OPTIONS retry with a Basic header decoding to the synthetic user:pass; challenge bytes were not recorded.",
+              "definition_sha256": "4a3153719f5645ba499ff311ef4b3cd219b414dd197fa17abc7547633331434e"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-digest-media-r3",
+              "assertion": "Both builds sent Digest authorization headers on the retry; challenge bytes and independent digest arithmetic are not verified in this review.",
+              "definition_sha256": "9caf66cd929f03ac36fc0e2278a3c6b837803b5f4e7f2fd488ad187391afc78d"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-keepalive-media-r3",
+              "assertion": "Both builds sent GET_PARAMETER after PLAY; the independently computed recorded intervals were 1.001200 and 1.005441 seconds. Only one interval per build was recorded.",
+              "definition_sha256": "c06199b2b075c6256a323bbda5cd91df6decd7fcb21d4459e4a06b0c0e6132eb"
+            }
+          ],
+          "gap": "CSeq and Session request headers were captured; the SETUP response that assigned the session was not retained."
         },
         {
           "id": "r4",
           "behavior": "-k SECS sends GET_PARAMETER keepalives at the interval during streaming.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-keepalive-media-r3",
+              "assertion": "Both builds sent GET_PARAMETER after PLAY; the independently computed recorded intervals were 1.001200 and 1.005441 seconds. Only one interval per build was recorded.",
+              "definition_sha256": "c06199b2b075c6256a323bbda5cd91df6decd7fcb21d4459e4a06b0c0e6132eb"
+            }
+          ],
+          "gap": "One keepalive interval is timed; repeated intervals, the SETUP response and candidate-side media receipt remain unverified."
         }
       ],
-      "notes": "rtspcat.c:61-135 own MD5; Authorization header building at rtspcat.c:343-348; challenge parse 389-402; keepalive() 590; TEARDOWN 640. Synthetic credentials only. Only legacy/rtspcat/metadata-type, metadata-description and metadata-synopsis executed (PASS static+dynamic); metadata only."
+      "notes": "Retain all existing evidence and original obligations. FAIL remains a reached mismatch; locally accepted send bytes do not prove candidate receipt."
     },
     {
       "topic": "rtspcat/deferred-error-and-timeout-paths",
@@ -29721,47 +29767,142 @@
         "purpose": "Check malformed RTSP lengths/headers, malformed or incomplete RTP, EOF, timeout, and invalid argument handling, including that incomplete units are not emitted.",
         "reason": "Requires a future disposable VM with a bounded loopback protocol mock that can emit one controlled fault per run and enforce a short deadline. Expected statuses, empty/partial output rules, and valid recovery frames must be specified from RTSP/RTP framing rules and the documented CLI contract. This case was not executed."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "No executed fixture emits RTSP/RTP faults; argument rejection cases also were never added.",
+      "current_reason": "Remaining obligations: r1: Bad-header advanced to DESCRIBE before status 1, a reached FAIL; the actual malformed status, header and length response bytes were not retained.; r2: Locally accepted malformed and recovery packets and the recovery output were decoded; candidate-side receipt is not captured, and nonzero status follows server EOF rather than a separately retained malformed-packet error.; r3: A partial RTP unit was locally accepted and the candidate ended nonzero with empty output, but the candidate-side receipt and EOF stimulus were not independently captured.; r5: The statuses and usage diagnostics are recorded, and the listener reported no connection; a separately retained accept event, timing and positive listener control are absent. The invalid-URL status 1 is a reached usage-status FAIL.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Malformed RTSP status line, header or Content-Length is rejected with nonzero status.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-bad-status-media-r3",
+              "assertion": "Both builds stopped after OPTIONS with status 1 and an invalid-RTSP-response diagnostic; the malformed response bytes were not retained.",
+              "definition_sha256": "cb8fe22c015d37b57b483fd216e8ad304d80a35387689dc208fb1e9dbdb80568"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-bad-header-media-r3",
+              "assertion": "Both builds advanced from OPTIONS to DESCRIBE before status 1; the fixture records a reached FAIL. The actual malformed response bytes were not retained.",
+              "definition_sha256": "a99893a881a1766eb05ac915ee0458eaa95c89f5438fb7e14f0337fb8fb2427b"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-bad-length-media-r3",
+              "assertion": "Both builds stopped after OPTIONS with status 1 and an invalid-Content-Length diagnostic; the response bytes were not retained.",
+              "definition_sha256": "054eb7ee0f9ea6e31267a39971b3212af7c29ebdb7dd55930e518bd5be4c5c97"
+            }
+          ],
+          "gap": "Bad-header advanced to DESCRIBE before status 1, a reached FAIL; the actual malformed status, header and length response bytes were not retained."
         },
         {
           "id": "r2",
           "behavior": "Malformed RTP (bad version, padding/extension beyond payload, invalid STAP-A sizes, FU-A without start) is rejected and the incomplete unit is not emitted.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-rtp-version-media-r3",
+              "assertion": "Both builds locally accepted an independently decoded malformed packet followed by a recovery packet and emitted only the recovery frame. The candidate ended status 1 after server EOF; input receipt was not captured.",
+              "definition_sha256": "74fb4bbe71e5e79b6eb6d80eceb5906850ddfd3b100cd286124ee783ceefb359"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-rtp-extension-media-r3",
+              "assertion": "Both builds locally accepted an independently decoded malformed packet followed by a recovery packet and emitted only the recovery frame. The candidate ended status 1 after server EOF; input receipt was not captured.",
+              "definition_sha256": "742c3e25f35c2713e02dbfa019b3bc2e463b6a0119d4f8d1e593c3b1af9c98c0"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-rtp-padding-media-r3",
+              "assertion": "Both builds locally accepted an independently decoded malformed packet followed by a recovery packet and emitted only the recovery frame. The candidate ended status 1 after server EOF; input receipt was not captured.",
+              "definition_sha256": "9dbb73430e92819f30a439632eaf3cbf42f708d9278714f91032a73bc495ced2"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-rtp-stap-media-r3",
+              "assertion": "Both builds locally accepted an independently decoded malformed packet followed by a recovery packet and emitted only the recovery frame. The candidate ended status 1 after server EOF; input receipt was not captured.",
+              "definition_sha256": "559a9818a1f7418e03510c9906d6d03368819b52770e6aa166cb8cce738035ee"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-rtp-fu-media-r3",
+              "assertion": "Both builds locally accepted an independently decoded malformed packet followed by a recovery packet and emitted only the recovery frame. The candidate ended status 1 after server EOF; input receipt was not captured.",
+              "definition_sha256": "76d4eacb6bfe9fc0ad3beacd78c0f4b8ad201946981a7b6a6d3c7103ae7c133a"
+            }
+          ],
+          "gap": "Locally accepted malformed and recovery packets and the recovery output were decoded; candidate-side receipt is not captured, and nonzero status follows server EOF rather than a separately retained malformed-packet error."
         },
         {
           "id": "r3",
           "behavior": "Server EOF mid-unit returns nonzero without writing the partial unit.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-eof-partial-media-r3",
+              "assertion": "Both builds returned status 1 with empty output after a locally accepted incomplete RTP unit; candidate-side receipt and the EOF stimulus were not recorded.",
+              "definition_sha256": "31cf32e32b1cb1266f9cb7c4f6650b27c867e82e36a51c90ebd1d4fe96ad492d"
+            }
+          ],
+          "gap": "A partial RTP unit was locally accepted and the candidate ended nonzero with empty output, but the candidate-side receipt and EOF stimulus were not independently captured."
         },
         {
           "id": "r4",
           "behavior": "-t SECS ends a stalled session with nonzero status within the bound.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-timeout-media-r3",
+              "assertion": "Both builds returned status 1 with server-read-timeout diagnostics after 2.004 and 2.039 seconds respectively.",
+              "definition_sha256": "9f38a6b1151bc8318ce8c3c4fd3b3126db44008ab474890aa1816cdc4df84bae"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Invalid arguments (bad URL, non-numeric -n/-o/-k/-t) fail with usage status before connecting.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed (argument rejection needs no peer and is also absent)."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-invalid-url-media-r3",
+              "assertion": "Both builds returned status 1 where usage status 2 was expected; the listener reported no connection, but its accept timing and positive control were not retained. The usage-status mismatch is a reached FAIL.",
+              "definition_sha256": "c702f090a1e960d2875584bb3bdc3fcf6bc3bface5b46e63ed1c49968d0dbc46"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-invalid-n-media-r3",
+              "assertion": "Both builds returned usage status 2 for the invalid option; the listener reported no connection, but its accept timing and positive control were not retained.",
+              "definition_sha256": "0740375f7453586319eff11a32b359a1f79060e012b08748f2575192a3ff2725"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-invalid-o-media-r3",
+              "assertion": "Both builds returned usage status 2 for the invalid option; the listener reported no connection, but its accept timing and positive control were not retained.",
+              "definition_sha256": "ffd08100878b0f56a65a180cd24e543996699cff0b370cd35a72e630969e1396"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-invalid-k-media-r3",
+              "assertion": "Both builds returned usage status 2 for the invalid option; the listener reported no connection, but its accept timing and positive control were not retained.",
+              "definition_sha256": "7767b55063dfcf1cf34672776273c7375d288ca1de11916292c24da095865dbe"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-invalid-t-media-r3",
+              "assertion": "Both builds returned usage status 2 for the invalid option; the listener reported no connection, but its accept timing and positive control were not retained.",
+              "definition_sha256": "bb5d5d48f48573623cba93bf508d388d051c07cc474efb89928a36d11a37f6e1"
+            }
+          ],
+          "gap": "The statuses and usage diagnostics are recorded, and the listener reported no connection; a separately retained accept event, timing and positive listener control are absent. The invalid-URL status 1 is a reached usage-status FAIL."
         }
       ],
-      "notes": "RTP parse checks at rtspcat.c:510-560 ('goto malformed'); interleaved channel validation 633-634. Expected statuses must be taken from the documented CLI contract (rtspcat_doc), not from the code paths. Only legacy/rtspcat/metadata-type, metadata-description and metadata-synopsis executed (PASS static+dynamic); metadata only."
+      "notes": "Retain all existing evidence and original obligations. FAIL remains a reached mismatch; locally accepted send bytes do not prove candidate receipt."
     },
     {
       "topic": "rtspcat/deferred-output-fd-lifecycle",
@@ -29771,40 +29912,74 @@
         "purpose": "Check -o descriptor output, write failures, closed-pipe handling, and that repeated calls leave the invoking shell usable.",
         "reason": "Requires a future disposable VM with the loopback RTSP mock plus private fixture files and a controlled pipe reader/closed writer. Compare successful descriptor bytes with the independently assembled frame and verify failure status and shell survival after a closed-pipe write. No external device, host path, or signal is used by this suite."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "No executed fixture; requires the RTSP helper plus shell-level descriptor plumbing that a plain script can do.",
+      "current_reason": "Remaining obligations: r3: Broken-pipe diagnostic, shell survival and matching signal snapshots were retained, but the builtin return status was not separately recorded.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-o FD writes framed records to the given descriptor (e.g. 3>file) and nothing to stdout.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-output-fd-media-r3",
+              "assertion": "Both builds returned status 0 with empty stdout and a separately captured, length-framed output descriptor record; local socket acceptance does not prove candidate receipt.",
+              "definition_sha256": "b35106ce58a1ba6cf797b80dc09743f74ab61f1cb7a89c678de1551d3bf85fa2"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "A write failure on FD (e.g. /dev/full, closed fd) returns nonzero.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-output-full-media-r3",
+              "assertion": "Both builds returned status 1 and recorded No space left on device while writing the output descriptor.",
+              "definition_sha256": "66b24cb8d42ffaa72b3e5e4055cf5f4706c0796cc5443bdf3e5ecb20d32077b3"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-output-closed-media-r3",
+              "assertion": "Both builds returned status 1 with a Bad file descriptor diagnostic.",
+              "definition_sha256": "d575bc4cce8053d09d79bbbedcd76aa8fb010e8f12232cb33c24dc37bdc20737"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "A closed-pipe reader yields nonzero status without killing the shell (SIGPIPE ignored during the call and restored after).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-output-pipe-media-r3",
+              "assertion": "Both builds recorded a Broken pipe diagnostic, subsequent shell-alive output and equal before/after signal snapshots. The builtin status was not separately captured.",
+              "definition_sha256": "8fb6792f0ad809053caf0f7a77ba91af98602020359e5408511745f808fa67fd"
+            }
+          ],
+          "gap": "Broken-pipe diagnostic, shell survival and matching signal snapshots were retained, but the builtin return status was not separately recorded."
         },
         {
           "id": "r4",
           "behavior": "Repeated rtspcat calls in one shell keep the shell usable (later commands run, SIGPIPE disposition restored).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-repeat-media-r3",
+              "assertion": "Both builds left the shell alive after two request sequences, captured two framed file records and retained matching SIGPIPE snapshots.",
+              "definition_sha256": "abe5cd7d96d11beda4490024c24a1de4ebf64ed188c39704a4cd25011d818af1"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "rtspcat.c:671-673 ignores SIGPIPE for the call and restores the old action. Only legacy/rtspcat/metadata-type, metadata-description and metadata-synopsis executed (PASS static+dynamic); metadata only."
+      "notes": "Retain all existing evidence and original obligations. FAIL remains a reached mismatch; locally accepted send bytes do not prove candidate receipt."
     },
     {
       "topic": "rtspcat/deferred-rtp-assembly-boundaries",
@@ -29814,54 +29989,102 @@
         "purpose": "Cover single-NAL, STAP-A and FU-A payloads, marker and timestamp access-unit boundaries, parameter-set insertion, and the requested unit limit.",
         "reason": "Requires a future disposable VM and deterministic loopback RTSP/RTP mock capable of sending explicitly numbered packet sequences. Construct expected Annex-B access units independently from the fixture NAL bytes; check each record boundary, SPS/PPS insertion before IDR, and exact -n stopping behavior."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "No executed fixture sends numbered RTP sequences.",
+      "current_reason": "Remaining obligations: r1: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r2: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r3: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r4: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r5: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r6: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Single-NAL packets are emitted as Annex-B NALs within the current access unit.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-single-media-r3",
+              "assertion": "Both builds returned status 0/0; decoded locally accepted RTP and independently assembled length-framed output agree. Candidate-side receive bytes were not captured.",
+              "definition_sha256": "4b7dadaf80294460b2ecb9a71bbea6088f33b8af69d927d76ae7328cfb80cd07"
+            }
+          ],
+          "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant."
         },
         {
           "id": "r2",
           "behavior": "STAP-A aggregates are split into their component NALs.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-stap-media-r3",
+              "assertion": "Both builds returned status 0/0; decoded locally accepted RTP and independently assembled length-framed output agree. Candidate-side receive bytes were not captured.",
+              "definition_sha256": "211fc7172a8cab4cc4fc496cf2bc4d15e67b776f89a6b8818610c1b1a8453915"
+            }
+          ],
+          "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant."
         },
         {
           "id": "r3",
           "behavior": "FU-A fragments are reassembled into one NAL with the reconstructed header.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-fu-media-r3",
+              "assertion": "Both builds returned status 0/0; decoded locally accepted RTP and independently assembled length-framed output agree. Candidate-side receive bytes were not captured.",
+              "definition_sha256": "411f9fd59b858f2678ce1af5f3f28a2d9064e8e80490bf584faf08d4c1c26645"
+            }
+          ],
+          "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant."
         },
         {
           "id": "r4",
           "behavior": "Access units end on the RTP marker bit and on a timestamp change when the marker is absent.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-marker-timestamp-media-r3",
+              "assertion": "Both builds locally accepted marker and timestamp-transition packets, emitted the first two independently decoded framed units and returned status 0; candidate-side receive bytes were not captured.",
+              "definition_sha256": "b6024d3a381b6c0c0c8262ceef48ae469d6dd8449fdd537fcb4b2d1140dcc04e"
+            }
+          ],
+          "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant."
         },
         {
           "id": "r5",
           "behavior": "SPS/PPS from SDP sprop-parameter-sets are inserted before every IDR.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-sps-repeat-media-r3",
+              "assertion": "Both builds returned status 0/0; decoded locally accepted RTP and independently assembled length-framed output agree. Candidate-side receive bytes were not captured.",
+              "definition_sha256": "4aa45feff3b093b5fd09d386980b17b2f20d10819deddc9fdbaeae8635807ffc"
+            }
+          ],
+          "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant."
         },
         {
           "id": "r6",
           "behavior": "-n COUNT stops after exactly COUNT units.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-marker-timestamp-media-r3",
+              "assertion": "Both builds locally accepted marker and timestamp-transition packets, emitted the first two independently decoded framed units and returned status 0; candidate-side receive bytes were not captured.",
+              "definition_sha256": "b6024d3a381b6c0c0c8262ceef48ae469d6dd8449fdd537fcb4b2d1140dcc04e"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-sps-repeat-media-r3",
+              "assertion": "Both builds returned status 0/0; decoded locally accepted RTP and independently assembled length-framed output agree. Candidate-side receive bytes were not captured.",
+              "definition_sha256": "4aa45feff3b093b5fd09d386980b17b2f20d10819deddc9fdbaeae8635807ffc"
+            }
+          ],
+          "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant."
         }
       ],
-      "notes": "STAP-A loop rtspcat.c:546; FU-A rtspcat.c:554-560; sprop parsing 444. Only legacy/rtspcat/metadata-type, metadata-description and metadata-synopsis executed (PASS static+dynamic); metadata only."
+      "notes": "Retain all existing evidence and original obligations. FAIL remains a reached mismatch; locally accepted send bytes do not prove candidate receipt."
     },
     {
       "topic": "rtspcat/deferred-rtsp-h264-happy-path",
@@ -29871,40 +30094,68 @@
         "purpose": "Exercise the client handshake, SDP track selection, TCP interleaving, one complete IDR access unit, framed stdout, and session teardown.",
         "reason": "Requires a future disposable VM with a scripted loopback RTSP server that accepts only the fixture connection and emits deterministic OPTIONS/DESCRIBE/SETUP/PLAY responses plus a bounded interleaved RTP stream. Validate the 4-byte big-endian length and Annex-B bytes against an independently assembled expected frame, and record request order/session teardown. No peer or network activity is run by this suite."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "No executed fixture provides an RTSP server.",
+      "current_reason": "Remaining obligations: r1: The request sequence and track URI were captured, but the sent SDP containing the control attribute was not recorded.; r2: The requested transport, locally accepted channel-4 media and output were recorded, but the SETUP response assigning the channel and the candidate-side received bytes were not retained.; r3: The locally accepted RTP and framed output were retained, but candidate-side receive bytes and the SDP response containing the parameter sets were not captured.; r4: One output unit and TEARDOWN with the session header were captured; the SETUP session response and candidate-side input stream were not retained.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Client handshake order OPTIONS, DESCRIBE, SETUP (track from SDP a=control), PLAY with correct URIs.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-happy-media-r3",
+              "assertion": "Both builds recorded OPTIONS, DESCRIBE, SETUP, PLAY and TEARDOWN, a track URI and transport header; status 0 and a framed output unit were captured. Sent SDP/SETUP and candidate receive bytes were not.",
+              "definition_sha256": "00c03c4be4fa2c612433ec10368613d4af79da600f566f9934ae3e42dd14e6a0"
+            }
+          ],
+          "gap": "The request sequence and track URI were captured, but the sent SDP containing the control attribute was not recorded."
         },
         {
           "id": "r2",
           "behavior": "SETUP requests 'RTP/AVP/TCP;unicast;interleaved=0-1' and the client uses the server-assigned channel.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-happy-media-r3",
+              "assertion": "Both builds recorded OPTIONS, DESCRIBE, SETUP, PLAY and TEARDOWN, a track URI and transport header; status 0 and a framed output unit were captured. Sent SDP/SETUP and candidate receive bytes were not.",
+              "definition_sha256": "00c03c4be4fa2c612433ec10368613d4af79da600f566f9934ae3e42dd14e6a0"
+            }
+          ],
+          "gap": "The requested transport, locally accepted channel-4 media and output were recorded, but the SETUP response assigning the channel and the candidate-side received bytes were not retained."
         },
         {
           "id": "r3",
           "behavior": "One complete IDR access unit is written as a 4-byte big-endian length followed by Annex-B bytes.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-happy-media-r3",
+              "assertion": "Both builds recorded OPTIONS, DESCRIBE, SETUP, PLAY and TEARDOWN, a track URI and transport header; status 0 and a framed output unit were captured. Sent SDP/SETUP and candidate receive bytes were not.",
+              "definition_sha256": "00c03c4be4fa2c612433ec10368613d4af79da600f566f9934ae3e42dd14e6a0"
+            }
+          ],
+          "gap": "The locally accepted RTP and framed output were retained, but candidate-side receive bytes and the SDP response containing the parameter sets were not captured."
         },
         {
           "id": "r4",
           "behavior": "TEARDOWN with the session id is sent after -n is satisfied; status 0.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-happy-media-r3",
+              "assertion": "Both builds recorded OPTIONS, DESCRIBE, SETUP, PLAY and TEARDOWN, a track URI and transport header; status 0 and a framed output unit were captured. Sent SDP/SETUP and candidate receive bytes were not.",
+              "definition_sha256": "00c03c4be4fa2c612433ec10368613d4af79da600f566f9934ae3e42dd14e6a0"
+            }
+          ],
+          "gap": "One output unit and TEARDOWN with the session header were captured; the SETUP session response and candidate-side input stream were not retained."
         }
       ],
-      "notes": "Transport header rtspcat.c:628; channel parse 633-634; TEARDOWN 640. Only legacy/rtspcat/metadata-type, metadata-description and metadata-synopsis executed (PASS static+dynamic); metadata only."
+      "notes": "Retain all existing evidence and original obligations. FAIL remains a reached mismatch; locally accepted send bytes do not prove candidate receipt."
     },
     {
       "topic": "scm/listen-connect-paths",
@@ -33403,7 +33654,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r4: MAC allowed-control handshake/command fails in revision98, so the MAC enforcement term remains unresolved; denied-offer output alone does not qualify policy.",
+      "current_reason": "Remaining obligations: r4: Both MAC variants advertise the configured restrictions and refuse an offer with no shared MAC, but allowed and permissive-other candidate encrypted commands fail after NEWKEYS before public-key authentication on both builds. A working allowed/other baseline is missing, so complete MAC enforcement remains unresolved.",
       "requirements": [
         {
           "id": "r1",
@@ -33463,12 +33714,24 @@
               "id": "migration-sshd-review-kex-allowlist",
               "assertion": "Allowed KEX handshake/command succeeds and disallowed KEX is refused on both builds; existing Cipher restriction evidence retained.",
               "definition_sha256": "54a1ec55c46b7744b50a23e59422b30d70a6ff414d62ec1856d26e4f6eb21683"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sshd-mac-packets-etm-r2",
+              "assertion": "Fresh 118 EtM wire captures show the exact advertised MAC lists and the restricted-offer mismatch; reference allowed and other commands authenticate successfully. Candidate allowed and permissive-other commands reach NEWKEYS but fail before authentication; the reached candidate FAIL is retained, and the full policy remains partial.",
+              "definition_sha256": "69c89c7cab5829160d098f15b6b8d492a6ca3e51803d833973a76d1f730e7aa2"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sshd-mac-packets-standard-r2",
+              "assertion": "Fresh 118 standard wire captures show the exact advertised MAC lists and the restricted-offer mismatch; reference allowed and other commands authenticate successfully. Candidate allowed and permissive-other commands reach NEWKEYS but fail before authentication; the reached candidate FAIL is retained, and the full policy remains partial.",
+              "definition_sha256": "50f82e93ad83200f586c90002a5865dceec3ebb331c1a2f4e583bf8bbc63f55d"
             }
           ],
-          "gap": "MAC allowed-control handshake/command fails in revision98, so the MAC enforcement term remains unresolved; denied-offer output alone does not qualify policy."
+          "gap": "Both MAC variants advertise the configured restrictions and refuse an offer with no shared MAC, but allowed and permissive-other candidate encrypted commands fail after NEWKEYS before public-key authentication on both builds. A working allowed/other baseline is missing, so complete MAC enforcement remains unresolved."
         }
       ],
-      "notes": "Accepted independent raw review, bound to exact frozen artifacts by the primary. Both unchanged builds, valid reference/setup controls and clean VM teardown. Original obligations and existing companion evidence retained; genuine FAIL remains FAIL."
+      "notes": "Retain the prior cipher and KEX evidence. MAC offer filtering is observed, while successful candidate encrypted-command controls remain absent; no original behavior was changed."
     },
     {
       "topic": "sshd/hostkey-lifecycle",

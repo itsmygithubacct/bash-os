@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "d7c378c9cf6e3e7ae14e0cd27915b9f22e226a73255ef731051d614f8c2935d0",
+  "ledger_sha256": "71190af607b56bb2b58e8bce84c6aa84ccaadc8ba902458d21f2cfff58e099e7",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 93,
-    "none": 205,
-    "full": 302
+    "partial": 97,
+    "none": 200,
+    "full": 303
   },
   "migrations": {
-    "deferred": 298,
-    "replacement": 302
+    "deferred": 297,
+    "replacement": 303
   },
   "pending_full_topics": [],
   "builds": {
@@ -2569,6 +2569,84 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793199788.575303
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-remote-canon-protocol-http-observation-r3-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "e0c334c69198d4af5b9262cf0173746689afd6aad7f30a3cdcc847a768dfcebf",
+            "provenance.json": "9b2e0fd0df920b24dadec07cd0f17865fb819f6a68c43d67f35d96c2576bb570",
+            "payload.tar": "94a5f006e239cda2f81fc898d1795e0c699105f00b8e7954ca16ef090e0c449d",
+            "evidence.tar": "be4cb4b2ce3eff4d772d56742490caf8eebe6f6e5270ac36d3049c056d7531f3"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793197868.3938608
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-remote-canon-protocol-rtsp-media-r3-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 30,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "dcb6268bdcec16fc7b67acdf0190c2601702edda47252a67e7d81b923f90ccfe",
+            "provenance.json": "e275f29db48915a2f706330a9a83cb8e0cc98824c7ae7b6389bd526798d894a3",
+            "payload.tar": "737a9e5dc3020b30b7a1873dc52b0b531235aefcc9dd363061689688d650e0de",
+            "evidence.tar": "3d053285f3b6bf51d646a13c53aef3391758495c71a57f48bc391c0b93ee4164"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793198228.750211
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "ssh-mac-packets-static-118",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "1e8971337327071aaab6b0c2e7334f4eb9dad8964804e92a702ce0866d409978",
+            "provenance.json": "aef50fe89d59a1e625a0ba5b29934d11de82d95da181d0fa53dbbee5d48b0b4a",
+            "payload.tar": "f1fa62e237129a67b2616e4f11c17d34a0d1bd6c803c4dd84dd139e77f4f9cdc",
+            "evidence.tar": "4b4b58b28bd0ec82267e7e3c520d349b3f278cec67bafb4c848e0da42c0ab5a8"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793222915.7744455
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -18229,10 +18307,10 @@
         },
         {
           "topic": "httpd/deferred_request_errors",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -18253,8 +18331,8 @@
             {
               "id": "r2",
               "behavior": "A request head over 8 KiB is answered 431.",
-              "coverage": "partial",
-              "gap": "The 9216-byte request produced all bytes of a 431 response, then the peer recorded a TCP reset; clean EOF and the accept status were not retained. The separate 8192-byte boundary case recorded 431 and EOF. Retain the strictly over-limit reset and accept-status observation gap.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -18267,10 +18345,16 @@
                   "id": "protocol-wire-http-overlarge-head-r2",
                   "status": "FAIL",
                   "run": "qual-remote-canon-http-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-http-overlarge-head-observation-r3",
+                  "status": "FAIL",
+                  "run": "qual-remote-canon-protocol-http-observation-r3-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -33135,43 +33219,83 @@
         {
           "topic": "rtspcat/deferred-auth-session-keepalive",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "On 401 with WWW-Authenticate: Basic, the retried request carries 'Authorization: Basic base64(user:pass)'.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The retried Basic header decodes to the fixture user and password; the actual 401 challenge bytes were not retained.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-basic-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "On 401 with Digest realm/nonce (and qop), the retried request carries an RFC 2617/7616 MD5 response computed over the method and URI.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Digest request headers were captured, but the actual challenge bytes were not retained and this review did not perform digest arithmetic under the no-crypto constraint.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-digest-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "CSeq increases by one per request and the Session header from SETUP is sent on PLAY, GET_PARAMETER and TEARDOWN.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "CSeq and Session request headers were captured; the SETUP response that assigned the session was not retained.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-basic-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-digest-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-keepalive-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "-k SECS sends GET_PARAMETER keepalives at the interval during streaming.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "One keepalive interval is timed; repeated intervals, the SETUP response and candidate-side media receipt remain unverified.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-keepalive-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -33180,52 +33304,147 @@
         {
           "topic": "rtspcat/deferred-error-and-timeout-paths",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Malformed RTSP status line, header or Content-Length is rejected with nonzero status.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Bad-header advanced to DESCRIBE before status 1, a reached FAIL; the actual malformed status, header and length response bytes were not retained.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-bad-status-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-bad-header-media-r3",
+                  "status": "FAIL",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-bad-length-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Malformed RTP (bad version, padding/extension beyond payload, invalid STAP-A sizes, FU-A without start) is rejected and the incomplete unit is not emitted.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Locally accepted malformed and recovery packets and the recovery output were decoded; candidate-side receipt is not captured, and nonzero status follows server EOF rather than a separately retained malformed-packet error.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-version-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-extension-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-padding-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-stap-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-fu-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "Server EOF mid-unit returns nonzero without writing the partial unit.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "A partial RTP unit was locally accepted and the candidate ended nonzero with empty output, but the candidate-side receipt and EOF stimulus were not independently captured.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-eof-partial-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "-t SECS ends a stalled session with nonzero status within the bound.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-timeout-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Invalid arguments (bad URL, non-numeric -n/-o/-k/-t) fail with usage status before connecting.",
-              "coverage": "missing",
-              "gap": "Not executed (argument rejection needs no peer and is also absent).",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The statuses and usage diagnostics are recorded, and the listener reported no connection; a separately retained accept event, timing and positive listener control are absent. The invalid-URL status 1 is a reached usage-status FAIL.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-url-media-r3",
+                  "status": "FAIL",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-n-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-o-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-k-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-t-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -33234,106 +33453,188 @@
         {
           "topic": "rtspcat/deferred-output-fd-lifecycle",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-o FD writes framed records to the given descriptor (e.g. 3>file) and nothing to stdout.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-fd-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "A write failure on FD (e.g. /dev/full, closed fd) returns nonzero.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-full-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-closed-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "A closed-pipe reader yields nonzero status without killing the shell (SIGPIPE ignored during the call and restored after).",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Broken-pipe diagnostic, shell survival and matching signal snapshots were retained, but the builtin return status was not separately recorded.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-pipe-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "Repeated rtspcat calls in one shell keep the shell usable (later commands run, SIGPIPE disposition restored).",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-repeat-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "rtspcat/deferred-rtp-assembly-boundaries",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Single-NAL packets are emitted as Annex-B NALs within the current access unit.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-single-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "STAP-A aggregates are split into their component NALs.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-stap-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "FU-A fragments are reassembled into one NAL with the reconstructed header.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-fu-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "Access units end on the RTP marker bit and on a timestamp change when the marker is absent.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-marker-timestamp-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r5",
               "behavior": "SPS/PPS from SDP sprop-parameter-sets are inserted before every IDR.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-sps-repeat-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r6",
               "behavior": "-n COUNT stops after exactly COUNT units.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-marker-timestamp-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-sps-repeat-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -33342,43 +33643,71 @@
         {
           "topic": "rtspcat/deferred-rtsp-h264-happy-path",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Client handshake order OPTIONS, DESCRIBE, SETUP (track from SDP a=control), PLAY with correct URIs.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The request sequence and track URI were captured, but the sent SDP containing the control attribute was not recorded.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-happy-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "SETUP requests 'RTP/AVP/TCP;unicast;interleaved=0-1' and the client uses the server-assigned channel.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The requested transport, locally accepted channel-4 media and output were recorded, but the SETUP response assigning the channel and the candidate-side received bytes were not retained.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-happy-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "One complete IDR access unit is written as a 4-byte big-endian length followed by Annex-B bytes.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The locally accepted RTP and framed output were retained, but candidate-side receive bytes and the SDP response containing the parameter sets were not captured.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-happy-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "TEARDOWN with the session id is sent after -n is satisfied; status 0.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "One output unit and TEARDOWN with the session header were captured; the SETUP session response and candidate-side input stream were not retained.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-happy-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -37034,7 +37363,7 @@
               "id": "r4",
               "behavior": "Cipher/MAC/KEX allow-list from config is enforced (disallowed algorithm refused)",
               "coverage": "partial",
-              "gap": "MAC allowed-control handshake/command fails in revision98, so the MAC enforcement term remains unresolved; denied-offer output alone does not qualify policy.",
+              "gap": "Both MAC variants advertise the configured restrictions and refuse an offer with no shared MAC, but allowed and permissive-other candidate encrypted commands fail after NEWKEYS before public-key authentication on both builds. A working allowed/other baseline is missing, so complete MAC enforcement remains unresolved.",
               "evidence": [
                 {
                   "group": "shell",
@@ -37047,6 +37376,18 @@
                   "id": "migration-sshd-review-kex-allowlist",
                   "status": "PASS",
                   "run": "ssh-review-static-98"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-mac-packets-etm-r2",
+                  "status": "FAIL",
+                  "run": "ssh-mac-packets-static-118"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-mac-packets-standard-r2",
+                  "status": "FAIL",
+                  "run": "ssh-mac-packets-static-118"
                 }
               ],
               "fully_exercised": false,
@@ -46217,8 +46558,8 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 298,
-        "FAIL": 154,
+        "UNRESOLVED": 297,
+        "FAIL": 155,
         "PASS": 148
       },
       "migration_without_complete_evidence": []
@@ -48778,6 +49119,84 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793199878.029094
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-remote-canon-protocol-http-observation-r3-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "0fced502b33fd2c6ff58f51047d9353cd35e0ad334c5e8e0861aaab9c402a200",
+            "provenance.json": "fef765f406aaa7ceb5933b197e1c9344bed702cefe2586356ce11b07a9caff3e",
+            "payload.tar": "5f3bf6f3b76296b6d40a690a2c8f6954ee23edd5f1e85f72acfa77e35c0ddacb",
+            "evidence.tar": "dab2ab032e5828dcbe1982cd21640d0bbc6fe62a2707ad756a2dfc9eebba6659"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793197993.588248
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-remote-canon-protocol-rtsp-media-r3-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 30,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "590e7ba052f5cf8eec861d2f17246a898c6d88389936d3d8846b329b2da07497",
+            "provenance.json": "f30f7b118bfb8dcaa67106e01d66ceb863e16062b7f0b02b9a72433112d7bc4a",
+            "payload.tar": "e0442525cad1a6651edeffd682b2e3c43ff715bf6ce299cd597a6ff4dd99976d",
+            "evidence.tar": "9aa6118344470f8089ecec41adcd8b435efb00f5caa7bb66a5ea2b23d56fe1b9"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793198306.324697
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "ssh-mac-packets-dynamic-118",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "1ffea7dca7165382ed21982ed03fb3248e12c7573260a3a852001d71ec6586d3",
+            "provenance.json": "6572660fd95f4b37170252bdcd72d223e9c1b21afa7a0a1e32a52656f6fa0b1f",
+            "payload.tar": "04255b7df1fb2b2f5958b3de6d0f1b462d5b684889d95ef81c4a89abcd935296",
+            "evidence.tar": "a1b651bd4c385a16c6b094005fffec2fcb38cec4e1df08daef1e83ff04051699"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793222955.037271
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -64438,10 +64857,10 @@
         },
         {
           "topic": "httpd/deferred_request_errors",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -64462,8 +64881,8 @@
             {
               "id": "r2",
               "behavior": "A request head over 8 KiB is answered 431.",
-              "coverage": "partial",
-              "gap": "The 9216-byte request produced all bytes of a 431 response, then the peer recorded a TCP reset; clean EOF and the accept status were not retained. The separate 8192-byte boundary case recorded 431 and EOF. Retain the strictly over-limit reset and accept-status observation gap.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -64476,10 +64895,16 @@
                   "id": "protocol-wire-http-overlarge-head-r2",
                   "status": "FAIL",
                   "run": "qual-remote-canon-http-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-http-overlarge-head-observation-r3",
+                  "status": "FAIL",
+                  "run": "qual-remote-canon-protocol-http-observation-r3-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -79344,43 +79769,83 @@
         {
           "topic": "rtspcat/deferred-auth-session-keepalive",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "On 401 with WWW-Authenticate: Basic, the retried request carries 'Authorization: Basic base64(user:pass)'.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The retried Basic header decodes to the fixture user and password; the actual 401 challenge bytes were not retained.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-basic-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "On 401 with Digest realm/nonce (and qop), the retried request carries an RFC 2617/7616 MD5 response computed over the method and URI.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Digest request headers were captured, but the actual challenge bytes were not retained and this review did not perform digest arithmetic under the no-crypto constraint.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-digest-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "CSeq increases by one per request and the Session header from SETUP is sent on PLAY, GET_PARAMETER and TEARDOWN.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "CSeq and Session request headers were captured; the SETUP response that assigned the session was not retained.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-basic-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-digest-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-keepalive-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "-k SECS sends GET_PARAMETER keepalives at the interval during streaming.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "One keepalive interval is timed; repeated intervals, the SETUP response and candidate-side media receipt remain unverified.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-keepalive-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -79389,52 +79854,147 @@
         {
           "topic": "rtspcat/deferred-error-and-timeout-paths",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Malformed RTSP status line, header or Content-Length is rejected with nonzero status.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Bad-header advanced to DESCRIBE before status 1, a reached FAIL; the actual malformed status, header and length response bytes were not retained.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-bad-status-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-bad-header-media-r3",
+                  "status": "FAIL",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-bad-length-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Malformed RTP (bad version, padding/extension beyond payload, invalid STAP-A sizes, FU-A without start) is rejected and the incomplete unit is not emitted.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Locally accepted malformed and recovery packets and the recovery output were decoded; candidate-side receipt is not captured, and nonzero status follows server EOF rather than a separately retained malformed-packet error.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-version-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-extension-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-padding-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-stap-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-fu-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "Server EOF mid-unit returns nonzero without writing the partial unit.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "A partial RTP unit was locally accepted and the candidate ended nonzero with empty output, but the candidate-side receipt and EOF stimulus were not independently captured.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-eof-partial-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "-t SECS ends a stalled session with nonzero status within the bound.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-timeout-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Invalid arguments (bad URL, non-numeric -n/-o/-k/-t) fail with usage status before connecting.",
-              "coverage": "missing",
-              "gap": "Not executed (argument rejection needs no peer and is also absent).",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The statuses and usage diagnostics are recorded, and the listener reported no connection; a separately retained accept event, timing and positive listener control are absent. The invalid-URL status 1 is a reached usage-status FAIL.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-url-media-r3",
+                  "status": "FAIL",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-n-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-o-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-k-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-t-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -79443,106 +80003,188 @@
         {
           "topic": "rtspcat/deferred-output-fd-lifecycle",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-o FD writes framed records to the given descriptor (e.g. 3>file) and nothing to stdout.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-fd-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "A write failure on FD (e.g. /dev/full, closed fd) returns nonzero.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-full-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-closed-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "A closed-pipe reader yields nonzero status without killing the shell (SIGPIPE ignored during the call and restored after).",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Broken-pipe diagnostic, shell survival and matching signal snapshots were retained, but the builtin return status was not separately recorded.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-pipe-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "Repeated rtspcat calls in one shell keep the shell usable (later commands run, SIGPIPE disposition restored).",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-repeat-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "rtspcat/deferred-rtp-assembly-boundaries",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Single-NAL packets are emitted as Annex-B NALs within the current access unit.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-single-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "STAP-A aggregates are split into their component NALs.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-stap-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "FU-A fragments are reassembled into one NAL with the reconstructed header.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-fu-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "Access units end on the RTP marker bit and on a timestamp change when the marker is absent.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-marker-timestamp-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r5",
               "behavior": "SPS/PPS from SDP sprop-parameter-sets are inserted before every IDR.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-sps-repeat-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r6",
               "behavior": "-n COUNT stops after exactly COUNT units.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-marker-timestamp-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-sps-repeat-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -79551,43 +80193,71 @@
         {
           "topic": "rtspcat/deferred-rtsp-h264-happy-path",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Client handshake order OPTIONS, DESCRIBE, SETUP (track from SDP a=control), PLAY with correct URIs.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The request sequence and track URI were captured, but the sent SDP containing the control attribute was not recorded.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-happy-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "SETUP requests 'RTP/AVP/TCP;unicast;interleaved=0-1' and the client uses the server-assigned channel.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The requested transport, locally accepted channel-4 media and output were recorded, but the SETUP response assigning the channel and the candidate-side received bytes were not retained.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-happy-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "One complete IDR access unit is written as a 4-byte big-endian length followed by Annex-B bytes.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The locally accepted RTP and framed output were retained, but candidate-side receive bytes and the SDP response containing the parameter sets were not captured.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-happy-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "TEARDOWN with the session id is sent after -n is satisfied; status 0.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "One output unit and TEARDOWN with the session header were captured; the SETUP session response and candidate-side input stream were not retained.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-happy-media-r3",
+                  "status": "PASS",
+                  "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -83243,7 +83913,7 @@
               "id": "r4",
               "behavior": "Cipher/MAC/KEX allow-list from config is enforced (disallowed algorithm refused)",
               "coverage": "partial",
-              "gap": "MAC allowed-control handshake/command fails in revision98, so the MAC enforcement term remains unresolved; denied-offer output alone does not qualify policy.",
+              "gap": "Both MAC variants advertise the configured restrictions and refuse an offer with no shared MAC, but allowed and permissive-other candidate encrypted commands fail after NEWKEYS before public-key authentication on both builds. A working allowed/other baseline is missing, so complete MAC enforcement remains unresolved.",
               "evidence": [
                 {
                   "group": "shell",
@@ -83256,6 +83926,18 @@
                   "id": "migration-sshd-review-kex-allowlist",
                   "status": "PASS",
                   "run": "ssh-review-dynamic-98"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-mac-packets-etm-r2",
+                  "status": "FAIL",
+                  "run": "ssh-mac-packets-dynamic-118"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-mac-packets-standard-r2",
+                  "status": "FAIL",
+                  "run": "ssh-mac-packets-dynamic-118"
                 }
               ],
               "fully_exercised": false,
@@ -92426,8 +93108,8 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 298,
-        "FAIL": 154,
+        "UNRESOLVED": 297,
+        "FAIL": 155,
         "PASS": 148
       },
       "migration_without_complete_evidence": []

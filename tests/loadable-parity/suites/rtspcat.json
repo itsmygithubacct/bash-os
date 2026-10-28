@@ -45,31 +45,31 @@
       "id": "deferred-rtsp-h264-happy-path",
       "kind": "deferred",
       "purpose": "Exercise the client handshake, SDP track selection, TCP interleaving, one complete IDR access unit, framed stdout, and session teardown.",
-      "reason": "No executed fixture provides an RTSP server."
+      "reason": "Remaining obligations: r1: The request sequence and track URI were captured, but the sent SDP containing the control attribute was not recorded.; r2: The requested transport, locally accepted channel-4 media and output were recorded, but the SETUP response assigning the channel and the candidate-side received bytes were not retained.; r3: The locally accepted RTP and framed output were retained, but candidate-side receive bytes and the SDP response containing the parameter sets were not captured.; r4: One output unit and TEARDOWN with the session header were captured; the SETUP session response and candidate-side input stream were not retained."
     },
     {
       "id": "deferred-rtp-assembly-boundaries",
       "kind": "deferred",
       "purpose": "Cover single-NAL, STAP-A and FU-A payloads, marker and timestamp access-unit boundaries, parameter-set insertion, and the requested unit limit.",
-      "reason": "No executed fixture sends numbered RTP sequences."
+      "reason": "Remaining obligations: r1: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r2: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r3: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r4: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r5: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r6: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant."
     },
     {
       "id": "deferred-auth-session-keepalive",
       "kind": "deferred",
       "purpose": "Check Basic and MD5 Digest challenges, session headers, CSeq progression, and GET_PARAMETER keepalive behavior.",
-      "reason": "No executed fixture provides an RTSP server. A per-side python helper on loopback can issue challenges and log headers."
+      "reason": "Remaining obligations: r1: The retried Basic header decodes to the fixture user and password; the actual 401 challenge bytes were not retained.; r2: Digest request headers were captured, but the actual challenge bytes were not retained and this review did not perform digest arithmetic under the no-crypto constraint.; r3: CSeq and Session request headers were captured; the SETUP response that assigned the session was not retained.; r4: One keepalive interval is timed; repeated intervals, the SETUP response and candidate-side media receipt remain unverified."
     },
     {
       "id": "deferred-error-and-timeout-paths",
       "kind": "deferred",
       "purpose": "Check malformed RTSP lengths/headers, malformed or incomplete RTP, EOF, timeout, and invalid argument handling, including that incomplete units are not emitted.",
-      "reason": "No executed fixture emits RTSP/RTP faults; argument rejection cases also were never added."
+      "reason": "Remaining obligations: r1: Bad-header advanced to DESCRIBE before status 1, a reached FAIL; the actual malformed status, header and length response bytes were not retained.; r2: Locally accepted malformed and recovery packets and the recovery output were decoded; candidate-side receipt is not captured, and nonzero status follows server EOF rather than a separately retained malformed-packet error.; r3: A partial RTP unit was locally accepted and the candidate ended nonzero with empty output, but the candidate-side receipt and EOF stimulus were not independently captured.; r5: The statuses and usage diagnostics are recorded, and the listener reported no connection; a separately retained accept event, timing and positive listener control are absent. The invalid-URL status 1 is a reached usage-status FAIL."
     },
     {
       "id": "deferred-output-fd-lifecycle",
       "kind": "deferred",
       "purpose": "Check -o descriptor output, write failures, closed-pipe handling, and that repeated calls leave the invoking shell usable.",
-      "reason": "No executed fixture; requires the RTSP helper plus shell-level descriptor plumbing that a plain script can do."
+      "reason": "Remaining obligations: r3: Broken-pipe diagnostic, shell survival and matching signal snapshots were retained, but the builtin return status was not separately recorded."
     }
   ]
 }

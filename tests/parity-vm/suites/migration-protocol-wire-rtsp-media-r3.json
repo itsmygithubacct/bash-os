@@ -1,0 +1,819 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "id": "protocol-wire-rtsp-control-media-r3",
+      "purpose": "Validate explicit Annex-B length, interleaving and modified-byte negative controls.",
+      "covers": [],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py control",
+      "stdout": "rtsp-control=ok\n",
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ]
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-happy-media-r3",
+      "purpose": "Full OPTIONS/DESCRIBE/SETUP/PLAY, negotiated channel 4, one IDR and TEARDOWN.",
+      "covers": [
+        "rtspcat/deferred-rtsp-h264-happy-path"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" happy",
+      "stdout": "rtsp-happy=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-basic-media-r3",
+      "purpose": "Challenge and verify Basic credentials throughout the session.",
+      "covers": [
+        "rtspcat/deferred-auth-session-keepalive"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" basic",
+      "stdout": "rtsp-basic=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-digest-media-r3",
+      "purpose": "Challenge and independently verify RFC Digest MD5 with qop auth.",
+      "covers": [
+        "rtspcat/deferred-auth-session-keepalive"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" digest",
+      "stdout": "rtsp-digest=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-keepalive-media-r3",
+      "purpose": "Observe GET_PARAMETER after one second and session-bearing TEARDOWN.",
+      "covers": [
+        "rtspcat/deferred-auth-session-keepalive"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" keepalive",
+      "stdout": "rtsp-keepalive=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-bad-status-media-r3",
+      "purpose": "Reject a malformed RTSP status before sending a subsequent request.",
+      "covers": [
+        "rtspcat/deferred-error-and-timeout-paths"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" bad-status",
+      "stdout": "rtsp-bad-status=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-bad-header-media-r3",
+      "purpose": "Reject a header without a colon before sending a subsequent request.",
+      "covers": [
+        "rtspcat/deferred-error-and-timeout-paths"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" bad-header",
+      "stdout": "rtsp-bad-header=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-bad-length-media-r3",
+      "purpose": "Reject a negative Content-Length before sending a subsequent request.",
+      "covers": [
+        "rtspcat/deferred-error-and-timeout-paths"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" bad-length",
+      "stdout": "rtsp-bad-length=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-rtp-version-media-r3",
+      "purpose": "Drop bad-version RTP, recover with a valid subsequent unit, and report EOF.",
+      "covers": [
+        "rtspcat/deferred-error-and-timeout-paths"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" rtp-version",
+      "stdout": "rtsp-rtp-version=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-rtp-extension-media-r3",
+      "purpose": "Drop an RTP extension exceeding the packet, recover, and report EOF.",
+      "covers": [
+        "rtspcat/deferred-error-and-timeout-paths"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" rtp-extension",
+      "stdout": "rtsp-rtp-extension=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-rtp-padding-media-r3",
+      "purpose": "Drop padding exceeding the packet, recover, and report EOF.",
+      "covers": [
+        "rtspcat/deferred-error-and-timeout-paths"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" rtp-padding",
+      "stdout": "rtsp-rtp-padding=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-rtp-stap-media-r3",
+      "purpose": "Drop invalid STAP-A length, recover, and report EOF.",
+      "covers": [
+        "rtspcat/deferred-error-and-timeout-paths"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" rtp-stap",
+      "stdout": "rtsp-rtp-stap=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-rtp-fu-media-r3",
+      "purpose": "Drop FU-A end without start, recover, and report EOF.",
+      "covers": [
+        "rtspcat/deferred-error-and-timeout-paths"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" rtp-fu",
+      "stdout": "rtsp-rtp-fu=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-eof-partial-media-r3",
+      "purpose": "EOF with unmarked partial unit returns nonzero and emits nothing.",
+      "covers": [
+        "rtspcat/deferred-error-and-timeout-paths"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" eof-partial",
+      "stdout": "rtsp-eof-partial=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-timeout-media-r3",
+      "purpose": "Silent streaming peer triggers bounded read timeout and nonzero status.",
+      "covers": [
+        "rtspcat/deferred-error-and-timeout-paths"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" timeout",
+      "stdout": "rtsp-timeout=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-invalid-url-media-r3",
+      "purpose": "Bad URL fails with usage status before opening a connection.",
+      "covers": [
+        "rtspcat/deferred-error-and-timeout-paths"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" invalid-url",
+      "stdout": "rtsp-invalid-url=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-invalid-n-media-r3",
+      "purpose": "Non-numeric -n fails with usage status before connecting.",
+      "covers": [
+        "rtspcat/deferred-error-and-timeout-paths"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" invalid-n",
+      "stdout": "rtsp-invalid-n=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-invalid-o-media-r3",
+      "purpose": "Non-numeric -o fails with usage status before connecting.",
+      "covers": [
+        "rtspcat/deferred-error-and-timeout-paths"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" invalid-o",
+      "stdout": "rtsp-invalid-o=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-invalid-k-media-r3",
+      "purpose": "Non-numeric -k fails with usage status before connecting.",
+      "covers": [
+        "rtspcat/deferred-error-and-timeout-paths"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" invalid-k",
+      "stdout": "rtsp-invalid-k=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-invalid-t-media-r3",
+      "purpose": "Non-numeric -t fails with usage status before connecting.",
+      "covers": [
+        "rtspcat/deferred-error-and-timeout-paths"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" invalid-t",
+      "stdout": "rtsp-invalid-t=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-output-fd-media-r3",
+      "purpose": "Framed records go to descriptor 3 and stdout stays empty.",
+      "covers": [
+        "rtspcat/deferred-output-fd-lifecycle"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" output-fd",
+      "stdout": "rtsp-output-fd=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-output-full-media-r3",
+      "purpose": "A /dev/full write failure returns nonzero.",
+      "covers": [
+        "rtspcat/deferred-output-fd-lifecycle"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" output-full",
+      "stdout": "rtsp-output-full=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-output-closed-media-r3",
+      "purpose": "A closed descriptor write failure returns nonzero.",
+      "covers": [
+        "rtspcat/deferred-output-fd-lifecycle"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" output-closed",
+      "stdout": "rtsp-output-closed=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json",
+        "rtsp-signal-before.txt",
+        "rtsp-signal-after.txt"
+      ],
+      "id": "protocol-wire-rtsp-output-pipe-media-r3",
+      "purpose": "A closed-pipe output returns nonzero while the shell survives and restores SIGPIPE.",
+      "covers": [
+        "rtspcat/deferred-output-fd-lifecycle"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" output-pipe",
+      "stdout": "rtsp-output-pipe=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json",
+        "rtsp-signal-before.txt",
+        "rtsp-signal-after.txt"
+      ],
+      "id": "protocol-wire-rtsp-repeat-media-r3",
+      "purpose": "Two calls in one shell write exact records and preserve SIGPIPE disposition.",
+      "covers": [
+        "rtspcat/deferred-output-fd-lifecycle"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" repeat",
+      "stdout": "rtsp-repeat=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-single-media-r3",
+      "purpose": "Single-NAL payload produces Annex-B record.",
+      "covers": [
+        "rtspcat/deferred-rtp-assembly-boundaries"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" single",
+      "stdout": "rtsp-single=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-stap-media-r3",
+      "purpose": "STAP-A produces two independent Annex-B NALs.",
+      "covers": [
+        "rtspcat/deferred-rtp-assembly-boundaries"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" stap",
+      "stdout": "rtsp-stap=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-fu-media-r3",
+      "purpose": "FU-A fragments reconstruct the IDR header and payload.",
+      "covers": [
+        "rtspcat/deferred-rtp-assembly-boundaries"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" fu",
+      "stdout": "rtsp-fu=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "id": "protocol-wire-rtsp-marker-timestamp-media-r3",
+      "purpose": "One marked unit and one unmarked unit split at the next timestamp; -n 2 stops.",
+      "covers": [
+        "rtspcat/deferred-rtp-assembly-boundaries"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" marker-timestamp",
+      "stdout": "rtsp-marker-timestamp=ok\n"
+    },
+    {
+      "loadable": "rtspcat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 2326 RTSP session/CSeq and Basic or RFC 7616 MD5 Digest, RFC 6184 H.264 RTP packetization, and the documented four-byte big-endian Annex-B record contract. Python independently constructs and verifies the packets and Digest hash.",
+      "comparison": "Private TCP server records bounded request headers and validates URI, CSeq, transport, session and auth. Candidate status, exact frame bytes, timeout, pre-connect usage, signal disposition and fd effects are checked against explicit expectations. Independently retain bounded media bytes accepted at each peer send and their boundaries; local acceptance alone does not prove delivery.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-media-r3.py": "29fa27dc64192cd67836a5cdf2f2dbf4e124f9e9a8b0510669d968a951fb5045"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "rtsp-trace.json",
+        "rtsp-signal-before.txt",
+        "rtsp-signal-after.txt"
+      ],
+      "id": "protocol-wire-rtsp-sps-repeat-media-r3",
+      "purpose": "SPS/PPS precede each of two IDRs, with a third unit excluded by -n 2.",
+      "covers": [
+        "rtspcat/deferred-rtp-assembly-boundaries"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-media-r3.py \"$BASH\" sps-repeat",
+      "stdout": "rtsp-sps-repeat=ok\n"
+    }
+  ]
+}

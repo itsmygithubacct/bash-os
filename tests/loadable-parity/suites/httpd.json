@@ -62,9 +62,50 @@
     },
     {
       "id": "deferred_request_errors",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify malformed request handling and the documented 400, 413, and 431 refusals, including an oversized Content-Length rejected before a body is sent.",
-      "reason": "Remaining obligations: r2: The 9216-byte request produced all bytes of a 431 response, then the peer recorded a TCP reset; clean EOF and the accept status were not retained. The separate 8192-byte boundary case recorded 431 and EOF. Retain the strictly over-limit reset and accept-status observation gap."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-http-bad-header-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-http-bad-length-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-http-bad-line-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-http-conflict-length-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-http-large-head-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-http-large-length-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-http-overlarge-head-observation-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-http-overlarge-head-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-http-short-body-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-http-short-head-r2"
+        }
+      ]
     },
     {
       "id": "deferred_reply_framing",

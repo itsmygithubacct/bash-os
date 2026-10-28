@@ -90,7 +90,7 @@
       "id": "encrypted-ssh-interoperability",
       "kind": "deferred",
       "purpose": "Check encrypted SSH key exchange and public-key authentication against an independent SSH client using generated test-only keys.",
-      "reason": "Remaining obligations: r4: MAC allowed-control handshake/command fails in revision98, so the MAC enforcement term remains unresolved; denied-offer output alone does not qualify policy."
+      "reason": "Remaining obligations: r4: Both MAC variants advertise the configured restrictions and refuse an offer with no shared MAC, but allowed and permissive-other candidate encrypted commands fail after NEWKEYS before public-key authentication on both builds. A working allowed/other baseline is missing, so complete MAC enforcement remains unresolved."
     },
     {
       "id": "configuration-policy",
