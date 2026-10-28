@@ -2252,47 +2252,74 @@
         "purpose": "Socket half-close/error and PTY readiness beyond the runnable simultaneous private FIFO readiness contract.",
         "reason": "Requires a future disposable VM with a reviewed socketpair/PTY fixture whose controlled peer generates half-close/error states; simultaneous private FIFO readiness already has a runnable contract."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "FIFO readiness is covered; socket half-close/RST and PTY readiness need a controlled peer, which loopback helpers can provide.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Peer half-close (shutdown SHUT_WR) on a TCP/socketpair descriptor reports readable,rdhup.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No controlled socket peer."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-readiness",
+              "assertion": "On a stable socketpair with peer SHUT_WR the kernel and candidate agree and include readable and rdhup.",
+              "definition_sha256": "83244e39ee5dd213f001466aa14e2446927aee7fc44c3fec04a917687b71a1e8"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Socket error state (peer RST) reports hup/error labels.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No reset-generating peer."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-readiness",
+              "assertion": "A loopback peer aborts with SO_LINGER(1,0); the independently observed persistent TCP reset includes hup and error, and candidate labels match exactly.",
+              "definition_sha256": "83244e39ee5dd213f001466aa14e2446927aee7fc44c3fec04a917687b71a1e8"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "PTY master/slave readiness (readable after slave write, hup after slave close).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No PTY descriptor fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-readiness",
+              "assertion": "Independent epoll and candidate agree on a readable PTY master after the slave writes; after draining and closing the slave, both include hup.",
+              "definition_sha256": "83244e39ee5dd213f001466aa14e2446927aee7fc44c3fec04a917687b71a1e8"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Several descriptors of different kinds in one wait are each reported once with their own event set.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/bashpoll/multi-private-fifo-readiness",
               "assertion": "Two FIFO descriptors both reported readable exactly once.",
               "definition_sha256": "53d71756487290c7748e249766b829af5ea635eee1a1f2a9f62a23a2fb27e77c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-readiness",
+              "assertion": "In one wait on a half-closed socket and a readable PTY master, each descriptor occurs exactly once with the independently observed event labels. Legacy two-FIFO evidence remains a separate prerequisite.",
+              "definition_sha256": "83244e39ee5dd213f001466aa14e2446927aee7fc44c3fec04a917687b71a1e8"
             }
           ],
-          "gap": "Only homogeneous FIFOs; no mixed socket/PTY set."
+          "gap": ""
         }
       ],
-      "notes": "loadables/bashpoll.c:352-440 wait; event labels :425-433 (readable, writable, pri, hup, rdhup, error); default read interest includes EPOLLRDHUP :378."
+      "notes": "Independent coordinator raw review and primary raw recomputation accepted at checkpoint107. Both exact unchanged builds and clean guest lifecycle. Existing qualified FIFO evidence is retained. The Unix listener path remaining after close is a genuine candidate FAIL."
     },
     {
       "topic": "bashpoll/signalfd-ownership",
@@ -2352,40 +2379,74 @@
         "purpose": "Exercise TCP listen, accept, connect, data exchange, timeout and close behavior with a bounded private peer.",
         "reason": "Requires a future disposable VM or reviewed loopback socket fixture that allocates a private free port and runs a controlled peer. This suite does not attempt network activity or contact a real target."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "The existing tcp and tcp-client peers can drive all of this on 127.0.0.1; only cases are missing.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "listen ADDR:PORT FDVAR binds a listener; accept LISTEN_FD FDVAR returns a connected fd for a peer connection.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No client peer connects."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-tcp",
+              "assertion": "A candidate listener on the reserved loopback port creates an fd, accepts a private peer, reads hello, writes reply:hello and closes; the peer receives the exact bytes and EOF.",
+              "definition_sha256": "d6011ae767c64c8c6777ddc36293dad5e61dd05ec90b8e93dca4910c34a9ce52"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "connect HOST:PORT FDVAR connects to a peer; data written to the fd arrives byte-exact and peer data is readable.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No exchange fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-tcp",
+              "assertion": "Candidate connect to a private listener writes exactly A NUL ff B; the Python peer sends answer, the candidate reads it and closes the fd.",
+              "definition_sha256": "d6011ae767c64c8c6777ddc36293dad5e61dd05ec90b8e93dca4910c34a9ce52"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "connect timeout/refused failure status and diagnostic.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No refused/silent target case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-tcp",
+              "assertion": "A reserved bound but non-listening port produces status 1 and Connection refused; a private listener plus positively controlled seccomp poll=0 produces status 1 and Connection timed out with one matched 500 ms poll trace.",
+              "definition_sha256": "d6011ae767c64c8c6777ddc36293dad5e61dd05ec90b8e93dca4910c34a9ce52"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-timeout",
+              "assertion": "A reserved bound but non-listening port produces status 1 and Connection refused; a private listener plus positively controlled seccomp poll=0 produces status 1 and Connection timed out with one matched 500 ms poll trace.",
+              "definition_sha256": "e59e85e028bcf3418572631ab2e1ff30d228ae8783863fb5d9dab3a801c0420a"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "close releases the connection (peer sees EOF).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-tcp",
+              "assertion": "Both accepted and outbound connected peers receive EOF after candidate bashpoll close, with no extra payload.",
+              "definition_sha256": "d6011ae767c64c8c6777ddc36293dad5e61dd05ec90b8e93dca4910c34a9ce52"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/bashpoll.c:192-222 listen; :268-279 accept; :281-350 connect (-t timeout)."
+      "notes": "Independent coordinator raw review and primary raw recomputation accepted at checkpoint107. Both exact unchanged builds and clean guest lifecycle. Existing qualified FIFO evidence is retained. The Unix listener path remaining after close is a genuine candidate FAIL."
     },
     {
       "topic": "bashpoll/udp-datagram-api",
@@ -2395,40 +2456,68 @@
         "purpose": "Exercise listen-udp, send-udp and recv-udp with empty and binary datagrams, timeout, source-address reporting, and hex output.",
         "reason": "Requires a future disposable VM with a reviewed UDP syscall mock and a controlled sender/receiver providing deterministic payload, source address and port; no real network traffic is authorized."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "The existing udp (echo) and udp-client peers cover send/receive on loopback; no cases exist.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "listen-udp ADDR:PORT FDVAR + recv-udp FD returns one datagram with the source address in ADDR:PORT form (or -o ADDRVAR).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No sender peer."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-udp",
+              "assertion": "A private UDP sender with known bound source sends two ordered datagrams; -o returns its exact 127.0.0.1:port and inline mode emits the same address followed by the exact payload.",
+              "definition_sha256": "618f5de0c57c66f5c8c30fbbb1ba478202731787e4db6cf97f395d598646aecf"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "send-udp HOST:PORT delivers exact payload bytes including binary and empty datagrams.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No receiver comparison."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-udp",
+              "assertion": "Independent receiver gets exactly two packets in order, A NUL ff B and a zero-length datagram, with no extra packet.",
+              "definition_sha256": "618f5de0c57c66f5c8c30fbbb1ba478202731787e4db6cf97f395d598646aecf"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "recv-udp -x emits lowercase hex of the payload (NUL-safe).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-udp",
+              "assertion": "The 00 41 ff 0a packet is reported by -x as exactly lowercase 0041ff0a plus newline.",
+              "definition_sha256": "618f5de0c57c66f5c8c30fbbb1ba478202731787e4db6cf97f395d598646aecf"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "recv-udp -t MS times out with status 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-udp",
+              "assertion": "After consuming both packets, -t 100 returns status 1 with empty stdout.",
+              "definition_sha256": "618f5de0c57c66f5c8c30fbbb1ba478202731787e4db6cf97f395d598646aecf"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/bashpoll.c:489-577 listen-udp; :579-736 send-udp; :757-862 recv-udp (-t, -o, -x, MSG_TRUNC oversize error)."
+      "notes": "Independent coordinator raw review and primary raw recomputation accepted at checkpoint107. Both exact unchanged builds and clean guest lifecycle. Existing qualified FIFO evidence is retained. The Unix listener path remaining after close is a genuine candidate FAIL."
     },
     {
       "topic": "bashpoll/unix-socket-lifecycle",
@@ -2438,40 +2527,68 @@
         "purpose": "Exercise listen-unix and accept, relative socket-path creation and cleanup, stale socket replacement, and refusal to unlink a non-socket entry.",
         "reason": "Requires a future disposable VM with a reviewed socket syscall mock and a controlled local client/server driver so socket creation, accept and cleanup are observable as one bounded operation."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Everything except cleanup is observable with a python3 AF_UNIX client helper inside one per-side script; cleanup on close is not implemented by the candidate.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "listen-unix with a relative path creates the socket and accept returns a connected fd for a client.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No client fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-unix",
+              "assertion": "A relative stale.sock is rebound as a stream listener; a private client connects, is accepted, exchanges exact bytes and observes EOF.",
+              "definition_sha256": "54dc80bf105948e7fec4651916509dac609f3d5f512cfe7bcca9798a8973f956"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "A stale socket at the path is replaced.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-unix",
+              "assertion": "An O_PATH-held old socket inode remains pinned while the closed stale path is replaced with a different socket inode.",
+              "definition_sha256": "54dc80bf105948e7fec4651916509dac609f3d5f512cfe7bcca9798a8973f956"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "A non-socket entry at the path is refused and left intact.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-unix",
+              "assertion": "A regular file at blocked yields status 1 and refusal diagnostic while its exact bytes, inode and file type remain unchanged.",
+              "definition_sha256": "54dc80bf105948e7fec4651916509dac609f3d5f512cfe7bcca9798a8973f956"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "The socket path is cleaned up when the listener is closed.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Source shows close() only closes the fd; no unlink on close."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-io-bashpoll-unix",
+              "assertion": "After the accepted socket and listener are closed, stale.sock must be absent; an existing path causes a real FAIL.",
+              "definition_sha256": "54dc80bf105948e7fec4651916509dac609f3d5f512cfe7bcca9798a8973f956"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/bashpoll.c:224-265 listen-unix (S_ISSOCK check :246, unlink stale :251); bp_close :444-458 does not unlink. The purpose wording 'cleanup' may be a design expectation the candidate lacks."
+      "notes": "Independent coordinator raw review and primary raw recomputation accepted at checkpoint107. Both exact unchanged builds and clean guest lifecycle. Existing qualified FIFO evidence is retained. The Unix listener path remaining after close is a genuine candidate FAIL."
     },
     {
       "topic": "bashpython/interactive-prompt",
@@ -8139,7 +8256,7 @@
         },
         {
           "id": "r3",
-          "behavior": "The final exit status is nonzero after a recovered error, as GNU reports.",
+          "behavior": "The final exit status after the deterministic read error is recorded and compared with GNU dd under the same fault and conversion settings, retaining zero, nonzero and timeout outcomes exactly (GNU 0 after recovery in these fixtures; plain unrecovered EISDIR 1).",
           "coverage": "covered",
           "evidence": [
             {
@@ -8166,7 +8283,7 @@
           "gap": ""
         }
       ],
-      "notes": "takeover-f-70 parity FAIL on both builds."
+      "notes": "takeover-f-70 parity FAIL on both builds. Derived r3 premise corrected after independent raw52/70 companion review: the previous wording was \"The final exit status is nonzero after a recovered error, as GNU reports.\". GNU actually exits0 after the qualified recovered EISDIR+sync and midstream EIO cases. Original deferred purpose/reason and their hashes are unchanged; exact status comparison, all prior evidence and the topic FAIL are retained. Boundary101 alone does not replace the union of earlier controls."
     },
     {
       "topic": "dd/raw_device_copy",
@@ -13351,14 +13468,14 @@
         "purpose": "Exercise CTRL_CMD_GETFAMILY dump formatting across registered families, their command capability flags, and multicast groups.",
         "reason": "Requires a disposable VM with isolated generic-netlink state or a reviewed NETLINK_GENERIC mock returning deterministic multipart controller responses. Running the query here would perform prohibited network activity and use environment-dependent kernel state."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: the \"issues a CTRL_CMD_GETFAMILY dump\" term is evidenced only indirectly (multi-family answer; the kernel refuses a plain GETFAMILY with EINVAL); a direct request-byte assertion is in the mock suite (request-dump), pending; r2: the \"none\" flag text is NOT exercised: the guest has 0 of 138 operations without a flag word, so the real controller cannot produce it; replacement is the mock caps-matrix case, pending; r4: No case.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "ctrl list issues a CTRL_CMD_GETFAMILY dump and prints one record per family: \"Name: X\", \"ID: 0x.. Version: 0x.. header size: N max attribs: N\"",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -13371,23 +13488,47 @@
               "id": "migration-genl-list-exact",
               "assertion": "PASS static+dynamic",
               "definition_sha256": "ef6fc8da5e435d4628797f51b2a0e837002f0cde40e2b4b91e0f37f7bfb6ee33"
+            },
+            {
+              "group": "shell",
+              "id": "migration-genl-mock-request-dump",
+              "assertion": "Mock controller (seccomp user notification under the unchanged candidate): the request ctrl list sends, read from the candidate memory, is exactly 14000000 1000 0103 SEQ 00000000 03010000 (nlmsg_len 20, type 0x10, flags NLM_F_REQUEST|NLM_F_DUMP, pid 0, CTRL_CMD_GETFAMILY, version 1, no attribute, destination AF_NETLINK pid 0 groups 0, nonzero time/pid-derived sequence) and the replies are printed record for record; one NETLINK_GENERIC socket, one sendmsg.",
+              "definition_sha256": "2d0a1a565d485f1cf4230be666b5a80f8dc51ed6a93d9a61aa860fb9744ac586"
+            },
+            {
+              "group": "shell",
+              "id": "migration-genl-mock-exact",
+              "assertion": "Mock controller: boundary values render exactly (version/header size/max attribs 0xffffffff, a 15-character name, operation id 0 with flags 0x1f, group id 0xffffffff, families with neither/only operations/only groups, flags 0x0 and 0x20 as none).",
+              "definition_sha256": "79c4b120b0254ffc0dfad34bafb9aab92687266d0efdc9911b9ebe3a88c72de7"
             }
           ],
-          "gap": "the \"issues a CTRL_CMD_GETFAMILY dump\" term is evidenced only indirectly (multi-family answer; the kernel refuses a plain GETFAMILY with EINVAL); a direct request-byte assertion is in the mock suite (request-dump), pending"
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Per-family \"commands supported\" with #idx ID-0x.. and Capabilities (0x..) flag text (admin perm, doit, dumpit, has policy, none)",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-genl-list-capabilities",
               "assertion": "PARTIAL: PASS static+dynamic for #index/ID/Capabilities hex and the admin/doit/dumpit/has-policy words",
               "definition_sha256": "6a1a07b9a4fab4ee88d2b8b280bf1d3699ec6f5dfdf3dfded8d3a55c1af9f936"
+            },
+            {
+              "group": "shell",
+              "id": "migration-genl-mock-caps-matrix",
+              "assertion": "Mock controller: all 32 flag values 0x00-0x1f (every subset of the four capability bits, with and without GENL_UNS_ADMIN_PERM) and 14 unknown/high-bit values (46 operations) print the exact #index, ID-0x.., Capabilities (0x..) and flag text of the source contract; the word none appears for exactly the 11 operations without any of the four known bits (0x00 0x10 0x20 0x40 0x80 0x100 0x8000 0x10000 0xffffff00 0x80000000 0xfffffff0).",
+              "definition_sha256": "1bb6608fe39a70884827f2f0309e921359a607775d4243f77c7daaa9c7df5876"
+            },
+            {
+              "group": "shell",
+              "id": "migration-genl-mock-exact",
+              "assertion": "Mock controller: boundary values render exactly (version/header size/max attribs 0xffffffff, a 15-character name, operation id 0 with flags 0x1f, group id 0xffffffff, families with neither/only operations/only groups, flags 0x0 and 0x20 as none).",
+              "definition_sha256": "79c4b120b0254ffc0dfad34bafb9aab92687266d0efdc9911b9ebe3a88c72de7"
             }
           ],
-          "gap": "the \"none\" flag text is NOT exercised: the guest has 0 of 138 operations without a flag word, so the real controller cannot produce it; replacement is the mock caps-matrix case, pending"
+          "gap": ""
         },
         {
           "id": "r3",
@@ -13399,6 +13540,12 @@
               "id": "migration-genl-list-groups",
               "assertion": "10 groups across 7 families equal the kernel dump",
               "definition_sha256": "5410e9fed9b05009046d8d80a0859671f1ed4739000ee405a0a485124abcc229"
+            },
+            {
+              "group": "shell",
+              "id": "migration-genl-mock-exact",
+              "assertion": "Mock controller: boundary values render exactly (version/header size/max attribs 0xffffffff, a 15-character name, operation id 0 with flags 0x1f, group id 0xffffffff, families with neither/only operations/only groups, flags 0x0 and 0x20 as none).",
+              "definition_sha256": "79c4b120b0254ffc0dfad34bafb9aab92687266d0efdc9911b9ebe3a88c72de7"
             }
           ],
           "gap": ""
@@ -13406,9 +13553,22 @@
         {
           "id": "r4",
           "behavior": "Multipart NLM_F_MULTI responses are consumed until NLMSG_DONE across several recv buffers",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-genl-mock-multipart",
+              "assertion": "Mock controller: multipart replies of 12, 8, 25 and 3 receive buffers (NLMSG_DONE in its own datagram, appended to the last record datagram, one record per datagram, 20 KB datagrams): the candidate issues exactly one recvmsg per datagram up to the one carrying NLMSG_DONE (12, 8, 25, 3 syscalls counted by the supervisor), prints every family in order, and leaves the valid-looking family sent after NLMSG_DONE unread.",
+              "definition_sha256": "0c9153cdc3757a1b91a3e67bb0209b2a3f96c8cd62c3c0073a46b532c010ebf6"
+            },
+            {
+              "group": "shell",
+              "id": "migration-genl-mock-foreign-sequence",
+              "assertion": "Mock controller: records with another sequence number, alone in a datagram and between valid records, are ignored while four buffers are consumed to NLMSG_DONE; the sentinel after NLMSG_DONE stays unread; the output is exactly the three real families.",
+              "definition_sha256": "f331c2b54b53044be160f4435213995168ba790ffd10633c3eb7d2bae9f96339"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
@@ -13425,7 +13585,7 @@
           "gap": ""
         }
       ],
-      "notes": "Accepted independent raw review, bound to exact frozen artifacts by the primary. Both unchanged builds, valid reference/setup controls and clean VM teardown. Original obligations and existing companion evidence retained; genuine FAIL remains FAIL."
+      "notes": "Real-kernel100 evidence retained and complemented by frozen mock102. Independent fresh encoding/decoding recomputed all26 vector runs, exact request bytes, all32 flag combinations and unknown bits, multi-buffer NLMSG_DONE termination, foreign sequences and exact rendered text. Mock evidence is explicitly protocol-level. Static100 insufficient-multipart fixture ERROR remains excluded."
     },
     {
       "topic": "git/remote_protocol_mock",

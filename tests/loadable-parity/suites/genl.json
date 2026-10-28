@@ -43,9 +43,50 @@
     },
     {
       "id": "ctrl-list",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise CTRL_CMD_GETFAMILY dump formatting across registered families, their command capability flags, and multicast groups.",
-      "reason": "Remaining obligations: r1: the \"issues a CTRL_CMD_GETFAMILY dump\" term is evidenced only indirectly (multi-family answer; the kernel refuses a plain GETFAMILY with EINVAL); a direct request-byte assertion is in the mock suite (request-dump), pending; r2: the \"none\" flag text is NOT exercised: the guest has 0 of 138 operations without a flag word, so the real controller cannot produce it; replacement is the mock caps-matrix case, pending; r4: No case."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-genl-list-capabilities"
+        },
+        {
+          "group": "shell",
+          "id": "migration-genl-list-exact"
+        },
+        {
+          "group": "shell",
+          "id": "migration-genl-list-extra-argument"
+        },
+        {
+          "group": "shell",
+          "id": "migration-genl-list-groups"
+        },
+        {
+          "group": "shell",
+          "id": "migration-genl-list-records"
+        },
+        {
+          "group": "shell",
+          "id": "migration-genl-mock-caps-matrix"
+        },
+        {
+          "group": "shell",
+          "id": "migration-genl-mock-exact"
+        },
+        {
+          "group": "shell",
+          "id": "migration-genl-mock-foreign-sequence"
+        },
+        {
+          "group": "shell",
+          "id": "migration-genl-mock-multipart"
+        },
+        {
+          "group": "shell",
+          "id": "migration-genl-mock-request-dump"
+        }
+      ]
     },
     {
       "id": "ctrl-get-name",

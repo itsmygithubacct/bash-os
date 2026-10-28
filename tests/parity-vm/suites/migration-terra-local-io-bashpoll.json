@@ -1,0 +1,155 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terra-local-io-bashpoll-tcp",
+      "loadable": "bashpoll",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A private TCP listener/accept exchange, outbound connect with binary data and reply, peer EOF, and a reserved-port refusal.",
+      "oracle": "Original bashpoll deferral requirements, the documented BashOS builtin API, and independent kernel socket, PTY and epoll semantics. The peer controls exact bytes and ephemeral loopback addresses. The independent epoll instance observes each same stable descriptor immediately before the candidate wait; event labels and multiplicities must agree exactly with that kernel observation and include the originally required labels.",
+      "comparison": "Only private loopback or Unix endpoints and owned child shells are used. Setup exercises the relevant peer/PTY/epoll primitives, and the timeout setup proves on a readable pipe that the pinned seccomp observer returns zero only when enabled. Shell stdout/stderr, exact packet/stream bytes, child status, readiness oracle masks, path identity and all structured observations are retained under the case tree and HOME. The stale socket expected cleanup remains an assertion even if the implementation leaves it behind.",
+      "covers": [
+        "bashpoll/tcp-stream-api"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-io-bashpoll.py": "b2e648c9fde2c320d2be828c5c1061b1b0becf8ab56e6d1dee4ed35f60f407c7"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-bashpoll.py setup tcp",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-bashpoll.py \"$BASH\" tcp",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "tcp-listen accept-exchange-eof=yes\ntcp-connect binary-reply-eof=yes\ntcp-refused status-diagnostic=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "bashpoll-observations.jsonl"
+      ]
+    },
+    {
+      "id": "migration-terra-local-io-bashpoll-timeout",
+      "loadable": "bashpoll",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A setup-verified seccomp poll timeout controls a nonblocking connect to a private listener.",
+      "oracle": "Original bashpoll deferral requirements, the documented BashOS builtin API, and independent kernel socket, PTY and epoll semantics. The peer controls exact bytes and ephemeral loopback addresses. The independent epoll instance observes each same stable descriptor immediately before the candidate wait; event labels and multiplicities must agree exactly with that kernel observation and include the originally required labels.",
+      "comparison": "Only private loopback or Unix endpoints and owned child shells are used. Setup exercises the relevant peer/PTY/epoll primitives, and the timeout setup proves on a readable pipe that the pinned seccomp observer returns zero only when enabled. Shell stdout/stderr, exact packet/stream bytes, child status, readiness oracle masks, path identity and all structured observations are retained under the case tree and HOME. The stale socket expected cleanup remains an assertion even if the implementation leaves it behind.",
+      "covers": [
+        "bashpoll/tcp-stream-api"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-io-bashpoll.py": "b2e648c9fde2c320d2be828c5c1061b1b0becf8ab56e6d1dee4ed35f60f407c7",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-bashpoll.py setup timeout",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-bashpoll.py \"$BASH\" timeout",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "tcp-timeout injected-once=yes status-diagnostic=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "bashpoll-observations.jsonl",
+        "poll-timeout-trace.jsonl"
+      ],
+      "features": [
+        "seccomp-notify"
+      ]
+    },
+    {
+      "id": "migration-terra-local-io-bashpoll-udp",
+      "loadable": "bashpoll",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Private UDP source reporting, binary lowercase hex, inline payload, timeout, and binary and empty send datagrams.",
+      "oracle": "Original bashpoll deferral requirements, the documented BashOS builtin API, and independent kernel socket, PTY and epoll semantics. The peer controls exact bytes and ephemeral loopback addresses. The independent epoll instance observes each same stable descriptor immediately before the candidate wait; event labels and multiplicities must agree exactly with that kernel observation and include the originally required labels.",
+      "comparison": "Only private loopback or Unix endpoints and owned child shells are used. Setup exercises the relevant peer/PTY/epoll primitives, and the timeout setup proves on a readable pipe that the pinned seccomp observer returns zero only when enabled. Shell stdout/stderr, exact packet/stream bytes, child status, readiness oracle masks, path identity and all structured observations are retained under the case tree and HOME. The stale socket expected cleanup remains an assertion even if the implementation leaves it behind.",
+      "covers": [
+        "bashpoll/udp-datagram-api"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-io-bashpoll.py": "b2e648c9fde2c320d2be828c5c1061b1b0becf8ab56e6d1dee4ed35f60f407c7"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-bashpoll.py setup udp",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-bashpoll.py \"$BASH\" udp",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "udp-recv source-inline-hex=yes timeout=yes\nudp-send binary-empty-exact=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "bashpoll-observations.jsonl"
+      ]
+    },
+    {
+      "id": "migration-terra-local-io-bashpoll-unix",
+      "loadable": "bashpoll",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A relative stale Unix socket is replaced, accepts a client and is removed on close; a regular file is refused and preserved.",
+      "oracle": "Original bashpoll deferral requirements, the documented BashOS builtin API, and independent kernel socket, PTY and epoll semantics. The peer controls exact bytes and ephemeral loopback addresses. The independent epoll instance observes each same stable descriptor immediately before the candidate wait; event labels and multiplicities must agree exactly with that kernel observation and include the originally required labels.",
+      "comparison": "Only private loopback or Unix endpoints and owned child shells are used. Setup exercises the relevant peer/PTY/epoll primitives, and the timeout setup proves on a readable pipe that the pinned seccomp observer returns zero only when enabled. Shell stdout/stderr, exact packet/stream bytes, child status, readiness oracle masks, path identity and all structured observations are retained under the case tree and HOME. The stale socket expected cleanup remains an assertion even if the implementation leaves it behind.",
+      "covers": [
+        "bashpoll/unix-socket-lifecycle"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-io-bashpoll.py": "b2e648c9fde2c320d2be828c5c1061b1b0becf8ab56e6d1dee4ed35f60f407c7"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-bashpoll.py setup unix",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-bashpoll.py \"$BASH\" unix",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "unix-stale replaced=yes accept-exchange=yes close-removes-path=yes\nunix-nonsocket refused-and-intact=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "bashpoll-observations.jsonl"
+      ]
+    },
+    {
+      "id": "migration-terra-local-io-bashpoll-readiness",
+      "loadable": "bashpoll",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Socket half-close and TCP reset, PTY readiness and hangup, and mixed descriptor readiness are compared with kernel epoll.",
+      "oracle": "Original bashpoll deferral requirements, the documented BashOS builtin API, and independent kernel socket, PTY and epoll semantics. The peer controls exact bytes and ephemeral loopback addresses. The independent epoll instance observes each same stable descriptor immediately before the candidate wait; event labels and multiplicities must agree exactly with that kernel observation and include the originally required labels.",
+      "comparison": "Only private loopback or Unix endpoints and owned child shells are used. Setup exercises the relevant peer/PTY/epoll primitives, and the timeout setup proves on a readable pipe that the pinned seccomp observer returns zero only when enabled. Shell stdout/stderr, exact packet/stream bytes, child status, readiness oracle masks, path identity and all structured observations are retained under the case tree and HOME. The stale socket expected cleanup remains an assertion even if the implementation leaves it behind.",
+      "covers": [
+        "bashpoll/multi-fd-readiness"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-io-bashpoll.py": "b2e648c9fde2c320d2be828c5c1061b1b0becf8ab56e6d1dee4ed35f60f407c7"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-bashpoll.py setup readiness",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-io-bashpoll.py \"$BASH\" readiness",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "wait-half-close kernel-and-labels=yes\nwait-reset kernel-and-labels=yes\nwait-pty-readable kernel-and-labels=yes\nwait-pty-hup kernel-and-labels=yes\nwait-mixed kernel-and-labels=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "bashpoll-observations.jsonl"
+      ]
+    }
+  ]
+}

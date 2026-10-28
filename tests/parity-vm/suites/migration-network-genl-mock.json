@@ -1,0 +1,216 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-genl-mock-caps-matrix",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Flag text of every capability combination, including the word none: all 16 subsets of the four capability bits (flags 0x0-0xf, the empty subset prints none), the same with GENL_UNS_ADMIN_PERM (0x10-0x1f; the candidate has no word for that bit, so 0x10 alone prints none) and unknown or high bits (0x20 ... 0xffffff00, 0x80000000, 0xffffffff).",
+      "oracle": "Independent protocol oracle and mock: the helper runs the UNCHANGED candidate under a seccomp user-notification filter (no privilege) and answers its NETLINK_GENERIC socket(), bind() and sendmsg() itself: socket() is answered by injecting one end of an AF_UNIX SOCK_SEQPACKET socketpair at descriptor 100 (SECCOMP_IOCTL_NOTIF_ADDFD), the request is read out of the owned single-threaded child, and the reply datagrams are exactly the planned receive buffers; select, recvmsg and close then run natively. Table, capability flags and buffer boundaries are therefore exactly the synthetic plan, independent of the guest kernel. Replies are encoded by the helper's kernel-faithful encoder (byte-identical to all ten real records of the genl-review-100 guest and re-verified in setup against the live guest kernel), decoded again by the frozen oracle parser (genl-review-observer.py, digest-checked), and the expected text is the documented loadables/genl.c print contract rendered by the frozen oracle from the synthetic table, never taken from candidate output. Every request the candidate sends is decoded from its memory and asserted. Setup controls (a failure is an ERROR, never a candidate result): frozen known-answer tests; encoder round trip of every table; a Python probe making the candidate's syscalls receives the planned datagram bytes and boundaries at the injected descriptor and the request decoded from memory equals the request sent; other netlink protocols are not injected; and the real guest family table served through the mock reaches a client unchanged. The real controller never reports an operation without a flag word (0 of 138 operations on the genl-review-100 guest), so the none branch can only be exercised with a mock controller.",
+      "comparison": "commands=yes: #index and ID-0x.. of every operation; caps-hex=yes: Capabilities (0x..) equals the planned flags; word-admin/doit/dumpit/haspol=yes: each phrase appears for exactly the operations whose flags contain the bit; words-exact=yes: the whole flag line equals the source-contract text for every operation; none-words=yes: the word none appears for exactly the operations with none of the four bits, and there is at least one; injected=yes; request-dump=yes (the candidate request is a CTRL_CMD_GETFAMILY dump); status 0, empty stderr. Every key is evaluated for every vector (no early exit). Retained in the case tree: mock-observations.jsonl (candidate raw stdout, stderr, status, the expected bytes and datagram accounting per vector), mock-events-*.json (every intercepted call, the decoded request, datagram digests), the real-kernel transcripts of the setup controls, and the setup report as the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-list"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-mock-observer.py": "892af78a9badef7c7297524c44892d509a1614d3150a30f4c0536b5a43470453",
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer.py setup caps-matrix",
+      "setup_timeout": 50,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer.py \"$BASH\" caps-matrix",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "flags-0x00-0x0f status=0 stderr=empty injected=yes request-dump=yes commands=yes caps-hex=yes word-admin=yes word-doit=yes word-dumpit=yes word-haspol=yes words-exact=yes none-words=yes\nflags-0x10-0x1f status=0 stderr=empty injected=yes request-dump=yes commands=yes caps-hex=yes word-admin=yes word-doit=yes word-dumpit=yes word-haspol=yes words-exact=yes none-words=yes\nflags-unknown-bits status=0 stderr=empty injected=yes request-dump=yes commands=yes caps-hex=yes word-admin=yes word-doit=yes word-dumpit=yes word-haspol=yes words-exact=yes none-words=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-mock-multipart",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Multipart NLM_F_MULTI replies are consumed until NLMSG_DONE across several receive buffers, independent of the guest table: a 24-family table delivered as 12, 8 and 25 datagrams (NLMSG_DONE in its own datagram, in the datagram of the last record, and one record per datagram) and a table of about 40 KB in three datagrams, each followed by a sentinel family that must stay unread.",
+      "oracle": "Independent protocol oracle and mock: the helper runs the UNCHANGED candidate under a seccomp user-notification filter (no privilege) and answers its NETLINK_GENERIC socket(), bind() and sendmsg() itself: socket() is answered by injecting one end of an AF_UNIX SOCK_SEQPACKET socketpair at descriptor 100 (SECCOMP_IOCTL_NOTIF_ADDFD), the request is read out of the owned single-threaded child, and the reply datagrams are exactly the planned receive buffers; select, recvmsg and close then run natively. Table, capability flags and buffer boundaries are therefore exactly the synthetic plan, independent of the guest kernel. Replies are encoded by the helper's kernel-faithful encoder (byte-identical to all ten real records of the genl-review-100 guest and re-verified in setup against the live guest kernel), decoded again by the frozen oracle parser (genl-review-observer.py, digest-checked), and the expected text is the documented loadables/genl.c print contract rendered by the frozen oracle from the synthetic table, never taken from candidate output. Every request the candidate sends is decoded from its memory and asserted. Setup controls (a failure is an ERROR, never a candidate result): frozen known-answer tests; encoder round trip of every table; a Python probe making the candidate's syscalls receives the planned datagram bytes and boundaries at the injected descriptor and the request decoded from memory equals the request sent; other netlink protocols are not injected; and the real guest family table served through the mock reaches a client unchanged. This replaces the facility-dependent migration-genl-list-multipart, whose control correctly refused the genl-review-100 guest because its whole dump (3752 record bytes plus NLMSG_DONE) arrives in one receive buffer.",
+      "comparison": "families-complete=yes, records=yes, groups=yes, commands=yes, caps-hex=yes (formatting-independent structure of every family); recv-calls=N: the candidate made exactly the planned number of recvmsg calls, up to and including the datagram carrying NLMSG_DONE; consumed=N and unconsumed=1: every datagram through NLMSG_DONE was read and the sentinel queued after it was not (a candidate that ignored NLMSG_DONE would read it, print its family and wait for its 2 s timeout); status 0, empty stderr; injected=yes; request-dump=yes. No operation in these tables has flags 0, so this case does not depend on the none branch. Every key is evaluated for every vector (no early exit). Retained in the case tree: mock-observations.jsonl (candidate raw stdout, stderr, status, the expected bytes and datagram accounting per vector), mock-events-*.json (every intercepted call, the decoded request, datagram digests), the real-kernel transcripts of the setup controls, and the setup report as the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-list"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-mock-observer.py": "892af78a9badef7c7297524c44892d509a1614d3150a30f4c0536b5a43470453",
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer.py setup multipart",
+      "setup_timeout": 50,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer.py \"$BASH\" multipart",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "done-separate status=0 stderr=empty injected=yes request-dump=yes families-complete=yes records=yes groups=yes commands=yes caps-hex=yes recv-calls=12 consumed=12 unconsumed=1\ndone-with-last-record status=0 stderr=empty injected=yes request-dump=yes families-complete=yes records=yes groups=yes commands=yes caps-hex=yes recv-calls=8 consumed=8 unconsumed=1\none-record-per-datagram status=0 stderr=empty injected=yes request-dump=yes families-complete=yes records=yes groups=yes commands=yes caps-hex=yes recv-calls=25 consumed=25 unconsumed=1\nlarge-datagrams status=0 stderr=empty injected=yes request-dump=yes families-complete=yes records=yes groups=yes commands=yes caps-hex=yes recv-calls=3 consumed=3 unconsumed=1\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-mock-request-dump",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "ctrl list issues a CTRL_CMD_GETFAMILY dump request: the request bytes the candidate sends are captured from its memory and decoded.",
+      "oracle": "Independent protocol oracle and mock: the helper runs the UNCHANGED candidate under a seccomp user-notification filter (no privilege) and answers its NETLINK_GENERIC socket(), bind() and sendmsg() itself: socket() is answered by injecting one end of an AF_UNIX SOCK_SEQPACKET socketpair at descriptor 100 (SECCOMP_IOCTL_NOTIF_ADDFD), the request is read out of the owned single-threaded child, and the reply datagrams are exactly the planned receive buffers; select, recvmsg and close then run natively. Table, capability flags and buffer boundaries are therefore exactly the synthetic plan, independent of the guest kernel. Replies are encoded by the helper's kernel-faithful encoder (byte-identical to all ten real records of the genl-review-100 guest and re-verified in setup against the live guest kernel), decoded again by the frozen oracle parser (genl-review-observer.py, digest-checked), and the expected text is the documented loadables/genl.c print contract rendered by the frozen oracle from the synthetic table, never taken from candidate output. Every request the candidate sends is decoded from its memory and asserted. Setup controls (a failure is an ERROR, never a candidate result): frozen known-answer tests; encoder round trip of every table; a Python probe making the candidate's syscalls receives the planned datagram bytes and boundaries at the injected descriptor and the request decoded from memory equals the request sent; other netlink protocols are not injected; and the real guest family table served through the mock reaches a client unchanged. ",
+      "comparison": "request-dump=yes: nlmsg_len 20, nlmsg_type 0x10, flags NLM_F_REQUEST|NLM_F_DUMP (0x301), genl cmd 3, version 1, reserved 0, no attribute, nonzero sequence, nlmsg_pid 0, destination sockaddr_nl{AF_NETLINK, pid 0, groups 0}; status 0, empty stderr, families-complete=yes, injected=yes. Every key is evaluated for every vector (no early exit). Retained in the case tree: mock-observations.jsonl (candidate raw stdout, stderr, status, the expected bytes and datagram accounting per vector), mock-events-*.json (every intercepted call, the decoded request, datagram digests), the real-kernel transcripts of the setup controls, and the setup report as the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-list"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-mock-observer.py": "892af78a9badef7c7297524c44892d509a1614d3150a30f4c0536b5a43470453",
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer.py setup request-dump",
+      "setup_timeout": 50,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer.py \"$BASH\" request-dump",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "list-request status=0 stderr=empty injected=yes request-dump=yes families-complete=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-mock-lookup-requests",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Supplementary, not mapped to a requirement: lookups by name and by hexadecimal and decimal id send exactly one family attribute (the NUL-terminated name, or the u16 id) with NLM_F_REQUEST only, and print the record the mock returns.",
+      "oracle": "Independent protocol oracle and mock: the helper runs the UNCHANGED candidate under a seccomp user-notification filter (no privilege) and answers its NETLINK_GENERIC socket(), bind() and sendmsg() itself: socket() is answered by injecting one end of an AF_UNIX SOCK_SEQPACKET socketpair at descriptor 100 (SECCOMP_IOCTL_NOTIF_ADDFD), the request is read out of the owned single-threaded child, and the reply datagrams are exactly the planned receive buffers; select, recvmsg and close then run natively. Table, capability flags and buffer boundaries are therefore exactly the synthetic plan, independent of the guest kernel. Replies are encoded by the helper's kernel-faithful encoder (byte-identical to all ten real records of the genl-review-100 guest and re-verified in setup against the live guest kernel), decoded again by the frozen oracle parser (genl-review-observer.py, digest-checked), and the expected text is the documented loadables/genl.c print contract rendered by the frozen oracle from the synthetic table, never taken from candidate output. Every request the candidate sends is decoded from its memory and asserted. Setup controls (a failure is an ERROR, never a candidate result): frozen known-answer tests; encoder round trip of every table; a Python probe making the candidate's syscalls receives the planned datagram bytes and boundaries at the injected descriptor and the request decoded from memory equals the request sent; other netlink protocols are not injected; and the real guest family table served through the mock reaches a client unchanged. ",
+      "comparison": "request-name=yes / request-id=yes (decoded request: flags 1, one attribute of the right type and bytes); exact=yes, semantic=yes, one-record=yes; status 0, empty stderr; injected=yes. Every key is evaluated for every vector (no early exit). Retained in the case tree: mock-observations.jsonl (candidate raw stdout, stderr, status, the expected bytes and datagram accounting per vector), mock-events-*.json (every intercepted call, the decoded request, datagram digests), the real-kernel transcripts of the setup controls, and the setup report as the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-get-id",
+        "genl/ctrl-get-name"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-mock-observer.py": "892af78a9badef7c7297524c44892d509a1614d3150a30f4c0536b5a43470453",
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer.py setup lookup-requests",
+      "setup_timeout": 50,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer.py \"$BASH\" lookup-requests",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "get-name status=0 stderr=empty injected=yes request-name=yes exact=yes semantic=yes one-record=yes\nget-id-hex status=0 stderr=empty injected=yes request-id=yes exact=yes semantic=yes one-record=yes\nget-id-decimal status=0 stderr=empty injected=yes request-id=yes exact=yes semantic=yes one-record=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-mock-exact",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Supplementary, not mapped to a requirement: exact-byte check of the print contract on a synthetic table with a family having neither operations nor groups, operations only, groups only, 32-bit extremes (version, header size and max attribs 0xffffffff, group id 0xffffffff), a 15-character name, id 0x3ff and a mixed-flag family with flags 0, 0x20 and 0xa.",
+      "oracle": "Independent protocol oracle and mock: the helper runs the UNCHANGED candidate under a seccomp user-notification filter (no privilege) and answers its NETLINK_GENERIC socket(), bind() and sendmsg() itself: socket() is answered by injecting one end of an AF_UNIX SOCK_SEQPACKET socketpair at descriptor 100 (SECCOMP_IOCTL_NOTIF_ADDFD), the request is read out of the owned single-threaded child, and the reply datagrams are exactly the planned receive buffers; select, recvmsg and close then run natively. Table, capability flags and buffer boundaries are therefore exactly the synthetic plan, independent of the guest kernel. Replies are encoded by the helper's kernel-faithful encoder (byte-identical to all ten real records of the genl-review-100 guest and re-verified in setup against the live guest kernel), decoded again by the frozen oracle parser (genl-review-observer.py, digest-checked), and the expected text is the documented loadables/genl.c print contract rendered by the frozen oracle from the synthetic table, never taken from candidate output. Every request the candidate sends is decoded from its memory and asserted. Setup controls (a failure is an ERROR, never a candidate result): frozen known-answer tests; encoder round trip of every table; a Python probe making the candidate's syscalls receives the planned datagram bytes and boundaries at the injected descriptor and the request decoded from memory equals the request sent; other netlink protocols are not injected; and the real guest family table served through the mock reaches a client unchanged. ",
+      "comparison": "exact=yes, semantic=yes, status 0, empty stderr, injected=yes, request-dump=yes. Every key is evaluated for every vector (no early exit). Retained in the case tree: mock-observations.jsonl (candidate raw stdout, stderr, status, the expected bytes and datagram accounting per vector), mock-events-*.json (every intercepted call, the decoded request, datagram digests), the real-kernel transcripts of the setup controls, and the setup report as the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-list"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-mock-observer.py": "892af78a9badef7c7297524c44892d509a1614d3150a30f4c0536b5a43470453",
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer.py setup exact",
+      "setup_timeout": 50,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer.py \"$BASH\" exact",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "exact-mixed status=0 stderr=empty injected=yes request-dump=yes exact=yes semantic=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-mock-foreign-sequence",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Supplementary, not mapped to a requirement: replies carrying another sequence number (a datagram holding only a foreign record and a foreign record inside a datagram of matching ones) are skipped, and the dump still ends at NLMSG_DONE.",
+      "oracle": "Independent protocol oracle and mock: the helper runs the UNCHANGED candidate under a seccomp user-notification filter (no privilege) and answers its NETLINK_GENERIC socket(), bind() and sendmsg() itself: socket() is answered by injecting one end of an AF_UNIX SOCK_SEQPACKET socketpair at descriptor 100 (SECCOMP_IOCTL_NOTIF_ADDFD), the request is read out of the owned single-threaded child, and the reply datagrams are exactly the planned receive buffers; select, recvmsg and close then run natively. Table, capability flags and buffer boundaries are therefore exactly the synthetic plan, independent of the guest kernel. Replies are encoded by the helper's kernel-faithful encoder (byte-identical to all ten real records of the genl-review-100 guest and re-verified in setup against the live guest kernel), decoded again by the frozen oracle parser (genl-review-observer.py, digest-checked), and the expected text is the documented loadables/genl.c print contract rendered by the frozen oracle from the synthetic table, never taken from candidate output. Every request the candidate sends is decoded from its memory and asserted. Setup controls (a failure is an ERROR, never a candidate result): frozen known-answer tests; encoder round trip of every table; a Python probe making the candidate's syscalls receives the planned datagram bytes and boundaries at the injected descriptor and the request decoded from memory equals the request sent; other netlink protocols are not injected; and the real guest family table served through the mock reaches a client unchanged. ",
+      "comparison": "exact=yes (only the three matching families are printed), foreign-ignored=yes, recv-calls=4, consumed=4, unconsumed=1 (the sentinel after NLMSG_DONE unread), status 0, empty stderr, injected=yes, request-dump=yes. Every key is evaluated for every vector (no early exit). Retained in the case tree: mock-observations.jsonl (candidate raw stdout, stderr, status, the expected bytes and datagram accounting per vector), mock-events-*.json (every intercepted call, the decoded request, datagram digests), the real-kernel transcripts of the setup controls, and the setup report as the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-list"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-mock-observer.py": "892af78a9badef7c7297524c44892d509a1614d3150a30f4c0536b5a43470453",
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer.py setup foreign-sequence",
+      "setup_timeout": 50,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer.py \"$BASH\" foreign-sequence",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "foreign-own-and-inline status=0 stderr=empty injected=yes request-dump=yes exact=yes foreign-ignored=yes recv-calls=4 consumed=4 unconsumed=1\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-mock-control",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Explicit validity controls of the mock itself (not mapped to a requirement): known answers, encoder round trip, injection, datagram boundaries, request decoding, narrowness of the filter, byte fidelity with the real guest kernel, kernel-like errors and the absence of stray processes.",
+      "oracle": "Independent protocol oracle and mock: the helper runs the UNCHANGED candidate under a seccomp user-notification filter (no privilege) and answers its NETLINK_GENERIC socket(), bind() and sendmsg() itself: socket() is answered by injecting one end of an AF_UNIX SOCK_SEQPACKET socketpair at descriptor 100 (SECCOMP_IOCTL_NOTIF_ADDFD), the request is read out of the owned single-threaded child, and the reply datagrams are exactly the planned receive buffers; select, recvmsg and close then run natively. Table, capability flags and buffer boundaries are therefore exactly the synthetic plan, independent of the guest kernel. Replies are encoded by the helper's kernel-faithful encoder (byte-identical to all ten real records of the genl-review-100 guest and re-verified in setup against the live guest kernel), decoded again by the frozen oracle parser (genl-review-observer.py, digest-checked), and the expected text is the documented loadables/genl.c print contract rendered by the frozen oracle from the synthetic table, never taken from candidate output. Every request the candidate sends is decoded from its memory and asserted. This case runs the controls and reports each as a key; the other cases run the gating subset in setup.",
+      "comparison": "Each key is yes only if its control holds: base-known-answers: the frozen oracle known-answer tests pass; encoder-roundtrip: every synthetic table, encoded by the mock, decodes with the frozen parser to exactly the table; injection: a probe making the candidate syscalls got the injected socket at descriptor 100, bind answered, sendmsg returned the request length; boundaries: the probe received exactly the planned datagrams, with their boundaries and bytes, and a complete multipart conversation; decode-request: the request decoded from the probe memory equals the request the probe sent, and the decoded families equal the table; narrow: a NETLINK_ROUTE socket and an AF_UNIX socket are not injected and cause no notification; kernel-end-to-end: the real guest family table served through the mock reaches the probe unchanged; kernel-records: the mock encoding of every real guest record is byte-identical to the kernel record; kernel-like-errors: plain GETFAMILY and unknown name are refused with the real kernel errno; a known name and id return the family; no-strays: no child process remains after the supervised runs. Every key is evaluated for every vector (no early exit). Retained in the case tree: mock-observations.jsonl (candidate raw stdout, stderr, status, the expected bytes and datagram accounting per vector), mock-events-*.json (every intercepted call, the decoded request, datagram digests), the real-kernel transcripts of the setup controls, and the setup report as the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-list"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-mock-observer.py": "892af78a9badef7c7297524c44892d509a1614d3150a30f4c0536b5a43470453",
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer.py setup control",
+      "setup_timeout": 50,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer.py \"$BASH\" control",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "mock-controls base-known-answers=yes encoder-roundtrip=yes injection=yes boundaries=yes decode-request=yes narrow=yes kernel-end-to-end=yes kernel-records=yes kernel-like-errors=yes no-strays=yes\n",
+      "stderr": ""
+    }
+  ]
+}

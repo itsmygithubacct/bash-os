@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "2334993e3074c85ed11d528bac1ac02ba5cd7ef203a0e72b3b22f11faed277c0",
+  "ledger_sha256": "eb96d404eb7fca7caec2845371cdd7eb4d48cfce40fdce89b46229753ecd7dea",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 91,
-    "none": 247,
-    "full": 262
+    "partial": 89,
+    "none": 244,
+    "full": 267
   },
   "migrations": {
-    "deferred": 338,
-    "replacement": 262
+    "deferred": 333,
+    "replacement": 267
   },
   "pending_full_topics": [],
   "builds": {
@@ -2043,6 +2043,58 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793190644.0663762
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-io-bashpoll-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "60f7e5568d9b4f4b2647ccea495db29d9e274535359c51ea468aa8920b7e82ee",
+            "provenance.json": "51e10bd50cf8de1694774c458bd0c8916a71a13fb322bb38299cd2ea6d3d5485",
+            "payload.tar": "c95b90d3b6e0be4dbc3a4159bb3def915022821fc1d72326f0d253f9703a8305",
+            "evidence.tar": "e08b07db3b337142c7106b4467ba0e4ede1098c935d7b9289dfb3eb5fb981db0"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793191514.867307
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "genl-mock-static-102",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 7,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "1a73b5df76a1338c4187bc72fc1806e924b97e72d88d1053c722757fe8d5100f",
+            "provenance.json": "8b1bd67c1a59aebbc4e6378f3ca6a3f20566a61971f8dcd44e0c530dbfe63ccc",
+            "payload.tar": "1c03f9b9df7e159d7573b7f0dfebe718244a0190f9f24cfe69455f07e0d6c8b2",
+            "evidence.tar": "aed172126840b002d24dbcabf81573a85a98604b37e623677b1dccac4e4715f9"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793192405.243063
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -4402,53 +4454,80 @@
         },
         {
           "topic": "bashpoll/multi-fd-readiness",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Peer half-close (shutdown SHUT_WR) on a TCP/socketpair descriptor reports readable,rdhup.",
-              "coverage": "missing",
-              "gap": "No controlled socket peer.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-readiness",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Socket error state (peer RST) reports hup/error labels.",
-              "coverage": "missing",
-              "gap": "No reset-generating peer.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-readiness",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "PTY master/slave readiness (readable after slave write, hup after slave close).",
-              "coverage": "missing",
-              "gap": "No PTY descriptor fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-readiness",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Several descriptors of different kinds in one wait are each reported once with their own event set.",
-              "coverage": "partial",
-              "gap": "Only homogeneous FIFOs; no mixed socket/PTY set.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/bashpoll/multi-private-fifo-readiness",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-readiness",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -4508,136 +4587,226 @@
         },
         {
           "topic": "bashpoll/tcp-stream-api",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "listen ADDR:PORT FDVAR binds a listener; accept LISTEN_FD FDVAR returns a connected fd for a peer connection.",
-              "coverage": "missing",
-              "gap": "No client peer connects.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-tcp",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "connect HOST:PORT FDVAR connects to a peer; data written to the fd arrives byte-exact and peer data is readable.",
-              "coverage": "missing",
-              "gap": "No exchange fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-tcp",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "connect timeout/refused failure status and diagnostic.",
-              "coverage": "missing",
-              "gap": "No refused/silent target case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-tcp",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-timeout",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "close releases the connection (peer sees EOF).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-tcp",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashpoll/udp-datagram-api",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "listen-udp ADDR:PORT FDVAR + recv-udp FD returns one datagram with the source address in ADDR:PORT form (or -o ADDRVAR).",
-              "coverage": "missing",
-              "gap": "No sender peer.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-udp",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "send-udp HOST:PORT delivers exact payload bytes including binary and empty datagrams.",
-              "coverage": "missing",
-              "gap": "No receiver comparison.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-udp",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "recv-udp -x emits lowercase hex of the payload (NUL-safe).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-udp",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "recv-udp -t MS times out with status 1.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-udp",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashpoll/unix-socket-lifecycle",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "listen-unix with a relative path creates the socket and accept returns a connected fd for a client.",
-              "coverage": "missing",
-              "gap": "No client fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-unix",
+                  "status": "FAIL",
+                  "run": "qual-local-io-bashpoll-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "A stale socket at the path is replaced.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-unix",
+                  "status": "FAIL",
+                  "run": "qual-local-io-bashpoll-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "A non-socket entry at the path is refused and left intact.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-unix",
+                  "status": "FAIL",
+                  "run": "qual-local-io-bashpoll-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "The socket path is cleaned up when the listener is closed.",
-              "coverage": "missing",
-              "gap": "Source shows close() only closes the fd; no unlink on close.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-unix",
+                  "status": "FAIL",
+                  "run": "qual-local-io-bashpoll-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -10542,7 +10711,7 @@
             },
             {
               "id": "r3",
-              "behavior": "The final exit status is nonzero after a recovered error, as GNU reports.",
+              "behavior": "The final exit status after the deterministic read error is recorded and compared with GNU dd under the same fault and conversion settings, retaining zero, nonzero and timeout outcomes exactly (GNU 0 after recovery in these fixtures; plain unrecovered EISDIR 1).",
               "coverage": "covered",
               "gap": "",
               "evidence": [
@@ -15897,16 +16066,16 @@
         },
         {
           "topic": "genl/ctrl-list",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "ctrl list issues a CTRL_CMD_GETFAMILY dump and prints one record per family: \"Name: X\", \"ID: 0x.. Version: 0x.. header size: N max attribs: N\"",
-              "coverage": "partial",
-              "gap": "the \"issues a CTRL_CMD_GETFAMILY dump\" term is evidenced only indirectly (multi-family answer; the kernel refuses a plain GETFAMILY with EINVAL); a direct request-byte assertion is in the mock suite (request-dump), pending",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -15919,26 +16088,50 @@
                   "id": "migration-genl-list-exact",
                   "status": "PASS",
                   "run": "genl-review-static-100"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-mock-request-dump",
+                  "status": "PASS",
+                  "run": "genl-mock-static-102"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-mock-exact",
+                  "status": "PASS",
+                  "run": "genl-mock-static-102"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Per-family \"commands supported\" with #idx ID-0x.. and Capabilities (0x..) flag text (admin perm, doit, dumpit, has policy, none)",
-              "coverage": "partial",
-              "gap": "the \"none\" flag text is NOT exercised: the guest has 0 of 138 operations without a flag word, so the real controller cannot produce it; replacement is the mock caps-matrix case, pending",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-genl-list-capabilities",
                   "status": "PASS",
                   "run": "genl-review-static-100"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-mock-caps-matrix",
+                  "status": "PASS",
+                  "run": "genl-mock-static-102"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-mock-exact",
+                  "status": "PASS",
+                  "run": "genl-mock-static-102"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -15951,6 +16144,12 @@
                   "id": "migration-genl-list-groups",
                   "status": "PASS",
                   "run": "genl-review-static-100"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-mock-exact",
+                  "status": "PASS",
+                  "run": "genl-mock-static-102"
                 }
               ],
               "fully_exercised": true,
@@ -15959,11 +16158,24 @@
             {
               "id": "r4",
               "behavior": "Multipart NLM_F_MULTI responses are consumed until NLMSG_DONE across several recv buffers",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-mock-multipart",
+                  "status": "PASS",
+                  "run": "genl-mock-static-102"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-mock-foreign-sequence",
+                  "status": "PASS",
+                  "run": "genl-mock-static-102"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -42957,9 +43169,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 338,
-        "FAIL": 143,
-        "PASS": 119
+        "UNRESOLVED": 333,
+        "FAIL": 144,
+        "PASS": 123
       },
       "migration_without_complete_evidence": []
     },
@@ -44992,6 +45204,58 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793191014.8477957
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "qual-local-io-bashpoll-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "5cc561977d9ada1716531bdd8913e62883207b84f9aa2794bb647421a69a19bd",
+            "provenance.json": "02652de33019d8b7fa74823040068f81e68080c69f9de34fa6feebbbff88c497",
+            "payload.tar": "b5785ce5790568a202466a0a1b5b481a08553f347b0674ed14fdbf08fde4870e",
+            "evidence.tar": "cff824b547d98adf0defdc7b5bc5149df09eba69e01fe31e6a20d934f6a8d652"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793191565.3232143
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "genl-mock-dynamic-102",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 7,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "3ae57acfd4d096dff41e6ef0822991c81a6408aff8710c10872d49460008281f",
+            "provenance.json": "2c35c5392ab65cb165550c9de161fe9ff57ca19e14e1462b72f58f59b53a14e0",
+            "payload.tar": "3886c43003c73c46b62c7a1a3453d2dfa9963cbc34943a9c0859c77f4b64000d",
+            "evidence.tar": "5aa98bca17d22c0434a94b1f2bb17047f1c5d4b291fbee407becbf960e0d6b66"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793192435.3171566
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -47351,53 +47615,80 @@
         },
         {
           "topic": "bashpoll/multi-fd-readiness",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Peer half-close (shutdown SHUT_WR) on a TCP/socketpair descriptor reports readable,rdhup.",
-              "coverage": "missing",
-              "gap": "No controlled socket peer.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-readiness",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Socket error state (peer RST) reports hup/error labels.",
-              "coverage": "missing",
-              "gap": "No reset-generating peer.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-readiness",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "PTY master/slave readiness (readable after slave write, hup after slave close).",
-              "coverage": "missing",
-              "gap": "No PTY descriptor fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-readiness",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Several descriptors of different kinds in one wait are each reported once with their own event set.",
-              "coverage": "partial",
-              "gap": "Only homogeneous FIFOs; no mixed socket/PTY set.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/bashpoll/multi-private-fifo-readiness",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-readiness",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -47457,136 +47748,226 @@
         },
         {
           "topic": "bashpoll/tcp-stream-api",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "listen ADDR:PORT FDVAR binds a listener; accept LISTEN_FD FDVAR returns a connected fd for a peer connection.",
-              "coverage": "missing",
-              "gap": "No client peer connects.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-tcp",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "connect HOST:PORT FDVAR connects to a peer; data written to the fd arrives byte-exact and peer data is readable.",
-              "coverage": "missing",
-              "gap": "No exchange fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-tcp",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "connect timeout/refused failure status and diagnostic.",
-              "coverage": "missing",
-              "gap": "No refused/silent target case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-tcp",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-timeout",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "close releases the connection (peer sees EOF).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-tcp",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashpoll/udp-datagram-api",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "listen-udp ADDR:PORT FDVAR + recv-udp FD returns one datagram with the source address in ADDR:PORT form (or -o ADDRVAR).",
-              "coverage": "missing",
-              "gap": "No sender peer.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-udp",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "send-udp HOST:PORT delivers exact payload bytes including binary and empty datagrams.",
-              "coverage": "missing",
-              "gap": "No receiver comparison.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-udp",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "recv-udp -x emits lowercase hex of the payload (NUL-safe).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-udp",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "recv-udp -t MS times out with status 1.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-udp",
+                  "status": "PASS",
+                  "run": "qual-local-io-bashpoll-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashpoll/unix-socket-lifecycle",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "listen-unix with a relative path creates the socket and accept returns a connected fd for a client.",
-              "coverage": "missing",
-              "gap": "No client fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-unix",
+                  "status": "FAIL",
+                  "run": "qual-local-io-bashpoll-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "A stale socket at the path is replaced.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-unix",
+                  "status": "FAIL",
+                  "run": "qual-local-io-bashpoll-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "A non-socket entry at the path is refused and left intact.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-unix",
+                  "status": "FAIL",
+                  "run": "qual-local-io-bashpoll-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "The socket path is cleaned up when the listener is closed.",
-              "coverage": "missing",
-              "gap": "Source shows close() only closes the fd; no unlink on close.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-io-bashpoll-unix",
+                  "status": "FAIL",
+                  "run": "qual-local-io-bashpoll-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -53491,7 +53872,7 @@
             },
             {
               "id": "r3",
-              "behavior": "The final exit status is nonzero after a recovered error, as GNU reports.",
+              "behavior": "The final exit status after the deterministic read error is recorded and compared with GNU dd under the same fault and conversion settings, retaining zero, nonzero and timeout outcomes exactly (GNU 0 after recovery in these fixtures; plain unrecovered EISDIR 1).",
               "coverage": "covered",
               "gap": "",
               "evidence": [
@@ -58846,16 +59227,16 @@
         },
         {
           "topic": "genl/ctrl-list",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "ctrl list issues a CTRL_CMD_GETFAMILY dump and prints one record per family: \"Name: X\", \"ID: 0x.. Version: 0x.. header size: N max attribs: N\"",
-              "coverage": "partial",
-              "gap": "the \"issues a CTRL_CMD_GETFAMILY dump\" term is evidenced only indirectly (multi-family answer; the kernel refuses a plain GETFAMILY with EINVAL); a direct request-byte assertion is in the mock suite (request-dump), pending",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -58868,26 +59249,50 @@
                   "id": "migration-genl-list-exact",
                   "status": "PASS",
                   "run": "genl-review-dynamic-100"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-mock-request-dump",
+                  "status": "PASS",
+                  "run": "genl-mock-dynamic-102"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-mock-exact",
+                  "status": "PASS",
+                  "run": "genl-mock-dynamic-102"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Per-family \"commands supported\" with #idx ID-0x.. and Capabilities (0x..) flag text (admin perm, doit, dumpit, has policy, none)",
-              "coverage": "partial",
-              "gap": "the \"none\" flag text is NOT exercised: the guest has 0 of 138 operations without a flag word, so the real controller cannot produce it; replacement is the mock caps-matrix case, pending",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-genl-list-capabilities",
                   "status": "PASS",
                   "run": "genl-review-dynamic-100"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-mock-caps-matrix",
+                  "status": "PASS",
+                  "run": "genl-mock-dynamic-102"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-mock-exact",
+                  "status": "PASS",
+                  "run": "genl-mock-dynamic-102"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -58900,6 +59305,12 @@
                   "id": "migration-genl-list-groups",
                   "status": "PASS",
                   "run": "genl-review-dynamic-100"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-mock-exact",
+                  "status": "PASS",
+                  "run": "genl-mock-dynamic-102"
                 }
               ],
               "fully_exercised": true,
@@ -58908,11 +59319,24 @@
             {
               "id": "r4",
               "behavior": "Multipart NLM_F_MULTI responses are consumed until NLMSG_DONE across several recv buffers",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-mock-multipart",
+                  "status": "PASS",
+                  "run": "genl-mock-dynamic-102"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-mock-foreign-sequence",
+                  "status": "PASS",
+                  "run": "genl-mock-dynamic-102"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -85906,9 +86330,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 338,
-        "FAIL": 143,
-        "PASS": 119
+        "UNRESOLVED": 333,
+        "FAIL": 144,
+        "PASS": 123
       },
       "migration_without_complete_evidence": []
     }

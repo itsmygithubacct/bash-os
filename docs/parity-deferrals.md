@@ -7,8 +7,8 @@ reviewed requirements, evidence links and specific remaining gaps. The
 saved static and dynamic VM runs. The initial qualification tables in the VM
 guide describe the earlier fixture set.
 
-The current review covers 262 of the 600 topics on both builds: 119 PASS and
-143 FAIL. The other 338 retain unresolved requirements. These are topic counts,
+The current review covers 267 of the 600 topics on both builds: 123 PASS and
+144 FAIL. The other 333 retain unresolved requirements. These are topic counts,
 not additional behavioral test results.
 
 A historical case becomes `MIGRATED` only when every requirement has an explicit

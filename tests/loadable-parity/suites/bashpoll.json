@@ -68,21 +68,40 @@
     },
     {
       "id": "tcp-stream-api",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise TCP listen, accept, connect, data exchange, timeout and close behavior with a bounded private peer.",
-      "reason": "The existing tcp and tcp-client peers can drive all of this on 127.0.0.1; only cases are missing."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terra-local-io-bashpoll-tcp"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-io-bashpoll-timeout"
+        }
+      ]
     },
     {
       "id": "unix-socket-lifecycle",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise listen-unix and accept, relative socket-path creation and cleanup, stale socket replacement, and refusal to unlink a non-socket entry.",
-      "reason": "Everything except cleanup is observable with a python3 AF_UNIX client helper inside one per-side script; cleanup on close is not implemented by the candidate."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terra-local-io-bashpoll-unix"
+        }
+      ]
     },
     {
       "id": "udp-datagram-api",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise listen-udp, send-udp and recv-udp with empty and binary datagrams, timeout, source-address reporting, and hex output.",
-      "reason": "The existing udp (echo) and udp-client peers cover send/receive on loopback; no cases exist."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terra-local-io-bashpoll-udp"
+        }
+      ]
     },
     {
       "id": "signalfd-ownership",
@@ -98,9 +117,18 @@
     },
     {
       "id": "multi-fd-readiness",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Socket half-close/error and PTY readiness beyond the runnable simultaneous private FIFO readiness contract.",
-      "reason": "FIFO readiness is covered; socket half-close/RST and PTY readiness need a controlled peer, which loopback helpers can provide."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/bashpoll/multi-private-fifo-readiness"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-io-bashpoll-readiness"
+        }
+      ]
     },
     {
       "id": "private-fifo-descriptor-lifecycle",
