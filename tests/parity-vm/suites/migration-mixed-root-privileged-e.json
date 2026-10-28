@@ -1,0 +1,198 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-dmsetup-query-root",
+      "loadable": "dmsetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "dmsetup/query-list-info",
+        "dmsetup/query-tables-deps-targets",
+        "dmsetup/ioctl-errors-buffering"
+      ],
+      "purpose": "dmsetup queries with no mappings and with a three-segment (linear+zero+error) mapping with a UUID and a zero mapping: ls, info by name, by -u UUID, both, a missing name and a mixed list; info while suspended and with an inactive table; table and status of all devices and one, with --inactive and --target; ls --target; deps of all, one and an inactive table over two loop devices; targets and version. As uid 2000 (control node EACCES) and with /dev/mapper hidden by a tmpfs (control absent): ls, info, table, status, deps and targets. The shell's descriptor count before and after.",
+      "oracle": "LVM2 dmsetup (libdevmapper 1.02)",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; large outputs as a line count and digest. Each side runs in its own IPC namespace, where udev cookie semaphores cannot complete, so mutating commands pass --noudevsync (which the candidate accepts and ignores) and udev is settled before each step; BASHOS_DMSETUP_ALLOW_MUTATE=1 enables the candidate's mutating commands as root. Mappings sit on per-side loop devices or zero/error targets, are removed by the fixture, and the harness verifies no dm or loop device survives the side.",
+      "requires": [
+        "dmsetup",
+        "losetup",
+        "python3",
+        "sed",
+        "tr",
+        "wc",
+        "setpriv",
+        "mount",
+        "umount"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nexport BASHOS_DMSETUP_ALLOW_MUTATE=1\nD() { settle; /usr/sbin/dmsetup --noudevsync \"$@\"; }\nr() { settle; local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { settle; local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nrt() { D table \"$1\" 2>&1 | /usr/bin/sed 's/^/  table: /'; }\ninf() { D info \"$1\" 2>&1 | /usr/bin/sed -n 's/^\\(State\\|Tables present\\|UUID\\|Number of targets\\|Open count\\): */  \\1: /p'; }\nex() { if D info \"$1\" >/dev/null 2>&1; then echo \"  $1 exists\"; else echo \"  $1 absent\"; fi; }\nminor() { D info -c --noheadings -o minor \"$1\"; }\n# rs LABEL CMD: like r, but stdout is summarized as a line count and digest.\nrs() { settle; local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; local s=$?\n  printf '%s status=%s lines=%s sha=%s err=' \"$l\" $s \"$(/usr/bin/wc -l < /tmp/rf.out)\" \"$(sha /tmp/rf.out)\"; strip /tmp/rf.err; echo; }\nfds() { local a=(/proc/$BASHPID/fd/*); n=${#a[@]}; }\ncd $RT; seed a.img 65536; seed b.img 65536; d1=$(att -f --show a.img); d2=$(att -f --show b.img)\nfds; before=$n\nr ls-empty dmsetup ls\nr info-empty dmsetup info\nr table-empty dmsetup table\nprintf '0 16 linear %s 0\\n16 16 zero\\n32 16 error\\n' $d1 | D create -u RF-UUID-A rf-a || echo SETUP-FAILED\nD create rf-b --table '0 64 zero' || echo SETUP-FAILED\nr ls dmsetup ls\nr info dmsetup info\nr info-a dmsetup info rf-a\nr info-uuid dmsetup info -u RF-UUID-A\nr info-uuid-and-name dmsetup info -u RF-UUID-A rf-a\nr info-missing dmsetup info rf-none\nr info-mixed dmsetup info rf-a rf-none rf-b\nD suspend rf-b; r info-suspended dmsetup info rf-b; D resume rf-b\nD load rf-b --table '0 64 error'; r info-inactive dmsetup info rf-b\nr table dmsetup table\nr table-a dmsetup table rf-a\nr status dmsetup status\nr status-a dmsetup status rf-a\nr table-inactive dmsetup table --inactive rf-b\nr status-inactive dmsetup status --inactive rf-b\nr table-target dmsetup table --target zero\nr status-target dmsetup status --target error\nr ls-target dmsetup ls --target error\nr deps dmsetup deps\nr deps-a dmsetup deps rf-a\nprintf '0 16 linear %s 0\\n16 16 linear %s 0\\n' $d1 $d2 | D load rf-a\nr deps-inactive dmsetup deps --inactive rf-a\nD clear rf-a; D clear rf-b\nr targets dmsetup targets\nr version dmsetup version\nfor v in ls info table status deps targets; do u \"eacces-$v\" \"dmsetup $v\"; done\n/usr/bin/mount -t tmpfs -o size=64k rf-nomapper /dev/mapper || echo SETUP-FAILED\nfor v in ls info table status deps targets; do r \"absent-$v\" dmsetup $v; done\n/usr/bin/umount /dev/mapper\nD remove_all\nfds; [[ $n == \"$before\" ]] && echo \"  shell descriptors unchanged\" || echo \"  shell descriptors $before -> $n\"\ndetach $d1 $d2; echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 60
+    },
+    {
+      "id": "migration-dmsetup-buffers-root",
+      "loadable": "dmsetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "dmsetup/ioctl-errors-buffering"
+      ],
+      "purpose": "dmsetup response-buffer growth past the 16 KiB first request: table and status of a 2000-target linear mapping, ls and info of 200 mappings with 100-character names; the shell's descriptor count before and after.",
+      "oracle": "LVM2 dmsetup (libdevmapper 1.02)",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; large outputs as a line count and digest. Each side runs in its own IPC namespace, where udev cookie semaphores cannot complete, so mutating commands pass --noudevsync (which the candidate accepts and ignores) and udev is settled before each step; BASHOS_DMSETUP_ALLOW_MUTATE=1 enables the candidate's mutating commands as root. Mappings sit on per-side loop devices or zero/error targets, are removed by the fixture, and the harness verifies no dm or loop device survives the side.",
+      "requires": [
+        "dmsetup",
+        "losetup",
+        "python3",
+        "sed",
+        "tr",
+        "wc"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nexport BASHOS_DMSETUP_ALLOW_MUTATE=1\nD() { settle; /usr/sbin/dmsetup --noudevsync \"$@\"; }\nr() { settle; local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { settle; local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nrt() { D table \"$1\" 2>&1 | /usr/bin/sed 's/^/  table: /'; }\ninf() { D info \"$1\" 2>&1 | /usr/bin/sed -n 's/^\\(State\\|Tables present\\|UUID\\|Number of targets\\|Open count\\): */  \\1: /p'; }\nex() { if D info \"$1\" >/dev/null 2>&1; then echo \"  $1 exists\"; else echo \"  $1 absent\"; fi; }\nminor() { D info -c --noheadings -o minor \"$1\"; }\n# rs LABEL CMD: like r, but stdout is summarized as a line count and digest.\nrs() { settle; local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; local s=$?\n  printf '%s status=%s lines=%s sha=%s err=' \"$l\" $s \"$(/usr/bin/wc -l < /tmp/rf.out)\" \"$(sha /tmp/rf.out)\"; strip /tmp/rf.err; echo; }\nfds() { local a=(/proc/$BASHPID/fd/*); n=${#a[@]}; }\ncd $RT; seed a.img 65536; d1=$(att -f --show a.img)\nfds; before=$n\n/usr/bin/python3 -c 'import sys; print(\"\\n\".join(\"%d 1 linear %s %d\" % (i, sys.argv[1], i % 128) for i in range(2000)))' $d1 > big.tbl\nD create rf-big big.tbl || echo SETUP-FAILED\nrs big-table dmsetup table rf-big\nrs big-status dmsetup status rf-big\nD remove rf-big\nfor ((i = 0; i < 200; i++)); do D create rf-$(printf '%0100d' $i) --table '0 8 zero' || { echo SETUP-FAILED; break; }; done\nrs many-ls dmsetup ls\nrs many-info dmsetup info\nD remove_all\nfds; [[ $n == \"$before\" ]] && echo \"  shell descriptors unchanged\" || echo \"  shell descriptors $before -> $n\"\ndetach $d1; echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 60
+    },
+    {
+      "id": "migration-dmsetup-create-load-root",
+      "loadable": "dmsetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "dmsetup/table-input-create-load",
+        "dmsetup/ioctl-errors-buffering"
+      ],
+      "purpose": "dmsetup create from --table, a relative table file and stdin, each read back by LVM2; load, resume and reload; -r, --notable, -u, --major or --minor alone and both; a linear target over a missing device (rollback), an existing name, remove and resume of a missing name; a five-target striped/linear/zero/error table. After every failure the fixture checks that no device was left.",
+      "oracle": "LVM2 dmsetup (libdevmapper 1.02)",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; LVM2 readback (table, State, Tables present, UUID, target count) after each step. Each side runs in its own IPC namespace, where udev cookie semaphores cannot complete, so mutating commands pass --noudevsync (which the candidate accepts and ignores) and udev is settled before each step; BASHOS_DMSETUP_ALLOW_MUTATE=1 enables the candidate's mutating commands as root. Mappings sit on per-side loop devices or zero/error targets, are removed by the fixture, and the harness verifies no dm or loop device survives the side.",
+      "requires": [
+        "dmsetup",
+        "losetup",
+        "python3",
+        "sed",
+        "tr",
+        "wc"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nexport BASHOS_DMSETUP_ALLOW_MUTATE=1\nD() { settle; /usr/sbin/dmsetup --noudevsync \"$@\"; }\nr() { settle; local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { settle; local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nrt() { D table \"$1\" 2>&1 | /usr/bin/sed 's/^/  table: /'; }\ninf() { D info \"$1\" 2>&1 | /usr/bin/sed -n 's/^\\(State\\|Tables present\\|UUID\\|Number of targets\\|Open count\\): */  \\1: /p'; }\nex() { if D info \"$1\" >/dev/null 2>&1; then echo \"  $1 exists\"; else echo \"  $1 absent\"; fi; }\nminor() { D info -c --noheadings -o minor \"$1\"; }\n# rs LABEL CMD: like r, but stdout is summarized as a line count and digest.\nrs() { settle; local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; local s=$?\n  printf '%s status=%s lines=%s sha=%s err=' \"$l\" $s \"$(/usr/bin/wc -l < /tmp/rf.out)\" \"$(sha /tmp/rf.out)\"; strip /tmp/rf.err; echo; }\nfds() { local a=(/proc/$BASHPID/fd/*); n=${#a[@]}; }\ncd $RT; seed a.img 65536; seed b.img 65536; d1=$(att -f --show a.img); d2=$(att -f --show b.img)\nmaj=$(/usr/bin/sed -n 's/^ *\\([0-9]*\\) device-mapper$/\\1/p' /proc/devices)\nchk() { if D info rf-x >/dev/null 2>&1; then echo \"  rf-x left behind\"; D remove rf-x; else echo \"  rf-x absent\"; fi; }\nr create-table dmsetup create --noudevsync rf-t --table '0 32 zero'; rt rf-t\nprintf '0 16 linear %s 0\\n' $d1 > t1.tbl; r create-file dmsetup create --noudevsync rf-f t1.tbl; rt rf-f\nprintf '0 8 zero\\n8 8 error\\n' | r create-stdin dmsetup create --noudevsync rf-s; rt rf-s\nr load dmsetup load --noudevsync rf-t --table '0 32 error'; inf rf-t; rt rf-t\nr resume dmsetup resume --noudevsync rf-t; inf rf-t; rt rf-t\nr reload dmsetup reload --noudevsync rf-t --table '0 16 zero'; r resume-again dmsetup resume --noudevsync rf-t; rt rf-t\nr readonly dmsetup create --noudevsync -r rf-ro --table '0 8 zero'; inf rf-ro\nr notable dmsetup create --noudevsync --notable rf-n; inf rf-n\nr uuid dmsetup create --noudevsync -u RF-UUID-U rf-u --table '0 8 zero'; inf rf-u\nr major-only dmsetup create --noudevsync --major $maj rf-x --table '0 8 zero'; chk\nr minor-only dmsetup create --noudevsync --minor 200 rf-x --table '0 8 zero'; chk\nr major-minor dmsetup create --noudevsync --major $maj --minor 200 rf-mm --table '0 8 zero'; D info rf-mm | /usr/bin/sed -n 's/^Major, minor: */  major,minor: /p'\nr rollback dmsetup create --noudevsync rf-x --table '0 8 linear /dev/rf-nonexistent 0'; chk\nr exists dmsetup create --noudevsync rf-t --table '0 8 zero'; rt rf-t\nr remove-missing dmsetup remove --noudevsync rf-none\nr resume-missing dmsetup resume --noudevsync rf-none\nprintf '0 32 striped 2 8 %s 0 %s 0\\n32 16 linear %s 16\\n48 8 zero\\n56 8 error\\n64 24 linear %s 40\\n' $d1 $d2 $d1 $d2 > multi.tbl\nr multi dmsetup create --noudevsync rf-multi multi.tbl; rt rf-multi; inf rf-multi\nD remove_all; detach $d1 $d2; echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 60
+    },
+    {
+      "id": "migration-dmsetup-table-input-root",
+      "loadable": "dmsetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "dmsetup/table-invalid-input"
+      ],
+      "purpose": "dmsetup create with malformed rows (non-numeric start and length, an overflowing u64, a missing type, a 40-character type), zero and maximum lengths, blank and comment lines, NUL bytes from stdin and from a file, 17 MiB of comment lines on stdin, and 15.8 MB of one-sector rows (a payload beyond 64 MiB). After every failure the fixture checks that no device was left.",
+      "oracle": "LVM2 dmsetup (libdevmapper 1.02)",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; LVM2 readback of the accepted table and a no-device check after each failure. Each side runs in its own IPC namespace, where udev cookie semaphores cannot complete, so mutating commands pass --noudevsync (which the candidate accepts and ignores) and udev is settled before each step; BASHOS_DMSETUP_ALLOW_MUTATE=1 enables the candidate's mutating commands as root. Mappings sit on per-side loop devices or zero/error targets, are removed by the fixture, and the harness verifies no dm or loop device survives the side.",
+      "requires": [
+        "dmsetup",
+        "losetup",
+        "python3",
+        "sed",
+        "tr",
+        "wc"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nexport BASHOS_DMSETUP_ALLOW_MUTATE=1\nD() { settle; /usr/sbin/dmsetup --noudevsync \"$@\"; }\nr() { settle; local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { settle; local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nrt() { D table \"$1\" 2>&1 | /usr/bin/sed 's/^/  table: /'; }\ninf() { D info \"$1\" 2>&1 | /usr/bin/sed -n 's/^\\(State\\|Tables present\\|UUID\\|Number of targets\\|Open count\\): */  \\1: /p'; }\nex() { if D info \"$1\" >/dev/null 2>&1; then echo \"  $1 exists\"; else echo \"  $1 absent\"; fi; }\nminor() { D info -c --noheadings -o minor \"$1\"; }\n# rs LABEL CMD: like r, but stdout is summarized as a line count and digest.\nrs() { settle; local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; local s=$?\n  printf '%s status=%s lines=%s sha=%s err=' \"$l\" $s \"$(/usr/bin/wc -l < /tmp/rf.out)\" \"$(sha /tmp/rf.out)\"; strip /tmp/rf.err; echo; }\nfds() { local a=(/proc/$BASHPID/fd/*); n=${#a[@]}; }\ncd $RT\nchk() { if D info rf-x >/dev/null 2>&1; then echo \"  rf-x left behind\"; D remove rf-x; else echo \"  rf-x absent\"; fi; }\nfor spec in 'x 8 zero' '0 y zero' '0 99999999999999999999 zero' '0 8' \"0 8 $(printf 'a%.0s' {1..40})\" '0 0 zero' '0 18446744073709551615 zero'; do\n  r \"bad[$spec]\" dmsetup create --noudevsync rf-x --table \"$spec\"; chk; done\nprintf '# comment\\n\\n   \\n0 8 zero\\n\\n# end\\n' | r comments dmsetup create --noudevsync rf-c; rt rf-c\nprintf '0 8 zero\\0\\n' | r nul-stdin dmsetup create --noudevsync rf-x; chk\nprintf '0 8 zero\\0junk\\n' > nul.tbl; r nul-file dmsetup create --noudevsync rf-x nul.tbl; chk\n/usr/bin/python3 -c 'import sys; w=sys.stdout.write; [w(\"# padding line for the table size cap\\n\") for _ in range(470000)]; w(\"0 8 zero\\n\")' | r huge-text dmsetup create --noudevsync rf-x; chk\n/usr/bin/python3 -c 'import sys; sys.stdout.write(\"0 1 zero\\n\" * 1750000)' | r huge-payload dmsetup create --noudevsync rf-x; chk\nD remove_all; echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 60
+    },
+    {
+      "id": "migration-dmsetup-state-root",
+      "loadable": "dmsetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "dmsetup/state-flags-removal",
+        "dmsetup/rename-message"
+      ],
+      "purpose": "dmsetup state changes with every suspend, remove, clear, rename and message request recorded (flags and name): suspend/resume plain, --noflush and --nolockfs; clear of an inactive table; wipe_table; remove of a device held open, remove --force while open, remove --deferred then the last close; a multi-name remove and suspend with a missing name in the middle; remove_all; rename, rename --setuuid twice, to an existing name, to a 130-character name and to a name with a slash; message @stats_create, @stats_list (core device-mapper statistics, deterministic replies), at a nonzero sector, and an unsupported message.",
+      "oracle": "LVM2 dmsetup (libdevmapper 1.02)",
+      "comparison": "Byte parity of status, stdout, stderr and the recorded requests: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; LVM2 readback (State, Tables present, UUID, table, existence) after each step. DM ioctls are recorded by helpers/system-sequence.py notifications that let the kernel run each request; the flags shown are the request's dm_ioctl flags masked to the documented request bits (0x2ffff), leaving out libdevmapper's udev cookie bits. Each side runs in its own IPC namespace, where udev cookie semaphores cannot complete, so mutating commands pass --noudevsync (which the candidate accepts and ignores) and udev is settled before each step; BASHOS_DMSETUP_ALLOW_MUTATE=1 enables the candidate's mutating commands as root. Mappings sit on per-side loop devices or zero/error targets, are removed by the fixture, and the harness verifies no dm or loop device survives the side.",
+      "requires": [
+        "dmsetup",
+        "losetup",
+        "python3",
+        "sed",
+        "tr",
+        "wc"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nexport BASHOS_DMSETUP_ALLOW_MUTATE=1\nD() { settle; /usr/sbin/dmsetup --noudevsync \"$@\"; }\nr() { settle; local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { settle; local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nrt() { D table \"$1\" 2>&1 | /usr/bin/sed 's/^/  table: /'; }\ninf() { D info \"$1\" 2>&1 | /usr/bin/sed -n 's/^\\(State\\|Tables present\\|UUID\\|Number of targets\\|Open count\\): */  \\1: /p'; }\nex() { if D info \"$1\" >/dev/null 2>&1; then echo \"  $1 exists\"; else echo \"  $1 absent\"; fi; }\nminor() { D info -c --noheadings -o minor \"$1\"; }\n# rs LABEL CMD: like r, but stdout is summarized as a line count and digest.\nrs() { settle; local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; local s=$?\n  printf '%s status=%s lines=%s sha=%s err=' \"$l\" $s \"$(/usr/bin/wc -l < /tmp/rf.out)\" \"$(sha /tmp/rf.out)\"; strip /tmp/rf.err; echo; }\nfds() { local a=(/proc/$BASHPID/fd/*); n=${#a[@]}; }\nSQ=/opt/bashos-parity/harness/helpers/system-sequence.py\no() { settle; local log=$RT/o.jsonl; : > $log\n  PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 $SQ --notify ioctl:1=0xc138fd06 --notify ioctl:1=0xc138fd04 --notify ioctl:1=0xc138fd0a \\\n    --notify ioctl:1=0xc138fd05 --notify ioctl:1=0xc138fd0e --log-args ioctl=1 --log-mem ioctl=2:176 --log $log \\\n    -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err\n  show \"$1\" $?\n  /usr/bin/python3 -c 'import json,struct,sys\nnames = {0xc138fd06: \"SUSPEND\", 0xc138fd04: \"REMOVE\", 0xc138fd0a: \"CLEAR\", 0xc138fd05: \"RENAME\", 0xc138fd0e: \"MESSAGE\"}\nfor line in open(sys.argv[1]):\n    r = json.loads(line); b = bytes.fromhex(r[\"memory2\"][\"hex\"])\n    flags, = struct.unpack_from(\"<I\", b, 28)\n    print(\"  ioctl %s flags=%#x name=%s\" % (names[r[\"arg1\"]], flags & 0x2ffff, b[48:176].split(b\"\\0\")[0].decode()))' $log; }\ncd $RT; seed a.img 65536; d1=$(att -f --show a.img)\nD create rf-a --table \"0 64 linear $d1 0\" && D create rf-b --table '0 64 zero' && D create rf-c --table '0 8 zero' &&\n  D create rf-d --table '0 8 zero' && D create rf-e --table '0 8 zero' || echo SETUP-FAILED\no suspend \"dmsetup suspend --noudevsync rf-a\"; inf rf-a; o resume \"dmsetup resume --noudevsync rf-a\"; inf rf-a\no suspend-noflush \"dmsetup suspend --noudevsync --noflush rf-a\"; inf rf-a; D resume rf-a\no suspend-nolockfs \"dmsetup suspend --noudevsync --nolockfs rf-a\"; inf rf-a; D resume rf-a\nD load rf-a --table '0 64 error'; inf rf-a; o clear \"dmsetup clear --noudevsync rf-a\"; inf rf-a\no wipe \"dmsetup wipe_table --noudevsync rf-a\"; rt rf-a; inf rf-a\nexec 7</dev/dm-$(minor rf-b)\no remove-busy \"dmsetup remove --noudevsync rf-b\"; ex rf-b\no remove-force-busy \"dmsetup remove --noudevsync --force rf-b\"; ex rf-b; rt rf-b\no remove-deferred \"dmsetup remove --noudevsync --deferred rf-b\"; inf rf-b\nexec 7<&-; settle; ex rf-b\no remove-multi \"dmsetup remove --noudevsync rf-c rf-none rf-d\"; ex rf-c; ex rf-d\no suspend-multi \"dmsetup suspend --noudevsync rf-none rf-e\"; inf rf-e; D resume rf-e\no remove-all \"dmsetup remove_all --noudevsync\"; r ls-after /usr/sbin/dmsetup ls\nD create rf-r --table '0 8 zero' && D create rf-q --table '0 8 zero' || echo SETUP-FAILED\no rename \"dmsetup rename --noudevsync rf-r rf-r2\"; ex rf-r; ex rf-r2\no setuuid \"dmsetup rename --noudevsync --setuuid rf-r2 RF-UUID-R\"; inf rf-r2\no setuuid-again \"dmsetup rename --noudevsync --setuuid rf-r2 RF-UUID-S\"; inf rf-r2\no rename-exists \"dmsetup rename --noudevsync rf-r2 rf-q\"; ex rf-r2\no rename-long \"dmsetup rename --noudevsync rf-r2 $(printf 'n%.0s' {1..130})\"; ex rf-r2\no rename-slash \"dmsetup rename --noudevsync rf-r2 x/y\"; ex rf-r2\no stats-create \"dmsetup message --noudevsync rf-q 0 @stats_create - /100\"\no stats-list \"dmsetup message --noudevsync rf-q 0 @stats_list\"\no message-sector \"dmsetup message --noudevsync rf-q 5 @stats_list\"\no message-bad \"dmsetup message --noudevsync rf-q 0 bogus\"\nD remove_all; detach $d1; echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      }
+    },
+    {
+      "id": "migration-dmsetup-real-device-root",
+      "loadable": "dmsetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "dmsetup/udev-real-device-qualification"
+      ],
+      "purpose": "dmsetup create of a linear mapping over a loop device: the /dev/mapper node after udev settles, bytes written through the mapping read back from the loop device; the node after remove and settling; remove --retry while another process holds the mapping open for two seconds; info -c, -C with -o/--noheadings/--separator/--sort and --select; create with -U/-G/-M and the resulting node owner, group and mode.",
+      "oracle": "LVM2 dmsetup (libdevmapper 1.02)",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; node presence, the read-back bytes, node ownership. Each side runs in its own IPC namespace, where udev cookie semaphores cannot complete, so mutating commands pass --noudevsync (which the candidate accepts and ignores) and udev is settled before each step; BASHOS_DMSETUP_ALLOW_MUTATE=1 enables the candidate's mutating commands as root. Mappings sit on per-side loop devices or zero/error targets, are removed by the fixture, and the harness verifies no dm or loop device survives the side. Udev cookie synchronization itself (--udevcookie, --verifyudev) is not observable here: it needs the cookie semaphore in the namespace udevd uses.",
+      "requires": [
+        "dmsetup",
+        "losetup",
+        "python3",
+        "sed",
+        "tr",
+        "wc",
+        "dd",
+        "stat",
+        "sleep",
+        "head"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nexport BASHOS_DMSETUP_ALLOW_MUTATE=1\nD() { settle; /usr/sbin/dmsetup --noudevsync \"$@\"; }\nr() { settle; local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { settle; local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nrt() { D table \"$1\" 2>&1 | /usr/bin/sed 's/^/  table: /'; }\ninf() { D info \"$1\" 2>&1 | /usr/bin/sed -n 's/^\\(State\\|Tables present\\|UUID\\|Number of targets\\|Open count\\): */  \\1: /p'; }\nex() { if D info \"$1\" >/dev/null 2>&1; then echo \"  $1 exists\"; else echo \"  $1 absent\"; fi; }\nminor() { D info -c --noheadings -o minor \"$1\"; }\n# rs LABEL CMD: like r, but stdout is summarized as a line count and digest.\nrs() { settle; local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; local s=$?\n  printf '%s status=%s lines=%s sha=%s err=' \"$l\" $s \"$(/usr/bin/wc -l < /tmp/rf.out)\" \"$(sha /tmp/rf.out)\"; strip /tmp/rf.err; echo; }\nfds() { local a=(/proc/$BASHPID/fd/*); n=${#a[@]}; }\ncd $RT; seed a.img 65536; d1=$(att -f --show a.img)\nnode() { [[ -b /dev/mapper/$1 ]] && echo \"  /dev/mapper/$1 $2: present\" || echo \"  /dev/mapper/$1 $2: missing\"; }\nr create dmsetup create --noudevsync rf-io --table \"0 128 linear $d1 0\"; settle; node rf-io settled\nprintf 'written through the mapping' | /usr/bin/dd of=/dev/dm-$(minor rf-io) bs=512 seek=3 conv=fsync,notrunc status=none || echo SETUP-FAILED\necho \"  loop sector 3: $(/usr/bin/dd if=$d1 bs=512 skip=3 count=1 status=none | /usr/bin/head -c 27)\"\nr remove dmsetup remove --noudevsync rf-io; settle; node rf-io settled\nD create rf-busy --table '0 8 zero' || echo SETUP-FAILED\nm=$(minor rf-busy); ( exec 7</dev/dm-$m; /usr/bin/sleep 2 ) & hp=$!; /usr/bin/sleep 0.3\nr remove-retry dmsetup remove --noudevsync --retry rf-busy; wait $hp; ex rf-busy; D remove rf-busy 2>/dev/null\nD create rf-a --table '0 8 zero' -u RF-UUID-A && D create rf-b --table '0 16 zero' || echo SETUP-FAILED\nr columns dmsetup info -c rf-a\nr columns-options dmsetup info -c -o name,uuid,attr --noheadings --separator : rf-a\nr columns-sort dmsetup info -C -o name,minor --sort name\nr select dmsetup info -c -o name --select 'name=rf-b'\nr create-owner dmsetup create --noudevsync -U 2000 -G 2000 -M 0640 rf-own --table '0 8 zero'; settle\n[[ -e /dev/mapper/rf-own ]] && echo \"  owner: $(/usr/bin/stat -L -c '%u %g %a' /dev/mapper/rf-own)\" || echo \"  owner: no node\"\nD remove_all; detach $d1; echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 60
+    },
+    {
+      "id": "migration-dmsetup-crypt-root",
+      "loadable": "dmsetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "dmsetup/query-tables-deps-targets"
+      ],
+      "purpose": "dm-crypt key redaction: an aes-xts-plain64 mapping with a fixed 32-byte hex key over a loop device, created by LVM2; table of that device, table of all devices, table --showkeys and status.",
+      "oracle": "LVM2 dmsetup (libdevmapper 1.02)",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix. Each side runs in its own IPC namespace, where udev cookie semaphores cannot complete, so mutating commands pass --noudevsync (which the candidate accepts and ignores) and udev is settled before each step; BASHOS_DMSETUP_ALLOW_MUTATE=1 enables the candidate's mutating commands as root. Mappings sit on per-side loop devices or zero/error targets, are removed by the fixture, and the harness verifies no dm or loop device survives the side. The dm_crypt module is loaded by the fixture with modprobe.",
+      "requires": [
+        "dmsetup",
+        "losetup",
+        "python3",
+        "sed",
+        "tr",
+        "wc",
+        "modprobe"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nexport BASHOS_DMSETUP_ALLOW_MUTATE=1\nD() { settle; /usr/sbin/dmsetup --noudevsync \"$@\"; }\nr() { settle; local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { settle; local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nrt() { D table \"$1\" 2>&1 | /usr/bin/sed 's/^/  table: /'; }\ninf() { D info \"$1\" 2>&1 | /usr/bin/sed -n 's/^\\(State\\|Tables present\\|UUID\\|Number of targets\\|Open count\\): */  \\1: /p'; }\nex() { if D info \"$1\" >/dev/null 2>&1; then echo \"  $1 exists\"; else echo \"  $1 absent\"; fi; }\nminor() { D info -c --noheadings -o minor \"$1\"; }\n# rs LABEL CMD: like r, but stdout is summarized as a line count and digest.\nrs() { settle; local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; local s=$?\n  printf '%s status=%s lines=%s sha=%s err=' \"$l\" $s \"$(/usr/bin/wc -l < /tmp/rf.out)\" \"$(sha /tmp/rf.out)\"; strip /tmp/rf.err; echo; }\nfds() { local a=(/proc/$BASHPID/fd/*); n=${#a[@]}; }\ncd $RT; seed a.img 65536; d1=$(att -f --show a.img)\n/usr/sbin/modprobe dm_crypt || echo SETUP-FAILED\nK=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f\nD create rf-c --table \"0 64 crypt aes-xts-plain64 $K 0 $d1 0\" || echo SETUP-FAILED\nr table dmsetup table rf-c\nr table-all dmsetup table\nr table-showkeys dmsetup table --showkeys rf-c\nr status dmsetup status rf-c\nD remove rf-c; detach $d1; echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 60
+    }
+  ]
+}

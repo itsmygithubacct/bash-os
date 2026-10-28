@@ -8689,30 +8689,51 @@
         "purpose": "Check ioctl errno reporting, open failures, response-buffer growth, malformed-record rejection, and descriptor cleanup.",
         "reason": "Requires a reviewed ioctl mock that can inject errno values, correctly shaped kernel replies, buffer-full responses, and malformed records; expected bytes must come from Linux Device Mapper ABI definitions and an independent decoder. This suite does not open the kernel control interface or inject a mock."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node. r2 and r5 need no privilege; r4 cannot be produced by the kernel at all.",
+      "current_reason": "Remaining obligations: r4: No executed case; a real kernel never returns malformed records, so this needs an ioctl reply mock.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Kernel errno reporting: each failing DM ioctl prints the command name and strerror, then 'Command failed.' with status 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; errno from real devices (ENXIO, EBUSY, EINVAL, EEXIST) reachable under PRIV-ROOT; arbitrary errnos need SECCOMP-FILTER."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-create-load-root",
+              "assertion": "Kernel errors name the ioctl and the strerror then 'Command failed.' with status 1 on both sides for an existing name (EBUSY), and a missing name (ENXIO) for remove and resume; for the rollback EINVAL/ENOENT the candidate omits LVM2's '(253:6)' device number. Parity FAIL.",
+              "definition_sha256": "ce6ffdc8d41fed46512b0b596d958c965836ab3feb6a877a1dedd6e72273f605"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Open failure of /dev/mapper/control prints the open-failed/communicate/permission lines (dmsetup.c:186-193) with failure status for table/status/deps/targets.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; reachable unprivileged now (EACCES in the plain driver, ENOENT in the legacy runner)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-query-root",
+              "assertion": "Control open failure as uid 2000: table, status, deps and targets print '/dev/mapper/control: open failed: Permission denied' and 'Failure to communicate with kernel device-mapper driver.' with status 1 on both sides; the third line differs ('Check that device-mapper is available...' versus LVM2's incompatible-version line). With the node absent the candidate prints the ENOENT form while LVM2 falls back as in query-list-info r5. Parity FAIL.",
+              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Response-buffer growth: when the kernel sets DM_BUFFER_FULL_FLAG the request is retried with a doubled buffer and the full result printed (e.g. ls with many devices or a long table).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; reachable with a real kernel by creating enough devices/long tables under PRIV-ROOT."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-buffers-root",
+              "assertion": "Responses beyond the first 16 KiB buffer: table and status of a 2000-target mapping and ls of 200 mappings with 100-character names match LVM2 (line counts and digests equal); info of the 200 differs only by the missing Read Ahead lines.",
+              "definition_sha256": "d63eaeada1651e7190ddf302316bff6b1a452eb256b61d6cc844e7e11cd21e6d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
@@ -8724,12 +8745,25 @@
         {
           "id": "r5",
           "behavior": "Descriptor cleanup: the control descriptor is closed on every path.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; observable via /proc/$$/fd glob before/after."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-query-root",
+              "assertion": "The shell's descriptor count is unchanged after all query, failure and large-response calls on the candidate side.",
+              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57"
+            },
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-buffers-root",
+              "assertion": "The shell's descriptor count is unchanged after all query, failure and large-response calls on the candidate side.",
+              "definition_sha256": "d63eaeada1651e7190ddf302316bff6b1a452eb256b61d6cc844e7e11cd21e6d"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: loadables/dmsetup.c (no libdevmapper; direct DM ioctl ABI). tests/opus-dmsetup-fixture.c and opus-dmsetup-ioctl.py are historical host-side material, not VM evidence. Only metadata cases (type-token, type-description, help-description, help-synopsis-policy) executed; they observe no operation."
+      "notes": "Root batch E on the rented VM host (root-e-83; supersedes root-e-82, where DM_DISABLE_UDEV made LVM2 print a warning on every command, a 2000-target table ran past its loop device and udev probing raced an open count). privilege=root sides with --noudevsync and udev settled before each step; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "dmsetup/query-list-info",
@@ -8739,47 +8773,82 @@
         "purpose": "Compare empty and populated ls/info results, name and UUID lookup, device state, and no-device behavior.",
         "reason": "Requires a disposable VM with a private device-mapper control interface and controlled empty/named devices, or a reviewed ioctl/sysfs mock. Compare output and statuses with the LVM2 dmsetup CLI against the same fixture. This runner does not expose that kernel interface, so no query is invoked here."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node. r5 needs no privilege and no new driver.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "ls with no mapped devices prints 'No devices found' with status 0, and info with no devices behaves like LVM2 dmsetup (byte parity).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No dmsetup query is executed in any case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-query-root",
+              "assertion": "ls with no mappings prints 'No devices found' and info and table with none match LVM2 dmsetup byte for byte.",
+              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "ls and info with populated devices list each name with (major:minor) and the info block (Name, State, Read Ahead/Tables present, Open count, Event number, Major/minor, Number of targets, UUID) matching LVM2 dmsetup.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-query-root",
+              "assertion": "ls with two mappings matches; info blocks differ: the candidate omits the 'Read Ahead:' line and aligns the UUID value in a column ('UUID:              RF-UUID-A' versus 'UUID: RF-UUID-A'). Parity FAIL.",
+              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Lookup by name and by -u UUID, giving both a name list and -u rejected, and a missing name reporting 'Device does not exist' with failure status.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-query-root",
+              "assertion": "Lookup by name and by -u UUID gives the same block (apart from r2's formatting); a missing name and a mixed list match in status. Given both -u and a name, LVM2 reports the device while the candidate rejects it ('give either a device name or -u UUID, not both', status 1). Parity FAIL.",
+              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Device state (ACTIVE vs SUSPENDED, live/inactive table presence) reported after suspend.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-query-root",
+              "assertion": "State SUSPENDED after suspend and 'Tables present: LIVE & INACTIVE' after a load without resume are reported by both, with r2's formatting difference.",
+              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "No-control behaviour: when /dev/mapper/control cannot be opened (absent or EACCES), the candidate's ls/info fall back to a /sys/block/dm-* listing and succeed (dmsetup.c:118-160, 823-848, 1415-1423) while LVM2 dmsetup reports a control-node failure; the comparison must be recorded, not normalized.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; reachable unprivileged now (legacy runner has no /dev/mapper; plain driver gets EACCES)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-query-root",
+              "assertion": "As uid 2000 (control EACCES) and with /dev/mapper hidden (ENOENT), the candidate's ls and info fall back to /sys/block/dm-* and succeed (listing rf-b before rf-a, with a reduced info block), where LVM2 fails with 'open failed' and an incompatible-driver line; recorded as observed. Parity FAIL by design.",
+              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: loadables/dmsetup.c (no libdevmapper; direct DM ioctl ABI). tests/opus-dmsetup-fixture.c and opus-dmsetup-ioctl.py are historical host-side material, not VM evidence. Only metadata cases (type-token, type-description, help-description, help-synopsis-policy) executed; they observe no operation."
+      "notes": "Root batch E on the rented VM host (root-e-83; supersedes root-e-82, where DM_DISABLE_UDEV made LVM2 print a warning on every command, a 2000-target table ran past its loop device and udev probing raced an open count). privilege=root sides with --noudevsync and udev settled before each step; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "dmsetup/query-tables-deps-targets",
@@ -8789,47 +8858,82 @@
         "purpose": "Check active/inactive table and status formatting, target filtering, dependency lists, target versions, and crypt key redaction.",
         "reason": "Requires a disposable VM or reviewed ioctl mock that supplies deterministic multi-target tables, dependencies, target versions, and crypt records. Compare table/status/deps/targets/version output with the LVM2 dmsetup CLI and use independently specified expected records. No device query is run in this suite."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "table and status of a multi-target device (linear+zero+error segments) print 'start length type params' rows identical to LVM2 dmsetup, with and without a device argument (prefix 'name: ' when listing all).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-query-root",
+              "assertion": "table and status of the linear+zero+error mapping, of one device and of all devices (with 'name: ' prefixes) match LVM2 byte for byte.",
+              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "--inactive table/status after a load without resume shows the inactive table; --target filters rows by type for table/status/ls.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-query-root",
+              "assertion": "table/status --inactive and --target match; ls --target differs: LVM2 prints '(253, 0)', the candidate '(253:0)'. Parity FAIL.",
+              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "deps prints the dependency count and (major, minor) list of underlying loop devices, also with --inactive.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-query-root",
+              "assertion": "deps of all, one and --inactive (two loop dependencies) match LVM2.",
+              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "targets lists loaded target types with versions and version prints library/driver versions in the documented format.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; candidate's version strings are its own (no libdevmapper) so byte parity of the library line is expected to differ and must be recorded."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-query-root",
+              "assertion": "targets matches; version shares the driver line but the library line is 'bash-os dm-ioctl shim' versus 'Library version:   1.02.205 (2025-02-27)', as expected. Parity FAIL (recorded).",
+              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "crypt key redaction: table of a dm-crypt mapping hides the key unless --showkeys (dmsetup.c:681-708), matching LVM2 output.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; needs dm_crypt in the guest kernel (preflight)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-crypt-root",
+              "assertion": "A dm-crypt aes-xts-plain64 mapping: table and table of all devices print the key as zeros, table --showkeys the real key, status matches; byte parity PASS.",
+              "definition_sha256": "0ec429c9e13c551cf3d624d06a81719bab5f3766d8aebea5f310494439f9e891"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: loadables/dmsetup.c (no libdevmapper; direct DM ioctl ABI). tests/opus-dmsetup-fixture.c and opus-dmsetup-ioctl.py are historical host-side material, not VM evidence. Only metadata cases (type-token, type-description, help-description, help-synopsis-policy) executed; they observe no operation."
+      "notes": "Root batch E on the rented VM host (root-e-83; supersedes root-e-82, where DM_DISABLE_UDEV made LVM2 print a warning on every command, a 2000-target table ran past its loop device and udev probing raced an open count). privilege=root sides with --noudevsync and udev settled before each step; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "dmsetup/rename-message",
@@ -8839,26 +8943,40 @@
         "purpose": "Check name and UUID rename requests, validation of invalid names, sector/message payloads, and target message replies.",
         "reason": "Requires a disposable VM with a target that accepts a deterministic message and isolated mapped devices, or a reviewed ioctl mock that verifies payload bytes and returns controlled replies. Compare CLI behavior with the LVM2 dmsetup CLI and encode request expectations independently. No rename or message is sent here."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "rename OLD NEW changes the kernel name; rename --setuuid NAME UUID sets a UUID once; renaming to an existing or invalid (too long, containing '/') name fails.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-state-root",
+              "assertion": "rename, rename --setuuid, a second --setuuid (EINVAL) and renaming to an existing name (EBUSY) behave identically; a 130-character name and a name with '/' are rejected by both before any request, with different wording. Parity FAIL.",
+              "definition_sha256": "735620731586b56f7e59720c23070a42b19ef77ead82c95295bc108caf3716ef"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "message NAME SECTOR TEXT sends the payload to a target that accepts messages and prints the target's reply; an unsupported message reports failure.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; needs a target with deterministic message replies (e.g. dm-flakey or dm-thin pool 'reserve_metadata_snap'/status), preflight for module availability."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-state-root",
+              "assertion": "message @stats_create prints region 0, @stats_list '0: 0+8 1 - -' (also at sector 5), and an unsupported message fails EINVAL, identically on both sides.",
+              "definition_sha256": "735620731586b56f7e59720c23070a42b19ef77ead82c95295bc108caf3716ef"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: loadables/dmsetup.c (no libdevmapper; direct DM ioctl ABI). tests/opus-dmsetup-fixture.c and opus-dmsetup-ioctl.py are historical host-side material, not VM evidence. Only metadata cases (type-token, type-description, help-description, help-synopsis-policy) executed; they observe no operation."
+      "notes": "Root batch E on the rented VM host (root-e-83; supersedes root-e-82, where DM_DISABLE_UDEV made LVM2 print a warning on every command, a 2000-target table ran past its loop device and udev probing raced an open count). privilege=root sides with --noudevsync and udev settled before each step; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "dmsetup/state-flags-removal",
@@ -8868,40 +8986,68 @@
         "purpose": "Check suspend/resume flags, clear versus wipe behavior, forced removal, deferred removal, remove_all, and continuation across per-device errors.",
         "reason": "Requires a disposable VM with private mapped devices and an open-holder fixture for busy/deferred removal, or a reviewed stateful ioctl mock for flags and injected failures. Expected transitions should be checked against the LVM2 dmsetup CLI and kernel ABI definitions. No state-changing command is run here."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "suspend/resume with --noflush and --nolockfs set the corresponding DM flags; state readback shows SUSPENDED/ACTIVE.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; flag bits are observable only via kernel behaviour or an ioctl intercept."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-state-root",
+              "assertion": "suspend, --noflush and --nolockfs send DM_SUSPEND (0x2), 0x800 and 0x400 on both sides and the state reads SUSPENDED, then ACTIVE after resume; LVM2 additionally sets 0x4 on every request. Parity FAIL on the recorded flags.",
+              "definition_sha256": "735620731586b56f7e59720c23070a42b19ef77ead82c95295bc108caf3716ef"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "clear drops the inactive table; wipe_table replaces the live table with an error target.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-state-root",
+              "assertion": "clear drops the inactive table and wipe_table leaves '0 64 error' as the live table on both sides.",
+              "definition_sha256": "735620731586b56f7e59720c23070a42b19ef77ead82c95295bc108caf3716ef"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "remove of a busy (open) device fails with EBUSY; remove --force replaces with error and removes; remove --deferred schedules removal on last close.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; needs a controller-held open holder."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-state-root",
+              "assertion": "remove of an open device fails EBUSY on both; remove --force while open replaces the table with error and fails EBUSY on both (LVM2 resumes with 0xc04, the candidate 0x0); remove --deferred reports success, shows DEFERRED REMOVE and the device disappears on the last close, on both.",
+              "definition_sha256": "735620731586b56f7e59720c23070a42b19ef77ead82c95295bc108caf3716ef"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "remove_all removes every device; per-device errors in a multi-name remove/suspend continue to the next name and give an aggregate failure.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-state-root",
+              "assertion": "remove_all removes every device ('No devices found'). With a missing name in the middle, LVM2 stops at it (rf-d remains; suspend leaves rf-e active) while the candidate continues and removes rf-d / suspends rf-e; both exit 1. Parity FAIL.",
+              "definition_sha256": "735620731586b56f7e59720c23070a42b19ef77ead82c95295bc108caf3716ef"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: loadables/dmsetup.c (no libdevmapper; direct DM ioctl ABI). tests/opus-dmsetup-fixture.c and opus-dmsetup-ioctl.py are historical host-side material, not VM evidence. Only metadata cases (type-token, type-description, help-description, help-synopsis-policy) executed; they observe no operation."
+      "notes": "Root batch E on the rented VM host (root-e-83; supersedes root-e-82, where DM_DISABLE_UDEV made LVM2 print a warning on every command, a 2000-target table ran past its loop device and udev probing raced an open count). privilege=root sides with --noudevsync and udev settled before each step; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "dmsetup/table-input-create-load",
@@ -8911,40 +9057,68 @@
         "purpose": "Exercise create/load/reload from inline text, a small relative table file, and stdin, including flags and rollback after activation failure.",
         "reason": "Requires a disposable VM with an isolated device-mapper instance and a VM-local backing device, or a reviewed ioctl mock that records requests and injects load/resume failures. The future fixture should use a small relative file inside its private work directory and compare valid table encoding against an independent ABI encoder plus the LVM2 dmsetup CLI behavior. No mutation is attempted here."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "create NAME with the table from --table, from a small relative table file, and from stdin produces an active device whose kernel table equals the input (as read back by LVM2 dmsetup table).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-create-load-root",
+              "assertion": "create from --table, a relative table file and stdin each produce a device whose LVM2 table read-back equals the input, on both sides.",
+              "definition_sha256": "ce6ffdc8d41fed46512b0b596d958c965836ab3feb6a877a1dedd6e72273f605"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "load/reload replaces the inactive table and resume activates it; -r/--readonly sets the read-only flag; --notable creates without a table; -u sets the UUID; --major/--minor must be given together.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-create-load-root",
+              "assertion": "load, resume and reload change the live and inactive tables identically; -r gives a read-only device, --notable no table, -u the UUID; --major and --minor together work. --major or --minor alone fail on both sides with different wording ('Please specify both major number and minor number.' versus '--major and --minor must be given together'). Parity FAIL.",
+              "definition_sha256": "ce6ffdc8d41fed46512b0b596d958c965836ab3feb6a877a1dedd6e72273f605"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Rollback: if the table load or the activating resume fails (e.g. linear over a nonexistent device), the just-created device is removed (dmsetup.c:1063-1071) and the status is failure, leaving no device.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-create-load-root",
+              "assertion": "A linear target over a missing device fails and leaves no device on both sides; the candidate's message omits the '(253:6)' device number. Parity FAIL.",
+              "definition_sha256": "ce6ffdc8d41fed46512b0b596d958c965836ab3feb6a877a1dedd6e72273f605"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Table payload encoding matches the DM ABI (8-byte aligned specs, next offsets) \u2014 observable as kernel acceptance and identical readback for multi-target tables.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-create-load-root",
+              "assertion": "A five-target striped/linear/zero/error table is accepted and read back identically.",
+              "definition_sha256": "ce6ffdc8d41fed46512b0b596d958c965836ab3feb6a877a1dedd6e72273f605"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: loadables/dmsetup.c (no libdevmapper; direct DM ioctl ABI). tests/opus-dmsetup-fixture.c and opus-dmsetup-ioctl.py are historical host-side material, not VM evidence. Only metadata cases (type-token, type-description, help-description, help-synopsis-policy) executed; they observe no operation. Source-predicted divergence: a non-file positional table argument is taken as inline table text (dmsetup.c:618-628) where LVM2 treats it as a file name."
+      "notes": "Root batch E on the rented VM host (root-e-83; supersedes root-e-82, where DM_DISABLE_UDEV made LVM2 print a warning on every command, a 2000-target table ran past its loop device and udev probing raced an open count). privilege=root sides with --noudevsync and udev settled before each step; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "dmsetup/table-invalid-input",
@@ -8954,40 +9128,68 @@
         "purpose": "Verify malformed table rows and boundary values fail before a table-load ioctl, including invalid numbers, missing target fields, NUL input, and oversized text.",
         "reason": "Requires a reviewed ioctl mock that records whether any request was sent, plus small relative fixture files for file-input cases and documented dmsetup/libdevmapper expectations. The operation path is not executed because dmsetup's load command reaches the kernel interface when mutation is enabled."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node. An observer that proves 'no request was sent' needs either kernel state (PRIV-ROOT) or an ioctl intercept.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Malformed rows (non-numeric start/length, overflowing u64, missing target type, over-long type) fail with 'Invalid format on line N' before any create/load ioctl; status failure; no device left.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case. In the candidate the parser runs only after the root+opt-in gate and the control open (gate dmsetup.c:1477, control open :1479, parse inside dms_create_cmd/dms_load_cmd), so uid 2000 never reaches it."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-table-input-root",
+              "assertion": "Non-numeric start/length and a missing type give 'Invalid format on line 1' on both sides (the candidate prefixes 'dmsetup:' and names '(--table)'); an overflowing u64 is passed to the kernel by LVM2 (EINVAL) but rejected while parsing by the candidate; a 40-character type gives LVM2 'Target type name ... is too long.'; no device is left. Parity FAIL.",
+              "definition_sha256": "b8bc9d3b93e82c3554a1c825b60360036c0961daaa671f7bc4fac2a4649a8aa0"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Table text containing a NUL byte (file or stdin) is rejected (dmsetup.c:592-596).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; NUL input is explicit in the topic."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-table-input-root",
+              "assertion": "A NUL byte from stdin or a file: LVM2 creates the device (left behind and removed by the fixture), the candidate rejects it ('contains a NUL byte', status 1). Parity FAIL.",
+              "definition_sha256": "b8bc9d3b93e82c3554a1c825b60360036c0961daaa671f7bc4fac2a4649a8aa0"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Table text larger than the 16 MiB cap is rejected without an ioctl (dmsetup.c:571-575), and payloads exceeding the ioctl buffer limit report 'table too large' (:514-518).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; a 16 MiB input exceeds the legacy 8 MiB RLIMIT_FSIZE for a file, so stdin must be used."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-table-input-root",
+              "assertion": "17 MiB of comment lines on stdin: LVM2 creates the device, the candidate stops at its 16777216-byte cap (status 1; the fixture's writer then sees a broken pipe). 15.8 MB of one-sector rows: LVM2 rejects an 85750312-byte allocation, the candidate says 'table too large'; no device remains. Parity FAIL.",
+              "definition_sha256": "b8bc9d3b93e82c3554a1c825b60360036c0961daaa671f7bc4fac2a4649a8aa0"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Blank and comment lines are ignored and boundary values (0 length, max u64) are handled as LVM2/libdevmapper does.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-table-input-root",
+              "assertion": "Blank and comment lines are ignored identically; zero and maximum-u64 lengths reach the kernel on both sides (EINVAL), with the candidate omitting the device number in the message. Parity FAIL.",
+              "definition_sha256": "b8bc9d3b93e82c3554a1c825b60360036c0961daaa671f7bc4fac2a4649a8aa0"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: loadables/dmsetup.c (no libdevmapper; direct DM ioctl ABI). tests/opus-dmsetup-fixture.c and opus-dmsetup-ioctl.py are historical host-side material, not VM evidence. Only metadata cases (type-token, type-description, help-description, help-synopsis-policy) executed; they observe no operation."
+      "notes": "Root batch E on the rented VM host (root-e-83; supersedes root-e-82, where DM_DISABLE_UDEV made LVM2 print a warning on every command, a 2000-target table ran past its loop device and udev probing raced an open count). privilege=root sides with --noudevsync and udev settled before each step; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "dmsetup/udev-real-device-qualification",
@@ -8997,16 +9199,23 @@
         "purpose": "Qualify real target activation, udev node coordination, retry behavior, and output fields that depend on device nodes.",
         "reason": "Requires a disposable VM with a private device-mapper kernel instance, VM-local backing devices, and controlled udev behavior. The published docs identify udev synchronization/node management and several report options as unimplemented or ignored; this case records the integration gap without claiming a pass."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node. The candidate does not implement r2-r4 at all, so no fixture can close them.",
+      "current_reason": "Remaining obligations: r2: Not implemented by candidate: dmsetup.c:1329-1356 accepts --noudevsync, --udevcookie, --verifyudev, --addnodeoncreate/--addnodeonresume and ignores them; there is no cookie/semaphore code.; r4: Node ownership options are applied by udev rules in this setup on both sides; a libdevmapper-managed node (outside a separate IPC namespace) is needed to observe -U/-G/-M.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Real target activation: create over a VM-local loop device produces /dev/dm-N and the /dev/mapper/NAME node usable for I/O (read back bytes written through it).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; needs PRIV-ROOT + BLOCK-DEV."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-real-device-root",
+              "assertion": "A linear mapping over a loop device gets /dev/mapper/rf-io after udev settles, bytes written through it read back from the loop device, and the node disappears after remove, identically on both sides.",
+              "definition_sha256": "5bc9cc6745562128bc6f2cd4a11335e2b993aa02b1f2c59a1482663be200dde9"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
@@ -9018,19 +9227,33 @@
         {
           "id": "r3",
           "behavior": "--retry for remove of a transiently busy device.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not implemented by candidate: --retry accepted and ignored (dmsetup.c:1330)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-real-device-root",
+              "assertion": "remove --retry while another process holds the device open for two seconds: LVM2 retries and removes it (status 0), the candidate fails once with EBUSY (status 1) and the device remains. Parity FAIL.",
+              "definition_sha256": "5bc9cc6745562128bc6f2cd4a11335e2b993aa02b1f2c59a1482663be200dde9"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Report-option output fields (-o/--options, -c/-C/--columns, --noheadings, --separator, --sort, --select) and node ownership/mode options (-U/-G/-M).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not implemented by candidate: accepted and ignored (dmsetup.c:1333-1356); a request for columns silently produces default output."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmsetup-real-device-root",
+              "assertion": "info -c, -C with -o, --noheadings, --separator and --sort, and --select give LVM2 column reports; the candidate ignores them and prints its default info block. -U/-G/-M are not distinguishable here: udev rules own the nodes and both sides end with root:disk 0660.",
+              "definition_sha256": "5bc9cc6745562128bc6f2cd4a11335e2b993aa02b1f2c59a1482663be200dde9"
+            }
+          ],
+          "gap": "Node ownership options are applied by udev rules in this setup on both sides; a libdevmapper-managed node (outside a separate IPC namespace) is needed to observe -U/-G/-M."
         }
       ],
-      "notes": "Candidate: loadables/dmsetup.c (no libdevmapper; direct DM ioctl ABI). tests/opus-dmsetup-fixture.c and opus-dmsetup-ioctl.py are historical host-side material, not VM evidence. Only metadata cases (type-token, type-description, help-description, help-synopsis-policy) executed; they observe no operation. Silent acceptance of -U/-G/-M means callers expecting node permissions get the default node mode; flag to root as a candidate behaviour issue, not a harness gap."
+      "notes": "Root batch E on the rented VM host (root-e-83; supersedes root-e-82, where DM_DISABLE_UDEV made LVM2 print a warning on every command, a 2000-target table ran past its loop device and udev probing raced an open count). privilege=root sides with --noudevsync and udev settled before each step; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "dns/dns-authoritative-service",

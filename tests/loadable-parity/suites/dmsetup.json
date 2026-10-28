@@ -52,51 +52,85 @@
     },
     {
       "id": "query-list-info",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare empty and populated ls/info results, name and UUID lookup, device state, and no-device behavior.",
-      "reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node. r5 needs no privilege and no new driver."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-dmsetup-query-root"
+        }
+      ]
     },
     {
       "id": "query-tables-deps-targets",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check active/inactive table and status formatting, target filtering, dependency lists, target versions, and crypt key redaction.",
-      "reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-dmsetup-crypt-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dmsetup-query-root"
+        }
+      ]
     },
     {
       "id": "table-input-create-load",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise create/load/reload from inline text, a small relative table file, and stdin, including flags and rollback after activation failure.",
-      "reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-dmsetup-create-load-root"
+        }
+      ]
     },
     {
       "id": "table-invalid-input",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify malformed table rows and boundary values fail before a table-load ioctl, including invalid numbers, missing target fields, NUL input, and oversized text.",
-      "reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node. An observer that proves 'no request was sent' needs either kernel state (PRIV-ROOT) or an ioctl intercept."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-dmsetup-table-input-root"
+        }
+      ]
     },
     {
       "id": "state-flags-removal",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check suspend/resume flags, clear versus wipe behavior, forced removal, deferred removal, remove_all, and continuation across per-device errors.",
-      "reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-dmsetup-state-root"
+        }
+      ]
     },
     {
       "id": "rename-message",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check name and UUID rename requests, validation of invalid names, sector/message payloads, and target message replies.",
-      "reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-dmsetup-state-root"
+        }
+      ]
     },
     {
       "id": "ioctl-errors-buffering",
       "kind": "deferred",
       "purpose": "Check ioctl errno reporting, open failures, response-buffer growth, malformed-record rejection, and descriptor cleanup.",
-      "reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node. r2 and r5 need no privilege; r4 cannot be produced by the kernel at all."
+      "reason": "Remaining obligations: r4: No executed case; a real kernel never returns malformed records, so this needs an ioctl reply mock."
     },
     {
       "id": "udev-real-device-qualification",
       "kind": "deferred",
       "purpose": "Qualify real target activation, udev node coordination, retry behavior, and output fields that depend on device nodes.",
-      "reason": "Every device-mapper ioctl checks CAP_SYS_ADMIN (drivers/md/dm-ioctl.c ctl_ioctl returns -EACCES otherwise) and /dev/mapper/control is root 0600, so uid 2000 cannot create, query or observe mapped devices; the candidate additionally refuses mutations unless euid 0 and BASHOS_DMSETUP_ALLOW_MUTATE=1 (dmsetup.c:926-932, gate at :1477) before opening the control node. The candidate does not implement r2-r4 at all, so no fixture can close them."
+      "reason": "Remaining obligations: r2: Not implemented by candidate: dmsetup.c:1329-1356 accepts --noudevsync, --udevcookie, --verifyudev, --addnodeoncreate/--addnodeonresume and ignores them; there is no cookie/semaphore code.; r4: Node ownership options are applied by udev rules in this setup on both sides; a libdevmapper-managed node (outside a separate IPC namespace) is needed to observe -U/-G/-M."
     }
   ]
 }

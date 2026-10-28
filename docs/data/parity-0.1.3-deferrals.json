@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "53826a4f4a09c99b8770071c1d76035a89b2b0223e7bc3ca4acfb9f4370ae3ce",
+  "ledger_sha256": "1f54fcbcb3aae4189b8319851622e5fe54e2e049bc4ed87f3c03209d7e1cbbcf",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 95,
-    "none": 274,
-    "full": 231
+    "partial": 97,
+    "none": 266,
+    "full": 237
   },
   "migrations": {
-    "deferred": 369,
-    "replacement": 231
+    "deferred": 363,
+    "replacement": 237
   },
   "pending_full_topics": [],
   "builds": {
@@ -1835,6 +1835,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793151775.1377084
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "root-e-static-83",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 7,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "252f9a7da76b6eceffbc81140245c015edfc5109659b8f8e2d1bfd24a7a4e824",
+            "provenance.json": "7ad2a51807f1887da00e0fd9b58c0a4cf92ef46bb3645edacf9506ad44b70d13",
+            "payload.tar": "db9fd2bdebee265f6d4b05cf6a0f9b3bd075dc98ea13c75aece4411fe94f9d14",
+            "evidence.tar": "5988474f0dccbfaba155dda82908e8d86e70b566d3b90b40c3fd31b26ea7dc52"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793152431.0990725
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -10916,36 +10942,57 @@
         {
           "topic": "dmsetup/ioctl-errors-buffering",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Kernel errno reporting: each failing DM ioctl prints the command name and strerror, then 'Command failed.' with status 1.",
-              "coverage": "missing",
-              "gap": "No executed case; errno from real devices (ENXIO, EBUSY, EINVAL, EEXIST) reachable under PRIV-ROOT; arbitrary errnos need SECCOMP-FILTER.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-create-load-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Open failure of /dev/mapper/control prints the open-failed/communicate/permission lines (dmsetup.c:186-193) with failure status for table/status/deps/targets.",
-              "coverage": "missing",
-              "gap": "No executed case; reachable unprivileged now (EACCES in the plain driver, ENOENT in the legacy runner).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Response-buffer growth: when the kernel sets DM_BUFFER_FULL_FLAG the request is retried with a doubled buffer and the full result printed (e.g. ls with many devices or a long table).",
-              "coverage": "missing",
-              "gap": "No executed case; reachable with a real kernel by creating enough devices/long tables under PRIV-ROOT.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-buffers-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -10959,299 +11006,487 @@
             {
               "id": "r5",
               "behavior": "Descriptor cleanup: the control descriptor is closed on every path.",
-              "coverage": "missing",
-              "gap": "No executed case; observable via /proc/$$/fd glob before/after.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-buffers-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "dmsetup/query-list-info",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "ls with no mapped devices prints 'No devices found' with status 0, and info with no devices behaves like LVM2 dmsetup (byte parity).",
-              "coverage": "missing",
-              "gap": "No dmsetup query is executed in any case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "ls and info with populated devices list each name with (major:minor) and the info block (Name, State, Read Ahead/Tables present, Open count, Event number, Major/minor, Number of targets, UUID) matching LVM2 dmsetup.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Lookup by name and by -u UUID, giving both a name list and -u rejected, and a missing name reporting 'Device does not exist' with failure status.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Device state (ACTIVE vs SUSPENDED, live/inactive table presence) reported after suspend.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "No-control behaviour: when /dev/mapper/control cannot be opened (absent or EACCES), the candidate's ls/info fall back to a /sys/block/dm-* listing and succeed (dmsetup.c:118-160, 823-848, 1415-1423) while LVM2 dmsetup reports a control-node failure; the comparison must be recorded, not normalized.",
-              "coverage": "missing",
-              "gap": "No executed case; reachable unprivileged now (legacy runner has no /dev/mapper; plain driver gets EACCES).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "dmsetup/query-tables-deps-targets",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "table and status of a multi-target device (linear+zero+error segments) print 'start length type params' rows identical to LVM2 dmsetup, with and without a device argument (prefix 'name: ' when listing all).",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "--inactive table/status after a load without resume shows the inactive table; --target filters rows by type for table/status/ls.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "deps prints the dependency count and (major, minor) list of underlying loop devices, also with --inactive.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "targets lists loaded target types with versions and version prints library/driver versions in the documented format.",
-              "coverage": "missing",
-              "gap": "No executed case; candidate's version strings are its own (no libdevmapper) so byte parity of the library line is expected to differ and must be recorded.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "crypt key redaction: table of a dm-crypt mapping hides the key unless --showkeys (dmsetup.c:681-708), matching LVM2 output.",
-              "coverage": "missing",
-              "gap": "No executed case; needs dm_crypt in the guest kernel (preflight).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-crypt-root",
+                  "status": "PASS",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "dmsetup/rename-message",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "rename OLD NEW changes the kernel name; rename --setuuid NAME UUID sets a UUID once; renaming to an existing or invalid (too long, containing '/') name fails.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-state-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "message NAME SECTOR TEXT sends the payload to a target that accepts messages and prints the target's reply; an unsupported message reports failure.",
-              "coverage": "missing",
-              "gap": "No executed case; needs a target with deterministic message replies (e.g. dm-flakey or dm-thin pool 'reserve_metadata_snap'/status), preflight for module availability.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-state-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "dmsetup/state-flags-removal",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "suspend/resume with --noflush and --nolockfs set the corresponding DM flags; state readback shows SUSPENDED/ACTIVE.",
-              "coverage": "missing",
-              "gap": "No executed case; flag bits are observable only via kernel behaviour or an ioctl intercept.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-state-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "clear drops the inactive table; wipe_table replaces the live table with an error target.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-state-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "remove of a busy (open) device fails with EBUSY; remove --force replaces with error and removes; remove --deferred schedules removal on last close.",
-              "coverage": "missing",
-              "gap": "No executed case; needs a controller-held open holder.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-state-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "remove_all removes every device; per-device errors in a multi-name remove/suspend continue to the next name and give an aggregate failure.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-state-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "dmsetup/table-input-create-load",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "create NAME with the table from --table, from a small relative table file, and from stdin produces an active device whose kernel table equals the input (as read back by LVM2 dmsetup table).",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-create-load-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "load/reload replaces the inactive table and resume activates it; -r/--readonly sets the read-only flag; --notable creates without a table; -u sets the UUID; --major/--minor must be given together.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-create-load-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Rollback: if the table load or the activating resume fails (e.g. linear over a nonexistent device), the just-created device is removed (dmsetup.c:1063-1071) and the status is failure, leaving no device.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-create-load-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Table payload encoding matches the DM ABI (8-byte aligned specs, next offsets) \u2014 observable as kernel acceptance and identical readback for multi-target tables.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-create-load-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "dmsetup/table-invalid-input",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Malformed rows (non-numeric start/length, overflowing u64, missing target type, over-long type) fail with 'Invalid format on line N' before any create/load ioctl; status failure; no device left.",
-              "coverage": "missing",
-              "gap": "No executed case. In the candidate the parser runs only after the root+opt-in gate and the control open (gate dmsetup.c:1477, control open :1479, parse inside dms_create_cmd/dms_load_cmd), so uid 2000 never reaches it.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-table-input-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Table text containing a NUL byte (file or stdin) is rejected (dmsetup.c:592-596).",
-              "coverage": "missing",
-              "gap": "No executed case; NUL input is explicit in the topic.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-table-input-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Table text larger than the 16 MiB cap is rejected without an ioctl (dmsetup.c:571-575), and payloads exceeding the ioctl buffer limit report 'table too large' (:514-518).",
-              "coverage": "missing",
-              "gap": "No executed case; a 16 MiB input exceeds the legacy 8 MiB RLIMIT_FSIZE for a file, so stdin must be used.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-table-input-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Blank and comment lines are ignored and boundary values (0 length, max u64) are handled as LVM2/libdevmapper does.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-table-input-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "dmsetup/udev-real-device-qualification",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Real target activation: create over a VM-local loop device produces /dev/dm-N and the /dev/mapper/NAME node usable for I/O (read back bytes written through it).",
-              "coverage": "missing",
-              "gap": "No executed case; needs PRIV-ROOT + BLOCK-DEV.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-real-device-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -11265,18 +11500,32 @@
             {
               "id": "r3",
               "behavior": "--retry for remove of a transiently busy device.",
-              "coverage": "missing",
-              "gap": "Not implemented by candidate: --retry accepted and ignored (dmsetup.c:1330).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-real-device-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Report-option output fields (-o/--options, -c/-C/--columns, --noheadings, --separator, --sort, --select) and node ownership/mode options (-U/-G/-M).",
-              "coverage": "missing",
-              "gap": "Not implemented by candidate: accepted and ignored (dmsetup.c:1333-1356); a request for columns silently produces default output.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Node ownership options are applied by udev rules in this setup on both sides; a libdevmapper-managed node (outside a separate IPC namespace) is needed to observe -U/-G/-M.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-real-device-root",
+                  "status": "FAIL",
+                  "run": "root-e-static-83"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -41481,8 +41730,8 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 369,
-        "FAIL": 123,
+        "UNRESOLVED": 363,
+        "FAIL": 129,
         "PASS": 108
       },
       "migration_without_complete_evidence": []
@@ -43308,6 +43557,32 @@
             "forced_stop": false,
             "poweroff_request": 255,
             "stopped_at": 1793151773.7333343
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "root-e-dynamic-83",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 7,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "6e2add0936a64891f146e584c9b20d73186e522ad6cf892025d65d74f26a87d1",
+            "provenance.json": "46030b2809e15741cb41b098e1b99f47878bcaa6b2842590c1484d6d77d246f3",
+            "payload.tar": "97fed40e9b1405e35e7b14c470781b6c28a4e5cc253b0d256b38c462583dbae8",
+            "evidence.tar": "b8ba15251b28078e46a47028aeaef8f81803cabfcf2e35f3a7066578c74e4afa"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793152432.734095
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -52389,36 +52664,57 @@
         {
           "topic": "dmsetup/ioctl-errors-buffering",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Kernel errno reporting: each failing DM ioctl prints the command name and strerror, then 'Command failed.' with status 1.",
-              "coverage": "missing",
-              "gap": "No executed case; errno from real devices (ENXIO, EBUSY, EINVAL, EEXIST) reachable under PRIV-ROOT; arbitrary errnos need SECCOMP-FILTER.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-create-load-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Open failure of /dev/mapper/control prints the open-failed/communicate/permission lines (dmsetup.c:186-193) with failure status for table/status/deps/targets.",
-              "coverage": "missing",
-              "gap": "No executed case; reachable unprivileged now (EACCES in the plain driver, ENOENT in the legacy runner).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Response-buffer growth: when the kernel sets DM_BUFFER_FULL_FLAG the request is retried with a doubled buffer and the full result printed (e.g. ls with many devices or a long table).",
-              "coverage": "missing",
-              "gap": "No executed case; reachable with a real kernel by creating enough devices/long tables under PRIV-ROOT.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-buffers-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -52432,299 +52728,487 @@
             {
               "id": "r5",
               "behavior": "Descriptor cleanup: the control descriptor is closed on every path.",
-              "coverage": "missing",
-              "gap": "No executed case; observable via /proc/$$/fd glob before/after.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-buffers-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "dmsetup/query-list-info",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "ls with no mapped devices prints 'No devices found' with status 0, and info with no devices behaves like LVM2 dmsetup (byte parity).",
-              "coverage": "missing",
-              "gap": "No dmsetup query is executed in any case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "ls and info with populated devices list each name with (major:minor) and the info block (Name, State, Read Ahead/Tables present, Open count, Event number, Major/minor, Number of targets, UUID) matching LVM2 dmsetup.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Lookup by name and by -u UUID, giving both a name list and -u rejected, and a missing name reporting 'Device does not exist' with failure status.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Device state (ACTIVE vs SUSPENDED, live/inactive table presence) reported after suspend.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "No-control behaviour: when /dev/mapper/control cannot be opened (absent or EACCES), the candidate's ls/info fall back to a /sys/block/dm-* listing and succeed (dmsetup.c:118-160, 823-848, 1415-1423) while LVM2 dmsetup reports a control-node failure; the comparison must be recorded, not normalized.",
-              "coverage": "missing",
-              "gap": "No executed case; reachable unprivileged now (legacy runner has no /dev/mapper; plain driver gets EACCES).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "dmsetup/query-tables-deps-targets",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "table and status of a multi-target device (linear+zero+error segments) print 'start length type params' rows identical to LVM2 dmsetup, with and without a device argument (prefix 'name: ' when listing all).",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "--inactive table/status after a load without resume shows the inactive table; --target filters rows by type for table/status/ls.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "deps prints the dependency count and (major, minor) list of underlying loop devices, also with --inactive.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "targets lists loaded target types with versions and version prints library/driver versions in the documented format.",
-              "coverage": "missing",
-              "gap": "No executed case; candidate's version strings are its own (no libdevmapper) so byte parity of the library line is expected to differ and must be recorded.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-query-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "crypt key redaction: table of a dm-crypt mapping hides the key unless --showkeys (dmsetup.c:681-708), matching LVM2 output.",
-              "coverage": "missing",
-              "gap": "No executed case; needs dm_crypt in the guest kernel (preflight).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-crypt-root",
+                  "status": "PASS",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "dmsetup/rename-message",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "rename OLD NEW changes the kernel name; rename --setuuid NAME UUID sets a UUID once; renaming to an existing or invalid (too long, containing '/') name fails.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-state-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "message NAME SECTOR TEXT sends the payload to a target that accepts messages and prints the target's reply; an unsupported message reports failure.",
-              "coverage": "missing",
-              "gap": "No executed case; needs a target with deterministic message replies (e.g. dm-flakey or dm-thin pool 'reserve_metadata_snap'/status), preflight for module availability.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-state-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "dmsetup/state-flags-removal",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "suspend/resume with --noflush and --nolockfs set the corresponding DM flags; state readback shows SUSPENDED/ACTIVE.",
-              "coverage": "missing",
-              "gap": "No executed case; flag bits are observable only via kernel behaviour or an ioctl intercept.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-state-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "clear drops the inactive table; wipe_table replaces the live table with an error target.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-state-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "remove of a busy (open) device fails with EBUSY; remove --force replaces with error and removes; remove --deferred schedules removal on last close.",
-              "coverage": "missing",
-              "gap": "No executed case; needs a controller-held open holder.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-state-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "remove_all removes every device; per-device errors in a multi-name remove/suspend continue to the next name and give an aggregate failure.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-state-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "dmsetup/table-input-create-load",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "create NAME with the table from --table, from a small relative table file, and from stdin produces an active device whose kernel table equals the input (as read back by LVM2 dmsetup table).",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-create-load-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "load/reload replaces the inactive table and resume activates it; -r/--readonly sets the read-only flag; --notable creates without a table; -u sets the UUID; --major/--minor must be given together.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-create-load-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Rollback: if the table load or the activating resume fails (e.g. linear over a nonexistent device), the just-created device is removed (dmsetup.c:1063-1071) and the status is failure, leaving no device.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-create-load-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Table payload encoding matches the DM ABI (8-byte aligned specs, next offsets) \u2014 observable as kernel acceptance and identical readback for multi-target tables.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-create-load-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "dmsetup/table-invalid-input",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Malformed rows (non-numeric start/length, overflowing u64, missing target type, over-long type) fail with 'Invalid format on line N' before any create/load ioctl; status failure; no device left.",
-              "coverage": "missing",
-              "gap": "No executed case. In the candidate the parser runs only after the root+opt-in gate and the control open (gate dmsetup.c:1477, control open :1479, parse inside dms_create_cmd/dms_load_cmd), so uid 2000 never reaches it.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-table-input-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Table text containing a NUL byte (file or stdin) is rejected (dmsetup.c:592-596).",
-              "coverage": "missing",
-              "gap": "No executed case; NUL input is explicit in the topic.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-table-input-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Table text larger than the 16 MiB cap is rejected without an ioctl (dmsetup.c:571-575), and payloads exceeding the ioctl buffer limit report 'table too large' (:514-518).",
-              "coverage": "missing",
-              "gap": "No executed case; a 16 MiB input exceeds the legacy 8 MiB RLIMIT_FSIZE for a file, so stdin must be used.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-table-input-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Blank and comment lines are ignored and boundary values (0 length, max u64) are handled as LVM2/libdevmapper does.",
-              "coverage": "missing",
-              "gap": "No executed case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-table-input-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "dmsetup/udev-real-device-qualification",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Real target activation: create over a VM-local loop device produces /dev/dm-N and the /dev/mapper/NAME node usable for I/O (read back bytes written through it).",
-              "coverage": "missing",
-              "gap": "No executed case; needs PRIV-ROOT + BLOCK-DEV.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-real-device-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -52738,18 +53222,32 @@
             {
               "id": "r3",
               "behavior": "--retry for remove of a transiently busy device.",
-              "coverage": "missing",
-              "gap": "Not implemented by candidate: --retry accepted and ignored (dmsetup.c:1330).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-real-device-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Report-option output fields (-o/--options, -c/-C/--columns, --noheadings, --separator, --sort, --select) and node ownership/mode options (-U/-G/-M).",
-              "coverage": "missing",
-              "gap": "Not implemented by candidate: accepted and ignored (dmsetup.c:1333-1356); a request for columns silently produces default output.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Node ownership options are applied by udev rules in this setup on both sides; a libdevmapper-managed node (outside a separate IPC namespace) is needed to observe -U/-G/-M.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-dmsetup-real-device-root",
+                  "status": "FAIL",
+                  "run": "root-e-dynamic-83"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -82954,8 +83452,8 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 369,
-        "FAIL": 123,
+        "UNRESOLVED": 363,
+        "FAIL": 129,
         "PASS": 108
       },
       "migration_without_complete_evidence": []
