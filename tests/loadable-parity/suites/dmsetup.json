@@ -124,7 +124,7 @@
       "id": "ioctl-errors-buffering",
       "kind": "deferred",
       "purpose": "Check ioctl errno reporting, open failures, response-buffer growth, malformed-record rejection, and descriptor cleanup.",
-      "reason": "Remaining obligations: r4: No executed case; a real kernel never returns malformed records, so this needs an ioctl reply mock."
+      "reason": "Remaining obligations: r4: Malformed name records were rejected, but no independent all-access memory-overrun detector or malformed target/version record coverage was retained."
     },
     {
       "id": "udev-real-device-qualification",

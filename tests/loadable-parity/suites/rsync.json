@@ -126,15 +126,32 @@
     },
     {
       "id": "rsh-push-requires-peer",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise remote push and pull through an rsh command using a disposable transport peer.",
-      "reason": "No executed case exercises a remote transport. A local ssh-shaped shim or a backgrounded OpenSSH sshd peer suffices; no external target is needed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-transfer-rsync-rsh-failure-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-rsync-rsh-pull-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-rsync-rsh-push-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-rsync-rsh-push-script-r3"
+        }
+      ]
     },
     {
       "id": "native-protocol-requires-server",
       "kind": "deferred",
       "purpose": "Exercise rsync --native interoperability against a disposable stock rsync server process.",
-      "reason": "No executed fixture provides a stock rsync server endpoint. One can be reached through a local ssh-shaped transport shim that execs /usr/bin/rsync --server, with no network."
+      "reason": "Remaining obligations: r2: The destination tree matches, but the candidate-side stock sender exits 12 while the candidate reports success; a clean native peer completion is not established.; r3: Not executed."
     },
     {
       "id": "daemon-protocol-requires-server",

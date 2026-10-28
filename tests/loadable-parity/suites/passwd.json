@@ -89,7 +89,7 @@
       "id": "interactive_password_prompts",
       "purpose": "Future coverage for prompt ordering, new-password confirmation, echo suppression, and terminal restoration.",
       "kind": "deferred",
-      "reason": "passwd uses private PHCLIB_PASSWD/PHCLIB_GROUP/PHCLIB_SHADOW files and BPW_LOCK_DIR; kernel secret slots are optional (BASHPASSWD_KERNEL_SECRETS=0 or an absent device selects C-owned buffers), and add-fd/set-fd/verify-fd read password bytes from a file descriptor, so these operations run unprivileged without a PTY or device. The PTY driver (terminal group) supplies the owned terminal; no auth device is required."
+      "reason": "Remaining obligations: r1: Not executed; PTY driver available.; r2: Not executed.; r3: The EIO and EOF read-fault observations show ECHO suppressed during those reads; success, mismatch and signal paths were not qualified.; r4: Terminal restoration was observed for EIO and EOF; success, mismatch and signal paths were not qualified."
     },
     {
       "id": "readonly_database_queries",

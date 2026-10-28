@@ -60,9 +60,26 @@
     },
     {
       "id": "defer-interactive-editor",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify interactive PTY prompts, key handling and screen restoration; pipe-driven quit has separate runnable coverage.",
-      "reason": "No PTY fixture exists for this editor. The VM pty driver (terminal.py, used by 98 terminal cases) already supplies fixed-size PTYs, keystroke scripts, screen decoding and terminal_restored checks, so no new capability is needed; the editor is candidate-specific, so the oracle is an independent transcript/byte decoder, not util-linux fdisk (whose dialog differs)."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "trace-vm-fdisk-defaults-write-r1"
+        },
+        {
+          "group": "terminal",
+          "id": "trace-vm-fdisk-edit-write-r1"
+        },
+        {
+          "group": "terminal",
+          "id": "trace-vm-fdisk-eof-r1"
+        },
+        {
+          "group": "terminal",
+          "id": "trace-vm-fdisk-quit-r1"
+        }
+      ]
     },
     {
       "id": "regular-mbr-inspection",

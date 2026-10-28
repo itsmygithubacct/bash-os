@@ -52,15 +52,28 @@
     },
     {
       "id": "install-helper-boundary",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check install validation, single-call batching, literal helper argv, and helper exit-status propagation.",
-      "reason": "Never executed, but every obligation is fixture-relative and reachable in the existing legacy runner with a recording mock helper script; no VM-level capability is involved."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-services-payload-install-argv"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-payload-install-refusals"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-payload-install-status"
+        }
+      ]
     },
     {
       "id": "remove-rollback-boundary",
       "kind": "deferred",
       "purpose": "Check transaction lookup and rollback dispatch without performing a real package rollback.",
-      "reason": "Never executed; all transaction-selection and dispatch obligations are fixture-relative and reachable in the existing legacy runner."
+      "reason": "Remaining obligations: r5: The outside sentinel and fixture diff were observed, but no complete independent snapshot of every path outside the fixture was retained."
     },
     {
       "id": "image-helper-integration",

@@ -1,0 +1,367 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-services-payload-install-argv",
+      "loadable": "payload",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "One helper call for ordered names; command-only root override and exported environment.",
+      "covers": [
+        "payload/install-helper-boundary"
+      ],
+      "oracle": "Explicit public interface contract and a fixture-owned recording adapter, independently exercised with known literal arguments before candidate execution.",
+      "comparison": "Exact status and assertions on literal bytes, order and diagnostics; raw output and adapter records retained in HOME. No candidate output supplies its own expected answer.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "fixture-installer": "#!/bin/bash\n[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nprintf 'CALL\\0%s\\0%s\\0' \"$BASH\" \"$0\" >> \"$HOME/calls.bin\"\nprintf '%s\\0' \"$@\" >> \"$HOME/calls.bin\"\nprintf 'END\\0' >> \"$HOME/calls.bin\"\nprintf 'ENV\\0%s\\0%s\\0%s\\0' \"${PAYLOAD_ROOT-unset}\" \"${PAYLOAD_REPO-unset}\" \"${FIXTURE_TOKEN-unset}\" >> \"$HOME/env.bin\"\ncase ${MOCK_MODE-0} in\n  exit3) exit 3 ;;\n  signal) kill -TERM \"$$\"; exit 99 ;;\n  rollbackfail) case ${!#} in T-bad) exit 3 ;; T-late) exit 6 ;; esac ;;\n  snapshot) if [[ ${!#} == T-one ]]; then /usr/bin/rm -f /tmp/parity-case/root/var/lib/bl-pkg/installed/beta; fi ;;\nesac\nexit 0\n",
+        "repo/INDEX": "blpkg-v1 name=alpha version=1\nblpkg-v1 name=beta version=2\nblpkg-v1 name=gamma version=3\n"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp fixture-installer \"$HOME/installer\"\n/usr/bin/chmod 700 \"$HOME/installer\"\nexport FIXTURE_TOKEN=control PAYLOAD_ROOT=/tmp/parity-case/control-root PAYLOAD_REPO=/tmp/parity-case/control-repo MOCK_MODE=0\n\"$BASH\" \"$HOME/installer\" literal 'a b' ''\nprintf 'CALL\\0%s\\0%s\\0literal\\0a b\\0\\0END\\0' \"$BASH\" \"$HOME/installer\" > \"$HOME/control-expected.bin\"\nprintf 'ENV\\0%s\\0%s\\0control\\0' \"$PAYLOAD_ROOT\" \"$PAYLOAD_REPO\" > \"$HOME/control-env-expected.bin\"\n/usr/bin/cmp -s \"$HOME/calls.bin\" \"$HOME/control-expected.bin\" && /usr/bin/cmp -s \"$HOME/env.bin\" \"$HOME/control-env-expected.bin\" || { echo 'CONTROL-FAILED mock argv/environment' >&2; exit 98; }\nif MOCK_MODE=exit3 \"$BASH\" \"$HOME/installer\" failure > \"$HOME/control-fail.out\" 2> \"$HOME/control-fail.err\"; then control_rc=0; else control_rc=$?; fi\n[[ $control_rc == 3 ]] || { echo 'CONTROL-FAILED mock status' >&2; exit 98; }\nif MOCK_MODE=signal \"$BASH\" \"$HOME/installer\" signal > \"$HOME/control-signal.out\" 2> \"$HOME/control-signal.err\"; then signal_rc=0; else signal_rc=$?; fi\n[[ $signal_rc == 143 ]] || { echo 'CONTROL-FAILED mock signal' >&2; exit 98; }\nprintf 'exit3=%s signal=%s\\n' \"$control_rc\" \"$signal_rc\" > \"$HOME/control-status.txt\"\nprintf 'CALL\\0%s\\0%s\\0failure\\0END\\0CALL\\0%s\\0%s\\0signal\\0END\\0' \"$BASH\" \"$HOME/installer\" \"$BASH\" \"$HOME/installer\" >> \"$HOME/control-expected.bin\"\n/usr/bin/cmp -s \"$HOME/calls.bin\" \"$HOME/control-expected.bin\" || { echo 'CONTROL-FAILED mock invocation count' >&2; exit 98; }\n/usr/bin/mv \"$HOME/calls.bin\" \"$HOME/control-calls.bin\"\n/usr/bin/mv \"$HOME/env.bin\" \"$HOME/control-env.bin\"\n: > \"$HOME/calls.bin\"; : > \"$HOME/env.bin\"\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport PAYLOAD_ROOT=/tmp/parity-case/root PAYLOAD_REPO=/tmp/parity-case/repo PAYLOAD_INSTALLER=\"$HOME/installer\" FIXTURE_TOKEN='outer value' MOCK_MODE=0\n/usr/bin/mkdir -p \"$PAYLOAD_ROOT\" /tmp/parity-case/root2\nPAYLOAD_ROOT=/tmp/parity-case/root2 FIXTURE_TOKEN='temporary value' payload install beta alpha > \"$HOME/install.out\" 2> \"$HOME/install.err\"; rc=$?\nprintf 'install-status=%s\\n' \"$rc\"\nprintf 'CALL\\0%s\\0%s\\0--internal\\0--root\\0%s\\0--repo\\0%s\\0--allow-unsigned\\0install\\0beta\\0alpha\\0END\\0' \"$BASH\" \"$HOME/installer\" /tmp/parity-case/root2 \"$PAYLOAD_REPO\" > \"$HOME/expected.bin\"\nprintf 'ENV\\0%s\\0%s\\0%s\\0' /tmp/parity-case/root2 \"$PAYLOAD_REPO\" 'temporary value' > \"$HOME/expected-env.bin\"\n/usr/bin/cmp -s \"$HOME/calls.bin\" \"$HOME/expected.bin\" && echo argv=exact || echo argv=BAD\n/usr/bin/cmp -s \"$HOME/env.bin\" \"$HOME/expected-env.bin\" && echo env=exact || echo env=BAD\nprintf 'after-root=%s after-token=%s\\n' \"$PAYLOAD_ROOT\" \"$FIXTURE_TOKEN\"\n[[ ! -s $HOME/install.out && ! -s $HOME/install.err ]] && echo output=empty || echo output=BAD\n",
+      "stdout": "install-status=0\nargv=exact\nenv=exact\nafter-root=/tmp/parity-case/root after-token=outer value\noutput=empty\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 20,
+      "diagnostic_files": [
+        "control-calls.bin",
+        "control-env.bin",
+        "calls.bin",
+        "env.bin",
+        "expected.bin",
+        "expected-env.bin",
+        "install.out",
+        "install.err"
+      ]
+    },
+    {
+      "id": "migration-services-payload-install-refusals",
+      "loadable": "payload",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Invalid names, missing INDEX entries and absent operands never dispatch a helper.",
+      "covers": [
+        "payload/install-helper-boundary"
+      ],
+      "oracle": "Explicit public interface contract and a fixture-owned recording adapter, independently exercised with known literal arguments before candidate execution.",
+      "comparison": "Exact status and assertions on literal bytes, order and diagnostics; raw output and adapter records retained in HOME. No candidate output supplies its own expected answer.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "fixture-installer": "#!/bin/bash\n[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nprintf 'CALL\\0%s\\0%s\\0' \"$BASH\" \"$0\" >> \"$HOME/calls.bin\"\nprintf '%s\\0' \"$@\" >> \"$HOME/calls.bin\"\nprintf 'END\\0' >> \"$HOME/calls.bin\"\nprintf 'ENV\\0%s\\0%s\\0%s\\0' \"${PAYLOAD_ROOT-unset}\" \"${PAYLOAD_REPO-unset}\" \"${FIXTURE_TOKEN-unset}\" >> \"$HOME/env.bin\"\ncase ${MOCK_MODE-0} in\n  exit3) exit 3 ;;\n  signal) kill -TERM \"$$\"; exit 99 ;;\n  rollbackfail) case ${!#} in T-bad) exit 3 ;; T-late) exit 6 ;; esac ;;\n  snapshot) if [[ ${!#} == T-one ]]; then /usr/bin/rm -f /tmp/parity-case/root/var/lib/bl-pkg/installed/beta; fi ;;\nesac\nexit 0\n",
+        "repo/INDEX": "blpkg-v1 name=alpha version=1\nblpkg-v1 name=beta version=2\nblpkg-v1 name=gamma version=3\n"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp fixture-installer \"$HOME/installer\"\n/usr/bin/chmod 700 \"$HOME/installer\"\nexport FIXTURE_TOKEN=control PAYLOAD_ROOT=/tmp/parity-case/control-root PAYLOAD_REPO=/tmp/parity-case/control-repo MOCK_MODE=0\n\"$BASH\" \"$HOME/installer\" literal 'a b' ''\nprintf 'CALL\\0%s\\0%s\\0literal\\0a b\\0\\0END\\0' \"$BASH\" \"$HOME/installer\" > \"$HOME/control-expected.bin\"\nprintf 'ENV\\0%s\\0%s\\0control\\0' \"$PAYLOAD_ROOT\" \"$PAYLOAD_REPO\" > \"$HOME/control-env-expected.bin\"\n/usr/bin/cmp -s \"$HOME/calls.bin\" \"$HOME/control-expected.bin\" && /usr/bin/cmp -s \"$HOME/env.bin\" \"$HOME/control-env-expected.bin\" || { echo 'CONTROL-FAILED mock argv/environment' >&2; exit 98; }\nif MOCK_MODE=exit3 \"$BASH\" \"$HOME/installer\" failure > \"$HOME/control-fail.out\" 2> \"$HOME/control-fail.err\"; then control_rc=0; else control_rc=$?; fi\n[[ $control_rc == 3 ]] || { echo 'CONTROL-FAILED mock status' >&2; exit 98; }\nif MOCK_MODE=signal \"$BASH\" \"$HOME/installer\" signal > \"$HOME/control-signal.out\" 2> \"$HOME/control-signal.err\"; then signal_rc=0; else signal_rc=$?; fi\n[[ $signal_rc == 143 ]] || { echo 'CONTROL-FAILED mock signal' >&2; exit 98; }\nprintf 'exit3=%s signal=%s\\n' \"$control_rc\" \"$signal_rc\" > \"$HOME/control-status.txt\"\nprintf 'CALL\\0%s\\0%s\\0failure\\0END\\0CALL\\0%s\\0%s\\0signal\\0END\\0' \"$BASH\" \"$HOME/installer\" \"$BASH\" \"$HOME/installer\" >> \"$HOME/control-expected.bin\"\n/usr/bin/cmp -s \"$HOME/calls.bin\" \"$HOME/control-expected.bin\" || { echo 'CONTROL-FAILED mock invocation count' >&2; exit 98; }\n/usr/bin/mv \"$HOME/calls.bin\" \"$HOME/control-calls.bin\"\n/usr/bin/mv \"$HOME/env.bin\" \"$HOME/control-env.bin\"\n: > \"$HOME/calls.bin\"; : > \"$HOME/env.bin\"\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport PAYLOAD_ROOT=/tmp/parity-case/root PAYLOAD_REPO=/tmp/parity-case/repo PAYLOAD_INSTALLER=\"$HOME/installer\" FIXTURE_TOKEN='outer value' MOCK_MODE=0\nrun() { local label=$1; shift; payload install \"$@\" > \"$HOME/$label.out\" 2> \"$HOME/$label.err\"; printf '%s=%s\\n' \"$label\" \"$?\"; }\nrun path ../alpha\nrun dash -alpha\nrun badchar 'alpha?'\nrun absent\nrun missing alpha nowhere othermissing\n[[ $(< \"$HOME/missing.err\") == *\"no payload named 'nowhere'\"* && $(< \"$HOME/missing.err\") == *\"no payload named 'othermissing'\"* ]] && echo missing-diagnostics=both || echo missing-diagnostics=BAD\n[[ ! -s $HOME/calls.bin && ! -s $HOME/env.bin ]] && echo calls=none || echo calls=BAD\n",
+      "stdout": "path=2\ndash=2\nbadchar=2\nabsent=2\nmissing=1\nmissing-diagnostics=both\ncalls=none\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 20,
+      "diagnostic_files": [
+        "control-calls.bin",
+        "calls.bin",
+        "env.bin",
+        "path.err",
+        "dash.err",
+        "badchar.err",
+        "absent.err",
+        "missing.err",
+        "missing.out"
+      ]
+    },
+    {
+      "id": "migration-services-payload-install-status",
+      "loadable": "payload",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Success, exit 3, signal termination and inaccessible installers propagate correctly.",
+      "covers": [
+        "payload/install-helper-boundary"
+      ],
+      "oracle": "Explicit public interface contract and a fixture-owned recording adapter, independently exercised with known literal arguments before candidate execution.",
+      "comparison": "Exact status and assertions on literal bytes, order and diagnostics; raw output and adapter records retained in HOME. No candidate output supplies its own expected answer.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "fixture-installer": "#!/bin/bash\n[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nprintf 'CALL\\0%s\\0%s\\0' \"$BASH\" \"$0\" >> \"$HOME/calls.bin\"\nprintf '%s\\0' \"$@\" >> \"$HOME/calls.bin\"\nprintf 'END\\0' >> \"$HOME/calls.bin\"\nprintf 'ENV\\0%s\\0%s\\0%s\\0' \"${PAYLOAD_ROOT-unset}\" \"${PAYLOAD_REPO-unset}\" \"${FIXTURE_TOKEN-unset}\" >> \"$HOME/env.bin\"\ncase ${MOCK_MODE-0} in\n  exit3) exit 3 ;;\n  signal) kill -TERM \"$$\"; exit 99 ;;\n  rollbackfail) case ${!#} in T-bad) exit 3 ;; T-late) exit 6 ;; esac ;;\n  snapshot) if [[ ${!#} == T-one ]]; then /usr/bin/rm -f /tmp/parity-case/root/var/lib/bl-pkg/installed/beta; fi ;;\nesac\nexit 0\n",
+        "repo/INDEX": "blpkg-v1 name=alpha version=1\nblpkg-v1 name=beta version=2\nblpkg-v1 name=gamma version=3\n"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp fixture-installer \"$HOME/installer\"\n/usr/bin/chmod 700 \"$HOME/installer\"\nexport FIXTURE_TOKEN=control PAYLOAD_ROOT=/tmp/parity-case/control-root PAYLOAD_REPO=/tmp/parity-case/control-repo MOCK_MODE=0\n\"$BASH\" \"$HOME/installer\" literal 'a b' ''\nprintf 'CALL\\0%s\\0%s\\0literal\\0a b\\0\\0END\\0' \"$BASH\" \"$HOME/installer\" > \"$HOME/control-expected.bin\"\nprintf 'ENV\\0%s\\0%s\\0control\\0' \"$PAYLOAD_ROOT\" \"$PAYLOAD_REPO\" > \"$HOME/control-env-expected.bin\"\n/usr/bin/cmp -s \"$HOME/calls.bin\" \"$HOME/control-expected.bin\" && /usr/bin/cmp -s \"$HOME/env.bin\" \"$HOME/control-env-expected.bin\" || { echo 'CONTROL-FAILED mock argv/environment' >&2; exit 98; }\nif MOCK_MODE=exit3 \"$BASH\" \"$HOME/installer\" failure > \"$HOME/control-fail.out\" 2> \"$HOME/control-fail.err\"; then control_rc=0; else control_rc=$?; fi\n[[ $control_rc == 3 ]] || { echo 'CONTROL-FAILED mock status' >&2; exit 98; }\nif MOCK_MODE=signal \"$BASH\" \"$HOME/installer\" signal > \"$HOME/control-signal.out\" 2> \"$HOME/control-signal.err\"; then signal_rc=0; else signal_rc=$?; fi\n[[ $signal_rc == 143 ]] || { echo 'CONTROL-FAILED mock signal' >&2; exit 98; }\nprintf 'exit3=%s signal=%s\\n' \"$control_rc\" \"$signal_rc\" > \"$HOME/control-status.txt\"\nprintf 'CALL\\0%s\\0%s\\0failure\\0END\\0CALL\\0%s\\0%s\\0signal\\0END\\0' \"$BASH\" \"$HOME/installer\" \"$BASH\" \"$HOME/installer\" >> \"$HOME/control-expected.bin\"\n/usr/bin/cmp -s \"$HOME/calls.bin\" \"$HOME/control-expected.bin\" || { echo 'CONTROL-FAILED mock invocation count' >&2; exit 98; }\n/usr/bin/mv \"$HOME/calls.bin\" \"$HOME/control-calls.bin\"\n/usr/bin/mv \"$HOME/env.bin\" \"$HOME/control-env.bin\"\n: > \"$HOME/calls.bin\"; : > \"$HOME/env.bin\"\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport PAYLOAD_ROOT=/tmp/parity-case/root PAYLOAD_REPO=/tmp/parity-case/repo PAYLOAD_INSTALLER=\"$HOME/installer\" FIXTURE_TOKEN='outer value' MOCK_MODE=0\npayload install alpha > \"$HOME/ok.out\" 2> \"$HOME/ok.err\"; printf 'ok=%s\\n' \"$?\"\nMOCK_MODE=exit3 payload install alpha > \"$HOME/fail.out\" 2> \"$HOME/fail.err\"; printf 'exit3=%s\\n' \"$?\"\n[[ $(< \"$HOME/fail.err\") == *'install failed (bl-pkg exit 3)'* ]] && echo exit3-diagnostic=yes || echo exit3-diagnostic=BAD\nMOCK_MODE=signal payload install alpha > \"$HOME/signal.out\" 2> \"$HOME/signal.err\"; printf 'signal=%s\\n' \"$?\"\nPAYLOAD_INSTALLER=\"$HOME/no-such-installer\" payload install alpha > \"$HOME/missing.out\" 2> \"$HOME/missing.err\"; printf 'missing=%s\\n' \"$?\"\n/usr/bin/mkdir \"$HOME/directory\"\nPAYLOAD_INSTALLER=\"$HOME/directory\" payload install alpha > \"$HOME/directory.out\" 2> \"$HOME/directory.err\"; printf 'directory=%s\\n' \"$?\"\n/usr/bin/cp \"$HOME/installer\" \"$HOME/unreadable\"; /usr/bin/chmod 000 \"$HOME/unreadable\"\nPAYLOAD_INSTALLER=\"$HOME/unreadable\" payload install alpha > \"$HOME/unreadable.out\" 2> \"$HOME/unreadable.err\"; printf 'unreadable=%s\\n' \"$?\"\n/usr/bin/chmod 600 \"$HOME/unreadable\"\n: > \"$HOME/expected.bin\"\nfor x in 1 2 3; do printf 'CALL\\0%s\\0%s\\0--internal\\0--root\\0%s\\0--repo\\0%s\\0--allow-unsigned\\0install\\0alpha\\0END\\0' \"$BASH\" \"$HOME/installer\" \"$PAYLOAD_ROOT\" \"$PAYLOAD_REPO\" >> \"$HOME/expected.bin\"; done\n/usr/bin/cmp -s \"$HOME/calls.bin\" \"$HOME/expected.bin\" && echo calls=three || echo calls=BAD\n",
+      "stdout": "ok=0\nexit3=3\nexit3-diagnostic=yes\nsignal=143\nmissing=127\ndirectory=126\nunreadable=126\ncalls=three\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 20,
+      "diagnostic_files": [
+        "control-calls.bin",
+        "control-status.txt",
+        "control-signal.err",
+        "calls.bin",
+        "env.bin",
+        "expected.bin",
+        "ok.err",
+        "fail.err",
+        "signal.err",
+        "missing.err",
+        "directory.err",
+        "unreadable.err"
+      ]
+    },
+    {
+      "id": "migration-services-payload-remove-order",
+      "loadable": "payload",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Distinct transactions are dispatched in operand order; shared failures, continuation and untouched private state.",
+      "covers": [
+        "payload/remove-rollback-boundary"
+      ],
+      "oracle": "Explicit public interface contract and a fixture-owned recording adapter, independently exercised with known literal arguments before candidate execution.",
+      "comparison": "Exact status and assertions on literal bytes, order and diagnostics; raw output and adapter records retained in HOME. No candidate output supplies its own expected answer.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "fixture-installer": "#!/bin/bash\n[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nprintf 'CALL\\0%s\\0%s\\0' \"$BASH\" \"$0\" >> \"$HOME/calls.bin\"\nprintf '%s\\0' \"$@\" >> \"$HOME/calls.bin\"\nprintf 'END\\0' >> \"$HOME/calls.bin\"\nprintf 'ENV\\0%s\\0%s\\0%s\\0' \"${PAYLOAD_ROOT-unset}\" \"${PAYLOAD_REPO-unset}\" \"${FIXTURE_TOKEN-unset}\" >> \"$HOME/env.bin\"\ncase ${MOCK_MODE-0} in\n  exit3) exit 3 ;;\n  signal) kill -TERM \"$$\"; exit 99 ;;\n  rollbackfail) case ${!#} in T-bad) exit 3 ;; T-late) exit 6 ;; esac ;;\n  snapshot) if [[ ${!#} == T-one ]]; then /usr/bin/rm -f /tmp/parity-case/root/var/lib/bl-pkg/installed/beta; fi ;;\nesac\nexit 0\n",
+        "repo/INDEX": "blpkg-v1 name=alpha version=1\nblpkg-v1 name=beta version=2\nblpkg-v1 name=gamma version=3\n",
+        "root/var/lib/bl-pkg/installed/alpha": "txn=T-one\n",
+        "root/var/lib/bl-pkg/installed/beta": "txn=T-one\n",
+        "root/var/lib/bl-pkg/installed/gamma": "txn=T-bad\n",
+        "root/var/lib/bl-pkg/installed/delta": "txn=T-next\n",
+        "root/var/lib/bl-pkg/installed/epsilon": "txn=T-bad\n",
+        "root/var/lib/bl-pkg/installed/zeta": "txn=T-late\n",
+        "sentinel": "outside-private-root-sentinel\n"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp fixture-installer \"$HOME/installer\"\n/usr/bin/chmod 700 \"$HOME/installer\"\nexport FIXTURE_TOKEN=control PAYLOAD_ROOT=/tmp/parity-case/control-root PAYLOAD_REPO=/tmp/parity-case/control-repo MOCK_MODE=0\n\"$BASH\" \"$HOME/installer\" literal 'a b' ''\nprintf 'CALL\\0%s\\0%s\\0literal\\0a b\\0\\0END\\0' \"$BASH\" \"$HOME/installer\" > \"$HOME/control-expected.bin\"\nprintf 'ENV\\0%s\\0%s\\0control\\0' \"$PAYLOAD_ROOT\" \"$PAYLOAD_REPO\" > \"$HOME/control-env-expected.bin\"\n/usr/bin/cmp -s \"$HOME/calls.bin\" \"$HOME/control-expected.bin\" && /usr/bin/cmp -s \"$HOME/env.bin\" \"$HOME/control-env-expected.bin\" || { echo 'CONTROL-FAILED mock argv/environment' >&2; exit 98; }\nif MOCK_MODE=exit3 \"$BASH\" \"$HOME/installer\" failure > \"$HOME/control-fail.out\" 2> \"$HOME/control-fail.err\"; then control_rc=0; else control_rc=$?; fi\n[[ $control_rc == 3 ]] || { echo 'CONTROL-FAILED mock status' >&2; exit 98; }\nif MOCK_MODE=signal \"$BASH\" \"$HOME/installer\" signal > \"$HOME/control-signal.out\" 2> \"$HOME/control-signal.err\"; then signal_rc=0; else signal_rc=$?; fi\n[[ $signal_rc == 143 ]] || { echo 'CONTROL-FAILED mock signal' >&2; exit 98; }\nprintf 'exit3=%s signal=%s\\n' \"$control_rc\" \"$signal_rc\" > \"$HOME/control-status.txt\"\nprintf 'CALL\\0%s\\0%s\\0failure\\0END\\0CALL\\0%s\\0%s\\0signal\\0END\\0' \"$BASH\" \"$HOME/installer\" \"$BASH\" \"$HOME/installer\" >> \"$HOME/control-expected.bin\"\n/usr/bin/cmp -s \"$HOME/calls.bin\" \"$HOME/control-expected.bin\" || { echo 'CONTROL-FAILED mock invocation count' >&2; exit 98; }\n/usr/bin/mv \"$HOME/calls.bin\" \"$HOME/control-calls.bin\"\n/usr/bin/mv \"$HOME/env.bin\" \"$HOME/control-env.bin\"\n: > \"$HOME/calls.bin\"; : > \"$HOME/env.bin\"\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport PAYLOAD_ROOT=/tmp/parity-case/root PAYLOAD_REPO=/tmp/parity-case/repo PAYLOAD_INSTALLER=\"$HOME/installer\" FIXTURE_TOKEN='outer value' MOCK_MODE=0\n/usr/bin/cp -a root \"$HOME/before-root\"\nMOCK_MODE=rollbackfail payload remove alpha beta gamma epsilon zeta delta > \"$HOME/remove.out\" 2> \"$HOME/remove.err\"; rc=$?\nprintf 'remove=%s\\n' \"$rc\"\nprintf 'payload: removed alpha\\npayload: removed beta\\npayload: removed delta\\n' > \"$HOME/expected.out\"\n/usr/bin/cmp -s \"$HOME/remove.out\" \"$HOME/expected.out\" && echo success-messages=exact || echo success-messages=BAD\n[[ $(< \"$HOME/remove.err\") == *\"rollback failed for 'gamma' (bl-pkg exit 3)\"* && $(< \"$HOME/remove.err\") == *\"rollback failed for 'epsilon' (bl-pkg exit 3)\"* && $(< \"$HOME/remove.err\") == *\"rollback failed for 'zeta' (bl-pkg exit 6)\"* ]] && echo failure-diagnostic=yes || echo failure-diagnostic=BAD\n: > \"$HOME/expected.bin\"\nfor t in T-one T-bad T-late T-next; do printf 'CALL\\0%s\\0%s\\0--internal\\0--root\\0%s\\0rollback\\0%s\\0END\\0' \"$BASH\" \"$HOME/installer\" \"$PAYLOAD_ROOT\" \"$t\" >> \"$HOME/expected.bin\"; done\n/usr/bin/cmp -s \"$HOME/calls.bin\" \"$HOME/expected.bin\" && echo argv=exact || echo argv=BAD\n/usr/bin/diff -qr root \"$HOME/before-root\" > \"$HOME/diff.txt\" && echo state=unchanged || echo state=BAD\n[[ $(< sentinel) == 'outside-private-root-sentinel' ]] && echo sentinel=unchanged || echo sentinel=BAD\n",
+      "stdout": "remove=3\nsuccess-messages=exact\nfailure-diagnostic=yes\nargv=exact\nstate=unchanged\nsentinel=unchanged\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 20,
+      "diagnostic_files": [
+        "control-calls.bin",
+        "calls.bin",
+        "env.bin",
+        "expected.bin",
+        "remove.out",
+        "remove.err",
+        "diff.txt"
+      ]
+    },
+    {
+      "id": "migration-services-payload-remove-refusals",
+      "loadable": "payload",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Invalid, absent, malformed and nonregular states are refused without a rollback call.",
+      "covers": [
+        "payload/remove-rollback-boundary"
+      ],
+      "oracle": "Explicit public interface contract and a fixture-owned recording adapter, independently exercised with known literal arguments before candidate execution.",
+      "comparison": "Exact status and assertions on literal bytes, order and diagnostics; raw output and adapter records retained in HOME. No candidate output supplies its own expected answer.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "fixture-installer": "#!/bin/bash\n[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nprintf 'CALL\\0%s\\0%s\\0' \"$BASH\" \"$0\" >> \"$HOME/calls.bin\"\nprintf '%s\\0' \"$@\" >> \"$HOME/calls.bin\"\nprintf 'END\\0' >> \"$HOME/calls.bin\"\nprintf 'ENV\\0%s\\0%s\\0%s\\0' \"${PAYLOAD_ROOT-unset}\" \"${PAYLOAD_REPO-unset}\" \"${FIXTURE_TOKEN-unset}\" >> \"$HOME/env.bin\"\ncase ${MOCK_MODE-0} in\n  exit3) exit 3 ;;\n  signal) kill -TERM \"$$\"; exit 99 ;;\n  rollbackfail) case ${!#} in T-bad) exit 3 ;; T-late) exit 6 ;; esac ;;\n  snapshot) if [[ ${!#} == T-one ]]; then /usr/bin/rm -f /tmp/parity-case/root/var/lib/bl-pkg/installed/beta; fi ;;\nesac\nexit 0\n",
+        "repo/INDEX": "blpkg-v1 name=alpha version=1\nblpkg-v1 name=beta version=2\nblpkg-v1 name=gamma version=3\n"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp fixture-installer \"$HOME/installer\"\n/usr/bin/chmod 700 \"$HOME/installer\"\nexport FIXTURE_TOKEN=control PAYLOAD_ROOT=/tmp/parity-case/control-root PAYLOAD_REPO=/tmp/parity-case/control-repo MOCK_MODE=0\n\"$BASH\" \"$HOME/installer\" literal 'a b' ''\nprintf 'CALL\\0%s\\0%s\\0literal\\0a b\\0\\0END\\0' \"$BASH\" \"$HOME/installer\" > \"$HOME/control-expected.bin\"\nprintf 'ENV\\0%s\\0%s\\0control\\0' \"$PAYLOAD_ROOT\" \"$PAYLOAD_REPO\" > \"$HOME/control-env-expected.bin\"\n/usr/bin/cmp -s \"$HOME/calls.bin\" \"$HOME/control-expected.bin\" && /usr/bin/cmp -s \"$HOME/env.bin\" \"$HOME/control-env-expected.bin\" || { echo 'CONTROL-FAILED mock argv/environment' >&2; exit 98; }\nif MOCK_MODE=exit3 \"$BASH\" \"$HOME/installer\" failure > \"$HOME/control-fail.out\" 2> \"$HOME/control-fail.err\"; then control_rc=0; else control_rc=$?; fi\n[[ $control_rc == 3 ]] || { echo 'CONTROL-FAILED mock status' >&2; exit 98; }\nif MOCK_MODE=signal \"$BASH\" \"$HOME/installer\" signal > \"$HOME/control-signal.out\" 2> \"$HOME/control-signal.err\"; then signal_rc=0; else signal_rc=$?; fi\n[[ $signal_rc == 143 ]] || { echo 'CONTROL-FAILED mock signal' >&2; exit 98; }\nprintf 'exit3=%s signal=%s\\n' \"$control_rc\" \"$signal_rc\" > \"$HOME/control-status.txt\"\nprintf 'CALL\\0%s\\0%s\\0failure\\0END\\0CALL\\0%s\\0%s\\0signal\\0END\\0' \"$BASH\" \"$HOME/installer\" \"$BASH\" \"$HOME/installer\" >> \"$HOME/control-expected.bin\"\n/usr/bin/cmp -s \"$HOME/calls.bin\" \"$HOME/control-expected.bin\" || { echo 'CONTROL-FAILED mock invocation count' >&2; exit 98; }\n/usr/bin/mv \"$HOME/calls.bin\" \"$HOME/control-calls.bin\"\n/usr/bin/mv \"$HOME/env.bin\" \"$HOME/control-env.bin\"\n: > \"$HOME/calls.bin\"; : > \"$HOME/env.bin\"\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport PAYLOAD_ROOT=/tmp/parity-case/root PAYLOAD_REPO=/tmp/parity-case/repo PAYLOAD_INSTALLER=\"$HOME/installer\" FIXTURE_TOKEN='outer value' MOCK_MODE=0\nd=root/var/lib/bl-pkg/installed\n/usr/bin/mkdir -p \"$d\" \"$d/dir\"\nprintf 'no transaction\\n' > \"$d/no-txn\"\nprintf 'txn=\\n' > \"$d/empty\"\nprintf 'txn=-bad\\n' > \"$d/dash\"\nprintf 'txn=two words\\n' > \"$d/space\"\nprintf 'txn=two\\001bad\\n' > \"$d/control\"\nprintf 'txn=two\\000bad\\n' > \"$d/nul\"\nprintf -v long '%0256d' 0; printf 'txn=%s\\n' \"$long\" > \"$d/long\"\n/usr/bin/mkfifo \"$d/fifo\"\npayload remove bad/name -bad missing no-txn empty dash space control nul long fifo dir > \"$HOME/refused.out\" 2> \"$HOME/refused.err\"; rc=$?\nprintf 'refused=%s\\n' \"$rc\"\nall=yes; for n in bad/name -bad missing no-txn empty dash space control nul long fifo dir; do [[ $(< \"$HOME/refused.err\") == *\"'$n'\"* ]] || all=BAD; done\nprintf 'diagnostics=%s\\n' \"$all\"\n[[ ! -s $HOME/calls.bin && ! -s $HOME/env.bin ]] && echo calls=none || echo calls=BAD\n",
+      "stdout": "refused=1\ndiagnostics=yes\ncalls=none\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 20,
+      "diagnostic_files": [
+        "control-calls.bin",
+        "calls.bin",
+        "env.bin",
+        "refused.out",
+        "refused.err"
+      ]
+    },
+    {
+      "id": "migration-services-payload-remove-snapshot",
+      "loadable": "payload",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Resolve all transactions before the first rollback can remove another name state.",
+      "covers": [
+        "payload/remove-rollback-boundary"
+      ],
+      "oracle": "Explicit public interface contract and a fixture-owned recording adapter, independently exercised with known literal arguments before candidate execution.",
+      "comparison": "Exact status and assertions on literal bytes, order and diagnostics; raw output and adapter records retained in HOME. No candidate output supplies its own expected answer.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "fixture-installer": "#!/bin/bash\n[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nprintf 'CALL\\0%s\\0%s\\0' \"$BASH\" \"$0\" >> \"$HOME/calls.bin\"\nprintf '%s\\0' \"$@\" >> \"$HOME/calls.bin\"\nprintf 'END\\0' >> \"$HOME/calls.bin\"\nprintf 'ENV\\0%s\\0%s\\0%s\\0' \"${PAYLOAD_ROOT-unset}\" \"${PAYLOAD_REPO-unset}\" \"${FIXTURE_TOKEN-unset}\" >> \"$HOME/env.bin\"\ncase ${MOCK_MODE-0} in\n  exit3) exit 3 ;;\n  signal) kill -TERM \"$$\"; exit 99 ;;\n  rollbackfail) case ${!#} in T-bad) exit 3 ;; T-late) exit 6 ;; esac ;;\n  snapshot) if [[ ${!#} == T-one ]]; then /usr/bin/rm -f /tmp/parity-case/root/var/lib/bl-pkg/installed/beta; fi ;;\nesac\nexit 0\n",
+        "repo/INDEX": "blpkg-v1 name=alpha version=1\nblpkg-v1 name=beta version=2\nblpkg-v1 name=gamma version=3\n",
+        "root/var/lib/bl-pkg/installed/alpha": "txn=T-one\n",
+        "root/var/lib/bl-pkg/installed/beta": "txn=T-two\n",
+        "root/var/lib/bl-pkg/installed/gamma": "txn=T-bad\n",
+        "root/var/lib/bl-pkg/installed/delta": "txn=T-next\n",
+        "root/var/lib/bl-pkg/installed/epsilon": "txn=T-bad\n",
+        "root/var/lib/bl-pkg/installed/zeta": "txn=T-late\n",
+        "sentinel": "outside-private-root-sentinel\n"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp fixture-installer \"$HOME/installer\"\n/usr/bin/chmod 700 \"$HOME/installer\"\nexport FIXTURE_TOKEN=control PAYLOAD_ROOT=/tmp/parity-case/control-root PAYLOAD_REPO=/tmp/parity-case/control-repo MOCK_MODE=0\n\"$BASH\" \"$HOME/installer\" literal 'a b' ''\nprintf 'CALL\\0%s\\0%s\\0literal\\0a b\\0\\0END\\0' \"$BASH\" \"$HOME/installer\" > \"$HOME/control-expected.bin\"\nprintf 'ENV\\0%s\\0%s\\0control\\0' \"$PAYLOAD_ROOT\" \"$PAYLOAD_REPO\" > \"$HOME/control-env-expected.bin\"\n/usr/bin/cmp -s \"$HOME/calls.bin\" \"$HOME/control-expected.bin\" && /usr/bin/cmp -s \"$HOME/env.bin\" \"$HOME/control-env-expected.bin\" || { echo 'CONTROL-FAILED mock argv/environment' >&2; exit 98; }\nif MOCK_MODE=exit3 \"$BASH\" \"$HOME/installer\" failure > \"$HOME/control-fail.out\" 2> \"$HOME/control-fail.err\"; then control_rc=0; else control_rc=$?; fi\n[[ $control_rc == 3 ]] || { echo 'CONTROL-FAILED mock status' >&2; exit 98; }\nif MOCK_MODE=signal \"$BASH\" \"$HOME/installer\" signal > \"$HOME/control-signal.out\" 2> \"$HOME/control-signal.err\"; then signal_rc=0; else signal_rc=$?; fi\n[[ $signal_rc == 143 ]] || { echo 'CONTROL-FAILED mock signal' >&2; exit 98; }\nprintf 'exit3=%s signal=%s\\n' \"$control_rc\" \"$signal_rc\" > \"$HOME/control-status.txt\"\nprintf 'CALL\\0%s\\0%s\\0failure\\0END\\0CALL\\0%s\\0%s\\0signal\\0END\\0' \"$BASH\" \"$HOME/installer\" \"$BASH\" \"$HOME/installer\" >> \"$HOME/control-expected.bin\"\n/usr/bin/cmp -s \"$HOME/calls.bin\" \"$HOME/control-expected.bin\" || { echo 'CONTROL-FAILED mock invocation count' >&2; exit 98; }\n/usr/bin/mv \"$HOME/calls.bin\" \"$HOME/control-calls.bin\"\n/usr/bin/mv \"$HOME/env.bin\" \"$HOME/control-env.bin\"\n: > \"$HOME/calls.bin\"; : > \"$HOME/env.bin\"\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport PAYLOAD_ROOT=/tmp/parity-case/root PAYLOAD_REPO=/tmp/parity-case/repo PAYLOAD_INSTALLER=\"$HOME/installer\" FIXTURE_TOKEN='outer value' MOCK_MODE=0\nMOCK_MODE=snapshot payload remove alpha beta > \"$HOME/snapshot.out\" 2> \"$HOME/snapshot.err\"; printf 'remove=%s\\n' \"$?\"\nprintf 'payload: removed alpha\\npayload: removed beta\\n' > \"$HOME/expected.out\"\n/usr/bin/cmp -s \"$HOME/snapshot.out\" \"$HOME/expected.out\" && echo messages=both || echo messages=BAD\n[[ ! -e root/var/lib/bl-pkg/installed/beta ]] && echo control-state-deletion=observed || echo control-state-deletion=BAD\nprintf 'CALL\\0%s\\0%s\\0--internal\\0--root\\0%s\\0rollback\\0T-one\\0END\\0' \"$BASH\" \"$HOME/installer\" \"$PAYLOAD_ROOT\" > \"$HOME/expected.bin\"\nprintf 'CALL\\0%s\\0%s\\0--internal\\0--root\\0%s\\0rollback\\0T-two\\0END\\0' \"$BASH\" \"$HOME/installer\" \"$PAYLOAD_ROOT\" >> \"$HOME/expected.bin\"\n/usr/bin/cmp -s \"$HOME/calls.bin\" \"$HOME/expected.bin\" && echo calls=two || echo calls=BAD\n",
+      "stdout": "remove=0\nmessages=both\ncontrol-state-deletion=observed\ncalls=two\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 20,
+      "diagnostic_files": [
+        "control-calls.bin",
+        "calls.bin",
+        "expected.bin",
+        "snapshot.out",
+        "snapshot.err"
+      ]
+    },
+    {
+      "id": "migration-services-userdb-registry",
+      "loadable": "userdb",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Configured provider order, registration, refusals and removal.",
+      "covers": [
+        "userdb/defer-provider-registry"
+      ],
+      "oracle": "Explicit public interface contract and a fixture-owned recording adapter, independently exercised with known literal arguments before candidate execution.",
+      "comparison": "Exact status and assertions on literal bytes, order and diagnostics; raw output and adapter records retained in HOME. No candidate output supplies its own expected answer.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "passwd.fixture": "local:x:7001:7002:Local User:/srv/local:/bin/sh\n",
+        "empty.conf": ""
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-provider.py \"$HOME/provider\"\n/usr/bin/chmod 700 \"$HOME/provider\"\n\"$HOME/provider\" first lookup external > \"$HOME/control-first.out\" 2> \"$HOME/control-first.err\" || [[ $? == 1 ]]\n\"$HOME/provider\" second lookup external > \"$HOME/control-second.out\" 2> \"$HOME/control-second.err\"\nprintf '7101:7102:Remote User:/srv/remote:/bin/sh\\n' > \"$HOME/control-expected.out\"\n/usr/bin/cmp -s \"$HOME/control-second.out\" \"$HOME/control-expected.out\" && [[ ! -s $HOME/control-first.out && ! -s $HOME/control-first.err && ! -s $HOME/control-second.err ]] || { echo 'CONTROL-FAILED provider outputs' >&2; exit 98; }\n/usr/bin/mv \"$HOME/provider.events\" \"$HOME/control.events\"\n: > \"$HOME/provider.events\"\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHUSERDB_PASSWD=/tmp/parity-case/passwd.fixture BASHUSERDB_CONF=/tmp/parity-case/empty.conf\nprintf 'provider configured1 %s first\\nprovider configured2 %s second\\n' \"$HOME/provider\" \"$HOME/provider\" > \"$BASHUSERDB_CONF\"\nuserdb list-providers > \"$HOME/initial.out\" 2> \"$HOME/initial.err\"; printf 'initial=%s\\n' \"$?\"\nprintf 'passwd builtin\\nconfigured1 %s first\\nconfigured2 %s second\\n' \"$HOME/provider\" \"$HOME/provider\" > \"$HOME/expected-initial.out\"\n/usr/bin/cmp -s \"$HOME/initial.out\" \"$HOME/expected-initial.out\" && echo initial-order=exact || echo initial-order=BAD\nuserdb add-provider added \"$HOME/provider\" one 'two words' > \"$HOME/add.out\" 2> \"$HOME/add.err\"; printf 'add=%s\\n' \"$?\"\nuserdb list-providers > \"$HOME/added.out\" 2> \"$HOME/added.err\"\nprintf 'passwd builtin\\nconfigured1 %s first\\nconfigured2 %s second\\nadded %s one two words\\n' \"$HOME/provider\" \"$HOME/provider\" \"$HOME/provider\" > \"$HOME/expected-added.out\"\n/usr/bin/cmp -s \"$HOME/added.out\" \"$HOME/expected-added.out\" && echo added-order=exact || echo added-order=BAD\nrun() { local n=$1; shift; userdb add-provider \"$@\" > \"$HOME/$n.out\" 2> \"$HOME/$n.err\"; printf '%s=%s\\n' \"$n\" \"$?\"; }\nrun duplicate added \"$HOME/provider\"\nrun badname 'bad/name' \"$HOME/provider\"\nrun reserved passwd \"$HOME/provider\"\nrun relative later relative/path\nargs=(); for ((i=0;i<33;i++)); do args+=(x); done\nrun excess many \"$HOME/provider\" \"${args[@]}\"\nuserdb remove-provider added > \"$HOME/remove.out\" 2> \"$HOME/remove.err\"; printf 'remove=%s\\n' \"$?\"\nuserdb remove-provider added > \"$HOME/unknown.out\" 2> \"$HOME/unknown.err\"; printf 'unknown=%s\\n' \"$?\"\nuserdb list-providers > \"$HOME/final.out\" 2> \"$HOME/final.err\"\n/usr/bin/cmp -s \"$HOME/final.out\" \"$HOME/expected-initial.out\" && echo final-order=exact || echo final-order=BAD\n[[ ! -s $HOME/provider.events ]] && echo invocations=none || echo invocations=BAD\n",
+      "stdout": "initial=0\ninitial-order=exact\nadd=0\nadded-order=exact\nduplicate=1\nbadname=2\nreserved=2\nrelative=2\nexcess=2\nremove=0\nunknown=1\nfinal-order=exact\ninvocations=none\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 20,
+      "diagnostic_files": [
+        "control.events",
+        "control-first.out",
+        "control-second.out",
+        "provider.events",
+        "initial.out",
+        "added.out",
+        "final.out",
+        "duplicate.err",
+        "badname.err",
+        "reserved.err",
+        "relative.err",
+        "excess.err",
+        "remove.err",
+        "unknown.err"
+      ],
+      "helpers_sha256": {
+        "helpers/services-provider.py": "622269b4fc7ce940e0de5a131c4e48980a13b6075d787b6a24130e609ae8301f"
+      }
+    },
+    {
+      "id": "migration-services-userdb-lookup",
+      "loadable": "userdb",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Built-in first, configured ordering, record validation, return code continuation and error diagnostics.",
+      "covers": [
+        "userdb/defer-provider-lookup"
+      ],
+      "oracle": "Explicit public interface contract and a fixture-owned recording adapter, independently exercised with known literal arguments before candidate execution.",
+      "comparison": "Exact status and assertions on literal bytes, order and diagnostics; raw output and adapter records retained in HOME. No candidate output supplies its own expected answer.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "passwd.fixture": "local:x:7001:7002:Local User:/srv/local:/bin/sh\n",
+        "empty.conf": ""
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-provider.py \"$HOME/provider\"\n/usr/bin/chmod 700 \"$HOME/provider\"\n\"$HOME/provider\" first lookup external > \"$HOME/control-first.out\" 2> \"$HOME/control-first.err\" || [[ $? == 1 ]]\n\"$HOME/provider\" second lookup external > \"$HOME/control-second.out\" 2> \"$HOME/control-second.err\"\nprintf '7101:7102:Remote User:/srv/remote:/bin/sh\\n' > \"$HOME/control-expected.out\"\n/usr/bin/cmp -s \"$HOME/control-second.out\" \"$HOME/control-expected.out\" && [[ ! -s $HOME/control-first.out && ! -s $HOME/control-first.err && ! -s $HOME/control-second.err ]] || { echo 'CONTROL-FAILED provider outputs' >&2; exit 98; }\n/usr/bin/mv \"$HOME/provider.events\" \"$HOME/control.events\"\n: > \"$HOME/provider.events\"\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHUSERDB_PASSWD=/tmp/parity-case/passwd.fixture BASHUSERDB_CONF=/tmp/parity-case/empty.conf\nuserdb add-provider first \"$HOME/provider\" first\nuserdb add-provider second \"$HOME/provider\" second\nOUT=unset; userdb lookup local -V OUT > \"$HOME/local.out\" 2> \"$HOME/local.err\"; printf 'local=%s:%s\\n' \"$?\" \"$OUT\"\nfor u in external baduid badgid extra oversize nul error missing; do\n OUT=unset; userdb lookup \"$u\" -V OUT > \"$HOME/$u.out\" 2> \"$HOME/$u.err\"; rc=$?\n printf '%s=%s:%s\\n' \"$u\" \"$rc\" \"$OUT\"\ndone\n[[ $(< \"$HOME/error.err\") == *'provider first lookup: rc=7: synthetic provider failure'* ]] && echo error-diagnostic=yes || echo error-diagnostic=BAD\n\"$HOME/provider\" --check-lookup\n",
+      "stdout": "local=0:7001:7002:Local User:/srv/local:/bin/sh\nexternal=0:7101:7102:Remote User:/srv/remote:/bin/sh\nbaduid=0:7101:7102:Remote User:/srv/remote:/bin/sh\nbadgid=0:7101:7102:Remote User:/srv/remote:/bin/sh\nextra=0:7101:7102:Remote User:/srv/remote:/bin/sh\noversize=0:7101:7102:Remote User:/srv/remote:/bin/sh\nnul=0:7101:7102:Remote User:/srv/remote:/bin/sh\nerror=0:7101:7102:Remote User:/srv/remote:/bin/sh\nmissing=1:unset\nerror-diagnostic=yes\ntrace=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 20,
+      "diagnostic_files": [
+        "control.events",
+        "control-first.out",
+        "control-second.out",
+        "provider.events",
+        "local.err",
+        "external.err",
+        "baduid.err",
+        "badgid.err",
+        "extra.err",
+        "oversize.err",
+        "nul.err",
+        "error.err",
+        "missing.err"
+      ],
+      "helpers_sha256": {
+        "helpers/services-provider.py": "622269b4fc7ce940e0de5a131c4e48980a13b6075d787b6a24130e609ae8301f"
+      }
+    },
+    {
+      "id": "migration-services-userdb-lookup-timeout",
+      "loadable": "userdb",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A single stalled provider is stopped at its five-second deadline and reports lookup failure.",
+      "covers": [
+        "userdb/defer-provider-lookup"
+      ],
+      "oracle": "Explicit public interface contract and a fixture-owned recording adapter, independently exercised with known literal arguments before candidate execution.",
+      "comparison": "Exact status and assertions on literal bytes, order and diagnostics; raw output and adapter records retained in HOME. No candidate output supplies its own expected answer.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "passwd.fixture": "local:x:7001:7002:Local User:/srv/local:/bin/sh\n",
+        "empty.conf": ""
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-provider.py \"$HOME/provider\"\n/usr/bin/chmod 700 \"$HOME/provider\"\n\"$HOME/provider\" first lookup external > \"$HOME/control-first.out\" 2> \"$HOME/control-first.err\" || [[ $? == 1 ]]\n\"$HOME/provider\" second lookup external > \"$HOME/control-second.out\" 2> \"$HOME/control-second.err\"\nprintf '7101:7102:Remote User:/srv/remote:/bin/sh\\n' > \"$HOME/control-expected.out\"\n/usr/bin/cmp -s \"$HOME/control-second.out\" \"$HOME/control-expected.out\" && [[ ! -s $HOME/control-first.out && ! -s $HOME/control-first.err && ! -s $HOME/control-second.err ]] || { echo 'CONTROL-FAILED provider outputs' >&2; exit 98; }\n/usr/bin/mv \"$HOME/provider.events\" \"$HOME/control.events\"\n: > \"$HOME/provider.events\"\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHUSERDB_PASSWD=/tmp/parity-case/passwd.fixture BASHUSERDB_CONF=/tmp/parity-case/empty.conf\nuserdb add-provider first \"$HOME/provider\" first\nSECONDS=0; OUT=unset; userdb lookup timeout -V OUT > \"$HOME/timeout.out\" 2> \"$HOME/timeout.err\"; rc=$?; elapsed=$SECONDS\nprintf '%s\\n' \"$elapsed\" > \"$HOME/elapsed.txt\"\nprintf 'status=%s result=%s\\n' \"$rc\" \"$OUT\"\n[[ $elapsed -ge 4 && $elapsed -le 7 ]] && echo deadline=bounded || echo deadline=BAD\n[[ $(< \"$HOME/timeout.err\") == *'provider first lookup timed out'* ]] && echo diagnostic=yes || echo diagnostic=BAD\n\"$HOME/provider\" --check-timeout\n",
+      "stdout": "status=1 result=unset\ndeadline=bounded\ndiagnostic=yes\ntimeout-trace=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 20,
+      "diagnostic_files": [
+        "control.events",
+        "provider.events",
+        "timeout.out",
+        "timeout.err",
+        "elapsed.txt"
+      ],
+      "helpers_sha256": {
+        "helpers/services-provider.py": "622269b4fc7ce940e0de5a131c4e48980a13b6075d787b6a24130e609ae8301f"
+      }
+    }
+  ]
+}

@@ -1,0 +1,644 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-transfer-pkg-repo-update-signed-r3",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-repository-io: pkg-repo-update-signed",
+      "covers": [
+        "pkg/pkg-repository-io"
+      ],
+      "oracle": "Independently signed per-architecture USTAR repository and Ed25519 signatures verified by OpenSSL. Python independently reconstructs the delta. A controlled seccomp filter denies all socket creation for the file:// test.",
+      "comparison": "Exact semantic observations and status, expected files and complete bounded raw client output. Every prerequisite status is printed separately. Public package and repository inputs, signatures, verification outputs, and post-operation repository bytes are retained; private keys are excluded. The shared seccomp supervisor is entered only through a pinned disposable-guest guard.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-repository-r2.py": "7aac8833c06c8eb07111353e61b135b08ce740cc2cf811f24fc8852780872b81",
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac",
+        "helpers/transfer-seccomp-r2.py": "e6f35fe11cf27fab098489af1303ffd47f07809b4da00a40cfe392cf3a4279a8"
+      },
+      "files": {
+        "inner.sh": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\nbuiltin pkg update --root root --sources \"$HOME/sources.list\" > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'update=%s\\n' \"$?\"\n/usr/bin/cmp -s \"$REPO/INDEX\" \"root/var/lib/pkg/repos/repository/$ARCH/INDEX\" && printf 'index=exact\\n' || printf 'index=wrong\\n'\nsaved=$?\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py capture-after > \"$HOME/repository-capture.out\" 2> \"$HOME/repository-capture.err\" || exit 97\nexit \"$saved\"\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py\nmkdir -p root\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- /usr/bin/python3 -c $'import socket,errno\\ntry: socket.socket()\\nexcept OSError as e: print(\"blocked\" if e.errno == errno.EACCES else \"wrong\")\\nelse: print(\"not-blocked\")' > \"$HOME/control-seccomp.out\"\n[[ $(/usr/bin/cat \"$HOME/control-seccomp.out\") == blocked ]] || { echo 'CONTROL-FAILED socket denial'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- \"$BASH\" --noprofile --norc \"$PWD/inner.sh\"",
+      "stdout": "update=0\nindex=exact\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45,
+      "diagnostic_files": [
+        "control-seccomp.out",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "third.out",
+        "third.err",
+        "fourth.out",
+        "fourth.err",
+        "before.json",
+        "after.json",
+        "pkg-fixture/public-evidence.json",
+        "repository-control.jsonl",
+        "repository-evidence-before.json",
+        "repository-evidence-after.json",
+        "repository-capture.err"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-repo-update-bad-signature-r3",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-repository-io: pkg-repo-update-bad-signature",
+      "covers": [
+        "pkg/pkg-repository-io"
+      ],
+      "oracle": "Independently signed per-architecture USTAR repository and Ed25519 signatures verified by OpenSSL. Python independently reconstructs the delta. A controlled seccomp filter denies all socket creation for the file:// test.",
+      "comparison": "Exact semantic observations and status, expected files and complete bounded raw client output. Every prerequisite status is printed separately. Public package and repository inputs, signatures, verification outputs, and post-operation repository bytes are retained; private keys are excluded. The shared seccomp supervisor is entered only through a pinned disposable-guest guard.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-repository-r2.py": "7aac8833c06c8eb07111353e61b135b08ce740cc2cf811f24fc8852780872b81",
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac",
+        "helpers/transfer-seccomp-r2.py": "e6f35fe11cf27fab098489af1303ffd47f07809b4da00a40cfe392cf3a4279a8"
+      },
+      "files": {
+        "inner.sh": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\nprintf '# changed after signing\\n' >> \"$REPO/INDEX\"\nbuiltin pkg update --root root --sources \"$HOME/sources.list\" > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'update=%s\\n' \"$?\"\n[[ ! -e \"root/var/lib/pkg/repos/repository/$ARCH/INDEX\" ]] && printf 'index=unpublished\\n' || printf 'index=published\\n'\n[[ -s \"$HOME/first.err\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\nsaved=$?\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py capture-after > \"$HOME/repository-capture.out\" 2> \"$HOME/repository-capture.err\" || exit 97\nexit \"$saved\"\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py\nmkdir -p root\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- /usr/bin/python3 -c $'import socket,errno\\ntry: socket.socket()\\nexcept OSError as e: print(\"blocked\" if e.errno == errno.EACCES else \"wrong\")\\nelse: print(\"not-blocked\")' > \"$HOME/control-seccomp.out\"\n[[ $(/usr/bin/cat \"$HOME/control-seccomp.out\") == blocked ]] || { echo 'CONTROL-FAILED socket denial'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- \"$BASH\" --noprofile --norc \"$PWD/inner.sh\"",
+      "stdout": "update=1\nindex=unpublished\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45,
+      "diagnostic_files": [
+        "control-seccomp.out",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "third.out",
+        "third.err",
+        "fourth.out",
+        "fourth.err",
+        "before.json",
+        "after.json",
+        "pkg-fixture/public-evidence.json",
+        "repository-control.jsonl",
+        "repository-evidence-before.json",
+        "repository-evidence-after.json",
+        "repository-capture.err"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-repo-download-r3",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-repository-io: pkg-repo-download",
+      "covers": [
+        "pkg/pkg-repository-io"
+      ],
+      "oracle": "Independently signed per-architecture USTAR repository and Ed25519 signatures verified by OpenSSL. Python independently reconstructs the delta. A controlled seccomp filter denies all socket creation for the file:// test.",
+      "comparison": "Exact semantic observations and status, expected files and complete bounded raw client output. Every prerequisite status is printed separately. Public package and repository inputs, signatures, verification outputs, and post-operation repository bytes are retained; private keys are excluded. The shared seccomp supervisor is entered only through a pinned disposable-guest guard.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-repository-r2.py": "7aac8833c06c8eb07111353e61b135b08ce740cc2cf811f24fc8852780872b81",
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac",
+        "helpers/transfer-seccomp-r2.py": "e6f35fe11cf27fab098489af1303ffd47f07809b4da00a40cfe392cf3a4279a8"
+      },
+      "files": {
+        "inner.sh": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\nbuiltin pkg update --root root --sources \"$HOME/sources.list\" > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'update=%s\\n' \"$?\"\nbuiltin pkg download fixtureprobe --root root --sources \"$HOME/sources.list\" > \"$HOME/second.out\" 2> \"$HOME/second.err\"\nprintf 'download=%s\\n' \"$?\"\n/usr/bin/cmp -s \"$F/v2.pkg\" root/var/lib/pkg/cache/fixtureprobe-2.pkg && /usr/bin/cmp -s \"$F/v2.pkg.sig\" root/var/lib/pkg/cache/fixtureprobe-2.pkg.sig && printf 'artifacts=exact\\n' || printf 'artifacts=wrong\\n'\nsaved=$?\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py capture-after > \"$HOME/repository-capture.out\" 2> \"$HOME/repository-capture.err\" || exit 97\nexit \"$saved\"\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py\nmkdir -p root\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- /usr/bin/python3 -c $'import socket,errno\\ntry: socket.socket()\\nexcept OSError as e: print(\"blocked\" if e.errno == errno.EACCES else \"wrong\")\\nelse: print(\"not-blocked\")' > \"$HOME/control-seccomp.out\"\n[[ $(/usr/bin/cat \"$HOME/control-seccomp.out\") == blocked ]] || { echo 'CONTROL-FAILED socket denial'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- \"$BASH\" --noprofile --norc \"$PWD/inner.sh\"",
+      "stdout": "update=0\ndownload=0\nartifacts=exact\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45,
+      "diagnostic_files": [
+        "control-seccomp.out",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "third.out",
+        "third.err",
+        "fourth.out",
+        "fourth.err",
+        "before.json",
+        "after.json",
+        "pkg-fixture/public-evidence.json",
+        "repository-control.jsonl",
+        "repository-evidence-before.json",
+        "repository-evidence-after.json",
+        "repository-capture.err"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-repo-download-bad-digest-r3",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-repository-io: pkg-repo-download-bad-digest",
+      "covers": [
+        "pkg/pkg-repository-io"
+      ],
+      "oracle": "Independently signed per-architecture USTAR repository and Ed25519 signatures verified by OpenSSL. Python independently reconstructs the delta. A controlled seccomp filter denies all socket creation for the file:// test.",
+      "comparison": "Exact semantic observations and status, expected files and complete bounded raw client output. Every prerequisite status is printed separately. Public package and repository inputs, signatures, verification outputs, and post-operation repository bytes are retained; private keys are excluded. The shared seccomp supervisor is entered only through a pinned disposable-guest guard.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-repository-r2.py": "7aac8833c06c8eb07111353e61b135b08ce740cc2cf811f24fc8852780872b81",
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac",
+        "helpers/transfer-seccomp-r2.py": "e6f35fe11cf27fab098489af1303ffd47f07809b4da00a40cfe392cf3a4279a8"
+      },
+      "files": {
+        "inner.sh": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\nbuiltin pkg update --root root --sources \"$HOME/sources.list\" > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'update=%s\\n' \"$?\"\n/usr/bin/python3 - \"$REPO/fixtureprobe-2.pkg\" <<'PY'\nfrom pathlib import Path\nimport sys\np=Path(sys.argv[1]); b=bytearray(p.read_bytes()); b[-1]^=1; p.write_bytes(b)\nPY\nbuiltin pkg download fixtureprobe --root root --sources \"$HOME/sources.list\" > \"$HOME/second.out\" 2> \"$HOME/second.err\"\nprintf 'download=%s\\n' \"$?\"\n/usr/bin/grep -q 'sha256 mismatch' \"$HOME/second.err\" && printf 'digest=rejected\\n' || printf 'digest=not-rejected\\n'\n[[ ! -e root/var/lib/pkg/cache/fixtureprobe-2.pkg ]] && printf 'cache=absent\\n' || printf 'cache=present\\n'\nsaved=$?\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py capture-after > \"$HOME/repository-capture.out\" 2> \"$HOME/repository-capture.err\" || exit 97\nexit \"$saved\"\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py\nmkdir -p root\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- /usr/bin/python3 -c $'import socket,errno\\ntry: socket.socket()\\nexcept OSError as e: print(\"blocked\" if e.errno == errno.EACCES else \"wrong\")\\nelse: print(\"not-blocked\")' > \"$HOME/control-seccomp.out\"\n[[ $(/usr/bin/cat \"$HOME/control-seccomp.out\") == blocked ]] || { echo 'CONTROL-FAILED socket denial'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- \"$BASH\" --noprofile --norc \"$PWD/inner.sh\"",
+      "stdout": "update=0\ndownload=1\ndigest=rejected\ncache=absent\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45,
+      "diagnostic_files": [
+        "control-seccomp.out",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "third.out",
+        "third.err",
+        "fourth.out",
+        "fourth.err",
+        "before.json",
+        "after.json",
+        "pkg-fixture/public-evidence.json",
+        "repository-control.jsonl",
+        "repository-evidence-before.json",
+        "repository-evidence-after.json",
+        "repository-capture.err"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-repo-search-r3",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-repository-io: pkg-repo-search",
+      "covers": [
+        "pkg/pkg-repository-io"
+      ],
+      "oracle": "Independently signed per-architecture USTAR repository and Ed25519 signatures verified by OpenSSL. Python independently reconstructs the delta. A controlled seccomp filter denies all socket creation for the file:// test.",
+      "comparison": "Exact semantic observations and status, expected files and complete bounded raw client output. Every prerequisite status is printed separately. Public package and repository inputs, signatures, verification outputs, and post-operation repository bytes are retained; private keys are excluded. The shared seccomp supervisor is entered only through a pinned disposable-guest guard.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-repository-r2.py": "7aac8833c06c8eb07111353e61b135b08ce740cc2cf811f24fc8852780872b81",
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac",
+        "helpers/transfer-seccomp-r2.py": "e6f35fe11cf27fab098489af1303ffd47f07809b4da00a40cfe392cf3a4279a8"
+      },
+      "files": {
+        "inner.sh": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\nbuiltin pkg update --root root --sources \"$HOME/sources.list\" > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'update=%s\\n' \"$?\"\nbuiltin pkg search fixtureprobe --root root --repo repository --arch \"$ARCH\" > \"$HOME/second.out\" 2> \"$HOME/second.err\"\nprintf 'search=%s\\n' \"$?\"\nbuiltin pkg search missing --root root --repo repository --arch \"$ARCH\" > \"$HOME/third.out\" 2> \"$HOME/third.err\"\nprintf 'missing=%s\\n' \"$?\"\nbuiltin pkg search 'pkg-loadable-v1 name=fixtureprobe *' --root root --repo repository --arch \"$ARCH\" > \"$HOME/fourth.out\" 2> \"$HOME/fourth.err\"\nprintf 'glob=%s\\n' \"$?\"\n/usr/bin/grep -Fq 'name=fixtureprobe version=2' \"$HOME/second.out\" && /usr/bin/grep -Fq 'no matches for missing' \"$HOME/third.out\" && /usr/bin/grep -Fq 'name=fixtureprobe version=2' \"$HOME/fourth.out\" && printf 'results=ok\\n' || printf 'results=wrong\\n'\nsaved=$?\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py capture-after > \"$HOME/repository-capture.out\" 2> \"$HOME/repository-capture.err\" || exit 97\nexit \"$saved\"\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py\nmkdir -p root\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- /usr/bin/python3 -c $'import socket,errno\\ntry: socket.socket()\\nexcept OSError as e: print(\"blocked\" if e.errno == errno.EACCES else \"wrong\")\\nelse: print(\"not-blocked\")' > \"$HOME/control-seccomp.out\"\n[[ $(/usr/bin/cat \"$HOME/control-seccomp.out\") == blocked ]] || { echo 'CONTROL-FAILED socket denial'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- \"$BASH\" --noprofile --norc \"$PWD/inner.sh\"",
+      "stdout": "update=0\nsearch=0\nmissing=0\nglob=0\nresults=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45,
+      "diagnostic_files": [
+        "control-seccomp.out",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "third.out",
+        "third.err",
+        "fourth.out",
+        "fourth.err",
+        "before.json",
+        "after.json",
+        "pkg-fixture/public-evidence.json",
+        "repository-control.jsonl",
+        "repository-evidence-before.json",
+        "repository-evidence-after.json",
+        "repository-capture.err"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-repo-upgrade-delta-r3",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-upgrade-delta: pkg-repo-upgrade-delta",
+      "covers": [
+        "pkg/pkg-upgrade-delta"
+      ],
+      "oracle": "Independently signed per-architecture USTAR repository and Ed25519 signatures verified by OpenSSL. Python independently reconstructs the delta. A controlled seccomp filter denies all socket creation for the file:// test.",
+      "comparison": "Exact semantic observations and status, expected files and complete bounded raw client output. Every prerequisite status is printed separately. Public package and repository inputs, signatures, verification outputs, and post-operation repository bytes are retained; private keys are excluded. The shared seccomp supervisor is entered only through a pinned disposable-guest guard.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-repository-r2.py": "7aac8833c06c8eb07111353e61b135b08ce740cc2cf811f24fc8852780872b81",
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac",
+        "helpers/transfer-seccomp-r2.py": "e6f35fe11cf27fab098489af1303ffd47f07809b4da00a40cfe392cf3a4279a8"
+      },
+      "files": {
+        "inner.sh": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\nmkdir -p root/var/lib/pkg/cache\n/usr/bin/cp \"$F/valid.pkg\" root/var/lib/pkg/cache/fixtureprobe-1.pkg\nbuiltin pkg install \"$F/valid.pkg\" --root root > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'install=%s\\n' \"$?\"\nbuiltin pkg update --root root --sources \"$HOME/sources.list\" > \"$HOME/second.out\" 2> \"$HOME/second.err\"\nprintf 'update=%s\\n' \"$?\"\nbuiltin pkg upgrade fixtureprobe --root root --sources \"$HOME/sources.list\" > \"$HOME/third.out\" 2> \"$HOME/third.err\"\nprintf 'upgrade=%s\\n' \"$?\"\n/usr/bin/grep -Fq $'upgrade\\tfixtureprobe\\t1 -> 2\\t(delta)' \"$HOME/third.out\" && printf 'delta=used\\n' || printf 'delta=not-used\\n'\n/usr/bin/cmp -s \"$F/v2.pkg\" root/var/lib/pkg/cache/fixtureprobe-2.pkg && printf 'package=exact\\n' || printf 'package=wrong\\n'\nsaved=$?\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py capture-after > \"$HOME/repository-capture.out\" 2> \"$HOME/repository-capture.err\" || exit 97\nexit \"$saved\"\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py\nmkdir -p root\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- /usr/bin/python3 -c $'import socket,errno\\ntry: socket.socket()\\nexcept OSError as e: print(\"blocked\" if e.errno == errno.EACCES else \"wrong\")\\nelse: print(\"not-blocked\")' > \"$HOME/control-seccomp.out\"\n[[ $(/usr/bin/cat \"$HOME/control-seccomp.out\") == blocked ]] || { echo 'CONTROL-FAILED socket denial'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- \"$BASH\" --noprofile --norc \"$PWD/inner.sh\"",
+      "stdout": "install=0\nupdate=0\nupgrade=0\ndelta=used\npackage=exact\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45,
+      "diagnostic_files": [
+        "control-seccomp.out",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "third.out",
+        "third.err",
+        "fourth.out",
+        "fourth.err",
+        "before.json",
+        "after.json",
+        "pkg-fixture/public-evidence.json",
+        "repository-control.jsonl",
+        "repository-evidence-before.json",
+        "repository-evidence-after.json",
+        "repository-capture.err"
+      ],
+      "expected_files": {
+        "root/usr/lib/bash-os/share/fixtureprobe/config": "version-two\n"
+      }
+    },
+    {
+      "id": "migration-transfer-pkg-repo-upgrade-bad-delta-signature-r3",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-upgrade-delta: pkg-repo-upgrade-bad-delta-signature",
+      "covers": [
+        "pkg/pkg-upgrade-delta"
+      ],
+      "oracle": "Independently signed per-architecture USTAR repository and Ed25519 signatures verified by OpenSSL. Python independently reconstructs the delta. A controlled seccomp filter denies all socket creation for the file:// test.",
+      "comparison": "Exact semantic observations and status, expected files and complete bounded raw client output. Every prerequisite status is printed separately. Public package and repository inputs, signatures, verification outputs, and post-operation repository bytes are retained; private keys are excluded. The shared seccomp supervisor is entered only through a pinned disposable-guest guard.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-repository-r2.py": "7aac8833c06c8eb07111353e61b135b08ce740cc2cf811f24fc8852780872b81",
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac",
+        "helpers/transfer-seccomp-r2.py": "e6f35fe11cf27fab098489af1303ffd47f07809b4da00a40cfe392cf3a4279a8"
+      },
+      "files": {
+        "inner.sh": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\nsnapshot() {\n/usr/bin/python3 - \"$1\" <<'PY'\nimport hashlib,json,pathlib,stat,sys\nroots=[pathlib.Path('root/usr/lib/bash-os'),pathlib.Path('root/var/lib/pkg/installed')]; result={}\nfor root in roots:\n for p in sorted(root.rglob('*')):\n  st=p.lstat(); key=p.as_posix()\n  if stat.S_ISREG(st.st_mode): result[key]=['file',stat.S_IMODE(st.st_mode),hashlib.sha256(p.read_bytes()).hexdigest()]\n  elif stat.S_ISDIR(st.st_mode): result[key]=['dir',stat.S_IMODE(st.st_mode)]\n  else: raise RuntimeError('unexpected installed fixture object')\npathlib.Path(sys.argv[1]).write_text(json.dumps(result,sort_keys=True)+'\\n')\nPY\n}\nmkdir -p root/var/lib/pkg/cache\n/usr/bin/cp \"$F/valid.pkg\" root/var/lib/pkg/cache/fixtureprobe-1.pkg\nbuiltin pkg install \"$F/valid.pkg\" --root root > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'install=%s\\n' \"$?\"\nbuiltin pkg update --root root --sources \"$HOME/sources.list\" > \"$HOME/second.out\" 2> \"$HOME/second.err\"\nprintf 'update=%s\\n' \"$?\"\nsnapshot \"$HOME/before.json\"\n/usr/bin/python3 - \"$REPO/fixtureprobe-2.pkg.delta\" <<'PY'\nfrom pathlib import Path\nimport sys\np=Path(sys.argv[1]); b=bytearray(p.read_bytes()); b[-1]^=1; p.write_bytes(b)\nPY\nbuiltin pkg upgrade fixtureprobe --root root --sources \"$HOME/sources.list\" > \"$HOME/third.out\" 2> \"$HOME/third.err\"\nprintf 'upgrade=%s\\n' \"$?\"\nsnapshot \"$HOME/after.json\"\n/usr/bin/cmp -s \"$HOME/before.json\" \"$HOME/after.json\" && printf 'tree=unchanged\\n' || printf 'tree=changed\\n'\n[[ -s \"$HOME/third.err\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\nsaved=$?\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py capture-after > \"$HOME/repository-capture.out\" 2> \"$HOME/repository-capture.err\" || exit 97\nexit \"$saved\"\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py\nmkdir -p root\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- /usr/bin/python3 -c $'import socket,errno\\ntry: socket.socket()\\nexcept OSError as e: print(\"blocked\" if e.errno == errno.EACCES else \"wrong\")\\nelse: print(\"not-blocked\")' > \"$HOME/control-seccomp.out\"\n[[ $(/usr/bin/cat \"$HOME/control-seccomp.out\") == blocked ]] || { echo 'CONTROL-FAILED socket denial'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- \"$BASH\" --noprofile --norc \"$PWD/inner.sh\"",
+      "stdout": "install=0\nupdate=0\nupgrade=1\ntree=unchanged\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45,
+      "diagnostic_files": [
+        "control-seccomp.out",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "third.out",
+        "third.err",
+        "fourth.out",
+        "fourth.err",
+        "before.json",
+        "after.json",
+        "pkg-fixture/public-evidence.json",
+        "repository-control.jsonl",
+        "repository-evidence-before.json",
+        "repository-evidence-after.json",
+        "repository-capture.err"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-repo-upgrade-bad-digest-r3",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-upgrade-delta: pkg-repo-upgrade-bad-digest",
+      "covers": [
+        "pkg/pkg-upgrade-delta"
+      ],
+      "oracle": "Independently signed per-architecture USTAR repository and Ed25519 signatures verified by OpenSSL. Python independently reconstructs the delta. A controlled seccomp filter denies all socket creation for the file:// test.",
+      "comparison": "Exact semantic observations and status, expected files and complete bounded raw client output. Every prerequisite status is printed separately. Public package and repository inputs, signatures, verification outputs, and post-operation repository bytes are retained; private keys are excluded. The shared seccomp supervisor is entered only through a pinned disposable-guest guard.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-repository-r2.py": "7aac8833c06c8eb07111353e61b135b08ce740cc2cf811f24fc8852780872b81",
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac",
+        "helpers/transfer-seccomp-r2.py": "e6f35fe11cf27fab098489af1303ffd47f07809b4da00a40cfe392cf3a4279a8"
+      },
+      "files": {
+        "inner.sh": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\nsnapshot() {\n/usr/bin/python3 - \"$1\" <<'PY'\nimport hashlib,json,pathlib,stat,sys\nroots=[pathlib.Path('root/usr/lib/bash-os'),pathlib.Path('root/var/lib/pkg/installed')]; result={}\nfor root in roots:\n for p in sorted(root.rglob('*')):\n  st=p.lstat(); key=p.as_posix()\n  if stat.S_ISREG(st.st_mode): result[key]=['file',stat.S_IMODE(st.st_mode),hashlib.sha256(p.read_bytes()).hexdigest()]\n  elif stat.S_ISDIR(st.st_mode): result[key]=['dir',stat.S_IMODE(st.st_mode)]\n  else: raise RuntimeError('unexpected installed fixture object')\npathlib.Path(sys.argv[1]).write_text(json.dumps(result,sort_keys=True)+'\\n')\nPY\n}\nmkdir -p root/var/lib/pkg/cache\n/usr/bin/cp \"$F/valid.pkg\" root/var/lib/pkg/cache/fixtureprobe-1.pkg\nbuiltin pkg install \"$F/valid.pkg\" --root root > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'install=%s\\n' \"$?\"\nbuiltin pkg update --root root --sources \"$HOME/sources.list\" > \"$HOME/second.out\" 2> \"$HOME/second.err\"\nprintf 'update=%s\\n' \"$?\"\nsnapshot \"$HOME/before.json\"\n/usr/bin/python3 - \"$REPO/fixtureprobe-2.pkg\" <<'PY'\nfrom pathlib import Path\nimport sys\np=Path(sys.argv[1]); b=bytearray(p.read_bytes()); b[-1]^=1; p.write_bytes(b)\nPY\nbuiltin pkg upgrade fixtureprobe --no-delta --root root --sources \"$HOME/sources.list\" > \"$HOME/third.out\" 2> \"$HOME/third.err\"\nprintf 'upgrade=%s\\n' \"$?\"\nsnapshot \"$HOME/after.json\"\n/usr/bin/cmp -s \"$HOME/before.json\" \"$HOME/after.json\" && printf 'tree=unchanged\\n' || printf 'tree=changed\\n'\n/usr/bin/grep -q 'sha256 mismatch' \"$HOME/third.err\" && printf 'digest=rejected\\n' || printf 'digest=not-rejected\\n'\nsaved=$?\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py capture-after > \"$HOME/repository-capture.out\" 2> \"$HOME/repository-capture.err\" || exit 97\nexit \"$saved\"\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py\nmkdir -p root\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- /usr/bin/python3 -c $'import socket,errno\\ntry: socket.socket()\\nexcept OSError as e: print(\"blocked\" if e.errno == errno.EACCES else \"wrong\")\\nelse: print(\"not-blocked\")' > \"$HOME/control-seccomp.out\"\n[[ $(/usr/bin/cat \"$HOME/control-seccomp.out\") == blocked ]] || { echo 'CONTROL-FAILED socket denial'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- \"$BASH\" --noprofile --norc \"$PWD/inner.sh\"",
+      "stdout": "install=0\nupdate=0\nupgrade=1\ntree=unchanged\ndigest=rejected\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45,
+      "diagnostic_files": [
+        "control-seccomp.out",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "third.out",
+        "third.err",
+        "fourth.out",
+        "fourth.err",
+        "before.json",
+        "after.json",
+        "pkg-fixture/public-evidence.json",
+        "repository-control.jsonl",
+        "repository-evidence-before.json",
+        "repository-evidence-after.json",
+        "repository-capture.err"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-repo-upgrade-failed-apply-r3",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-upgrade-delta: pkg-repo-upgrade-failed-apply",
+      "covers": [
+        "pkg/pkg-upgrade-delta"
+      ],
+      "oracle": "Independently signed per-architecture USTAR repository and Ed25519 signatures verified by OpenSSL. Python independently reconstructs the delta. A controlled seccomp filter denies all socket creation for the file:// test.",
+      "comparison": "Exact semantic observations and status, expected files and complete bounded raw client output. Every prerequisite status is printed separately. Public package and repository inputs, signatures, verification outputs, and post-operation repository bytes are retained; private keys are excluded. The shared seccomp supervisor is entered only through a pinned disposable-guest guard.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-repository-r2.py": "7aac8833c06c8eb07111353e61b135b08ce740cc2cf811f24fc8852780872b81",
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac",
+        "helpers/transfer-seccomp-r2.py": "e6f35fe11cf27fab098489af1303ffd47f07809b4da00a40cfe392cf3a4279a8"
+      },
+      "files": {
+        "inner.sh": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\nsnapshot() {\n/usr/bin/python3 - \"$1\" <<'PY'\nimport hashlib,json,pathlib,stat,sys\nroots=[pathlib.Path('root/usr/lib/bash-os'),pathlib.Path('root/var/lib/pkg/installed')]; result={}\nfor root in roots:\n for p in sorted(root.rglob('*')):\n  st=p.lstat(); key=p.as_posix()\n  if stat.S_ISREG(st.st_mode): result[key]=['file',stat.S_IMODE(st.st_mode),hashlib.sha256(p.read_bytes()).hexdigest()]\n  elif stat.S_ISDIR(st.st_mode): result[key]=['dir',stat.S_IMODE(st.st_mode)]\n  else: raise RuntimeError('unexpected installed fixture object')\npathlib.Path(sys.argv[1]).write_text(json.dumps(result,sort_keys=True)+'\\n')\nPY\n}\nmkdir -p root/var/lib/pkg/cache\n/usr/bin/cp \"$F/valid.pkg\" root/var/lib/pkg/cache/fixtureprobe-1.pkg\nbuiltin pkg install \"$F/valid.pkg\" --root root > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'install=%s\\n' \"$?\"\nbuiltin pkg update --root root --sources \"$HOME/sources.list\" > \"$HOME/second.out\" 2> \"$HOME/second.err\"\nprintf 'update=%s\\n' \"$?\"\nsnapshot \"$HOME/before.json\"\n/usr/bin/python3 - \"$REPO/fixtureprobe-2.pkg.delta\" \"$REPO/fixtureprobe-2.pkg\" <<'PY'\nfrom pathlib import Path\nimport sys\nfor name in sys.argv[1:]:\n p=Path(name); b=bytearray(p.read_bytes()); b[-1]^=1; p.write_bytes(b)\nPY\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py resign \"$REPO/fixtureprobe-2.pkg.delta\"\nbuiltin pkg upgrade fixtureprobe --root root --sources \"$HOME/sources.list\" > \"$HOME/third.out\" 2> \"$HOME/third.err\"\nprintf 'upgrade=%s\\n' \"$?\"\nsnapshot \"$HOME/after.json\"\n/usr/bin/cmp -s \"$HOME/before.json\" \"$HOME/after.json\" && printf 'tree=unchanged\\n' || printf 'tree=changed\\n'\n/usr/bin/grep -q 'delta-apply: output sha256 mismatch' \"$HOME/third.err\" && printf 'apply=rejected\\n' || printf 'apply=not-reached\\n'\nsaved=$?\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py capture-after > \"$HOME/repository-capture.out\" 2> \"$HOME/repository-capture.err\" || exit 97\nexit \"$saved\"\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py\nmkdir -p root\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- /usr/bin/python3 -c $'import socket,errno\\ntry: socket.socket()\\nexcept OSError as e: print(\"blocked\" if e.errno == errno.EACCES else \"wrong\")\\nelse: print(\"not-blocked\")' > \"$HOME/control-seccomp.out\"\n[[ $(/usr/bin/cat \"$HOME/control-seccomp.out\") == blocked ]] || { echo 'CONTROL-FAILED socket denial'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- \"$BASH\" --noprofile --norc \"$PWD/inner.sh\"",
+      "stdout": "install=0\nupdate=0\nupgrade=1\ntree=unchanged\napply=rejected\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45,
+      "diagnostic_files": [
+        "control-seccomp.out",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "third.out",
+        "third.err",
+        "fourth.out",
+        "fourth.err",
+        "before.json",
+        "after.json",
+        "pkg-fixture/public-evidence.json",
+        "repository-control.jsonl",
+        "repository-evidence-before.json",
+        "repository-evidence-after.json",
+        "repository-capture.err"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-delta-independent-apply-r3",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-upgrade-delta: pkg-delta-independent-apply",
+      "covers": [
+        "pkg/pkg-upgrade-delta"
+      ],
+      "oracle": "Independently signed per-architecture USTAR repository and Ed25519 signatures verified by OpenSSL. Python independently reconstructs the delta. A controlled seccomp filter denies all socket creation for the file:// test.",
+      "comparison": "Exact semantic observations and status, expected files and complete bounded raw client output. Every prerequisite status is printed separately. Public package and repository inputs, signatures, verification outputs, and post-operation repository bytes are retained; private keys are excluded. The shared seccomp supervisor is entered only through a pinned disposable-guest guard.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-repository-r2.py": "7aac8833c06c8eb07111353e61b135b08ce740cc2cf811f24fc8852780872b81",
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac",
+        "helpers/transfer-seccomp-r2.py": "e6f35fe11cf27fab098489af1303ffd47f07809b4da00a40cfe392cf3a4279a8"
+      },
+      "files": {
+        "inner.sh": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\nbuiltin pkg delta-apply \"$F/valid.pkg\" \"$REPO/fixtureprobe-2.pkg.delta\" rebuilt.pkg > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'apply=%s\\n' \"$?\"\n/usr/bin/cmp -s \"$F/v2.pkg\" rebuilt.pkg && printf 'bytes=exact\\n' || printf 'bytes=wrong\\n'\nsaved=$?\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py capture-after > \"$HOME/repository-capture.out\" 2> \"$HOME/repository-capture.err\" || exit 97\nexit \"$saved\"\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py\nmkdir -p root\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- /usr/bin/python3 -c $'import socket,errno\\ntry: socket.socket()\\nexcept OSError as e: print(\"blocked\" if e.errno == errno.EACCES else \"wrong\")\\nelse: print(\"not-blocked\")' > \"$HOME/control-seccomp.out\"\n[[ $(/usr/bin/cat \"$HOME/control-seccomp.out\") == blocked ]] || { echo 'CONTROL-FAILED socket denial'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- \"$BASH\" --noprofile --norc \"$PWD/inner.sh\"",
+      "stdout": "apply=0\nbytes=exact\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45,
+      "diagnostic_files": [
+        "control-seccomp.out",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "third.out",
+        "third.err",
+        "fourth.out",
+        "fourth.err",
+        "before.json",
+        "after.json",
+        "pkg-fixture/public-evidence.json",
+        "repository-control.jsonl",
+        "repository-evidence-before.json",
+        "repository-evidence-after.json",
+        "repository-capture.err"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-delta-wrong-base-r3",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-upgrade-delta: pkg-delta-wrong-base",
+      "covers": [
+        "pkg/pkg-upgrade-delta"
+      ],
+      "oracle": "Independently signed per-architecture USTAR repository and Ed25519 signatures verified by OpenSSL. Python independently reconstructs the delta. A controlled seccomp filter denies all socket creation for the file:// test.",
+      "comparison": "Exact semantic observations and status, expected files and complete bounded raw client output. Every prerequisite status is printed separately. Public package and repository inputs, signatures, verification outputs, and post-operation repository bytes are retained; private keys are excluded. The shared seccomp supervisor is entered only through a pinned disposable-guest guard.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-repository-r2.py": "7aac8833c06c8eb07111353e61b135b08ce740cc2cf811f24fc8852780872b81",
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac",
+        "helpers/transfer-seccomp-r2.py": "e6f35fe11cf27fab098489af1303ffd47f07809b4da00a40cfe392cf3a4279a8"
+      },
+      "files": {
+        "inner.sh": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\nbuiltin pkg delta-apply \"$F/unsigned-info.pkg\" \"$REPO/fixtureprobe-2.pkg.delta\" wrong.pkg > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'apply=%s\\n' \"$?\"\n/usr/bin/grep -q 'base sha256 mismatch' \"$HOME/first.err\" && printf 'base=rejected\\n' || printf 'base=not-rejected\\n'\n[[ ! -e wrong.pkg ]] && printf 'output=absent\\n' || printf 'output=present\\n'\nsaved=$?\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py capture-after > \"$HOME/repository-capture.out\" 2> \"$HOME/repository-capture.err\" || exit 97\nexit \"$saved\"\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py\nmkdir -p root\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- /usr/bin/python3 -c $'import socket,errno\\ntry: socket.socket()\\nexcept OSError as e: print(\"blocked\" if e.errno == errno.EACCES else \"wrong\")\\nelse: print(\"not-blocked\")' > \"$HOME/control-seccomp.out\"\n[[ $(/usr/bin/cat \"$HOME/control-seccomp.out\") == blocked ]] || { echo 'CONTROL-FAILED socket denial'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- \"$BASH\" --noprofile --norc \"$PWD/inner.sh\"",
+      "stdout": "apply=1\nbase=rejected\noutput=absent\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45,
+      "diagnostic_files": [
+        "control-seccomp.out",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "third.out",
+        "third.err",
+        "fourth.out",
+        "fourth.err",
+        "before.json",
+        "after.json",
+        "pkg-fixture/public-evidence.json",
+        "repository-control.jsonl",
+        "repository-evidence-before.json",
+        "repository-evidence-after.json",
+        "repository-capture.err"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-delta-wrong-output-hash-r3",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-upgrade-delta: pkg-delta-wrong-output-hash",
+      "covers": [
+        "pkg/pkg-upgrade-delta"
+      ],
+      "oracle": "Independently signed per-architecture USTAR repository and Ed25519 signatures verified by OpenSSL. Python independently reconstructs the delta. A controlled seccomp filter denies all socket creation for the file:// test.",
+      "comparison": "Exact semantic observations and status, expected files and complete bounded raw client output. Every prerequisite status is printed separately. Public package and repository inputs, signatures, verification outputs, and post-operation repository bytes are retained; private keys are excluded. The shared seccomp supervisor is entered only through a pinned disposable-guest guard.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-repository-r2.py": "7aac8833c06c8eb07111353e61b135b08ce740cc2cf811f24fc8852780872b81",
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac",
+        "helpers/transfer-seccomp-r2.py": "e6f35fe11cf27fab098489af1303ffd47f07809b4da00a40cfe392cf3a4279a8"
+      },
+      "files": {
+        "inner.sh": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\n/usr/bin/python3 - \"$REPO/fixtureprobe-2.pkg.delta\" \"$HOME/bad-output.delta\" <<'PY'\nfrom pathlib import Path\nimport sys\nb=bytearray(Path(sys.argv[1]).read_bytes()); b[-1]^=1; Path(sys.argv[2]).write_bytes(b)\nPY\nbuiltin pkg delta-apply \"$F/valid.pkg\" \"$HOME/bad-output.delta\" wrong.pkg > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'apply=%s\\n' \"$?\"\n/usr/bin/grep -q 'output sha256 mismatch' \"$HOME/first.err\" && printf 'output-hash=rejected\\n' || printf 'output-hash=not-rejected\\n'\n[[ ! -e wrong.pkg ]] && printf 'output=absent\\n' || printf 'output=present\\n'\nsaved=$?\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py capture-after > \"$HOME/repository-capture.out\" 2> \"$HOME/repository-capture.err\" || exit 97\nexit \"$saved\"\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py\nmkdir -p root\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- /usr/bin/python3 -c $'import socket,errno\\ntry: socket.socket()\\nexcept OSError as e: print(\"blocked\" if e.errno == errno.EACCES else \"wrong\")\\nelse: print(\"not-blocked\")' > \"$HOME/control-seccomp.out\"\n[[ $(/usr/bin/cat \"$HOME/control-seccomp.out\") == blocked ]] || { echo 'CONTROL-FAILED socket denial'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m); REPO=\"$HOME/repository/$ARCH\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-seccomp-r2.py --errno socket:EACCES -- \"$BASH\" --noprofile --norc \"$PWD/inner.sh\"",
+      "stdout": "apply=1\noutput-hash=rejected\noutput=absent\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45,
+      "diagnostic_files": [
+        "control-seccomp.out",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "third.out",
+        "third.err",
+        "fourth.out",
+        "fourth.err",
+        "before.json",
+        "after.json",
+        "pkg-fixture/public-evidence.json",
+        "repository-control.jsonl",
+        "repository-evidence-before.json",
+        "repository-evidence-after.json",
+        "repository-capture.err"
+      ]
+    }
+  ]
+}

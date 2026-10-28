@@ -93,14 +93,19 @@
     {
       "id": "argv-memory-deferred",
       "purpose": "Future coverage should verify argv label truncation and zero-padding only within a disposable test shell process.",
-      "kind": "deferred",
-      "reason": "Never executed. The earlier blocker was the read-only proc in the bubblewrap runner; the VM plain driver runs each side as its own process, so self-memory rewriting stays fixture-owned."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "trace-vm-argv-controlled-r3"
+        }
+      ]
     },
     {
       "id": "live-history-deferred",
       "purpose": "Future coverage should verify pruning of curated in-memory history and PROMPT_COMMAND installation/restoration under a controlled prompt cycle.",
       "kind": "deferred",
-      "reason": "Never executed. The existing PTY driver supports interactive shells (interactive_shell, expect PROMPT, send), so the previous no-PTY blocker no longer applies."
+      "reason": "Remaining obligations: r2: The saved history lacks benign safe_anchor_a, so the candidate exited 12; the mismatch is a reached failure.; r3: No fixture.; r4: No fixture.; r5: No fixture. The guest environment sets HISTFILE=/dev/null."
     },
     {
       "id": "empty-and-disabled-history",

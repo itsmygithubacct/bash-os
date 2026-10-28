@@ -25,21 +25,26 @@
     },
     {
       "id": "deferred-pid-descriptors",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify -p listing of known open descriptor types and paths against GNU lsof.",
-      "reason": "Never executed. An ordinary owned child is enough: each side starts its own fixed-name helper holding known descriptors, and the side verifies the PID it queried is that child."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-lsof-pid-r1"
+        }
+      ]
     },
     {
       "id": "deferred-user-filter",
       "kind": "deferred",
       "purpose": "Qualify -u name and numeric-UID filtering across processes with distinct owners.",
-      "reason": "Never executed. Two distinct owners are already visible in the guest (root controller and uid 2000), and the VM passwd provides names, so no capability is missing."
+      "reason": "Remaining obligations: r3: Not executed. Two owners already exist in the guest PID namespace: the root controller and the uid-2000 fixture. No account provisioning is needed.; r4: Combined -u/-p selects only the specified PID where native lsof selects both owned children; -a is rejected as unknown."
     },
     {
       "id": "deferred-process-scan",
       "kind": "deferred",
       "purpose": "Qualify default whole-table enumeration and filtering over a deterministic process set.",
-      "reason": "Never executed. A deterministic set is reachable unprivileged with a nested 'unshare -Urpf --mount-proc' (util-linux, absolute path), so only the fixture's own processes are visible. This assumes unprivileged user namespaces are enabled in the guest kernel (check user.max_user_namespaces in the VM)."
+      "reason": "Remaining obligations: r1: The stable owned child descriptors were compared to procfs and native lsof, but the observer's volatile descriptors prevent a complete simultaneous snapshot of every visible descriptor.; r3: Not executed. The guest controller is root-owned and visible in the fixture's PID namespace."
     },
     {
       "id": "missing-pid-gnu-status",

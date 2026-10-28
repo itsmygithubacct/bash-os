@@ -1,0 +1,1004 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "trace-vm-fdisk-edit-write-r1",
+      "loadable": "fdisk",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Exercise an interactive editor on a 2 MiB regular-file image, then independently inspect the MBR and remaining image bytes.",
+      "covers": [
+        "fdisk/defer-interactive-editor"
+      ],
+      "oracle": "Documented command prompts and independent little-endian MBR partition-entry/signature decoder with synthetic positive and corrupted-input controls.",
+      "comparison": "A fixed 24x80 terminal retains raw prompts and mode snapshots; decoder retains all 512 MBR bytes, entry fields, whole-image digest and untouched remainder checks.",
+      "requires": [
+        "python3",
+        "cp",
+        "chmod",
+        "truncate"
+      ],
+      "helpers_sha256": {
+        "helpers/trace-vm-mbr-r1.py": "6ba99c0c5d6dc93242a543140b5edb086dd8bf4f8885a4146adfe0960808da4b"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-mbr-r1.py ./trace-vm-mbr-r1.py\n/bin/chmod 0755 ./trace-vm-mbr-r1.py\n./trace-vm-mbr-r1.py --control\n/usr/bin/truncate -s 2097152 disk.img\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nfdisk disk.img\nrc=$?\n[[ $rc == 0 ]] || exit 21\n./trace-vm-mbr-r1.py edited > mbr-result || exit 22\nprintf 'MBR-READY-END\\n'\nIFS= read -r ignored </dev/tty || exit 23\nexit 0\n",
+      "steps": [
+        {
+          "expect": "Welcome to fdisk interactive mode\\."
+        },
+        {
+          "expect": "Command \\(m for help\\): "
+        },
+        {
+          "send": "m\r"
+        },
+        {
+          "expect": "Commands:"
+        },
+        {
+          "expect": "q  quit without saving changes"
+        },
+        {
+          "expect": "Command \\(m for help\\): "
+        },
+        {
+          "send": "p\r"
+        },
+        {
+          "expect": "Disklabel: dos"
+        },
+        {
+          "expect": "Command \\(m for help\\): "
+        },
+        {
+          "send": "n\r"
+        },
+        {
+          "expect": "Partition type - p primary, e extended \\(default p\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "Partition number \\(1-4, default 1\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "First sector \\(default 2048\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "Last sector, \\+sectors or \\+size\\{K,M,G,T,P\\} \\(default 4095\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "Created primary partition 1 \\(2048\\.\\.4095\\)\\."
+        },
+        {
+          "expect": "Command \\(m for help\\): "
+        },
+        {
+          "send": "d\r"
+        },
+        {
+          "expect": "Partition number to delete: "
+        },
+        {
+          "send": "1\r"
+        },
+        {
+          "expect": "Deleted partition 1\\."
+        },
+        {
+          "expect": "Command \\(m for help\\): "
+        },
+        {
+          "send": "n\r"
+        },
+        {
+          "expect": "Partition type - p primary, e extended \\(default p\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "Partition number \\(1-4, default 1\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "First sector \\(default 2048\\): "
+        },
+        {
+          "send_base64": "MjAwMBUyMDQ4DQ=="
+        },
+        {
+          "expect": "Last sector, \\+sectors or \\+size\\{K,M,G,T,P\\} \\(default 4095\\): "
+        },
+        {
+          "send_base64": "MzA3MTl/DQ=="
+        },
+        {
+          "expect": "Created primary partition 1 \\(2048\\.\\.3071\\)\\."
+        },
+        {
+          "expect": "Command \\(m for help\\): "
+        },
+        {
+          "send": "t\r"
+        },
+        {
+          "expect": "Partition number: "
+        },
+        {
+          "send": "1\r"
+        },
+        {
+          "expect": "New type: "
+        },
+        {
+          "send": "0c\r"
+        },
+        {
+          "expect": "Changed type of partition 1 to 0c\\."
+        },
+        {
+          "expect": "Command \\(m for help\\): "
+        },
+        {
+          "send": "a\r"
+        },
+        {
+          "expect": "Partition number: "
+        },
+        {
+          "send": "1\r"
+        },
+        {
+          "expect": "Bootable flag on partition 1 is now set\\."
+        },
+        {
+          "expect": "Command \\(m for help\\): "
+        },
+        {
+          "send": "v\r"
+        },
+        {
+          "expect": "Table validates cleanly\\."
+        },
+        {
+          "expect": "Command \\(m for help\\): "
+        },
+        {
+          "send": "w\r"
+        },
+        {
+          "expect": "The partition table has been written to disk\\.img\\."
+        },
+        {
+          "expect": "MBR-READY-END\\r\\n"
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "send": "\r"
+        }
+      ],
+      "expected_status": 0,
+      "restore_terminal": true,
+      "timeout": 40,
+      "expected_files": {
+        "mbr-result": "edited image ok\n"
+      },
+      "diagnostic_files": [
+        "mbr-control.json",
+        "mbr-observation.json"
+      ]
+    },
+    {
+      "id": "trace-vm-fdisk-defaults-write-r1",
+      "loadable": "fdisk",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Exercise an interactive editor on a 2 MiB regular-file image, then independently inspect the MBR and remaining image bytes.",
+      "covers": [
+        "fdisk/defer-interactive-editor"
+      ],
+      "oracle": "Documented command prompts and independent little-endian MBR partition-entry/signature decoder with synthetic positive and corrupted-input controls.",
+      "comparison": "A fixed 24x80 terminal retains raw prompts and mode snapshots; decoder retains all 512 MBR bytes, entry fields, whole-image digest and untouched remainder checks.",
+      "requires": [
+        "python3",
+        "cp",
+        "chmod",
+        "truncate"
+      ],
+      "helpers_sha256": {
+        "helpers/trace-vm-mbr-r1.py": "6ba99c0c5d6dc93242a543140b5edb086dd8bf4f8885a4146adfe0960808da4b"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-mbr-r1.py ./trace-vm-mbr-r1.py\n/bin/chmod 0755 ./trace-vm-mbr-r1.py\n./trace-vm-mbr-r1.py --control\n/usr/bin/truncate -s 2097152 disk.img\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nfdisk disk.img\nrc=$?\n[[ $rc == 0 ]] || exit 21\n./trace-vm-mbr-r1.py default > mbr-result || exit 22\nprintf 'MBR-READY-END\\n'\nIFS= read -r ignored </dev/tty || exit 23\nexit 0\n",
+      "steps": [
+        {
+          "expect": "Welcome to fdisk interactive mode\\."
+        },
+        {
+          "expect": "Command \\(m for help\\): "
+        },
+        {
+          "send": "n\r"
+        },
+        {
+          "expect": "Partition type - p primary, e extended \\(default p\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "Partition number \\(1-4, default 1\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "First sector \\(default 2048\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "Last sector, \\+sectors or \\+size\\{K,M,G,T,P\\} \\(default 4095\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "Created primary partition 1 \\(2048\\.\\.4095\\)\\."
+        },
+        {
+          "expect": "Command \\(m for help\\): "
+        },
+        {
+          "send": "w\r"
+        },
+        {
+          "expect": "The partition table has been written to disk\\.img\\."
+        },
+        {
+          "expect": "MBR-READY-END\\r\\n"
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "send": "\r"
+        }
+      ],
+      "expected_status": 0,
+      "restore_terminal": true,
+      "timeout": 40,
+      "expected_files": {
+        "mbr-result": "default image ok\n"
+      },
+      "diagnostic_files": [
+        "mbr-control.json",
+        "mbr-observation.json"
+      ]
+    },
+    {
+      "id": "trace-vm-fdisk-quit-r1",
+      "loadable": "fdisk",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Exercise an interactive editor on a 2 MiB regular-file image, then independently inspect the MBR and remaining image bytes.",
+      "covers": [
+        "fdisk/defer-interactive-editor"
+      ],
+      "oracle": "Documented command prompts and independent little-endian MBR partition-entry/signature decoder with synthetic positive and corrupted-input controls.",
+      "comparison": "A fixed 24x80 terminal retains raw prompts and mode snapshots; decoder retains all 512 MBR bytes, entry fields, whole-image digest and untouched remainder checks.",
+      "requires": [
+        "python3",
+        "cp",
+        "chmod",
+        "truncate"
+      ],
+      "helpers_sha256": {
+        "helpers/trace-vm-mbr-r1.py": "6ba99c0c5d6dc93242a543140b5edb086dd8bf4f8885a4146adfe0960808da4b"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-mbr-r1.py ./trace-vm-mbr-r1.py\n/bin/chmod 0755 ./trace-vm-mbr-r1.py\n./trace-vm-mbr-r1.py --control\n/usr/bin/truncate -s 2097152 disk.img\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nfdisk disk.img\nrc=$?\n[[ $rc == 0 ]] || exit 21\n./trace-vm-mbr-r1.py blank > mbr-result || exit 22\nprintf 'MBR-READY-END\\n'\nIFS= read -r ignored </dev/tty || exit 23\nexit 0\n",
+      "steps": [
+        {
+          "expect": "Welcome to fdisk interactive mode\\."
+        },
+        {
+          "expect": "Command \\(m for help\\): "
+        },
+        {
+          "send": "n\r"
+        },
+        {
+          "expect": "Partition type - p primary, e extended \\(default p\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "Partition number \\(1-4, default 1\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "First sector \\(default 2048\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "Last sector, \\+sectors or \\+size\\{K,M,G,T,P\\} \\(default 4095\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "Created primary partition 1 \\(2048\\.\\.4095\\)\\."
+        },
+        {
+          "expect": "Command \\(m for help\\): "
+        },
+        {
+          "send": "q\r"
+        },
+        {
+          "expect": "Quitting without saving changes\\."
+        },
+        {
+          "expect": "MBR-READY-END\\r\\n"
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "send": "\r"
+        }
+      ],
+      "expected_status": 0,
+      "restore_terminal": true,
+      "timeout": 40,
+      "expected_files": {
+        "mbr-result": "blank image ok\n"
+      },
+      "diagnostic_files": [
+        "mbr-control.json",
+        "mbr-observation.json"
+      ]
+    },
+    {
+      "id": "trace-vm-fdisk-eof-r1",
+      "loadable": "fdisk",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Exercise an interactive editor on a 2 MiB regular-file image, then independently inspect the MBR and remaining image bytes.",
+      "covers": [
+        "fdisk/defer-interactive-editor"
+      ],
+      "oracle": "Documented command prompts and independent little-endian MBR partition-entry/signature decoder with synthetic positive and corrupted-input controls.",
+      "comparison": "A fixed 24x80 terminal retains raw prompts and mode snapshots; decoder retains all 512 MBR bytes, entry fields, whole-image digest and untouched remainder checks.",
+      "requires": [
+        "python3",
+        "cp",
+        "chmod",
+        "truncate"
+      ],
+      "helpers_sha256": {
+        "helpers/trace-vm-mbr-r1.py": "6ba99c0c5d6dc93242a543140b5edb086dd8bf4f8885a4146adfe0960808da4b"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-mbr-r1.py ./trace-vm-mbr-r1.py\n/bin/chmod 0755 ./trace-vm-mbr-r1.py\n./trace-vm-mbr-r1.py --control\n/usr/bin/truncate -s 2097152 disk.img\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nfdisk disk.img\nrc=$?\n[[ $rc == 0 ]] || exit 21\n./trace-vm-mbr-r1.py blank > mbr-result || exit 22\nprintf 'MBR-READY-END\\n'\nIFS= read -r ignored </dev/tty || exit 23\nexit 0\n",
+      "steps": [
+        {
+          "expect": "Welcome to fdisk interactive mode\\."
+        },
+        {
+          "expect": "Command \\(m for help\\): "
+        },
+        {
+          "send": "n\r"
+        },
+        {
+          "expect": "Partition type - p primary, e extended \\(default p\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "Partition number \\(1-4, default 1\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "First sector \\(default 2048\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "Last sector, \\+sectors or \\+size\\{K,M,G,T,P\\} \\(default 4095\\): "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "Created primary partition 1 \\(2048\\.\\.4095\\)\\."
+        },
+        {
+          "expect": "Command \\(m for help\\): "
+        },
+        {
+          "send_base64": "BA=="
+        },
+        {
+          "expect": "EOF - quitting without saving\\."
+        },
+        {
+          "expect": "MBR-READY-END\\r\\n"
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "send": "\r"
+        }
+      ],
+      "expected_status": 0,
+      "restore_terminal": true,
+      "timeout": 40,
+      "expected_files": {
+        "mbr-result": "blank image ok\n"
+      },
+      "diagnostic_files": [
+        "mbr-control.json",
+        "mbr-observation.json"
+      ]
+    },
+    {
+      "id": "trace-vm-apropos-regex-dot-r1",
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Compare this query against independently indexed equivalent private man-db pages and whatis records.",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "man-db apropos over a fresh private mandb index, with explicit expected document descriptions and synthetic parser positive/negative controls.",
+      "comparison": "Both sides retain raw output/status and compare a normalized set of source page descriptions; alias grouping is normalized because man-db may emit aliases separately.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos",
+        "grep",
+        "cp",
+        "chmod",
+        "mkdir"
+      ],
+      "timeout": 35,
+      "setup_timeout": 40,
+      "helpers_sha256": {
+        "helpers/trace-vm-apropos-r1.py": "83ab8a42ac6486b99c073966d2d2087e4dbbb754d21c2d2b495d8fe8d7dfbe6a"
+      },
+      "files": {
+        "man/whatis": "alpha, aleph (1) - first apple\nbeta (1) - second berry\ndash (1) - option -x feature\n",
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-apropos-r1.py ./trace-vm-apropos-r1.py\n/bin/chmod 0755 ./trace-vm-apropos-r1.py\n./trace-vm-apropos-r1.py --control\n/bin/mkdir -p \"$HOME/man/man1\"\n/bin/cp pages/alpha.1 pages/beta.1 pages/dash.1 \"$HOME/man/man1/\"\n/usr/bin/mandb -u -q \"$HOME/man\" >\"$HOME/mandb.out\" 2>\"$HOME/mandb.err\"\n/usr/bin/apropos -M \"$HOME/man\" -- alpha >\"$HOME/apropos-control-alpha.out\" 2>\"$HOME/apropos-control-alpha.err\"\n/usr/bin/apropos -M \"$HOME/man\" -w -- aleph >\"$HOME/apropos-control-alias.out\" 2>\"$HOME/apropos-control-alias.err\"\n/usr/bin/grep -q 'first apple' \"$HOME/apropos-control-alpha.out\"\n/usr/bin/grep -q 'first apple' \"$HOME/apropos-control-alias.out\"\n[[ ! -s \"$HOME/apropos-control-alpha.err\" && ! -s \"$HOME/apropos-control-alias.err\" ]]\nif /usr/bin/apropos -M \"$HOME/man\" -- nofixturehit >\"$HOME/apropos-control-miss.out\" 2>\"$HOME/apropos-control-miss.err\"; then rc=0; else rc=$?; fi\n[[ $rc == 16 ]]\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-apropos-r1.py candidate \"$BASH\" regex-dot\nrc=$?\nexit \"$rc\"\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-apropos-r1.py reference \"$BASH\" regex-dot\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "regex-dot: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "apropos-parser-control.json",
+        "apropos-query.json",
+        "mandb.out",
+        "mandb.err",
+        "apropos-control-alpha.out",
+        "apropos-control-alpha.err",
+        "apropos-control-alias.out",
+        "apropos-control-alias.err",
+        "apropos-control-miss.out",
+        "apropos-control-miss.err"
+      ]
+    },
+    {
+      "id": "trace-vm-apropos-regex-anchor-r1",
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Compare this query against independently indexed equivalent private man-db pages and whatis records.",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "man-db apropos over a fresh private mandb index, with explicit expected document descriptions and synthetic parser positive/negative controls.",
+      "comparison": "Both sides retain raw output/status and compare a normalized set of source page descriptions; alias grouping is normalized because man-db may emit aliases separately.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos",
+        "grep",
+        "cp",
+        "chmod",
+        "mkdir"
+      ],
+      "timeout": 35,
+      "setup_timeout": 40,
+      "helpers_sha256": {
+        "helpers/trace-vm-apropos-r1.py": "83ab8a42ac6486b99c073966d2d2087e4dbbb754d21c2d2b495d8fe8d7dfbe6a"
+      },
+      "files": {
+        "man/whatis": "alpha, aleph (1) - first apple\nbeta (1) - second berry\ndash (1) - option -x feature\n",
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-apropos-r1.py ./trace-vm-apropos-r1.py\n/bin/chmod 0755 ./trace-vm-apropos-r1.py\n./trace-vm-apropos-r1.py --control\n/bin/mkdir -p \"$HOME/man/man1\"\n/bin/cp pages/alpha.1 pages/beta.1 pages/dash.1 \"$HOME/man/man1/\"\n/usr/bin/mandb -u -q \"$HOME/man\" >\"$HOME/mandb.out\" 2>\"$HOME/mandb.err\"\n/usr/bin/apropos -M \"$HOME/man\" -- alpha >\"$HOME/apropos-control-alpha.out\" 2>\"$HOME/apropos-control-alpha.err\"\n/usr/bin/apropos -M \"$HOME/man\" -w -- aleph >\"$HOME/apropos-control-alias.out\" 2>\"$HOME/apropos-control-alias.err\"\n/usr/bin/grep -q 'first apple' \"$HOME/apropos-control-alpha.out\"\n/usr/bin/grep -q 'first apple' \"$HOME/apropos-control-alias.out\"\n[[ ! -s \"$HOME/apropos-control-alpha.err\" && ! -s \"$HOME/apropos-control-alias.err\" ]]\nif /usr/bin/apropos -M \"$HOME/man\" -- nofixturehit >\"$HOME/apropos-control-miss.out\" 2>\"$HOME/apropos-control-miss.err\"; then rc=0; else rc=$?; fi\n[[ $rc == 16 ]]\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-apropos-r1.py candidate \"$BASH\" regex-anchor\nrc=$?\nexit \"$rc\"\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-apropos-r1.py reference \"$BASH\" regex-anchor\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "regex-anchor: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "apropos-parser-control.json",
+        "apropos-query.json",
+        "mandb.out",
+        "mandb.err",
+        "apropos-control-alpha.out",
+        "apropos-control-alpha.err",
+        "apropos-control-alias.out",
+        "apropos-control-alias.err",
+        "apropos-control-miss.out",
+        "apropos-control-miss.err"
+      ]
+    },
+    {
+      "id": "trace-vm-apropos-or-r1",
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Compare this query against independently indexed equivalent private man-db pages and whatis records.",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "man-db apropos over a fresh private mandb index, with explicit expected document descriptions and synthetic parser positive/negative controls.",
+      "comparison": "Both sides retain raw output/status and compare a normalized set of source page descriptions; alias grouping is normalized because man-db may emit aliases separately.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos",
+        "grep",
+        "cp",
+        "chmod",
+        "mkdir"
+      ],
+      "timeout": 35,
+      "setup_timeout": 40,
+      "helpers_sha256": {
+        "helpers/trace-vm-apropos-r1.py": "83ab8a42ac6486b99c073966d2d2087e4dbbb754d21c2d2b495d8fe8d7dfbe6a"
+      },
+      "files": {
+        "man/whatis": "alpha, aleph (1) - first apple\nbeta (1) - second berry\ndash (1) - option -x feature\n",
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-apropos-r1.py ./trace-vm-apropos-r1.py\n/bin/chmod 0755 ./trace-vm-apropos-r1.py\n./trace-vm-apropos-r1.py --control\n/bin/mkdir -p \"$HOME/man/man1\"\n/bin/cp pages/alpha.1 pages/beta.1 pages/dash.1 \"$HOME/man/man1/\"\n/usr/bin/mandb -u -q \"$HOME/man\" >\"$HOME/mandb.out\" 2>\"$HOME/mandb.err\"\n/usr/bin/apropos -M \"$HOME/man\" -- alpha >\"$HOME/apropos-control-alpha.out\" 2>\"$HOME/apropos-control-alpha.err\"\n/usr/bin/apropos -M \"$HOME/man\" -w -- aleph >\"$HOME/apropos-control-alias.out\" 2>\"$HOME/apropos-control-alias.err\"\n/usr/bin/grep -q 'first apple' \"$HOME/apropos-control-alpha.out\"\n/usr/bin/grep -q 'first apple' \"$HOME/apropos-control-alias.out\"\n[[ ! -s \"$HOME/apropos-control-alpha.err\" && ! -s \"$HOME/apropos-control-alias.err\" ]]\nif /usr/bin/apropos -M \"$HOME/man\" -- nofixturehit >\"$HOME/apropos-control-miss.out\" 2>\"$HOME/apropos-control-miss.err\"; then rc=0; else rc=$?; fi\n[[ $rc == 16 ]]\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-apropos-r1.py candidate \"$BASH\" or\nrc=$?\nexit \"$rc\"\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-apropos-r1.py reference \"$BASH\" or\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "or: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "apropos-parser-control.json",
+        "apropos-query.json",
+        "mandb.out",
+        "mandb.err",
+        "apropos-control-alpha.out",
+        "apropos-control-alpha.err",
+        "apropos-control-alias.out",
+        "apropos-control-alias.err",
+        "apropos-control-miss.out",
+        "apropos-control-miss.err"
+      ]
+    },
+    {
+      "id": "trace-vm-apropos-alias-r1",
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Compare this query against independently indexed equivalent private man-db pages and whatis records.",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "man-db apropos over a fresh private mandb index, with explicit expected document descriptions and synthetic parser positive/negative controls.",
+      "comparison": "Both sides retain raw output/status and compare a normalized set of source page descriptions; alias grouping is normalized because man-db may emit aliases separately.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos",
+        "grep",
+        "cp",
+        "chmod",
+        "mkdir"
+      ],
+      "timeout": 35,
+      "setup_timeout": 40,
+      "helpers_sha256": {
+        "helpers/trace-vm-apropos-r1.py": "83ab8a42ac6486b99c073966d2d2087e4dbbb754d21c2d2b495d8fe8d7dfbe6a"
+      },
+      "files": {
+        "man/whatis": "alpha, aleph (1) - first apple\nbeta (1) - second berry\ndash (1) - option -x feature\n",
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-apropos-r1.py ./trace-vm-apropos-r1.py\n/bin/chmod 0755 ./trace-vm-apropos-r1.py\n./trace-vm-apropos-r1.py --control\n/bin/mkdir -p \"$HOME/man/man1\"\n/bin/cp pages/alpha.1 pages/beta.1 pages/dash.1 \"$HOME/man/man1/\"\n/usr/bin/mandb -u -q \"$HOME/man\" >\"$HOME/mandb.out\" 2>\"$HOME/mandb.err\"\n/usr/bin/apropos -M \"$HOME/man\" -- alpha >\"$HOME/apropos-control-alpha.out\" 2>\"$HOME/apropos-control-alpha.err\"\n/usr/bin/apropos -M \"$HOME/man\" -w -- aleph >\"$HOME/apropos-control-alias.out\" 2>\"$HOME/apropos-control-alias.err\"\n/usr/bin/grep -q 'first apple' \"$HOME/apropos-control-alpha.out\"\n/usr/bin/grep -q 'first apple' \"$HOME/apropos-control-alias.out\"\n[[ ! -s \"$HOME/apropos-control-alpha.err\" && ! -s \"$HOME/apropos-control-alias.err\" ]]\nif /usr/bin/apropos -M \"$HOME/man\" -- nofixturehit >\"$HOME/apropos-control-miss.out\" 2>\"$HOME/apropos-control-miss.err\"; then rc=0; else rc=$?; fi\n[[ $rc == 16 ]]\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-apropos-r1.py candidate \"$BASH\" alias\nrc=$?\nexit \"$rc\"\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-apropos-r1.py reference \"$BASH\" alias\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "alias: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "apropos-parser-control.json",
+        "apropos-query.json",
+        "mandb.out",
+        "mandb.err",
+        "apropos-control-alpha.out",
+        "apropos-control-alpha.err",
+        "apropos-control-alias.out",
+        "apropos-control-alias.err",
+        "apropos-control-miss.out",
+        "apropos-control-miss.err"
+      ]
+    },
+    {
+      "id": "trace-vm-apropos-glob-r1",
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Compare this query against independently indexed equivalent private man-db pages and whatis records.",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "man-db apropos over a fresh private mandb index, with explicit expected document descriptions and synthetic parser positive/negative controls.",
+      "comparison": "Both sides retain raw output/status and compare a normalized set of source page descriptions; alias grouping is normalized because man-db may emit aliases separately.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos",
+        "grep",
+        "cp",
+        "chmod",
+        "mkdir"
+      ],
+      "timeout": 35,
+      "setup_timeout": 40,
+      "helpers_sha256": {
+        "helpers/trace-vm-apropos-r1.py": "83ab8a42ac6486b99c073966d2d2087e4dbbb754d21c2d2b495d8fe8d7dfbe6a"
+      },
+      "files": {
+        "man/whatis": "alpha, aleph (1) - first apple\nbeta (1) - second berry\ndash (1) - option -x feature\n",
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-apropos-r1.py ./trace-vm-apropos-r1.py\n/bin/chmod 0755 ./trace-vm-apropos-r1.py\n./trace-vm-apropos-r1.py --control\n/bin/mkdir -p \"$HOME/man/man1\"\n/bin/cp pages/alpha.1 pages/beta.1 pages/dash.1 \"$HOME/man/man1/\"\n/usr/bin/mandb -u -q \"$HOME/man\" >\"$HOME/mandb.out\" 2>\"$HOME/mandb.err\"\n/usr/bin/apropos -M \"$HOME/man\" -- alpha >\"$HOME/apropos-control-alpha.out\" 2>\"$HOME/apropos-control-alpha.err\"\n/usr/bin/apropos -M \"$HOME/man\" -w -- aleph >\"$HOME/apropos-control-alias.out\" 2>\"$HOME/apropos-control-alias.err\"\n/usr/bin/grep -q 'first apple' \"$HOME/apropos-control-alpha.out\"\n/usr/bin/grep -q 'first apple' \"$HOME/apropos-control-alias.out\"\n[[ ! -s \"$HOME/apropos-control-alpha.err\" && ! -s \"$HOME/apropos-control-alias.err\" ]]\nif /usr/bin/apropos -M \"$HOME/man\" -- nofixturehit >\"$HOME/apropos-control-miss.out\" 2>\"$HOME/apropos-control-miss.err\"; then rc=0; else rc=$?; fi\n[[ $rc == 16 ]]\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-apropos-r1.py candidate \"$BASH\" glob\nrc=$?\nexit \"$rc\"\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-apropos-r1.py reference \"$BASH\" glob\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "glob: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "apropos-parser-control.json",
+        "apropos-query.json",
+        "mandb.out",
+        "mandb.err",
+        "apropos-control-alpha.out",
+        "apropos-control-alpha.err",
+        "apropos-control-alias.out",
+        "apropos-control-alias.err",
+        "apropos-control-miss.out",
+        "apropos-control-miss.err"
+      ]
+    },
+    {
+      "id": "trace-vm-apropos-dash-r1",
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Compare this query against independently indexed equivalent private man-db pages and whatis records.",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "man-db apropos over a fresh private mandb index, with explicit expected document descriptions and synthetic parser positive/negative controls.",
+      "comparison": "Both sides retain raw output/status and compare a normalized set of source page descriptions; alias grouping is normalized because man-db may emit aliases separately.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos",
+        "grep",
+        "cp",
+        "chmod",
+        "mkdir"
+      ],
+      "timeout": 35,
+      "setup_timeout": 40,
+      "helpers_sha256": {
+        "helpers/trace-vm-apropos-r1.py": "83ab8a42ac6486b99c073966d2d2087e4dbbb754d21c2d2b495d8fe8d7dfbe6a"
+      },
+      "files": {
+        "man/whatis": "alpha, aleph (1) - first apple\nbeta (1) - second berry\ndash (1) - option -x feature\n",
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-apropos-r1.py ./trace-vm-apropos-r1.py\n/bin/chmod 0755 ./trace-vm-apropos-r1.py\n./trace-vm-apropos-r1.py --control\n/bin/mkdir -p \"$HOME/man/man1\"\n/bin/cp pages/alpha.1 pages/beta.1 pages/dash.1 \"$HOME/man/man1/\"\n/usr/bin/mandb -u -q \"$HOME/man\" >\"$HOME/mandb.out\" 2>\"$HOME/mandb.err\"\n/usr/bin/apropos -M \"$HOME/man\" -- alpha >\"$HOME/apropos-control-alpha.out\" 2>\"$HOME/apropos-control-alpha.err\"\n/usr/bin/apropos -M \"$HOME/man\" -w -- aleph >\"$HOME/apropos-control-alias.out\" 2>\"$HOME/apropos-control-alias.err\"\n/usr/bin/grep -q 'first apple' \"$HOME/apropos-control-alpha.out\"\n/usr/bin/grep -q 'first apple' \"$HOME/apropos-control-alias.out\"\n[[ ! -s \"$HOME/apropos-control-alpha.err\" && ! -s \"$HOME/apropos-control-alias.err\" ]]\nif /usr/bin/apropos -M \"$HOME/man\" -- nofixturehit >\"$HOME/apropos-control-miss.out\" 2>\"$HOME/apropos-control-miss.err\"; then rc=0; else rc=$?; fi\n[[ $rc == 16 ]]\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-apropos-r1.py candidate \"$BASH\" dash\nrc=$?\nexit \"$rc\"\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-apropos-r1.py reference \"$BASH\" dash\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "dash: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "apropos-parser-control.json",
+        "apropos-query.json",
+        "mandb.out",
+        "mandb.err",
+        "apropos-control-alpha.out",
+        "apropos-control-alpha.err",
+        "apropos-control-alias.out",
+        "apropos-control-alias.err",
+        "apropos-control-miss.out",
+        "apropos-control-miss.err"
+      ]
+    },
+    {
+      "id": "trace-vm-apropos-no-match-r1",
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Compare the complete status, stdout and stderr channels on the same absent keyword against man-db.",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "man-db apropos on the same private page set; its documented no-match exit status is 16.",
+      "comparison": "The guest compares raw stdout and stderr bytes and the status directly; setup proves that man-db indexed the synthetic pages and returns 16 for the absent token.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos",
+        "grep",
+        "cp",
+        "chmod",
+        "mkdir"
+      ],
+      "timeout": 35,
+      "setup_timeout": 40,
+      "helpers_sha256": {
+        "helpers/trace-vm-apropos-r1.py": "83ab8a42ac6486b99c073966d2d2087e4dbbb754d21c2d2b495d8fe8d7dfbe6a"
+      },
+      "files": {
+        "man/whatis": "alpha, aleph (1) - first apple\nbeta (1) - second berry\ndash (1) - option -x feature\n",
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-apropos-r1.py ./trace-vm-apropos-r1.py\n/bin/chmod 0755 ./trace-vm-apropos-r1.py\n./trace-vm-apropos-r1.py --control\n/bin/mkdir -p \"$HOME/man/man1\"\n/bin/cp pages/alpha.1 pages/beta.1 pages/dash.1 \"$HOME/man/man1/\"\n/usr/bin/mandb -u -q \"$HOME/man\" >\"$HOME/mandb.out\" 2>\"$HOME/mandb.err\"\n/usr/bin/apropos -M \"$HOME/man\" -- alpha >\"$HOME/apropos-control-alpha.out\" 2>\"$HOME/apropos-control-alpha.err\"\n/usr/bin/apropos -M \"$HOME/man\" -w -- aleph >\"$HOME/apropos-control-alias.out\" 2>\"$HOME/apropos-control-alias.err\"\n/usr/bin/grep -q 'first apple' \"$HOME/apropos-control-alpha.out\"\n/usr/bin/grep -q 'first apple' \"$HOME/apropos-control-alias.out\"\n[[ ! -s \"$HOME/apropos-control-alpha.err\" && ! -s \"$HOME/apropos-control-alias.err\" ]]\nif /usr/bin/apropos -M \"$HOME/man\" -- nofixturehit >\"$HOME/apropos-control-miss.out\" 2>\"$HOME/apropos-control-miss.err\"; then rc=0; else rc=$?; fi\n[[ $rc == 16 ]]\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport MANPATH=\"$PWD/man\" BASHMAN_STALE_QUIET=1\napropos -- nofixturehit\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/apropos -M \"$HOME/man\" -- nofixturehit\n",
+      "expected_status": 16,
+      "diagnostic_files": [
+        "apropos-parser-control.json",
+        "mandb.out",
+        "mandb.err",
+        "apropos-control-alpha.out",
+        "apropos-control-alias.out",
+        "apropos-control-miss.out",
+        "apropos-control-miss.err"
+      ]
+    },
+    {
+      "id": "trace-vm-crypto-tls12-r1",
+      "loadable": "crypto",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Compare a verified TLS connection or explicit verification rejection against an owned loopback peer.",
+      "covers": [
+        "crypto/tls-and-ntske-loopback"
+      ],
+      "oracle": "OpenSSL s_client, a private generated CA and certificate, OpenSSL positive/wrong-CA/wrong-name verification controls, and a Python TLS server restricted to loopback.",
+      "comparison": "Both sides record server event order, SNI, negotiated protocol, exact synthetic request and response bytes, client status/stdout/stderr and peer errors.",
+      "requires": [
+        "python3",
+        "openssl",
+        "cp",
+        "chmod"
+      ],
+      "timeout": 55,
+      "setup_timeout": 60,
+      "helpers_sha256": {
+        "helpers/trace-vm-tls-r1.py": "59bd7ca642f14589ccde165280068be5df3a29753d5035825903b1093d90da14"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-tls-r1.py ./trace-vm-tls-r1.py\n/bin/chmod 0755 ./trace-vm-tls-r1.py\nprintf 'subjectAltName=DNS:trace.test\\nextendedKeyUsage=serverAuth\\nbasicConstraints=critical,CA:FALSE\\nkeyUsage=critical,digitalSignature,keyEncipherment\\n' > \"$HOME/server.ext\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/ca.key\" -out \"$HOME/ca.pem\" -days 1 -sha256 -subj '/CN=Trace Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' >\"$HOME/ca-gen.out\" 2>\"$HOME/ca-gen.err\"\n/usr/bin/openssl req -new -newkey rsa:2048 -nodes -keyout \"$HOME/server.key\" -out \"$HOME/server.csr\" -subj '/CN=trace.test' >\"$HOME/server-gen.out\" 2>\"$HOME/server-gen.err\"\n/usr/bin/openssl x509 -req -in \"$HOME/server.csr\" -CA \"$HOME/ca.pem\" -CAkey \"$HOME/ca.key\" -set_serial 2 -days 1 -sha256 -extfile \"$HOME/server.ext\" -out \"$HOME/server.pem\" >\"$HOME/sign.out\" 2>\"$HOME/sign.err\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/wrong-ca.key\" -out \"$HOME/wrong-ca.pem\" -days 1 -sha256 -subj '/CN=Wrong Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' >\"$HOME/wrong-ca-gen.out\" 2>\"$HOME/wrong-ca-gen.err\"\n/usr/bin/openssl verify -CAfile \"$HOME/ca.pem\" -verify_hostname trace.test \"$HOME/server.pem\" >\"$HOME/verify-good.out\" 2>\"$HOME/verify-good.err\"\nif /usr/bin/openssl verify -CAfile \"$HOME/wrong-ca.pem\" -verify_hostname trace.test \"$HOME/server.pem\" >\"$HOME/verify-wrong-ca.out\" 2>\"$HOME/verify-wrong-ca.err\"; then exit 31; fi\nif /usr/bin/openssl verify -CAfile \"$HOME/ca.pem\" -verify_hostname wrong.trace.test \"$HOME/server.pem\" >\"$HOME/verify-wrong-sni.out\" 2>\"$HOME/verify-wrong-sni.err\"; then exit 32; fi\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-tls-r1.py candidate \"$BASH\" tls12\nrc=$?\nexit \"$rc\"\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-tls-r1.py reference \"$BASH\" tls12\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "tls12: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "tls-observation.json",
+        "verify-good.out",
+        "verify-good.err",
+        "verify-wrong-ca.out",
+        "verify-wrong-ca.err",
+        "verify-wrong-sni.out",
+        "verify-wrong-sni.err",
+        "ca.pem",
+        "server.pem"
+      ]
+    },
+    {
+      "id": "trace-vm-crypto-tls13-r1",
+      "loadable": "crypto",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Compare a verified TLS connection or explicit verification rejection against an owned loopback peer.",
+      "covers": [
+        "crypto/tls-and-ntske-loopback"
+      ],
+      "oracle": "OpenSSL s_client, a private generated CA and certificate, OpenSSL positive/wrong-CA/wrong-name verification controls, and a Python TLS server restricted to loopback.",
+      "comparison": "Both sides record server event order, SNI, negotiated protocol, exact synthetic request and response bytes, client status/stdout/stderr and peer errors.",
+      "requires": [
+        "python3",
+        "openssl",
+        "cp",
+        "chmod"
+      ],
+      "timeout": 55,
+      "setup_timeout": 60,
+      "helpers_sha256": {
+        "helpers/trace-vm-tls-r1.py": "59bd7ca642f14589ccde165280068be5df3a29753d5035825903b1093d90da14"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-tls-r1.py ./trace-vm-tls-r1.py\n/bin/chmod 0755 ./trace-vm-tls-r1.py\nprintf 'subjectAltName=DNS:trace.test\\nextendedKeyUsage=serverAuth\\nbasicConstraints=critical,CA:FALSE\\nkeyUsage=critical,digitalSignature,keyEncipherment\\n' > \"$HOME/server.ext\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/ca.key\" -out \"$HOME/ca.pem\" -days 1 -sha256 -subj '/CN=Trace Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' >\"$HOME/ca-gen.out\" 2>\"$HOME/ca-gen.err\"\n/usr/bin/openssl req -new -newkey rsa:2048 -nodes -keyout \"$HOME/server.key\" -out \"$HOME/server.csr\" -subj '/CN=trace.test' >\"$HOME/server-gen.out\" 2>\"$HOME/server-gen.err\"\n/usr/bin/openssl x509 -req -in \"$HOME/server.csr\" -CA \"$HOME/ca.pem\" -CAkey \"$HOME/ca.key\" -set_serial 2 -days 1 -sha256 -extfile \"$HOME/server.ext\" -out \"$HOME/server.pem\" >\"$HOME/sign.out\" 2>\"$HOME/sign.err\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/wrong-ca.key\" -out \"$HOME/wrong-ca.pem\" -days 1 -sha256 -subj '/CN=Wrong Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' >\"$HOME/wrong-ca-gen.out\" 2>\"$HOME/wrong-ca-gen.err\"\n/usr/bin/openssl verify -CAfile \"$HOME/ca.pem\" -verify_hostname trace.test \"$HOME/server.pem\" >\"$HOME/verify-good.out\" 2>\"$HOME/verify-good.err\"\nif /usr/bin/openssl verify -CAfile \"$HOME/wrong-ca.pem\" -verify_hostname trace.test \"$HOME/server.pem\" >\"$HOME/verify-wrong-ca.out\" 2>\"$HOME/verify-wrong-ca.err\"; then exit 31; fi\nif /usr/bin/openssl verify -CAfile \"$HOME/ca.pem\" -verify_hostname wrong.trace.test \"$HOME/server.pem\" >\"$HOME/verify-wrong-sni.out\" 2>\"$HOME/verify-wrong-sni.err\"; then exit 32; fi\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-tls-r1.py candidate \"$BASH\" tls13\nrc=$?\nexit \"$rc\"\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-tls-r1.py reference \"$BASH\" tls13\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "tls13: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "tls-observation.json",
+        "verify-good.out",
+        "verify-good.err",
+        "verify-wrong-ca.out",
+        "verify-wrong-ca.err",
+        "verify-wrong-sni.out",
+        "verify-wrong-sni.err",
+        "ca.pem",
+        "server.pem"
+      ]
+    },
+    {
+      "id": "trace-vm-crypto-wrong-ca-r1",
+      "loadable": "crypto",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Compare a verified TLS connection or explicit verification rejection against an owned loopback peer.",
+      "covers": [
+        "crypto/tls-and-ntske-loopback"
+      ],
+      "oracle": "OpenSSL s_client, a private generated CA and certificate, OpenSSL positive/wrong-CA/wrong-name verification controls, and a Python TLS server restricted to loopback.",
+      "comparison": "Both sides record server event order, SNI, negotiated protocol, exact synthetic request and response bytes, client status/stdout/stderr and peer errors.",
+      "requires": [
+        "python3",
+        "openssl",
+        "cp",
+        "chmod"
+      ],
+      "timeout": 55,
+      "setup_timeout": 60,
+      "helpers_sha256": {
+        "helpers/trace-vm-tls-r1.py": "59bd7ca642f14589ccde165280068be5df3a29753d5035825903b1093d90da14"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-tls-r1.py ./trace-vm-tls-r1.py\n/bin/chmod 0755 ./trace-vm-tls-r1.py\nprintf 'subjectAltName=DNS:trace.test\\nextendedKeyUsage=serverAuth\\nbasicConstraints=critical,CA:FALSE\\nkeyUsage=critical,digitalSignature,keyEncipherment\\n' > \"$HOME/server.ext\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/ca.key\" -out \"$HOME/ca.pem\" -days 1 -sha256 -subj '/CN=Trace Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' >\"$HOME/ca-gen.out\" 2>\"$HOME/ca-gen.err\"\n/usr/bin/openssl req -new -newkey rsa:2048 -nodes -keyout \"$HOME/server.key\" -out \"$HOME/server.csr\" -subj '/CN=trace.test' >\"$HOME/server-gen.out\" 2>\"$HOME/server-gen.err\"\n/usr/bin/openssl x509 -req -in \"$HOME/server.csr\" -CA \"$HOME/ca.pem\" -CAkey \"$HOME/ca.key\" -set_serial 2 -days 1 -sha256 -extfile \"$HOME/server.ext\" -out \"$HOME/server.pem\" >\"$HOME/sign.out\" 2>\"$HOME/sign.err\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/wrong-ca.key\" -out \"$HOME/wrong-ca.pem\" -days 1 -sha256 -subj '/CN=Wrong Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' >\"$HOME/wrong-ca-gen.out\" 2>\"$HOME/wrong-ca-gen.err\"\n/usr/bin/openssl verify -CAfile \"$HOME/ca.pem\" -verify_hostname trace.test \"$HOME/server.pem\" >\"$HOME/verify-good.out\" 2>\"$HOME/verify-good.err\"\nif /usr/bin/openssl verify -CAfile \"$HOME/wrong-ca.pem\" -verify_hostname trace.test \"$HOME/server.pem\" >\"$HOME/verify-wrong-ca.out\" 2>\"$HOME/verify-wrong-ca.err\"; then exit 31; fi\nif /usr/bin/openssl verify -CAfile \"$HOME/ca.pem\" -verify_hostname wrong.trace.test \"$HOME/server.pem\" >\"$HOME/verify-wrong-sni.out\" 2>\"$HOME/verify-wrong-sni.err\"; then exit 32; fi\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-tls-r1.py candidate \"$BASH\" wrong-ca\nrc=$?\nexit \"$rc\"\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-tls-r1.py reference \"$BASH\" wrong-ca\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "wrong-ca: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "tls-observation.json",
+        "verify-good.out",
+        "verify-good.err",
+        "verify-wrong-ca.out",
+        "verify-wrong-ca.err",
+        "verify-wrong-sni.out",
+        "verify-wrong-sni.err",
+        "ca.pem",
+        "server.pem"
+      ]
+    },
+    {
+      "id": "trace-vm-crypto-wrong-sni-r1",
+      "loadable": "crypto",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Compare a verified TLS connection or explicit verification rejection against an owned loopback peer.",
+      "covers": [
+        "crypto/tls-and-ntske-loopback"
+      ],
+      "oracle": "OpenSSL s_client, a private generated CA and certificate, OpenSSL positive/wrong-CA/wrong-name verification controls, and a Python TLS server restricted to loopback.",
+      "comparison": "Both sides record server event order, SNI, negotiated protocol, exact synthetic request and response bytes, client status/stdout/stderr and peer errors.",
+      "requires": [
+        "python3",
+        "openssl",
+        "cp",
+        "chmod"
+      ],
+      "timeout": 55,
+      "setup_timeout": 60,
+      "helpers_sha256": {
+        "helpers/trace-vm-tls-r1.py": "59bd7ca642f14589ccde165280068be5df3a29753d5035825903b1093d90da14"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-tls-r1.py ./trace-vm-tls-r1.py\n/bin/chmod 0755 ./trace-vm-tls-r1.py\nprintf 'subjectAltName=DNS:trace.test\\nextendedKeyUsage=serverAuth\\nbasicConstraints=critical,CA:FALSE\\nkeyUsage=critical,digitalSignature,keyEncipherment\\n' > \"$HOME/server.ext\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/ca.key\" -out \"$HOME/ca.pem\" -days 1 -sha256 -subj '/CN=Trace Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' >\"$HOME/ca-gen.out\" 2>\"$HOME/ca-gen.err\"\n/usr/bin/openssl req -new -newkey rsa:2048 -nodes -keyout \"$HOME/server.key\" -out \"$HOME/server.csr\" -subj '/CN=trace.test' >\"$HOME/server-gen.out\" 2>\"$HOME/server-gen.err\"\n/usr/bin/openssl x509 -req -in \"$HOME/server.csr\" -CA \"$HOME/ca.pem\" -CAkey \"$HOME/ca.key\" -set_serial 2 -days 1 -sha256 -extfile \"$HOME/server.ext\" -out \"$HOME/server.pem\" >\"$HOME/sign.out\" 2>\"$HOME/sign.err\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/wrong-ca.key\" -out \"$HOME/wrong-ca.pem\" -days 1 -sha256 -subj '/CN=Wrong Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' >\"$HOME/wrong-ca-gen.out\" 2>\"$HOME/wrong-ca-gen.err\"\n/usr/bin/openssl verify -CAfile \"$HOME/ca.pem\" -verify_hostname trace.test \"$HOME/server.pem\" >\"$HOME/verify-good.out\" 2>\"$HOME/verify-good.err\"\nif /usr/bin/openssl verify -CAfile \"$HOME/wrong-ca.pem\" -verify_hostname trace.test \"$HOME/server.pem\" >\"$HOME/verify-wrong-ca.out\" 2>\"$HOME/verify-wrong-ca.err\"; then exit 31; fi\nif /usr/bin/openssl verify -CAfile \"$HOME/ca.pem\" -verify_hostname wrong.trace.test \"$HOME/server.pem\" >\"$HOME/verify-wrong-sni.out\" 2>\"$HOME/verify-wrong-sni.err\"; then exit 32; fi\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-tls-r1.py candidate \"$BASH\" wrong-sni\nrc=$?\nexit \"$rc\"\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-tls-r1.py reference \"$BASH\" wrong-sni\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "wrong-sni: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "tls-observation.json",
+        "verify-good.out",
+        "verify-good.err",
+        "verify-wrong-ca.out",
+        "verify-wrong-ca.err",
+        "verify-wrong-sni.out",
+        "verify-wrong-sni.err",
+        "ca.pem",
+        "server.pem"
+      ]
+    }
+  ]
+}

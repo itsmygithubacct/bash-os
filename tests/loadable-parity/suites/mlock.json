@@ -58,7 +58,7 @@
       "id": "try-lock-operation",
       "kind": "deferred",
       "purpose": "Exercise the bounded anonymous mapping probe on successful lock/unlock, the 1-byte and 1-MiB boundaries, malformed sizes, and an insufficient-limit failure with cleanup.",
-      "reason": "Not a capability block. Every path is reachable by lowering RLIMIT_MEMLOCK in the fixture itself under the default limit. No fixture exists."
+      "reason": "Remaining obligations: r2: All six malformed diagnostics were saved, but six individual invocation statuses were not retained."
     },
     {
       "id": "ptrace-scope-operation",

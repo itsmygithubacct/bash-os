@@ -63,19 +63,19 @@
       "id": "deferred-service-lifecycle",
       "kind": "deferred",
       "purpose": "Qualify once/up/down/restart/signal/status/run and shutdown semantics with services confined to an owned fixture process tree.",
-      "reason": "sv honours BASHSV_DIR/BASHSV_RUNDIR/BASHSV_LOGDIR (sv.c doc; the executed log cases already redirect BASHSV_RUNDIR), so an owned service tree under the case directory is unprivileged. runit is not installed, so expectations are contracts from sv.c's documented directives. Signals target only the case's own service children; the plain driver detects strays."
+      "reason": "Remaining obligations: r1: No service verb has executed.; r2: Not executed.; r3: Not executed.; r4: Not executed.; r5: The fixture service cooperatively reaped its child; no general descendant or hostile-service cleanup claim follows."
     },
     {
       "id": "deferred-readiness-and-ordering",
       "kind": "deferred",
       "purpose": "Qualify restart policies, finish hooks, readiness checks, oneshot behavior, and dependency-ordered boot and shutdown.",
-      "reason": "sv honours BASHSV_DIR/BASHSV_RUNDIR/BASHSV_LOGDIR (sv.c doc; the executed log cases already redirect BASHSV_RUNDIR), so an owned service tree under the case directory is unprivileged. runit is not installed, so expectations are contracts from sv.c's documented directives. notify readiness uses an abstract AF_UNIX datagram socket, which is unprivileged."
+      "reason": "Remaining obligations: r1: Not executed.; r3: Notification readiness was recorded; check, COMMAND and timeout readiness branches were not exercised.; r4: Not executed.; r5: Not executed."
     },
     {
       "id": "deferred-activation-protocols",
       "kind": "deferred",
       "purpose": "Qualify socket and path activation, notify readiness, and timer scheduling without contacting host services or peers.",
-      "reason": "sv honours BASHSV_DIR/BASHSV_RUNDIR/BASHSV_LOGDIR (sv.c doc; the executed log cases already redirect BASHSV_RUNDIR), so an owned service tree under the case directory is unprivileged. runit is not installed, so expectations are contracts from sv.c's documented directives. All four protocols are unprivileged with private paths and loopback."
+      "reason": "Remaining obligations: r1: Not executed; loopback is authorized in the VM.; r2: Not executed; unprivileged on a private directory.; r3: Service-origin READY, RELOADING, STOPPING, STATUS and MAINPID datagrams were captured; the separate sv notify command client path was not exercised.; r4: Not executed; private spool dir via env."
     },
     {
       "id": "deferred-privilege-and-namespaces",

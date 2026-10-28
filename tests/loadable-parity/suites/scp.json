@@ -135,9 +135,30 @@
     },
     {
       "id": "remote-protocols",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Remote upload, download, recursive and remote-to-remote behavior.",
-      "reason": "No executed case uses a remote endpoint. Both the BASHSSH1 command-stream transport (bashssh peer) and the --openssh path (backgrounded sshd) are reachable inside the VM."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-transfer-scp-download-file-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-scp-recursive-download-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-scp-recursive-upload-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-scp-remote-to-remote-refused-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-scp-upload-file-r3"
+        }
+      ]
     },
     {
       "id": "metadata-type",
@@ -192,15 +213,53 @@
     },
     {
       "id": "remote-single-file",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Single-file upload and download, including destination naming and transfer option forwarding.",
-      "reason": "No executed case. Needs a remote endpoint."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-transfer-scp-download-dir-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-scp-download-file-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-scp-transport-options-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-scp-upload-dir-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-scp-upload-file-r3"
+        }
+      ]
     },
     {
       "id": "remote-recursive-copy",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Recursive (-r) upload and download of a small directory tree, including nested files and spaces in relative paths.",
-      "reason": "No executed case. Needs a remote endpoint (sshd peer or bashssh canned peer)."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-transfer-scp-recursive-download-command-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-scp-recursive-download-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-scp-recursive-upload-command-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-scp-recursive-upload-r3"
+        }
+      ]
     }
   ]
 }

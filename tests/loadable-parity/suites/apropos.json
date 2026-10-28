@@ -104,7 +104,7 @@
       "id": "man-db-query-reference-unavailable",
       "kind": "deferred",
       "purpose": "After the reference dependency is available, compare GNU default regular-expression and OR semantics, -w alias matching, no-match status, and leading-dash queries against the same private whatis fixtures.",
-      "reason": "No man-db query comparison has been executed. The old blocker (/etc/manpath.config missing) is stale: the VM reference image installs man-db 2.13.1. The real gap is a fixture that builds a private man-db index for the reference side. The candidate also lacks regex, OR and glob semantics, so parity is expected to fail."
+      "reason": "Remaining obligations: r1: Both saved regular-expression candidate queries failed against matching man-db output.; r2: The candidate OR query differed from man-db.; r3: The alias case passed but the glob/whole-name comparison failed.; r4: Candidate no-match exited 1 without the man-db diagnostic; reference exited 16."
     }
   ]
 }

@@ -1,0 +1,128 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "trace-vm-crypto-nts-good-r1",
+      "loadable": "crypto",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Exchange a bounded NTS-KE transcript with an independently implemented OpenSSL loopback peer and validate good.",
+      "covers": [
+        "crypto/tls-and-ntske-loopback"
+      ],
+      "oracle": "RFC 8915 NTS-KE record framing and OpenSSL TLS 1.3 on both independent client and server sides; SSL_export_keying_material with the RFC context independently computes C2S/S2C keys.",
+      "comparison": "Retain exact offered ALPN, SNI, request and response record bytes, event order, OpenSSL server exporter keys, reference client exporter keys or candidate output/status/error. Synthetic record-parser positive and negative controls run in setup.",
+      "requires": [
+        "python3",
+        "openssl",
+        "cp",
+        "chmod"
+      ],
+      "timeout": 55,
+      "setup_timeout": 60,
+      "helpers_sha256": {
+        "helpers/trace-vm-nts-r1.py": "b3e75d687574d19b7a6df536b1a6e8cffda5c38a85f89f795cb855fb0fcb0768"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-nts-r1.py ./trace-vm-nts-r1.py\n/bin/chmod 0755 ./trace-vm-nts-r1.py\nprintf 'subjectAltName=DNS:trace.test\\nextendedKeyUsage=serverAuth\\nbasicConstraints=critical,CA:FALSE\\nkeyUsage=critical,digitalSignature,keyEncipherment\\n' > \"$HOME/server.ext\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/ca.key\" -out \"$HOME/ca.pem\" -days 1 -sha256 -subj '/CN=Trace Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' >\"$HOME/ca-gen.out\" 2>\"$HOME/ca-gen.err\"\n/usr/bin/openssl req -new -newkey rsa:2048 -nodes -keyout \"$HOME/server.key\" -out \"$HOME/server.csr\" -subj '/CN=trace.test' >\"$HOME/server-gen.out\" 2>\"$HOME/server-gen.err\"\n/usr/bin/openssl x509 -req -in \"$HOME/server.csr\" -CA \"$HOME/ca.pem\" -CAkey \"$HOME/ca.key\" -set_serial 2 -days 1 -sha256 -extfile \"$HOME/server.ext\" -out \"$HOME/server.pem\" >\"$HOME/sign.out\" 2>\"$HOME/sign.err\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/wrong-ca.key\" -out \"$HOME/wrong-ca.pem\" -days 1 -sha256 -subj '/CN=Wrong Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' >\"$HOME/wrong-ca-gen.out\" 2>\"$HOME/wrong-ca-gen.err\"\n/usr/bin/openssl verify -CAfile \"$HOME/ca.pem\" -verify_hostname trace.test \"$HOME/server.pem\" >\"$HOME/verify-good.out\" 2>\"$HOME/verify-good.err\"\nif /usr/bin/openssl verify -CAfile \"$HOME/wrong-ca.pem\" -verify_hostname trace.test \"$HOME/server.pem\" >\"$HOME/verify-wrong-ca.out\" 2>\"$HOME/verify-wrong-ca.err\"; then exit 31; fi\nif /usr/bin/openssl verify -CAfile \"$HOME/ca.pem\" -verify_hostname wrong.trace.test \"$HOME/server.pem\" >\"$HOME/verify-wrong-sni.out\" 2>\"$HOME/verify-wrong-sni.err\"; then exit 32; fi\n./trace-vm-nts-r1.py --control\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-nts-r1.py candidate \"$BASH\" good\nrc=$?\nexit \"$rc\"\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-nts-r1.py reference \"$BASH\" good\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "nts-good: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "nts-control.json",
+        "nts-observation.json",
+        "verify-good.out",
+        "verify-good.err",
+        "verify-wrong-ca.out",
+        "verify-wrong-ca.err",
+        "verify-wrong-sni.out",
+        "verify-wrong-sni.err",
+        "ca.pem",
+        "server.pem"
+      ]
+    },
+    {
+      "id": "trace-vm-crypto-nts-error-r1",
+      "loadable": "crypto",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Exchange a bounded NTS-KE transcript with an independently implemented OpenSSL loopback peer and validate error.",
+      "covers": [
+        "crypto/tls-and-ntske-loopback"
+      ],
+      "oracle": "RFC 8915 NTS-KE record framing and OpenSSL TLS 1.3 on both independent client and server sides; SSL_export_keying_material with the RFC context independently computes C2S/S2C keys.",
+      "comparison": "Retain exact offered ALPN, SNI, request and response record bytes, event order, OpenSSL server exporter keys, reference client exporter keys or candidate output/status/error. Synthetic record-parser positive and negative controls run in setup.",
+      "requires": [
+        "python3",
+        "openssl",
+        "cp",
+        "chmod"
+      ],
+      "timeout": 55,
+      "setup_timeout": 60,
+      "helpers_sha256": {
+        "helpers/trace-vm-nts-r1.py": "b3e75d687574d19b7a6df536b1a6e8cffda5c38a85f89f795cb855fb0fcb0768"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-nts-r1.py ./trace-vm-nts-r1.py\n/bin/chmod 0755 ./trace-vm-nts-r1.py\nprintf 'subjectAltName=DNS:trace.test\\nextendedKeyUsage=serverAuth\\nbasicConstraints=critical,CA:FALSE\\nkeyUsage=critical,digitalSignature,keyEncipherment\\n' > \"$HOME/server.ext\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/ca.key\" -out \"$HOME/ca.pem\" -days 1 -sha256 -subj '/CN=Trace Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' >\"$HOME/ca-gen.out\" 2>\"$HOME/ca-gen.err\"\n/usr/bin/openssl req -new -newkey rsa:2048 -nodes -keyout \"$HOME/server.key\" -out \"$HOME/server.csr\" -subj '/CN=trace.test' >\"$HOME/server-gen.out\" 2>\"$HOME/server-gen.err\"\n/usr/bin/openssl x509 -req -in \"$HOME/server.csr\" -CA \"$HOME/ca.pem\" -CAkey \"$HOME/ca.key\" -set_serial 2 -days 1 -sha256 -extfile \"$HOME/server.ext\" -out \"$HOME/server.pem\" >\"$HOME/sign.out\" 2>\"$HOME/sign.err\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/wrong-ca.key\" -out \"$HOME/wrong-ca.pem\" -days 1 -sha256 -subj '/CN=Wrong Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' >\"$HOME/wrong-ca-gen.out\" 2>\"$HOME/wrong-ca-gen.err\"\n/usr/bin/openssl verify -CAfile \"$HOME/ca.pem\" -verify_hostname trace.test \"$HOME/server.pem\" >\"$HOME/verify-good.out\" 2>\"$HOME/verify-good.err\"\nif /usr/bin/openssl verify -CAfile \"$HOME/wrong-ca.pem\" -verify_hostname trace.test \"$HOME/server.pem\" >\"$HOME/verify-wrong-ca.out\" 2>\"$HOME/verify-wrong-ca.err\"; then exit 31; fi\nif /usr/bin/openssl verify -CAfile \"$HOME/ca.pem\" -verify_hostname wrong.trace.test \"$HOME/server.pem\" >\"$HOME/verify-wrong-sni.out\" 2>\"$HOME/verify-wrong-sni.err\"; then exit 32; fi\n./trace-vm-nts-r1.py --control\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-nts-r1.py candidate \"$BASH\" error\nrc=$?\nexit \"$rc\"\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-nts-r1.py reference \"$BASH\" error\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "nts-error: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "nts-control.json",
+        "nts-observation.json",
+        "verify-good.out",
+        "verify-good.err",
+        "verify-wrong-ca.out",
+        "verify-wrong-ca.err",
+        "verify-wrong-sni.out",
+        "verify-wrong-sni.err",
+        "ca.pem",
+        "server.pem"
+      ]
+    },
+    {
+      "id": "trace-vm-crypto-nts-critical-r1",
+      "loadable": "crypto",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Exchange a bounded NTS-KE transcript with an independently implemented OpenSSL loopback peer and validate critical.",
+      "covers": [
+        "crypto/tls-and-ntske-loopback"
+      ],
+      "oracle": "RFC 8915 NTS-KE record framing and OpenSSL TLS 1.3 on both independent client and server sides; SSL_export_keying_material with the RFC context independently computes C2S/S2C keys.",
+      "comparison": "Retain exact offered ALPN, SNI, request and response record bytes, event order, OpenSSL server exporter keys, reference client exporter keys or candidate output/status/error. Synthetic record-parser positive and negative controls run in setup.",
+      "requires": [
+        "python3",
+        "openssl",
+        "cp",
+        "chmod"
+      ],
+      "timeout": 55,
+      "setup_timeout": 60,
+      "helpers_sha256": {
+        "helpers/trace-vm-nts-r1.py": "b3e75d687574d19b7a6df536b1a6e8cffda5c38a85f89f795cb855fb0fcb0768"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-nts-r1.py ./trace-vm-nts-r1.py\n/bin/chmod 0755 ./trace-vm-nts-r1.py\nprintf 'subjectAltName=DNS:trace.test\\nextendedKeyUsage=serverAuth\\nbasicConstraints=critical,CA:FALSE\\nkeyUsage=critical,digitalSignature,keyEncipherment\\n' > \"$HOME/server.ext\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/ca.key\" -out \"$HOME/ca.pem\" -days 1 -sha256 -subj '/CN=Trace Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' >\"$HOME/ca-gen.out\" 2>\"$HOME/ca-gen.err\"\n/usr/bin/openssl req -new -newkey rsa:2048 -nodes -keyout \"$HOME/server.key\" -out \"$HOME/server.csr\" -subj '/CN=trace.test' >\"$HOME/server-gen.out\" 2>\"$HOME/server-gen.err\"\n/usr/bin/openssl x509 -req -in \"$HOME/server.csr\" -CA \"$HOME/ca.pem\" -CAkey \"$HOME/ca.key\" -set_serial 2 -days 1 -sha256 -extfile \"$HOME/server.ext\" -out \"$HOME/server.pem\" >\"$HOME/sign.out\" 2>\"$HOME/sign.err\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/wrong-ca.key\" -out \"$HOME/wrong-ca.pem\" -days 1 -sha256 -subj '/CN=Wrong Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' >\"$HOME/wrong-ca-gen.out\" 2>\"$HOME/wrong-ca-gen.err\"\n/usr/bin/openssl verify -CAfile \"$HOME/ca.pem\" -verify_hostname trace.test \"$HOME/server.pem\" >\"$HOME/verify-good.out\" 2>\"$HOME/verify-good.err\"\nif /usr/bin/openssl verify -CAfile \"$HOME/wrong-ca.pem\" -verify_hostname trace.test \"$HOME/server.pem\" >\"$HOME/verify-wrong-ca.out\" 2>\"$HOME/verify-wrong-ca.err\"; then exit 31; fi\nif /usr/bin/openssl verify -CAfile \"$HOME/ca.pem\" -verify_hostname wrong.trace.test \"$HOME/server.pem\" >\"$HOME/verify-wrong-sni.out\" 2>\"$HOME/verify-wrong-sni.err\"; then exit 32; fi\n./trace-vm-nts-r1.py --control\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-nts-r1.py candidate \"$BASH\" critical\nrc=$?\nexit \"$rc\"\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-nts-r1.py reference \"$BASH\" critical\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "nts-critical: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "nts-control.json",
+        "nts-observation.json",
+        "verify-good.out",
+        "verify-good.err",
+        "verify-wrong-ca.out",
+        "verify-wrong-ca.err",
+        "verify-wrong-sni.out",
+        "verify-wrong-sni.err",
+        "ca.pem",
+        "server.pem"
+      ]
+    }
+  ]
+}

@@ -39,38 +39,80 @@
     {
       "id": "session-keyring-ownership",
       "purpose": "Deferred operation check for anonymous and named session creation, including serial output and ensuring all later operations are confined to the newly owned ring.",
-      "kind": "deferred",
-      "reason": "Not a capability block: No capability is needed. keyctl, add_key and request_key are denied (EPERM) only by the legacy runner's seccomp list. The modern plain driver runs uid 2000 without that filter, so a per-side anonymous session keyring (KEYCTL_JOIN_SESSION_KEYRING with a NULL name) gives each side a private ring that the kernel garbage-collects when the side exits. /proc/keys (serial, flags, usage, perm, uid, gid, type, description for keys the caller can view) is an independent oracle. A trusted python3 ctypes helper calling syscall(SYS_keyctl, KEYCTL_READ/DESCRIBE) reads payloads independently. keyutils is not installed, so there is no CLI byte oracle unless root adds keyutils to image.lock. Hazard: @u and @us name the uid-2000 user keyrings shared across cases and sides, so fixtures must not add to or clear them; alternatively the driver can give each case a distinct uid."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-device-keyctl-failures-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-device-keyctl-sessions-r3"
+        }
+      ]
     },
     {
       "id": "binary-add-search-print-update",
       "purpose": "Deferred operation check for byte-exact payload handling, lookup, printing without an added newline, and same-description update identity.",
-      "kind": "deferred",
-      "reason": "Not a capability block: No capability is needed. keyctl, add_key and request_key are denied (EPERM) only by the legacy runner's seccomp list. The modern plain driver runs uid 2000 without that filter, so a per-side anonymous session keyring (KEYCTL_JOIN_SESSION_KEYRING with a NULL name) gives each side a private ring that the kernel garbage-collects when the side exits. /proc/keys (serial, flags, usage, perm, uid, gid, type, description for keys the caller can view) is an independent oracle. A trusted python3 ctypes helper calling syscall(SYS_keyctl, KEYCTL_READ/DESCRIBE) reads payloads independently. keyutils is not installed, so there is no CLI byte oracle unless root adds keyutils to image.lock. Hazard: @u and @us name the uid-2000 user keyrings shared across cases and sides, so fixtures must not add to or clear them; alternatively the driver can give each case a distinct uid."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-device-keyctl-binary-r3"
+        }
+      ]
     },
     {
       "id": "revoke-and-clear-lifecycle",
       "purpose": "Deferred operation check for revocation, link clearing, and repeated clear behavior on only keys created by the fixture.",
-      "kind": "deferred",
-      "reason": "Not a capability block: No capability is needed. keyctl, add_key and request_key are denied (EPERM) only by the legacy runner's seccomp list. The modern plain driver runs uid 2000 without that filter, so a per-side anonymous session keyring (KEYCTL_JOIN_SESSION_KEYRING with a NULL name) gives each side a private ring that the kernel garbage-collects when the side exits. /proc/keys (serial, flags, usage, perm, uid, gid, type, description for keys the caller can view) is an independent oracle. A trusted python3 ctypes helper calling syscall(SYS_keyctl, KEYCTL_READ/DESCRIBE) reads payloads independently. keyutils is not installed, so there is no CLI byte oracle unless root adds keyutils to image.lock. Hazard: @u and @us name the uid-2000 user keyrings shared across cases and sides, so fixtures must not add to or clear them; alternatively the driver can give each case a distinct uid."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-device-keyctl-lifecycle-r3"
+        }
+      ]
     },
     {
       "id": "aliases-and-serial-abi",
       "purpose": "Deferred operation check for recognized keyring aliases and signed 32-bit decimal key serial parsing.",
-      "kind": "deferred",
-      "reason": "No capability is needed. Alias mapping can be observed through behavior: add to a ring by alias, then confirm in /proc/keys and by searching through the numeric KEY_SPEC id. The before-syscall rejection can be proved with unprivileged seccomp errno injection. No fixture exists."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-device-keyctl-aliases-r3"
+        }
+      ]
     },
     {
       "id": "argument-and-size-boundaries",
       "purpose": "Deferred operation check for verb arity, type/description limits, and bounded stdin payload handling.",
-      "kind": "deferred",
-      "reason": "No capability is needed. Parser and limit checks run before any syscall and are observable with seccomp errno injection, or in the legacy runner, where keyctl calls fail with EPERM and parse errors show as status 2. No fixture exists."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-device-keyctl-boundaries-r3"
+        }
+      ]
     },
     {
       "id": "syscall-and-io-failures",
       "purpose": "Deferred operation check for keyring syscall errors and stdin/stdout failures without affecting external keyring state.",
-      "kind": "deferred",
-      "reason": "No capability is needed. Every listed errno is reachable through real operations in the plain driver, seccomp EPERM in the legacy runner, or unprivileged seccomp errno injection. No fixture exists."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-device-keyctl-binary-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-device-keyctl-failures-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-device-keyctl-lifecycle-r3"
+        }
+      ]
     }
   ]
 }

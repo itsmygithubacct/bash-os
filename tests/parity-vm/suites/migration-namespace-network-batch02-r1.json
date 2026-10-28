@@ -1,0 +1,116 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-namespace-network-lsof-pid-r1",
+      "loadable": "lsof",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "lsof/deferred-pid-descriptors"
+      ],
+      "purpose": "Compare a controlled child regular file, directory, named FIFO, and Unix socket descriptor against procfs and native lsof; require PID-only rows.",
+      "oracle": "Kernel proc descriptor links/stat plus native lsof -F fields on the same owned children; native selector behavior is positively controlled before candidate execution.",
+      "comparison": "Exact semantic success marker; bounded raw native/candidate bytes, return statuses, process identities, namespace maps, and proc descriptor snapshots are retained. An invalid native control does not establish candidate behavior.",
+      "requires": [
+        "python3",
+        "unshare",
+        "lsof",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-lsof-r1.py": "ef583848c80c7d36a07ffaee902eecf3293369799cdff17d5e59ee4791be7ade"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-lsof-r1.py\n/usr/bin/cat /proc/sys/user/max_user_namespaces >\"$HOME/userns-limit.raw\" || exit 98\nif [[ -r /proc/sys/kernel/unprivileged_userns_clone ]]; then /usr/bin/cat /proc/sys/kernel/unprivileged_userns_clone >\"$HOME/userns-policy.raw\"; else printf 'absent\\n' >\"$HOME/userns-policy.raw\"; fi\n/usr/bin/unshare --user --map-root-user --pid --fork --mount-proc /usr/bin/python3 \"$H\" control\n",
+      "setup_timeout": 60,
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-lsof-r1.py\n/usr/bin/unshare --user --map-root-user --pid --fork --mount-proc /usr/bin/python3 \"$H\" pid \"$BASH\"\n",
+      "diagnostic_files": [
+        "userns-limit.raw",
+        "userns-policy.raw",
+        "control.json",
+        "pid.json"
+      ],
+      "expected_status": 0,
+      "stdout": "pid=ok\n",
+      "timeout": 60
+    },
+    {
+      "id": "migration-namespace-network-lsof-scan-r1",
+      "loadable": "lsof",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "lsof/deferred-process-scan"
+      ],
+      "purpose": "Check no-argument enumeration and explicit PID selectors against two owned children in a private PID namespace and independently observed stable descriptors.",
+      "oracle": "Kernel proc descriptor links/stat plus native lsof -F fields on the same owned children; native selector behavior is positively controlled before candidate execution.",
+      "comparison": "Exact semantic success marker; bounded raw native/candidate bytes, return statuses, process identities, namespace maps, and proc descriptor snapshots are retained. An invalid native control does not establish candidate behavior.",
+      "requires": [
+        "python3",
+        "unshare",
+        "lsof",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-lsof-r1.py": "ef583848c80c7d36a07ffaee902eecf3293369799cdff17d5e59ee4791be7ade"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-lsof-r1.py\n/usr/bin/cat /proc/sys/user/max_user_namespaces >\"$HOME/userns-limit.raw\" || exit 98\nif [[ -r /proc/sys/kernel/unprivileged_userns_clone ]]; then /usr/bin/cat /proc/sys/kernel/unprivileged_userns_clone >\"$HOME/userns-policy.raw\"; else printf 'absent\\n' >\"$HOME/userns-policy.raw\"; fi\n/usr/bin/unshare --user --map-root-user --pid --fork --mount-proc /usr/bin/python3 \"$H\" control\n",
+      "setup_timeout": 60,
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-lsof-r1.py\n/usr/bin/unshare --user --map-root-user --pid --fork --mount-proc /usr/bin/python3 \"$H\" scan \"$BASH\"\n",
+      "diagnostic_files": [
+        "userns-limit.raw",
+        "userns-policy.raw",
+        "control.json",
+        "scan.json"
+      ],
+      "expected_status": 0,
+      "stdout": "scan=ok\n",
+      "timeout": 60
+    },
+    {
+      "id": "migration-namespace-network-lsof-user-r1",
+      "loadable": "lsof",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "lsof/deferred-user-filter"
+      ],
+      "purpose": "Check name and numeric UID selection plus OR/AND selection against the same owned children and native lsof in a private PID namespace.",
+      "oracle": "Kernel proc descriptor links/stat plus native lsof -F fields on the same owned children; native selector behavior is positively controlled before candidate execution.",
+      "comparison": "Exact semantic success marker; bounded raw native/candidate bytes, return statuses, process identities, namespace maps, and proc descriptor snapshots are retained. An invalid native control does not establish candidate behavior.",
+      "requires": [
+        "python3",
+        "unshare",
+        "lsof",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-lsof-r1.py": "ef583848c80c7d36a07ffaee902eecf3293369799cdff17d5e59ee4791be7ade"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-lsof-r1.py\n/usr/bin/cat /proc/sys/user/max_user_namespaces >\"$HOME/userns-limit.raw\" || exit 98\nif [[ -r /proc/sys/kernel/unprivileged_userns_clone ]]; then /usr/bin/cat /proc/sys/kernel/unprivileged_userns_clone >\"$HOME/userns-policy.raw\"; else printf 'absent\\n' >\"$HOME/userns-policy.raw\"; fi\n/usr/bin/unshare --user --map-root-user --pid --fork --mount-proc /usr/bin/python3 \"$H\" control\n",
+      "setup_timeout": 60,
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-lsof-r1.py\n/usr/bin/unshare --user --map-root-user --pid --fork --mount-proc /usr/bin/python3 \"$H\" user \"$BASH\"\n",
+      "diagnostic_files": [
+        "userns-limit.raw",
+        "userns-policy.raw",
+        "control.json",
+        "user.json"
+      ],
+      "expected_status": 0,
+      "stdout": "user=ok\n",
+      "timeout": 60
+    }
+  ]
+}

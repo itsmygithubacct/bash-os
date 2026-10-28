@@ -58,7 +58,7 @@
       "id": "submit_fixture_backend",
       "kind": "deferred",
       "purpose": "Exercise deterministic file and stdin submissions, literal backend argv, complete-byte acceptance, and spool cleanup without delivering a real print job.",
-      "reason": "Only pre-delivery rejection and listing run. A private absolute backend script in the VM case directory is sufficient; no exec mock is needed."
+      "reason": "Remaining obligations: r1: Explicit submit forms reach the backend; both bare forms return usage status 2 before any backend invocation.; r2: Backend argv is recorded for explicit submit forms; both bare forms stop before backend invocation.; r3: The explicit submit forms retain the full 28 input bytes; both bare forms stop before backend invocation.; r5: Timeout failure is bounded and explicit submits succeed; no complete post-success spool snapshot was retained."
     },
     {
       "id": "list-private-spool",
@@ -73,7 +73,7 @@
       "id": "cancel_owned_child",
       "kind": "deferred",
       "purpose": "Exercise stale-job cleanup and live cancellation through the control FIFO while proving cancellation affects only the submitter's fixture backend child.",
-      "reason": "Live cancellation uses a FIFO and an owned backend child; the plain driver provides the isolation and stray detection the original reason required."
+      "reason": "Remaining obligations: r2: The recorded backend received TERM and one witness did not; there is no universal signal-syscall trace.; r3: Stale cleanup and an unsignalled witness were recorded, but every possible signal target was not independently traced.; r4: Slash-ID rejection and cleanup reports were recorded; no complete post-cancel spool snapshot was retained."
     },
     {
       "id": "submit-without-backend",

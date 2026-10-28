@@ -172,13 +172,13 @@
       "id": "pkg-repository-io",
       "kind": "deferred",
       "purpose": "Cover signed remote index refresh, download and fetch against a mock transport; local INDEX search executes separately.",
-      "reason": "Remote index/download/fetch never executed; file:// and loopback http:// transports are supported by the candidate and reachable with existing legacy and network drivers."
+      "reason": "Remaining obligations: r1: Signed-index acceptance and altered-signature rejection are recorded, but signature mathematics was not independently verified under the no-crypto constraint.; r3: The file-path socket-denial control, loopback HTTP peer and network canary are recorded; an independent trace of every candidate connection attempt is absent."
     },
     {
       "id": "pkg-upgrade-delta",
       "kind": "deferred",
       "purpose": "Check upgrade selection, trust policy, delta download and rollback after a rejected update; standalone local delta application executes separately.",
-      "reason": "Only standalone delta application executed; upgrade/trust/rollback are fixture-relative and reachable in the legacy runner."
+      "reason": "Remaining obligations: r1: Version selection and upgrade results are recorded, but the signature validity underlying trust policy was not independently verified under the no-crypto constraint.; r3: Before/after tree hashes match for bad signature, digest and failed apply; the bad-signature control was not independently verified cryptographically."
     },
     {
       "id": "pkg-load-unload",

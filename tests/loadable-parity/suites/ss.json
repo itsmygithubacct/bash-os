@@ -51,7 +51,7 @@
       "id": "deferred_proc_fallback",
       "purpose": "Future operation comparison should force sock_diag unavailable and verify deterministic TCP/UDP/Unix proc-table fallback, empty snapshots, queue limitations, and no partial netlink rows after fallback.",
       "kind": "deferred",
-      "reason": "No executed case. Forcing fallback and substituting proc tables is achievable from a per-side script: a python ctypes seccomp filter denies NETLINK_SOCK_DIAG socket creation, and a private mount namespace bind-mounts synthetic files over /proc/net/*."
+      "reason": "Remaining obligations: r1: Controlled live IPv4 TCP/UDP and Unix records were observed; the captured IPv6 proc tables contained no controlled rows.; r2: Not executed."
     },
     {
       "id": "deferred_process_annotation",
@@ -63,13 +63,13 @@
       "id": "deferred_netlink_protocol_errors",
       "purpose": "Future operation comparison should cover multipart sock_diag replies, ACK/EINTR/unmatched sequences, malformed and truncated messages, interrupted dumps, and atomic fallback after an invalid family dump.",
       "kind": "deferred",
-      "reason": "Multipart replies (r1) can be produced by the real kernel with many fixture sockets, but malformed/truncated/unmatched/interrupted replies cannot be produced on demand by the kernel, and the static candidate cannot be LD_PRELOADed."
+      "reason": "Remaining obligations: r1: The independent native dump spans four datagrams and all 720 names appear once, but candidate receive buffer boundaries are not retained.; r3: A truncated header was injected and fallback was atomic; other malformed record variants are not established.; r4: The candidate silently falls back after DUMP_INTR without retrying the interrupted IPv4 request or reporting the interruption; this is a reached failure."
     },
     {
       "id": "deferred_output_and_repeat_calls",
       "purpose": "Future operation comparison should check buffered output failures, recovery on a later call in the same shell, repeated invocations with different selectors, and --version status when its sock_diag probe or output fails.",
       "kind": "deferred",
-      "reason": "No executed case. Output failure and repeat calls need only a plain shell case; --version's probe outcome under forced sock_diag failure needs a self-installed seccomp wrapper."
+      "reason": "Remaining obligations: r2: The post-/dev/full normal table produced a valid header and status 0, but the table had no controlled live rows.; r3: Not executed."
     }
   ]
 }

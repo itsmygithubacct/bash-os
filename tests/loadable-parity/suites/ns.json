@@ -28,43 +28,89 @@
       "id": "ns-unshare-namespaces",
       "kind": "deferred",
       "purpose": "Compare ns unshare for its supported namespace flags and the special for-children behavior of pid/time namespaces.",
-      "reason": "Not a capability block: Unprivileged user namespaces make every namespace operation here reachable for uid 2000 in the modern plain driver, which has no seccomp filter and no userns restriction. A new user namespace grants CAP_SYS_ADMIN over namespaces, mounts and maps it owns, and the effects stay confined to the disposable side process. The legacy runner cannot host these cases because bwrap --disable-userns makes CLONE_NEWUSER fail. Preflight: record /proc/sys/user/max_user_namespaces and kernel.unprivileged_userns_clone (Debian), and ERROR if creation fails. Reference oracle: util-linux 2.41 unshare/nsenter/mount/findmnt in the guest, plus /proc/self/ns/*, /proc/self/mountinfo, /proc/self/uid_map|gid_map|setgroups and /proc/self/status read by the side's own processes. No fixture exists."
+      "reason": "Remaining obligations: r1: One case observes the user inode, and a separate case observes mount/net/ipc/uts/cgroup inodes in an owned namespace; their combined one-call request was not observed.; r2: No case.; r3: No case.; r5: The unprivileged UTS EPERM agrees with unshare; unsupported-namespace EINVAL was not exercised."
     },
     {
       "id": "ns-spawn-child-exec",
       "kind": "deferred",
       "purpose": "Check clone-based namespace setup, argv/environment forwarding, PID namespace child semantics, --no-new-privs, and propagation of the child exit status.",
-      "reason": "Not a capability block. The child is a fresh process owned by the side, and user+pid namespaces are unprivileged. Unprivileged user namespaces make every namespace operation here reachable for uid 2000 in the modern plain driver, which has no seccomp filter and no userns restriction. A new user namespace grants CAP_SYS_ADMIN over namespaces, mounts and maps it owns, and the effects stay confined to the disposable side process. The legacy runner cannot host these cases because bwrap --disable-userns makes CLONE_NEWUSER fail. Preflight: record /proc/sys/user/max_user_namespaces and kernel.unprivileged_userns_clone (Debian), and ERROR if creation fails. Reference oracle: util-linux 2.41 unshare/nsenter/mount/findmnt in the guest, plus /proc/self/ns/*, /proc/self/mountinfo, /proc/self/uid_map|gid_map|setgroups and /proc/self/status read by the side's own processes. No fixture exists."
+      "reason": "Remaining obligations: r1: Exact argv is retained for none and PID namespace child cases; other namespace flag combinations were not independently compared.; r6: Exit 37 and missing-exec 127 are recorded; signal-to-128+S propagation was not exercised."
     },
     {
       "id": "ns-enter-namespace-fd",
       "kind": "deferred",
       "purpose": "Check setns using a descriptor for a controlled namespace, including ownership, invalid-descriptor, and permission behavior.",
-      "reason": "Not a capability block. A side can create the target namespace itself: a USERNS shell (root in its own user namespace) spawns a helper in nested uts+mount namespaces it owns and opens /proc/HELPER/ns/uts. setns needs CAP_SYS_ADMIN both in the target's owner namespace and in the caller's own user namespace, so the denied case is plain uid 2000 entering a descriptor opened before unsharing. No fixture exists."
+      "reason": "Remaining obligations: r1: No case.; r2: No case.; r4: The candidate and nsenter both receive EPERM on the saved descriptor; its owning initial user namespace is not independently established in the retained record.; r5: Same-descriptor candidate/nsenter denial is compared; successful entry and positive nsenter parity were not qualified."
     },
     {
       "id": "ns-id-mapping",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check deny-setgroups ordering and uid_map/gid_map writes for a fresh user namespace.",
-      "reason": "Not a capability block. Writing maps for one's own fresh user namespace is unprivileged. Unprivileged user namespaces make every namespace operation here reachable for uid 2000 in the modern plain driver, which has no seccomp filter and no userns restriction. A new user namespace grants CAP_SYS_ADMIN over namespaces, mounts and maps it owns, and the effects stay confined to the disposable side process. The legacy runner cannot host these cases because bwrap --disable-userns makes CLONE_NEWUSER fail. Preflight: record /proc/sys/user/max_user_namespaces and kernel.unprivileged_userns_clone (Debian), and ERROR if creation fails. Reference oracle: util-linux 2.41 unshare/nsenter/mount/findmnt in the guest, plus /proc/self/ns/*, /proc/self/mountinfo, /proc/self/uid_map|gid_map|setgroups and /proc/self/status read by the side's own processes. No fixture exists."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-idmap-ordering-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-idmap-overlap-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-idmap-second-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-idmap-unowned-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-idmap-valid-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-idmap-zero-r1"
+        }
+      ]
     },
     {
       "id": "ns-mount-operations",
       "kind": "deferred",
       "purpose": "Check private propagation, bind mounts, read-only bind remounts, and remount-readonly effects on fixture paths.",
-      "reason": "Not a capability block. In a USERNS the mount namespace is owned by the child's user namespace, so bind and remount on fixture paths in the per-side tmpfs are permitted. Unprivileged user namespaces make every namespace operation here reachable for uid 2000 in the modern plain driver, which has no seccomp filter and no userns restriction. A new user namespace grants CAP_SYS_ADMIN over namespaces, mounts and maps it owns, and the effects stay confined to the disposable side process. The legacy runner cannot host these cases because bwrap --disable-userns makes CLONE_NEWUSER fail. Preflight: record /proc/sys/user/max_user_namespaces and kernel.unprivileged_userns_clone (Debian), and ERROR if creation fails. Reference oracle: util-linux 2.41 unshare/nsenter/mount/findmnt in the guest, plus /proc/self/ns/*, /proc/self/mountinfo, /proc/self/uid_map|gid_map|setgroups and /proc/self/status read by the side's own processes. No fixture exists."
+      "reason": "Remaining obligations: r2: No case.; r3: No case.; r4: No case.; r6: No case."
     },
     {
       "id": "ns-pivot-root",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check the pivot-root syscall wrapper and resulting old-root placement using a disposable root tree.",
-      "reason": "Not a capability block. pivot_root needs CAP_SYS_ADMIN over a private mount namespace, which a USERNS has after it mounts its own tmpfs (tmpfs is FS_USERNS_MOUNT). The new root needs a minimal tree, such as a static busybox-free layout with a bind of /usr. No fixture exists."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-pivot-child-root-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-pivot-not-mountpoint-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-pivot-outside-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-pivot-shared-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-pivot-valid-r1"
+        }
+      ]
     },
     {
       "id": "ns-seccomp-filter",
       "kind": "deferred",
       "purpose": "Check loading and applying a binary sock_filter profile, including valid, malformed, and kernel-rejected profiles.",
-      "reason": "Not a capability block. seccomp(SECCOMP_SET_MODE_FILTER) is unprivileged with no_new_privs, the legacy runner already sets that through bwrap and does not deny seccomp(), and the filter is irreversible only for the disposable fixture shell. No fixture exists."
+      "reason": "Remaining obligations: r1: Candidate reports Seccomp 2 and an increased filter count, but individual before/after filter counts are not separately retained for independent comparison.; r6: Native control results are saved for the selected profiles, but candidate seccomp syscall outcomes are not independently traced for every profile."
     },
     {
       "id": "ns-lsm-transition",

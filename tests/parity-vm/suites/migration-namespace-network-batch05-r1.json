@@ -1,0 +1,73 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-namespace-network-netstat-unix-r1",
+      "loadable": "netstat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "netstat/defer-unix-sockets"
+      ],
+      "purpose": "Qualify listener and connected stream types, legacy SS state labels, paths and independently decoded diagnostic queue lengths.",
+      "oracle": "Owned socket syscalls, raw proc tables, native iproute2 ss, and a separately encoded and decoded NETLINK_SOCK_DIAG UNIX dump.",
+      "comparison": "Fixed semantic result; raw netlink request/reply bytes and decoded fields, proc rows, owned identities and native/candidate output/status are retained for review.",
+      "requires": [
+        "python3",
+        "ip",
+        "ss",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-sockdiag-r1.py": "6c93323fac6de1a64bd35fe8b9f27d755558ff4cc55852db2b2dd0859405670e",
+        "helpers/namespace-network-observe-r1.py": "fd1301ec78ebc0b87104fad4b78ad8232d46d3f19e38af9c543b2557fc8b4b50",
+        "helpers/namespace-network-network-controls-r1.py": "83daad3cac27cbbb823c7c7f16cf48acb77294065683c7fa2a3f0658c614ccdf"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-sockdiag-r1.py\nO=/opt/bashos-parity/harness/helpers/namespace-network-observe-r1.py\nC=/opt/bashos-parity/harness/helpers/namespace-network-network-controls-r1.py\n/usr/bin/python3 \"$H\" control\n",
+      "setup_timeout": 60,
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-sockdiag-r1.py\nO=/opt/bashos-parity/harness/helpers/namespace-network-observe-r1.py\nC=/opt/bashos-parity/harness/helpers/namespace-network-network-controls-r1.py\n/usr/bin/python3 \"$H\" unix \"$BASH\"\n",
+      "diagnostic_files": [
+        "socket-control.json",
+        "unix.json"
+      ],
+      "expected_status": 0,
+      "stdout": "unix=ok\n",
+      "timeout": 60
+    },
+    {
+      "id": "migration-namespace-network-ss-multipart-unix-r1",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ss/deferred_netlink_protocol_errors"
+      ],
+      "purpose": "Create 720 uniquely named owned Unix sockets, require a multipart kernel dump and native reference, then require every named candidate row exactly once.",
+      "oracle": "Owned socket syscalls, raw proc tables, native iproute2 ss, and a separately encoded and decoded NETLINK_SOCK_DIAG UNIX dump.",
+      "comparison": "Fixed semantic result; raw netlink request/reply bytes and decoded fields, proc rows, owned identities and native/candidate output/status are retained for review.",
+      "requires": [
+        "python3",
+        "ip",
+        "ss",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-sockdiag-r1.py": "6c93323fac6de1a64bd35fe8b9f27d755558ff4cc55852db2b2dd0859405670e",
+        "helpers/namespace-network-observe-r1.py": "fd1301ec78ebc0b87104fad4b78ad8232d46d3f19e38af9c543b2557fc8b4b50",
+        "helpers/namespace-network-network-controls-r1.py": "83daad3cac27cbbb823c7c7f16cf48acb77294065683c7fa2a3f0658c614ccdf"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-sockdiag-r1.py\nO=/opt/bashos-parity/harness/helpers/namespace-network-observe-r1.py\nC=/opt/bashos-parity/harness/helpers/namespace-network-network-controls-r1.py\n/usr/bin/python3 \"$H\" many-control\n",
+      "setup_timeout": 60,
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-sockdiag-r1.py\nO=/opt/bashos-parity/harness/helpers/namespace-network-observe-r1.py\nC=/opt/bashos-parity/harness/helpers/namespace-network-network-controls-r1.py\n/usr/bin/python3 \"$H\" many \"$BASH\"\n",
+      "diagnostic_files": [
+        "many-control.json",
+        "many.json"
+      ],
+      "expected_status": 0,
+      "stdout": "multipart=ok\n",
+      "timeout": 60
+    }
+  ]
+}

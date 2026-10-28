@@ -1,0 +1,986 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-transfer-scp-upload-file-r3",
+      "loadable": "scp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "remote-single-file: scp-upload-file",
+      "covers": [
+        "scp/remote-single-file",
+        "scp/remote-protocols"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "scp",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "payload.bin": {
+          "base64": "YWJjAP8KeHl6Cg=="
+        }
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\n[[ -x \"$H\" && -x /usr/lib/openssh/sftp-server ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED command adapter'; exit 98; }\nprintf 'control-copy\\n' > \"$HOME/control-input\"\n/usr/bin/scp -S \"$H\" \"$HOME/control-input\" fixture:control-copy > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-input\" \"$FIXTURE_REMOTE_ROOT/control-copy\" || { echo 'CONTROL-FAILED OpenSSH scp over sftp-server'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-command.out",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json"
+      ],
+      "comparison": "Status, asserted observations, expected bytes, and full workspace tree including modes; raw client output, transport argv, and protocol captures retained under HOME. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "OpenSSH scp over the independent OpenSSH sftp-server via a local SSH-shaped adapter; candidate uses its command-stream adapter. The setup separately proves both adapter paths, with no network or authentication claim.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin scp --openssh payload.bin fixture:uploaded > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/scp -S \"$H\" payload.bin fixture:uploaded > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=0\npeer-stage=observed\n",
+      "expected_files": {
+        "remote/uploaded": {
+          "base64": "YWJjAP8KeHl6Cg=="
+        }
+      }
+    },
+    {
+      "id": "migration-transfer-scp-upload-dir-r3",
+      "loadable": "scp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "remote-single-file: scp-upload-dir",
+      "covers": [
+        "scp/remote-single-file",
+        "scp/remote-protocols"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "scp",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "payload.bin": {
+          "base64": "YWJjAP8KeHl6Cg=="
+        }
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\n[[ -x \"$H\" && -x /usr/lib/openssh/sftp-server ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED command adapter'; exit 98; }\nprintf 'control-copy\\n' > \"$HOME/control-input\"\n/usr/bin/scp -S \"$H\" \"$HOME/control-input\" fixture:control-copy > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-input\" \"$FIXTURE_REMOTE_ROOT/control-copy\" || { echo 'CONTROL-FAILED OpenSSH scp over sftp-server'; exit 98; }\nmkdir remote/upload-dir\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-command.out",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json"
+      ],
+      "comparison": "Status, asserted observations, expected bytes, and full workspace tree including modes; raw client output, transport argv, and protocol captures retained under HOME. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "OpenSSH scp over the independent OpenSSH sftp-server via a local SSH-shaped adapter; candidate uses its command-stream adapter. The setup separately proves both adapter paths, with no network or authentication claim.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin scp --openssh payload.bin fixture:upload-dir/ > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/scp -S \"$H\" payload.bin fixture:upload-dir/ > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=0\npeer-stage=observed\n",
+      "expected_files": {
+        "remote/upload-dir/payload.bin": {
+          "base64": "YWJjAP8KeHl6Cg=="
+        }
+      }
+    },
+    {
+      "id": "migration-transfer-scp-download-file-r3",
+      "loadable": "scp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "remote-single-file: scp-download-file",
+      "covers": [
+        "scp/remote-single-file",
+        "scp/remote-protocols"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "scp",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "remote/source.bin": {
+          "base64": "YWJjAP8KeHl6Cg=="
+        }
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\n[[ -x \"$H\" && -x /usr/lib/openssh/sftp-server ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED command adapter'; exit 98; }\nprintf 'control-copy\\n' > \"$HOME/control-input\"\n/usr/bin/scp -S \"$H\" \"$HOME/control-input\" fixture:control-copy > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-input\" \"$FIXTURE_REMOTE_ROOT/control-copy\" || { echo 'CONTROL-FAILED OpenSSH scp over sftp-server'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-command.out",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json"
+      ],
+      "comparison": "Status, asserted observations, expected bytes, and full workspace tree including modes; raw client output, transport argv, and protocol captures retained under HOME. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "OpenSSH scp over the independent OpenSSH sftp-server via a local SSH-shaped adapter; candidate uses its command-stream adapter. The setup separately proves both adapter paths, with no network or authentication claim.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin scp --openssh fixture:source.bin download.bin > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/scp -S \"$H\" fixture:source.bin download.bin > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=0\npeer-stage=observed\n",
+      "expected_files": {
+        "download.bin": {
+          "base64": "YWJjAP8KeHl6Cg=="
+        }
+      }
+    },
+    {
+      "id": "migration-transfer-scp-download-dir-r3",
+      "loadable": "scp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "remote-single-file: scp-download-dir",
+      "covers": [
+        "scp/remote-single-file",
+        "scp/remote-protocols"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "scp",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "remote/source.bin": {
+          "base64": "YWJjAP8KeHl6Cg=="
+        }
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\n[[ -x \"$H\" && -x /usr/lib/openssh/sftp-server ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED command adapter'; exit 98; }\nprintf 'control-copy\\n' > \"$HOME/control-input\"\n/usr/bin/scp -S \"$H\" \"$HOME/control-input\" fixture:control-copy > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-input\" \"$FIXTURE_REMOTE_ROOT/control-copy\" || { echo 'CONTROL-FAILED OpenSSH scp over sftp-server'; exit 98; }\nmkdir downloads\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-command.out",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json"
+      ],
+      "comparison": "Status, asserted observations, expected bytes, and full workspace tree including modes; raw client output, transport argv, and protocol captures retained under HOME. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "OpenSSH scp over the independent OpenSSH sftp-server via a local SSH-shaped adapter; candidate uses its command-stream adapter. The setup separately proves both adapter paths, with no network or authentication claim.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin scp --openssh fixture:source.bin downloads/ > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/scp -S \"$H\" fixture:source.bin downloads/ > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=0\npeer-stage=observed\n",
+      "expected_files": {
+        "downloads/source.bin": {
+          "base64": "YWJjAP8KeHl6Cg=="
+        }
+      }
+    },
+    {
+      "id": "migration-transfer-scp-transport-options-r3",
+      "loadable": "scp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "remote-single-file: scp-transport-options",
+      "covers": [
+        "scp/remote-single-file"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "scp",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "payload.bin": {
+          "base64": "YWJjAP8KeHl6Cg=="
+        },
+        "fixture.key": "fixture-only-not-a-real-key\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\n[[ -x \"$H\" && -x /usr/lib/openssh/sftp-server ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED command adapter'; exit 98; }\nprintf 'control-copy\\n' > \"$HOME/control-input\"\n/usr/bin/scp -S \"$H\" \"$HOME/control-input\" fixture:control-copy > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-input\" \"$FIXTURE_REMOTE_ROOT/control-copy\" || { echo 'CONTROL-FAILED OpenSSH scp over sftp-server'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-command.out",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json"
+      ],
+      "comparison": "Status, asserted observations, expected bytes, and full workspace tree including modes; raw client output, transport argv, and protocol captures retained under HOME. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "OpenSSH scp over the independent OpenSSH sftp-server via a local SSH-shaped adapter; candidate uses its command-stream adapter. The setup separately proves both adapter paths, with no network or authentication claim.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin scp --openssh -P 2222 -i fixture.key payload.bin alice@fixture:option-target > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - \"$HOME/peer.jsonl\" <<'PY'\nimport json,pathlib,sys\nlines=pathlib.Path(sys.argv[1]).read_text().splitlines(); a=json.loads(lines[0]); joined=' '.join(a)\nport=('-p 2222' in joined or '-oPort=2222' in joined or 'Port=2222' in joined)\nkey=('-i fixture.key' in joined or 'IdentityFile=fixture.key' in joined)\nuser=('alice@fixture' in a or '-l alice' in joined or 'User=alice' in joined)\nprint('options-forwarded=%d' % bool(port and key and user))\nPY\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/scp -S \"$H\" -P 2222 -i fixture.key payload.bin alice@fixture:option-target > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - \"$HOME/peer.jsonl\" <<'PY'\nimport json,pathlib,sys\nlines=pathlib.Path(sys.argv[1]).read_text().splitlines(); a=json.loads(lines[0]); joined=' '.join(a)\nport=('-p 2222' in joined or '-oPort=2222' in joined or 'Port=2222' in joined)\nkey=('-i fixture.key' in joined or 'IdentityFile=fixture.key' in joined)\nuser=('alice@fixture' in a or '-l alice' in joined or 'User=alice' in joined)\nprint('options-forwarded=%d' % bool(port and key and user))\nPY\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=0\noptions-forwarded=1\npeer-stage=observed\n",
+      "expected_files": {
+        "remote/option-target": {
+          "base64": "YWJjAP8KeHl6Cg=="
+        }
+      }
+    },
+    {
+      "id": "migration-transfer-scp-recursive-upload-r3",
+      "loadable": "scp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "remote-recursive-copy: scp-recursive-upload",
+      "covers": [
+        "scp/remote-recursive-copy",
+        "scp/remote-protocols"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "scp",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "source tree/nested/one file": "one\n",
+        "source tree/top": "top\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\n[[ -x \"$H\" && -x /usr/lib/openssh/sftp-server ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED command adapter'; exit 98; }\nprintf 'control-copy\\n' > \"$HOME/control-input\"\n/usr/bin/scp -S \"$H\" \"$HOME/control-input\" fixture:control-copy > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-input\" \"$FIXTURE_REMOTE_ROOT/control-copy\" || { echo 'CONTROL-FAILED OpenSSH scp over sftp-server'; exit 98; }\nmkdir remote/uploads\nchmod 751 'source tree/nested'\nchmod 640 'source tree/nested/one file'\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-command.out",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json"
+      ],
+      "comparison": "Status, asserted observations, expected bytes, and full workspace tree including modes; raw client output, transport argv, and protocol captures retained under HOME. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "OpenSSH scp over the independent OpenSSH sftp-server via a local SSH-shaped adapter; candidate uses its command-stream adapter. The setup separately proves both adapter paths, with no network or authentication claim.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin scp --openssh -r \"source tree\" fixture:uploads > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/scp -S \"$H\" -r \"source tree\" fixture:uploads > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=0\npeer-stage=observed\n",
+      "expected_files": {
+        "remote/uploads/source tree/nested/one file": "one\n",
+        "remote/uploads/source tree/top": "top\n"
+      }
+    },
+    {
+      "id": "migration-transfer-scp-recursive-download-r3",
+      "loadable": "scp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "remote-recursive-copy: scp-recursive-download",
+      "covers": [
+        "scp/remote-recursive-copy",
+        "scp/remote-protocols"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "scp",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "remote/source tree/nested/one file": "one\n",
+        "remote/source tree/top": "top\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\n[[ -x \"$H\" && -x /usr/lib/openssh/sftp-server ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED command adapter'; exit 98; }\nprintf 'control-copy\\n' > \"$HOME/control-input\"\n/usr/bin/scp -S \"$H\" \"$HOME/control-input\" fixture:control-copy > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-input\" \"$FIXTURE_REMOTE_ROOT/control-copy\" || { echo 'CONTROL-FAILED OpenSSH scp over sftp-server'; exit 98; }\nmkdir downloads\nchmod 751 'remote/source tree/nested'\nchmod 640 'remote/source tree/nested/one file'\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-command.out",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json"
+      ],
+      "comparison": "Status, asserted observations, expected bytes, and full workspace tree including modes; raw client output, transport argv, and protocol captures retained under HOME. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "OpenSSH scp over the independent OpenSSH sftp-server via a local SSH-shaped adapter; candidate uses its command-stream adapter. The setup separately proves both adapter paths, with no network or authentication claim.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin scp --openssh -r \"fixture:source tree\" downloads > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/scp -S \"$H\" -r \"fixture:source tree\" downloads > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=0\npeer-stage=observed\n",
+      "expected_files": {
+        "downloads/source tree/nested/one file": "one\n",
+        "downloads/source tree/top": "top\n"
+      }
+    },
+    {
+      "id": "migration-transfer-scp-recursive-upload-command-r3",
+      "loadable": "scp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "remote-recursive-copy: scp-recursive-upload-command",
+      "covers": [
+        "scp/remote-recursive-copy"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "scp",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "source tree/nested/one file": "one\n",
+        "source tree/top": "top\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\n[[ -x \"$H\" && -x /usr/lib/openssh/sftp-server ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED command adapter'; exit 98; }\nprintf 'control-copy\\n' > \"$HOME/control-input\"\n/usr/bin/scp -S \"$H\" \"$HOME/control-input\" fixture:control-copy > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-input\" \"$FIXTURE_REMOTE_ROOT/control-copy\" || { echo 'CONTROL-FAILED OpenSSH scp over sftp-server'; exit 98; }\nmkdir remote/uploads\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-command.out",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json"
+      ],
+      "comparison": "Candidate status and resulting bytes plus the exact command captured by the adapter; reference parity is evaluated in separate fixtures. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "Documented command-stream contract for recursive scp: exact tar command, independently controlled local adapter and expected file contents. The separate parity cases use the stock OpenSSH scp and sftp-server as the file-effect reference.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin scp --openssh -r \"source tree\" fixture:uploads > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - \"$HOME/peer.jsonl\" <<'PY'\nimport json,pathlib,sys\na=[json.loads(line) for line in pathlib.Path(sys.argv[1]).read_text().splitlines()]\nexpected=\"mkdir -p 'uploads' && tar -xf - -C 'uploads'\"\nprint('tar-request=%d' % (len(a)==1 and a[0][-1]==expected))\nPY\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=0\ntar-request=1\npeer-stage=observed\n",
+      "expected_files": {
+        "remote/uploads/source tree/nested/one file": "one\n",
+        "remote/uploads/source tree/top": "top\n"
+      }
+    },
+    {
+      "id": "migration-transfer-scp-recursive-download-command-r3",
+      "loadable": "scp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "remote-recursive-copy: scp-recursive-download-command",
+      "covers": [
+        "scp/remote-recursive-copy"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "scp",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "remote/source tree/nested/one file": "one\n",
+        "remote/source tree/top": "top\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\n[[ -x \"$H\" && -x /usr/lib/openssh/sftp-server ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED command adapter'; exit 98; }\nprintf 'control-copy\\n' > \"$HOME/control-input\"\n/usr/bin/scp -S \"$H\" \"$HOME/control-input\" fixture:control-copy > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-input\" \"$FIXTURE_REMOTE_ROOT/control-copy\" || { echo 'CONTROL-FAILED OpenSSH scp over sftp-server'; exit 98; }\nmkdir downloads\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-command.out",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json"
+      ],
+      "comparison": "Candidate status and resulting bytes plus the exact command captured by the adapter; reference parity is evaluated in separate fixtures. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "Documented command-stream contract for recursive scp: exact tar command, independently controlled local adapter and expected file contents. The separate parity cases use the stock OpenSSH scp and sftp-server as the file-effect reference.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin scp --openssh -r \"fixture:source tree\" downloads > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - \"$HOME/peer.jsonl\" <<'PY'\nimport json,pathlib,sys\na=[json.loads(line) for line in pathlib.Path(sys.argv[1]).read_text().splitlines()]\nexpected=\"tar -cf - -C '.' 'source tree' 2>/dev/null\"\nprint('tar-request=%d' % (len(a)==1 and a[0][-1]==expected))\nPY\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=0\ntar-request=1\npeer-stage=observed\n",
+      "expected_files": {
+        "downloads/source tree/nested/one file": "one\n",
+        "downloads/source tree/top": "top\n"
+      }
+    },
+    {
+      "id": "migration-transfer-scp-remote-to-remote-refused-r3",
+      "loadable": "scp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "remote-protocols: scp-remote-to-remote-refused",
+      "covers": [
+        "scp/remote-protocols"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "scp",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "remote/sentinel": "unchanged\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\n[[ -x \"$H\" && -x /usr/lib/openssh/sftp-server ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED command adapter'; exit 98; }\nprintf 'control-copy\\n' > \"$HOME/control-input\"\n/usr/bin/scp -S \"$H\" \"$HOME/control-input\" fixture:control-copy > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-input\" \"$FIXTURE_REMOTE_ROOT/control-copy\" || { echo 'CONTROL-FAILED OpenSSH scp over sftp-server'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-command.out",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json"
+      ],
+      "comparison": "Status, asserted observations, expected bytes, and full workspace tree including modes; raw client output, transport argv, and protocol captures retained under HOME. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "The explicit documented scp subset refuses remote-to-remote copies before contacting a transport; no upstream OpenSSH refusal is assumed.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin scp --openssh fixture:one fixture:two > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\n[[ $rc -ne 0 ]] && printf 'status=nonzero\\n' || printf 'status=zero\\n'\n/usr/bin/grep -qi 'remote-to-remote' \"$HOME/client.stderr\" && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n[[ ! -s \"$HOME/copy-invocations.jsonl\" ]] && printf 'transport=unused\\n' || printf 'transport=used\\n'\n",
+      "stdout": "status=nonzero\ndiagnostic=yes\ntransport=unused\n",
+      "expected_files": {
+        "remote/sentinel": "unchanged\n"
+      }
+    },
+    {
+      "id": "migration-transfer-rsync-rsh-push-r3",
+      "loadable": "rsync",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "rsh-push-requires-peer: rsync-rsh-push",
+      "covers": [
+        "rsync/rsh-push-requires-peer"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "rsync",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "source/sub/quote ' and space.txt": "quoted\n",
+        "source/top": "top\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"rsync\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$HOME/control-source\" \"$HOME/control-dest\" remote\nprintf 'independent-control\\n' > \"$HOME/control-source/control-name\"\n\"$H\" fixture \"rsync --server-send '$HOME/control-source' contents\" > \"$HOME/control-brt1.bin\"\n/usr/bin/python3 - \"$HOME/control-brt1.bin\" <<'PY'\nimport pathlib,struct,sys\nb=pathlib.Path(sys.argv[1]).read_bytes(); assert b[:4]==b'bRT1' and b[4:5]==b'F'\nn=struct.unpack_from('<H',b,5)[0]; assert b[7:7+n]==b'control-name'\np=7+n+20; size=struct.unpack_from('<Q',b,p)[0]; p+=8\nassert b[p:p+size]==b'independent-control\\n' and b[p+size:]==b'E'\nPY\n/usr/bin/timeout --foreground --signal=TERM --kill-after=3s 24s /usr/bin/rsync  -a -e \"$H\" \"$HOME/control-source/\" \"fixture:$HOME/control-dest/\" > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-source/control-name\" \"$HOME/control-dest/control-name\" || { echo 'CONTROL-FAILED stock rsync server transfer'; exit 98; }\n/usr/bin/python3 - \"$HOME/control-protocol.bin\" <<'PY'\nimport pathlib,sys\nb=pathlib.Path(sys.argv[1]).read_bytes(); assert len(b)==4\nexpected=None\nassert expected is None or int.from_bytes(b, 'little')==expected\nPY\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"rsync\",\"fail\":true}' > \"$HOME/copy-config.json\"\nfailure=0\n\"$H\" fixture 'true' > \"$HOME/control-failure.out\" 2> \"$HOME/control-failure.err\" || failure=$?\n[[ $failure == 86 ]] || { echo 'CONTROL-FAILED injected transport failure'; exit 98; }\nmkdir -p remote/dest\nchmod 751 source/sub\nchmod 640 \"source/sub/quote ' and space.txt\"\n/usr/bin/python3 - \"$HOME/control-proxy.json\" <<'PYC'\nimport json,pathlib,sys\nr=json.loads(pathlib.Path(sys.argv[1]).read_text())\nassert r['child_status']==0 and r['error'] is None and not r['cleanup'] and r['client_bytes']>=4 and r['server_bytes']>=4\nPYC\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"rsync\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json",
+        "proxy.json",
+        "control-proxy.json",
+        "control-failure.err"
+      ],
+      "comparison": "Status, asserted observations, expected bytes, and full workspace tree including modes; raw client output, transport argv, and protocol captures retained under HOME. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "Stock rsync in the locked VM image via a local SSH-shaped adapter. Setup checks a stock remote transfer and separately validates a bRT1 tree stream against an independent decoder; native cases additionally require protocol 27. No network or authentication claim.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nbuiltin rsync -a -e \"$H\" source/ fixture:remote/dest/ > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/rsync -a -e \"$H\" source/ fixture:remote/dest/ > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=0\npeer-stage=observed\n",
+      "expected_files": {
+        "remote/dest/sub/quote ' and space.txt": "quoted\n",
+        "remote/dest/top": "top\n"
+      }
+    },
+    {
+      "id": "migration-transfer-rsync-rsh-push-script-r3",
+      "loadable": "rsync",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "rsh-push-requires-peer: rsync-rsh-push-script",
+      "covers": [
+        "rsync/rsh-push-requires-peer"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "rsync",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "source/sub/quote ' and space.txt": "quoted\n",
+        "source/top": "top\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"rsync\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$HOME/control-source\" \"$HOME/control-dest\" remote\nprintf 'independent-control\\n' > \"$HOME/control-source/control-name\"\n\"$H\" fixture \"rsync --server-send '$HOME/control-source' contents\" > \"$HOME/control-brt1.bin\"\n/usr/bin/python3 - \"$HOME/control-brt1.bin\" <<'PY'\nimport pathlib,struct,sys\nb=pathlib.Path(sys.argv[1]).read_bytes(); assert b[:4]==b'bRT1' and b[4:5]==b'F'\nn=struct.unpack_from('<H',b,5)[0]; assert b[7:7+n]==b'control-name'\np=7+n+20; size=struct.unpack_from('<Q',b,p)[0]; p+=8\nassert b[p:p+size]==b'independent-control\\n' and b[p+size:]==b'E'\nPY\n/usr/bin/timeout --foreground --signal=TERM --kill-after=3s 24s /usr/bin/rsync  -a -e \"$H\" \"$HOME/control-source/\" \"fixture:$HOME/control-dest/\" > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-source/control-name\" \"$HOME/control-dest/control-name\" || { echo 'CONTROL-FAILED stock rsync server transfer'; exit 98; }\n/usr/bin/python3 - \"$HOME/control-protocol.bin\" <<'PY'\nimport pathlib,sys\nb=pathlib.Path(sys.argv[1]).read_bytes(); assert len(b)==4\nexpected=None\nassert expected is None or int.from_bytes(b, 'little')==expected\nPY\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"rsync\",\"fail\":true}' > \"$HOME/copy-config.json\"\nfailure=0\n\"$H\" fixture 'true' > \"$HOME/control-failure.out\" 2> \"$HOME/control-failure.err\" || failure=$?\n[[ $failure == 86 ]] || { echo 'CONTROL-FAILED injected transport failure'; exit 98; }\nmkdir -p remote/dest\n/usr/bin/python3 - \"$HOME/control-proxy.json\" <<'PYC'\nimport json,pathlib,sys\nr=json.loads(pathlib.Path(sys.argv[1]).read_text())\nassert r['child_status']==0 and r['error'] is None and not r['cleanup'] and r['client_bytes']>=4 and r['server_bytes']>=4\nPYC\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"rsync\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json",
+        "proxy.json",
+        "control-proxy.json",
+        "control-failure.err"
+      ],
+      "comparison": "Status, asserted observations, expected bytes, and full workspace tree including modes; raw client output, transport argv, and protocol captures retained under HOME. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "Documented per-file command-stream contract: create a temporary file without clobbering, send bytes to it, then rename into place. The separate push case compares resulting file effects and modes with stock rsync.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nbuiltin rsync -a -e \"$H\" source/ fixture:remote/dest/ > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - \"$HOME/peer.jsonl\" <<'PY'\nimport json,pathlib,sys\ncommands=[json.loads(x)[-1] for x in pathlib.Path(sys.argv[1]).read_text().splitlines()]\nprint('atomic-script=%d' % any(all(s in c for s in ('set -C', 'cat > \"$t\"', 'mv -f \"$t\" \"$p\"', 'remote/dest/top')) for c in commands))\nPY\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=0\natomic-script=1\npeer-stage=observed\n",
+      "expected_files": {
+        "remote/dest/sub/quote ' and space.txt": "quoted\n",
+        "remote/dest/top": "top\n"
+      }
+    },
+    {
+      "id": "migration-transfer-rsync-rsh-pull-r3",
+      "loadable": "rsync",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "rsh-push-requires-peer: rsync-rsh-pull",
+      "covers": [
+        "rsync/rsh-push-requires-peer"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "rsync",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "remote/source/sub/quote ' and space.txt": "quoted\n",
+        "remote/source/top": "top\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"rsync\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$HOME/control-source\" \"$HOME/control-dest\" remote\nprintf 'independent-control\\n' > \"$HOME/control-source/control-name\"\n\"$H\" fixture \"rsync --server-send '$HOME/control-source' contents\" > \"$HOME/control-brt1.bin\"\n/usr/bin/python3 - \"$HOME/control-brt1.bin\" <<'PY'\nimport pathlib,struct,sys\nb=pathlib.Path(sys.argv[1]).read_bytes(); assert b[:4]==b'bRT1' and b[4:5]==b'F'\nn=struct.unpack_from('<H',b,5)[0]; assert b[7:7+n]==b'control-name'\np=7+n+20; size=struct.unpack_from('<Q',b,p)[0]; p+=8\nassert b[p:p+size]==b'independent-control\\n' and b[p+size:]==b'E'\nPY\n/usr/bin/timeout --foreground --signal=TERM --kill-after=3s 24s /usr/bin/rsync  -a -e \"$H\" \"$HOME/control-source/\" \"fixture:$HOME/control-dest/\" > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-source/control-name\" \"$HOME/control-dest/control-name\" || { echo 'CONTROL-FAILED stock rsync server transfer'; exit 98; }\n/usr/bin/python3 - \"$HOME/control-protocol.bin\" <<'PY'\nimport pathlib,sys\nb=pathlib.Path(sys.argv[1]).read_bytes(); assert len(b)==4\nexpected=None\nassert expected is None or int.from_bytes(b, 'little')==expected\nPY\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"rsync\",\"fail\":true}' > \"$HOME/copy-config.json\"\nfailure=0\n\"$H\" fixture 'true' > \"$HOME/control-failure.out\" 2> \"$HOME/control-failure.err\" || failure=$?\n[[ $failure == 86 ]] || { echo 'CONTROL-FAILED injected transport failure'; exit 98; }\nmkdir -p local/dest\nchmod 751 remote/source/sub\nchmod 640 \"remote/source/sub/quote ' and space.txt\"\n/usr/bin/python3 - \"$HOME/control-proxy.json\" <<'PYC'\nimport json,pathlib,sys\nr=json.loads(pathlib.Path(sys.argv[1]).read_text())\nassert r['child_status']==0 and r['error'] is None and not r['cleanup'] and r['client_bytes']>=4 and r['server_bytes']>=4\nPYC\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"rsync\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json",
+        "proxy.json",
+        "control-proxy.json",
+        "control-failure.err"
+      ],
+      "comparison": "Status, asserted observations, expected bytes, and full workspace tree including modes; raw client output, transport argv, and protocol captures retained under HOME. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "Stock rsync in the locked VM image via a local SSH-shaped adapter. Setup checks a stock remote transfer and separately validates a bRT1 tree stream against an independent decoder; native cases additionally require protocol 27. No network or authentication claim.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nbuiltin rsync -a -e \"$H\" fixture:remote/source/ local/dest/ > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/rsync -a -e \"$H\" fixture:remote/source/ local/dest/ > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=0\npeer-stage=observed\n",
+      "expected_files": {
+        "local/dest/sub/quote ' and space.txt": "quoted\n",
+        "local/dest/top": "top\n"
+      }
+    },
+    {
+      "id": "migration-transfer-rsync-rsh-failure-r3",
+      "loadable": "rsync",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "rsh-push-requires-peer: rsync-rsh-failure",
+      "covers": [
+        "rsync/rsh-push-requires-peer"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "rsync",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "source": "new\n",
+        "remote/existing": "before\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"rsync\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$HOME/control-source\" \"$HOME/control-dest\" remote\nprintf 'independent-control\\n' > \"$HOME/control-source/control-name\"\n\"$H\" fixture \"rsync --server-send '$HOME/control-source' contents\" > \"$HOME/control-brt1.bin\"\n/usr/bin/python3 - \"$HOME/control-brt1.bin\" <<'PY'\nimport pathlib,struct,sys\nb=pathlib.Path(sys.argv[1]).read_bytes(); assert b[:4]==b'bRT1' and b[4:5]==b'F'\nn=struct.unpack_from('<H',b,5)[0]; assert b[7:7+n]==b'control-name'\np=7+n+20; size=struct.unpack_from('<Q',b,p)[0]; p+=8\nassert b[p:p+size]==b'independent-control\\n' and b[p+size:]==b'E'\nPY\n/usr/bin/timeout --foreground --signal=TERM --kill-after=3s 24s /usr/bin/rsync  -a -e \"$H\" \"$HOME/control-source/\" \"fixture:$HOME/control-dest/\" > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-source/control-name\" \"$HOME/control-dest/control-name\" || { echo 'CONTROL-FAILED stock rsync server transfer'; exit 98; }\n/usr/bin/python3 - \"$HOME/control-protocol.bin\" <<'PY'\nimport pathlib,sys\nb=pathlib.Path(sys.argv[1]).read_bytes(); assert len(b)==4\nexpected=None\nassert expected is None or int.from_bytes(b, 'little')==expected\nPY\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"rsync\",\"fail\":true}' > \"$HOME/copy-config.json\"\nfailure=0\n\"$H\" fixture 'true' > \"$HOME/control-failure.out\" 2> \"$HOME/control-failure.err\" || failure=$?\n[[ $failure == 86 ]] || { echo 'CONTROL-FAILED injected transport failure'; exit 98; }\n/usr/bin/python3 - \"$HOME/control-proxy.json\" <<'PYC'\nimport json,pathlib,sys\nr=json.loads(pathlib.Path(sys.argv[1]).read_text())\nassert r['child_status']==0 and r['error'] is None and not r['cleanup'] and r['client_bytes']>=4 and r['server_bytes']>=4\nPYC\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"rsync\",\"fail\":true}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json",
+        "proxy.json",
+        "control-proxy.json",
+        "control-failure.err"
+      ],
+      "comparison": "Status, asserted observations, expected bytes, and full workspace tree including modes; raw client output, transport argv, and protocol captures retained under HOME. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "Stock rsync in the locked VM image via a local SSH-shaped adapter. Setup checks a stock remote transfer and separately validates a bRT1 tree stream against an independent decoder; native cases additionally require protocol 27. No network or authentication claim.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nbuiltin rsync -a -e \"$H\" source fixture:remote/existing > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\n[[ $rc -eq 0 ]] && printf 'status=zero\\n' || printf 'status=nonzero\\n'\n[[ -s \"$HOME/client.stderr\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and 'refused' in stages and 'fixture transport refused' in (p/'client.stderr').read_text(errors='replace')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/rsync -a -e \"$H\" source fixture:remote/existing > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\n[[ $rc -eq 0 ]] && printf 'status=zero\\n' || printf 'status=nonzero\\n'\n[[ -s \"$HOME/client.stderr\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and 'refused' in stages and 'fixture transport refused' in (p/'client.stderr').read_text(errors='replace')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=nonzero\ndiagnostic=yes\npeer-stage=observed\n",
+      "expected_files": {
+        "remote/existing": "before\n"
+      }
+    },
+    {
+      "id": "migration-transfer-rsync-native-push-r3",
+      "loadable": "rsync",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "native-protocol-requires-server: rsync-native-push",
+      "covers": [
+        "rsync/native-protocol-requires-server"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "rsync",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "source/sub/quote ' and space.txt": "quoted\n",
+        "source/top": "top\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"rsync\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$HOME/control-source\" \"$HOME/control-dest\" remote\nprintf 'independent-control\\n' > \"$HOME/control-source/control-name\"\n\"$H\" fixture \"rsync --server-send '$HOME/control-source' contents\" > \"$HOME/control-brt1.bin\"\n/usr/bin/python3 - \"$HOME/control-brt1.bin\" <<'PY'\nimport pathlib,struct,sys\nb=pathlib.Path(sys.argv[1]).read_bytes(); assert b[:4]==b'bRT1' and b[4:5]==b'F'\nn=struct.unpack_from('<H',b,5)[0]; assert b[7:7+n]==b'control-name'\np=7+n+20; size=struct.unpack_from('<Q',b,p)[0]; p+=8\nassert b[p:p+size]==b'independent-control\\n' and b[p+size:]==b'E'\nPY\n/usr/bin/timeout --foreground --signal=TERM --kill-after=3s 24s /usr/bin/rsync --protocol=27 -a -e \"$H\" \"$HOME/control-source/\" \"fixture:$HOME/control-dest/\" > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-source/control-name\" \"$HOME/control-dest/control-name\" || { echo 'CONTROL-FAILED stock rsync server transfer'; exit 98; }\n/usr/bin/python3 - \"$HOME/control-protocol.bin\" <<'PY'\nimport pathlib,sys\nb=pathlib.Path(sys.argv[1]).read_bytes(); assert len(b)==4\nexpected=27\nassert expected is None or int.from_bytes(b, 'little')==expected\nPY\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"rsync\",\"fail\":true}' > \"$HOME/copy-config.json\"\nfailure=0\n\"$H\" fixture 'true' > \"$HOME/control-failure.out\" 2> \"$HOME/control-failure.err\" || failure=$?\n[[ $failure == 86 ]] || { echo 'CONTROL-FAILED injected transport failure'; exit 98; }\nmkdir -p remote/dest\nchmod 751 source/sub\nchmod 640 \"source/sub/quote ' and space.txt\"\n/usr/bin/python3 - \"$HOME/control-proxy.json\" <<'PYC'\nimport json,pathlib,sys\nr=json.loads(pathlib.Path(sys.argv[1]).read_text())\nassert r['child_status']==0 and r['error'] is None and not r['cleanup'] and r['client_bytes']>=4 and r['server_bytes']>=4\nPYC\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"rsync\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json",
+        "proxy.json",
+        "control-proxy.json",
+        "control-failure.err"
+      ],
+      "comparison": "Status, asserted observations, expected bytes, and full workspace tree including modes; raw client output, transport argv, and protocol captures retained under HOME. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "Stock rsync in the locked VM image via a local SSH-shaped adapter. Setup checks a stock remote transfer and separately validates a bRT1 tree stream against an independent decoder; native cases additionally require protocol 27. No network or authentication claim.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nbuiltin rsync --native --rsync-path /usr/bin/rsync -a -e \"$H\" source/ fixture:remote/dest/ > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - \"$HOME/protocol.bin\" <<'PY'\nimport pathlib,sys\np=pathlib.Path(sys.argv[1]); print('protocol-27=%d' % (p.exists() and p.read_bytes()==b'\\x1b\\x00\\x00\\x00'))\nPY\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/rsync --protocol=27 -a -e \"$H\" source/ fixture:remote/dest/ > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - \"$HOME/protocol.bin\" <<'PY'\nimport pathlib,sys\np=pathlib.Path(sys.argv[1]); print('protocol-27=%d' % (p.exists() and p.read_bytes()==b'\\x1b\\x00\\x00\\x00'))\nPY\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=0\nprotocol-27=1\npeer-stage=observed\n",
+      "expected_files": {
+        "remote/dest/sub/quote ' and space.txt": "quoted\n",
+        "remote/dest/top": "top\n"
+      }
+    },
+    {
+      "id": "migration-transfer-rsync-native-pull-r3",
+      "loadable": "rsync",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "native-protocol-requires-server: rsync-native-pull",
+      "covers": [
+        "rsync/native-protocol-requires-server"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "rsync",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "remote/source/sub/quote ' and space.txt": "quoted\n",
+        "remote/source/top": "top\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"rsync\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$HOME/control-source\" \"$HOME/control-dest\" remote\nprintf 'independent-control\\n' > \"$HOME/control-source/control-name\"\n\"$H\" fixture \"rsync --server-send '$HOME/control-source' contents\" > \"$HOME/control-brt1.bin\"\n/usr/bin/python3 - \"$HOME/control-brt1.bin\" <<'PY'\nimport pathlib,struct,sys\nb=pathlib.Path(sys.argv[1]).read_bytes(); assert b[:4]==b'bRT1' and b[4:5]==b'F'\nn=struct.unpack_from('<H',b,5)[0]; assert b[7:7+n]==b'control-name'\np=7+n+20; size=struct.unpack_from('<Q',b,p)[0]; p+=8\nassert b[p:p+size]==b'independent-control\\n' and b[p+size:]==b'E'\nPY\n/usr/bin/timeout --foreground --signal=TERM --kill-after=3s 24s /usr/bin/rsync --protocol=27 -a -e \"$H\" \"$HOME/control-source/\" \"fixture:$HOME/control-dest/\" > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-source/control-name\" \"$HOME/control-dest/control-name\" || { echo 'CONTROL-FAILED stock rsync server transfer'; exit 98; }\n/usr/bin/python3 - \"$HOME/control-protocol.bin\" <<'PY'\nimport pathlib,sys\nb=pathlib.Path(sys.argv[1]).read_bytes(); assert len(b)==4\nexpected=27\nassert expected is None or int.from_bytes(b, 'little')==expected\nPY\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"rsync\",\"fail\":true}' > \"$HOME/copy-config.json\"\nfailure=0\n\"$H\" fixture 'true' > \"$HOME/control-failure.out\" 2> \"$HOME/control-failure.err\" || failure=$?\n[[ $failure == 86 ]] || { echo 'CONTROL-FAILED injected transport failure'; exit 98; }\nmkdir -p local/dest\nchmod 751 remote/source/sub\nchmod 640 \"remote/source/sub/quote ' and space.txt\"\n/usr/bin/python3 - \"$HOME/control-proxy.json\" <<'PYC'\nimport json,pathlib,sys\nr=json.loads(pathlib.Path(sys.argv[1]).read_text())\nassert r['child_status']==0 and r['error'] is None and not r['cleanup'] and r['client_bytes']>=4 and r['server_bytes']>=4\nPYC\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"rsync\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json",
+        "proxy.json",
+        "control-proxy.json",
+        "control-failure.err"
+      ],
+      "comparison": "Status, asserted observations, expected bytes, and full workspace tree including modes; raw client output, transport argv, and protocol captures retained under HOME. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "Stock rsync in the locked VM image via a local SSH-shaped adapter. Setup checks a stock remote transfer and separately validates a bRT1 tree stream against an independent decoder; native cases additionally require protocol 27. No network or authentication claim.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nbuiltin rsync --native --rsync-path /usr/bin/rsync -a -e \"$H\" fixture:remote/source/ local/dest/ > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - \"$HOME/protocol.bin\" <<'PY'\nimport pathlib,sys\np=pathlib.Path(sys.argv[1]); print('protocol-27=%d' % (p.exists() and p.read_bytes()==b'\\x1b\\x00\\x00\\x00'))\nPY\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/rsync --protocol=27 -a -e \"$H\" fixture:remote/source/ local/dest/ > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - \"$HOME/protocol.bin\" <<'PY'\nimport pathlib,sys\np=pathlib.Path(sys.argv[1]); print('protocol-27=%d' % (p.exists() and p.read_bytes()==b'\\x1b\\x00\\x00\\x00'))\nPY\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=0\nprotocol-27=1\npeer-stage=observed\n",
+      "expected_files": {
+        "local/dest/sub/quote ' and space.txt": "quoted\n",
+        "local/dest/top": "top\n"
+      }
+    },
+    {
+      "id": "migration-transfer-rsync-native-delta-r3",
+      "loadable": "rsync",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "native-protocol-requires-server: rsync-native-delta",
+      "covers": [
+        "rsync/native-protocol-requires-server"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "rsync",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "source/delta.bin": {
+          "base64": "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"
+        },
+        "remote/dest/delta.bin": {
+          "base64": "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"
+        }
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"rsync\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$HOME/control-source\" \"$HOME/control-dest\" remote\nprintf 'independent-control\\n' > \"$HOME/control-source/control-name\"\n\"$H\" fixture \"rsync --server-send '$HOME/control-source' contents\" > \"$HOME/control-brt1.bin\"\n/usr/bin/python3 - \"$HOME/control-brt1.bin\" <<'PY'\nimport pathlib,struct,sys\nb=pathlib.Path(sys.argv[1]).read_bytes(); assert b[:4]==b'bRT1' and b[4:5]==b'F'\nn=struct.unpack_from('<H',b,5)[0]; assert b[7:7+n]==b'control-name'\np=7+n+20; size=struct.unpack_from('<Q',b,p)[0]; p+=8\nassert b[p:p+size]==b'independent-control\\n' and b[p+size:]==b'E'\nPY\n/usr/bin/timeout --foreground --signal=TERM --kill-after=3s 24s /usr/bin/rsync --protocol=27 -a -e \"$H\" \"$HOME/control-source/\" \"fixture:$HOME/control-dest/\" > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-source/control-name\" \"$HOME/control-dest/control-name\" || { echo 'CONTROL-FAILED stock rsync server transfer'; exit 98; }\n/usr/bin/python3 - \"$HOME/control-protocol.bin\" <<'PY'\nimport pathlib,sys\nb=pathlib.Path(sys.argv[1]).read_bytes(); assert len(b)==4\nexpected=27\nassert expected is None or int.from_bytes(b, 'little')==expected\nPY\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"rsync\",\"fail\":true}' > \"$HOME/copy-config.json\"\nfailure=0\n\"$H\" fixture 'true' > \"$HOME/control-failure.out\" 2> \"$HOME/control-failure.err\" || failure=$?\n[[ $failure == 86 ]] || { echo 'CONTROL-FAILED injected transport failure'; exit 98; }\n/usr/bin/touch -t 202001010000 remote/dest/delta.bin\n/usr/bin/touch -t 202101010000 source/delta.bin\n/usr/bin/python3 - \"$HOME/control-proxy.json\" <<'PYC'\nimport json,pathlib,sys\nr=json.loads(pathlib.Path(sys.argv[1]).read_text())\nassert r['child_status']==0 and r['error'] is None and not r['cleanup'] and r['client_bytes']>=4 and r['server_bytes']>=4\nPYC\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"rsync\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json",
+        "proxy.json",
+        "control-proxy.json",
+        "control-failure.err"
+      ],
+      "comparison": "Status, asserted observations, expected bytes, and full workspace tree including modes; raw client output, transport argv, and protocol captures retained under HOME. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. Scratch configuration is byte-verified, and invocation is recorded before configuration; stock rsync uses a bounded full-duplex proxy with owned-child reap evidence.",
+      "oracle": "Stock rsync in the locked VM image via a local SSH-shaped adapter. Setup checks a stock remote transfer and separately validates a bRT1 tree stream against an independent decoder; native cases additionally require protocol 27. No network or authentication claim.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nbuiltin rsync --native --rsync-path /usr/bin/rsync -a -v -e \"$H\" source/ fixture:remote/dest/ > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - \"$HOME/protocol.bin\" <<'PY'\nimport pathlib,sys\np=pathlib.Path(sys.argv[1]); print('protocol-27=%d' % (p.exists() and p.read_bytes()==b'\\x1b\\x00\\x00\\x00'))\nPY\n/usr/bin/python3 - \"$HOME/client.stderr\" <<'PY'\nimport pathlib,re,sys\ns=pathlib.Path(sys.argv[1]).read_text(errors='replace'); m=re.search(r'native delta send .*?([0-9]+) copy',s)\nprint('delta-copy=%d' % bool(m and int(m.group(1))>0))\nPY\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/rsync --protocol=27 -a --stats -e \"$H\" source/ fixture:remote/dest/ > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - \"$HOME/protocol.bin\" <<'PY'\nimport pathlib,sys\np=pathlib.Path(sys.argv[1]); print('protocol-27=%d' % (p.exists() and p.read_bytes()==b'\\x1b\\x00\\x00\\x00'))\nPY\n/usr/bin/python3 - \"$HOME/client.stdout\" <<'PY'\nimport pathlib,re,sys\ns=pathlib.Path(sys.argv[1]).read_text(errors='replace'); m=re.search(r'Matched data:\\s*([0-9,]+) bytes',s)\nprint('delta-copy=%d' % bool(m and int(m.group(1).replace(',',''))>0))\nPY\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=0\nprotocol-27=1\ndelta-copy=1\npeer-stage=observed\n",
+      "expected_files": {
+        "remote/dest/delta.bin": {
+          "base64": "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"
+        }
+      }
+    }
+  ]
+}

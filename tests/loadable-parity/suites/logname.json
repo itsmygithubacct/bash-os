@@ -92,9 +92,14 @@
     },
     {
       "id": "successful-login-session",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify that a non-default controlled login-session identity is returned, and that spoofed environment values do not replace it.",
-      "reason": "glibc getlogin() reads /proc/self/loginuid (2000, written by the guest controller for legacy runs, guest.py:390) and maps it through passwd. Inside a user namespace the loginuid is translated to the inner id, so mapping 2000 to an inner uid with its own bind-mounted passwd row yields a non-default login name without privilege."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-logname-mapped-session-r1"
+        }
+      ]
     },
     {
       "id": "end-of-options",

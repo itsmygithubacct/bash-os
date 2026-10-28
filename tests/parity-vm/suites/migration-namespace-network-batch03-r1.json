@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-namespace-network-ss-full-repeat-r1",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ss/deferred_output_and_repeat_calls"
+      ],
+      "purpose": "An ENOSPC stdout failure is followed by a normal ss call in the same shell.",
+      "oracle": "Direct, guarded Linux syscall and /dev/full controls, plus raw independently decoded seccomp notification records where applicable.",
+      "comparison": "Fixed semantic statuses and markers; raw output, errno controls and bounded notification request/reply bytes are retained for independent review.",
+      "requires": [
+        "python3",
+        "systemd-detect-virt",
+        "ss"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-network-controls-r1.py": "83daad3cac27cbbb823c7c7f16cf48acb77294065683c7fa2a3f0658c614ccdf"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-network-controls-r1.py\n/usr/bin/python3 \"$H\" control devfull\n/usr/bin/python3 \"$H\" control diag-ok\n/usr/bin/ss -tn >\"$HOME/native-ss.raw\" 2>\"$HOME/native-ss.err\"\n",
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-network-controls-r1.py\n[[ $(type -t ss) == builtin ]] || exit 99\nss -tn >/dev/full 2>\"$HOME/full.err\"; a=$?\nss -tn >\"$HOME/recovered.out\" 2>\"$HOME/recovered.err\"; b=$?\nIFS= read -r h <\"$HOME/recovered.out\" || h=''\nif [[ $h == 'Netid'* ]]; then header=yes; else header=no; fi\nprintf 'full=%s recovered=%s header=%s\\n' \"$a\" \"$b\" \"$header\"\nprintf 'full=%s recovered=%s\\n' \"$a\" \"$b\" >\"$HOME/status.raw\"\n",
+      "diagnostic_files": [
+        "full-control.json",
+        "diag-control.json",
+        "full.err",
+        "recovered.out",
+        "recovered.err",
+        "status.raw",
+        "native-ss.raw",
+        "native-ss.err"
+      ],
+      "files": {},
+      "expected_status": 0,
+      "stdout": "full=1 recovered=0 header=yes\n",
+      "timeout": 45
+    },
+    {
+      "id": "migration-namespace-network-ss-version-normal-r1",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ss/deferred_output_and_repeat_calls"
+      ],
+      "purpose": "Check the live sock_diag version probe, a /dev/full failure and a later version in one shell.",
+      "oracle": "Direct, guarded Linux syscall and /dev/full controls, plus raw independently decoded seccomp notification records where applicable.",
+      "comparison": "Fixed semantic statuses and markers; raw output, errno controls and bounded notification request/reply bytes are retained for independent review.",
+      "requires": [
+        "python3",
+        "systemd-detect-virt",
+        "ss"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-network-controls-r1.py": "83daad3cac27cbbb823c7c7f16cf48acb77294065683c7fa2a3f0658c614ccdf"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-network-controls-r1.py\n/usr/bin/python3 \"$H\" control devfull\n/usr/bin/python3 \"$H\" control diag-ok\n/usr/bin/ss -tn >\"$HOME/native-ss.raw\" 2>\"$HOME/native-ss.err\"\n",
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-network-controls-r1.py\n[[ $(type -t ss) == builtin ]] || exit 99\nss --version >\"$HOME/version.out\" 2>\"$HOME/version.err\"; a=$?\nss --version >/dev/full 2>\"$HOME/full.err\"; b=$?\nss --version >\"$HOME/repeated.out\" 2>\"$HOME/repeated.err\"; c=$?\nv=$(<\"$HOME/version.out\"); w=$(<\"$HOME/repeated.out\")\nif [[ $v == *'sock_diag=ok'* && $w == *'sock_diag=ok'* ]]; then probe=ok; else probe=other; fi\nprintf 'first=%s full=%s repeated=%s probe=%s\\n' \"$a\" \"$b\" \"$c\" \"$probe\"\nprintf 'first=%s full=%s repeated=%s\\n' \"$a\" \"$b\" \"$c\" >\"$HOME/status.raw\"\n",
+      "diagnostic_files": [
+        "full-control.json",
+        "diag-control.json",
+        "version.out",
+        "version.err",
+        "full.err",
+        "repeated.out",
+        "repeated.err",
+        "status.raw",
+        "native-ss.raw",
+        "native-ss.err"
+      ],
+      "files": {},
+      "expected_status": 0,
+      "stdout": "first=0 full=1 repeated=0 probe=ok\n",
+      "timeout": 45
+    }
+  ]
+}

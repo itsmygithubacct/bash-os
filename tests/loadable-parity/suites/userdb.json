@@ -74,25 +74,43 @@
       "id": "defer-passwd-verification",
       "kind": "deferred",
       "purpose": "Built-in passwd-backed userdb verification, including success and wrong-password results.",
-      "reason": "No executed case. The built-in path re-executes /proc/self/exe running 'builtin passwd verify-fd', which reads PHCLIB_PASSWD/PHCLIB_SHADOW fixture files; this works in a plain shell case without privileges. An independent Argon2id PHC string must be supplied as fixture data."
+      "reason": "Remaining obligations: r1: Correct-password status and synthetic fixture controls were recorded, but independent password-hash verification was not recomputed under the no-crypto constraint.; r2: Wrong-password status and synthetic fixture controls were recorded, but independent password-hash verification was not recomputed under the no-crypto constraint.; r3: Private shadow swap and unchanged fixture bytes were recorded, but candidate file opens were not independently traced."
     },
     {
       "id": "defer-provider-lookup",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Configured provider lookup ordering, record validation, return-code handling, and timeout behavior.",
-      "reason": "No executed case runs a provider. The modern shell group's workspace is the fixed absolute path /tmp/parity-case inside the VM, so provider executables can be registered with absolute private paths; the historical 'only relative paths permitted' reason applied to the legacy bubblewrap runner, not to the VM driver."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-services-userdb-lookup"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-userdb-lookup-timeout"
+        }
+      ]
     },
     {
       "id": "defer-provider-registry",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Configured provider listing plus add-provider and remove-provider state and validation behavior.",
-      "reason": "Only the empty-chain listing executed. The modern shell group's workspace is the fixed absolute path /tmp/parity-case inside the VM, so provider executables can be registered with absolute private paths; the historical 'only relative paths permitted' reason applied to the legacy bubblewrap runner, not to the VM driver."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/userdb/list-empty-provider-chain"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-userdb-registry"
+        }
+      ]
     },
     {
       "id": "defer-ldap-password-fd",
       "kind": "deferred",
       "purpose": "LDAP provider password transport on fd 3, bounded output handling, timeout, and child cleanup.",
-      "reason": "No executed case runs a configured provider. The modern shell group's workspace is the fixed absolute path /tmp/parity-case inside the VM, so provider executables can be registered with absolute private paths; the historical 'only relative paths permitted' reason applied to the legacy bubblewrap runner, not to the VM driver."
+      "reason": "Remaining obligations: r4: The normal-completion child remained live until fixture cleanup; the timeout child was observed as a zombie, which does not prove final reaping."
     },
     {
       "id": "lookup-private-record-selection",

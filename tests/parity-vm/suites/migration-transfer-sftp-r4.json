@@ -1,0 +1,878 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-transfer-sftp-put-binary-r4",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "binary-get-put: sftp-put-binary",
+      "oracle": "OpenSSH sftp client against the actual OpenSSH sftp-server over a local fixture-only SSH-shaped adapter, using the same private remote tree. The candidate uses that adapter for its documented shell command-stream transport. Setup controls both adapter modes in the disposable VM; no SSH authentication or encrypted connection is claimed.",
+      "comparison": "Exact normalized status and explicitly checked observations, expected file bytes, and the complete per-side fixture tree including modes. Raw client output, diagnostics, and adapter argv are retained separately under HOME for review. No candidate output or errors are substituted for the reference. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. The adapter records invocation before reading a verified scratch configuration; the expected result also requires the relevant peer stage.",
+      "covers": [
+        "sftp/binary-get-put"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "grep",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-sftp-ssh-r3.py": "18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b"
+      },
+      "files": {
+        "commands.batch": "put \"payload bytes.bin\" \"remote bytes.bin\"\n",
+        "payload bytes.bin": {
+          "base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w=="
+        }
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-sftp-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == 18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-sftp-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"deny\":false}' > \"$HOME/sftp-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\nprintf 'control contents\\n' > \"$FIXTURE_REMOTE_ROOT/control-name\"\nprintf 'pwd\\nls\\n' > \"$HOME/control.batch\"\n[[ -x /usr/lib/openssh/sftp-server && -x \"$H\" ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED shell endpoint'; exit 98; }\n/usr/bin/sftp -b \"$HOME/control.batch\" -S \"$H\" fixture > \"$HOME/control-sftp.out\" 2> \"$HOME/control-sftp.err\"\n/usr/bin/grep -Fq 'control-name' \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED OpenSSH SFTP endpoint'; exit 98; }\n/usr/bin/grep -Fq \"$FIXTURE_REMOTE_ROOT\" \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED remote pwd'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"deny\":false}' > \"$HOME/sftp-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\"\n/usr/bin/cmp -s \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n",
+      "setup_timeout": 30,
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin sftp --openssh -b commands.batch fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/sftp -b commands.batch -S \"$H\" fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "stdout": "status=0\npeer-stage=observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "control-command.out",
+        "control-sftp.out",
+        "control-sftp.err",
+        "control-peer.jsonl",
+        "adapter-control.txt",
+        "sftp-invocations.jsonl",
+        "control-invocations.jsonl",
+        "sftp-config.json",
+        "sftp-case-config.json"
+      ],
+      "expected_files": {
+        "remote/remote bytes.bin": {
+          "base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w=="
+        }
+      }
+    },
+    {
+      "id": "migration-transfer-sftp-get-binary-r4",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "binary-get-put: sftp-get-binary",
+      "oracle": "OpenSSH sftp client against the actual OpenSSH sftp-server over a local fixture-only SSH-shaped adapter, using the same private remote tree. The candidate uses that adapter for its documented shell command-stream transport. Setup controls both adapter modes in the disposable VM; no SSH authentication or encrypted connection is claimed.",
+      "comparison": "Exact normalized status and explicitly checked observations, expected file bytes, and the complete per-side fixture tree including modes. Raw client output, diagnostics, and adapter argv are retained separately under HOME for review. No candidate output or errors are substituted for the reference. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. The adapter records invocation before reading a verified scratch configuration; the expected result also requires the relevant peer stage.",
+      "covers": [
+        "sftp/binary-get-put",
+        "sftp/session-navigation-listing"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "grep",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-sftp-ssh-r3.py": "18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b"
+      },
+      "files": {
+        "commands.batch": "get \"remote bytes.bin\" \"retrieved bytes.bin\"\n",
+        "remote/remote bytes.bin": {
+          "base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w=="
+        }
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-sftp-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == 18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-sftp-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"deny\":false}' > \"$HOME/sftp-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\nprintf 'control contents\\n' > \"$FIXTURE_REMOTE_ROOT/control-name\"\nprintf 'pwd\\nls\\n' > \"$HOME/control.batch\"\n[[ -x /usr/lib/openssh/sftp-server && -x \"$H\" ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED shell endpoint'; exit 98; }\n/usr/bin/sftp -b \"$HOME/control.batch\" -S \"$H\" fixture > \"$HOME/control-sftp.out\" 2> \"$HOME/control-sftp.err\"\n/usr/bin/grep -Fq 'control-name' \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED OpenSSH SFTP endpoint'; exit 98; }\n/usr/bin/grep -Fq \"$FIXTURE_REMOTE_ROOT\" \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED remote pwd'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"deny\":false}' > \"$HOME/sftp-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\"\n/usr/bin/cmp -s \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n",
+      "setup_timeout": 30,
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin sftp --openssh -b commands.batch fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/sftp -b commands.batch -S \"$H\" fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "stdout": "status=0\npeer-stage=observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "control-command.out",
+        "control-sftp.out",
+        "control-sftp.err",
+        "control-peer.jsonl",
+        "adapter-control.txt",
+        "sftp-invocations.jsonl",
+        "control-invocations.jsonl",
+        "sftp-config.json",
+        "sftp-case-config.json"
+      ],
+      "expected_files": {
+        "retrieved bytes.bin": {
+          "base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w=="
+        }
+      }
+    },
+    {
+      "id": "migration-transfer-sftp-put-binary-escaped-r4",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "binary-get-put: sftp-put-binary-escaped",
+      "oracle": "OpenSSH sftp client against the actual OpenSSH sftp-server over a local fixture-only SSH-shaped adapter, using the same private remote tree. The candidate uses that adapter for its documented shell command-stream transport. Setup controls both adapter modes in the disposable VM; no SSH authentication or encrypted connection is claimed.",
+      "comparison": "Exact normalized status and explicitly checked observations, expected file bytes, and the complete per-side fixture tree including modes. Raw client output, diagnostics, and adapter argv are retained separately under HOME for review. No candidate output or errors are substituted for the reference. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. The adapter records invocation before reading a verified scratch configuration; the expected result also requires the relevant peer stage.",
+      "covers": [
+        "sftp/binary-get-put"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "grep",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-sftp-ssh-r3.py": "18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b"
+      },
+      "files": {
+        "commands.batch": "put payload\\ bytes.bin remote\\ bytes.bin\n",
+        "payload bytes.bin": {
+          "base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w=="
+        }
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-sftp-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == 18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-sftp-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"deny\":false}' > \"$HOME/sftp-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\nprintf 'control contents\\n' > \"$FIXTURE_REMOTE_ROOT/control-name\"\nprintf 'pwd\\nls\\n' > \"$HOME/control.batch\"\n[[ -x /usr/lib/openssh/sftp-server && -x \"$H\" ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED shell endpoint'; exit 98; }\n/usr/bin/sftp -b \"$HOME/control.batch\" -S \"$H\" fixture > \"$HOME/control-sftp.out\" 2> \"$HOME/control-sftp.err\"\n/usr/bin/grep -Fq 'control-name' \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED OpenSSH SFTP endpoint'; exit 98; }\n/usr/bin/grep -Fq \"$FIXTURE_REMOTE_ROOT\" \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED remote pwd'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"deny\":false}' > \"$HOME/sftp-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\"\n/usr/bin/cmp -s \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n",
+      "setup_timeout": 30,
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin sftp --openssh -b commands.batch fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/sftp -b commands.batch -S \"$H\" fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "stdout": "status=0\npeer-stage=observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "control-command.out",
+        "control-sftp.out",
+        "control-sftp.err",
+        "control-peer.jsonl",
+        "adapter-control.txt",
+        "sftp-invocations.jsonl",
+        "control-invocations.jsonl",
+        "sftp-config.json",
+        "sftp-case-config.json"
+      ],
+      "expected_files": {
+        "remote/remote bytes.bin": {
+          "base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w=="
+        }
+      }
+    },
+    {
+      "id": "migration-transfer-sftp-get-binary-escaped-r4",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "binary-get-put: sftp-get-binary-escaped",
+      "oracle": "OpenSSH sftp client against the actual OpenSSH sftp-server over a local fixture-only SSH-shaped adapter, using the same private remote tree. The candidate uses that adapter for its documented shell command-stream transport. Setup controls both adapter modes in the disposable VM; no SSH authentication or encrypted connection is claimed.",
+      "comparison": "Exact normalized status and explicitly checked observations, expected file bytes, and the complete per-side fixture tree including modes. Raw client output, diagnostics, and adapter argv are retained separately under HOME for review. No candidate output or errors are substituted for the reference. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. The adapter records invocation before reading a verified scratch configuration; the expected result also requires the relevant peer stage.",
+      "covers": [
+        "sftp/binary-get-put"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "grep",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-sftp-ssh-r3.py": "18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b"
+      },
+      "files": {
+        "commands.batch": "get remote\\ bytes.bin retrieved\\ bytes.bin\n",
+        "remote/remote bytes.bin": {
+          "base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w=="
+        }
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-sftp-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == 18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-sftp-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"deny\":false}' > \"$HOME/sftp-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\nprintf 'control contents\\n' > \"$FIXTURE_REMOTE_ROOT/control-name\"\nprintf 'pwd\\nls\\n' > \"$HOME/control.batch\"\n[[ -x /usr/lib/openssh/sftp-server && -x \"$H\" ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED shell endpoint'; exit 98; }\n/usr/bin/sftp -b \"$HOME/control.batch\" -S \"$H\" fixture > \"$HOME/control-sftp.out\" 2> \"$HOME/control-sftp.err\"\n/usr/bin/grep -Fq 'control-name' \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED OpenSSH SFTP endpoint'; exit 98; }\n/usr/bin/grep -Fq \"$FIXTURE_REMOTE_ROOT\" \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED remote pwd'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"deny\":false}' > \"$HOME/sftp-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\"\n/usr/bin/cmp -s \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n",
+      "setup_timeout": 30,
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin sftp --openssh -b commands.batch fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/sftp -b commands.batch -S \"$H\" fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "stdout": "status=0\npeer-stage=observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "control-command.out",
+        "control-sftp.out",
+        "control-sftp.err",
+        "control-peer.jsonl",
+        "adapter-control.txt",
+        "sftp-invocations.jsonl",
+        "control-invocations.jsonl",
+        "sftp-config.json",
+        "sftp-case-config.json"
+      ],
+      "expected_files": {
+        "retrieved bytes.bin": {
+          "base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w=="
+        }
+      }
+    },
+    {
+      "id": "migration-transfer-sftp-local-verbs-r4",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "local-session-verbs: sftp-local-verbs",
+      "oracle": "OpenSSH sftp client against the actual OpenSSH sftp-server over a local fixture-only SSH-shaped adapter, using the same private remote tree. The candidate uses that adapter for its documented shell command-stream transport. Setup controls both adapter modes in the disposable VM; no SSH authentication or encrypted connection is claimed.",
+      "comparison": "Exact normalized status and explicitly checked observations, expected file bytes, and the complete per-side fixture tree including modes. Raw client output, diagnostics, and adapter argv are retained separately under HOME for review. No candidate output or errors are substituted for the reference. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. The adapter records invocation before reading a verified scratch configuration; the expected result also requires the relevant peer stage.",
+      "covers": [
+        "sftp/local-session-verbs"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "grep",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-sftp-ssh-r3.py": "18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b"
+      },
+      "files": {
+        "commands.batch": "lpwd\nlls \"local dir\"\nlcd \"local dir\"\nlpwd\nlls\n",
+        "local dir/needle-file": "needle\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-sftp-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == 18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-sftp-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"deny\":false}' > \"$HOME/sftp-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\nprintf 'control contents\\n' > \"$FIXTURE_REMOTE_ROOT/control-name\"\nprintf 'pwd\\nls\\n' > \"$HOME/control.batch\"\n[[ -x /usr/lib/openssh/sftp-server && -x \"$H\" ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED shell endpoint'; exit 98; }\n/usr/bin/sftp -b \"$HOME/control.batch\" -S \"$H\" fixture > \"$HOME/control-sftp.out\" 2> \"$HOME/control-sftp.err\"\n/usr/bin/grep -Fq 'control-name' \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED OpenSSH SFTP endpoint'; exit 98; }\n/usr/bin/grep -Fq \"$FIXTURE_REMOTE_ROOT\" \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED remote pwd'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"deny\":false}' > \"$HOME/sftp-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\"\n/usr/bin/cmp -s \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n",
+      "setup_timeout": 30,
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin sftp --openssh -b commands.batch fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - \"$HOME/client.stdout\" <<'PY'\nimport pathlib,sys\ns=pathlib.Path(sys.argv[1]).read_text(errors='replace')\nprint('lpwd-root=%d' % ('Local working directory: /tmp/parity-case\\n' in s))\nprint('lpwd-after-lcd=%d' % ('Local working directory: /tmp/parity-case/local dir\\n' in s))\nprint('lls-twice=%d' % (s.count('needle-file') >= 2))\nPY\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/sftp -b commands.batch -S \"$H\" fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - \"$HOME/client.stdout\" <<'PY'\nimport pathlib,sys\ns=pathlib.Path(sys.argv[1]).read_text(errors='replace')\nprint('lpwd-root=%d' % ('Local working directory: /tmp/parity-case\\n' in s))\nprint('lpwd-after-lcd=%d' % ('Local working directory: /tmp/parity-case/local dir\\n' in s))\nprint('lls-twice=%d' % (s.count('needle-file') >= 2))\nPY\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "stdout": "status=0\nlpwd-root=1\nlpwd-after-lcd=1\nlls-twice=1\npeer-stage=observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "control-command.out",
+        "control-sftp.out",
+        "control-sftp.err",
+        "control-peer.jsonl",
+        "adapter-control.txt",
+        "sftp-invocations.jsonl",
+        "control-invocations.jsonl",
+        "sftp-config.json",
+        "sftp-case-config.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-sftp-local-verbs-escaped-r4",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "local-session-verbs: sftp-local-verbs-escaped",
+      "oracle": "OpenSSH sftp client against the actual OpenSSH sftp-server over a local fixture-only SSH-shaped adapter, using the same private remote tree. The candidate uses that adapter for its documented shell command-stream transport. Setup controls both adapter modes in the disposable VM; no SSH authentication or encrypted connection is claimed.",
+      "comparison": "Exact normalized status and explicitly checked observations, expected file bytes, and the complete per-side fixture tree including modes. Raw client output, diagnostics, and adapter argv are retained separately under HOME for review. No candidate output or errors are substituted for the reference. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. The adapter records invocation before reading a verified scratch configuration; the expected result also requires the relevant peer stage.",
+      "covers": [
+        "sftp/local-session-verbs"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "grep",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-sftp-ssh-r3.py": "18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b"
+      },
+      "files": {
+        "commands.batch": "lpwd\nlls local\\ dir\nlcd local\\ dir\nlpwd\nlls\n",
+        "local dir/needle-file": "needle\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-sftp-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == 18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-sftp-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"deny\":false}' > \"$HOME/sftp-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\nprintf 'control contents\\n' > \"$FIXTURE_REMOTE_ROOT/control-name\"\nprintf 'pwd\\nls\\n' > \"$HOME/control.batch\"\n[[ -x /usr/lib/openssh/sftp-server && -x \"$H\" ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED shell endpoint'; exit 98; }\n/usr/bin/sftp -b \"$HOME/control.batch\" -S \"$H\" fixture > \"$HOME/control-sftp.out\" 2> \"$HOME/control-sftp.err\"\n/usr/bin/grep -Fq 'control-name' \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED OpenSSH SFTP endpoint'; exit 98; }\n/usr/bin/grep -Fq \"$FIXTURE_REMOTE_ROOT\" \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED remote pwd'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"deny\":false}' > \"$HOME/sftp-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\"\n/usr/bin/cmp -s \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n",
+      "setup_timeout": 30,
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin sftp --openssh -b commands.batch fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - \"$HOME/client.stdout\" <<'PY'\nimport pathlib,sys\ns=pathlib.Path(sys.argv[1]).read_text(errors='replace')\nprint('lpwd-root=%d' % ('Local working directory: /tmp/parity-case\\n' in s))\nprint('lpwd-after-lcd=%d' % ('Local working directory: /tmp/parity-case/local dir\\n' in s))\nprint('lls-twice=%d' % (s.count('needle-file') >= 2))\nPY\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/sftp -b commands.batch -S \"$H\" fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - \"$HOME/client.stdout\" <<'PY'\nimport pathlib,sys\ns=pathlib.Path(sys.argv[1]).read_text(errors='replace')\nprint('lpwd-root=%d' % ('Local working directory: /tmp/parity-case\\n' in s))\nprint('lpwd-after-lcd=%d' % ('Local working directory: /tmp/parity-case/local dir\\n' in s))\nprint('lls-twice=%d' % (s.count('needle-file') >= 2))\nPY\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "stdout": "status=0\nlpwd-root=1\nlpwd-after-lcd=1\nlls-twice=1\npeer-stage=observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "control-command.out",
+        "control-sftp.out",
+        "control-sftp.err",
+        "control-peer.jsonl",
+        "adapter-control.txt",
+        "sftp-invocations.jsonl",
+        "control-invocations.jsonl",
+        "sftp-config.json",
+        "sftp-case-config.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-sftp-denied-before-local-verbs-r4",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "local-session-verbs: sftp-denied-before-local-verbs",
+      "oracle": "OpenSSH sftp client against the actual OpenSSH sftp-server over a local fixture-only SSH-shaped adapter, using the same private remote tree. The candidate uses that adapter for its documented shell command-stream transport. Setup controls both adapter modes in the disposable VM; no SSH authentication or encrypted connection is claimed.",
+      "comparison": "Exact normalized status and explicitly checked observations, expected file bytes, and the complete per-side fixture tree including modes. Raw client output, diagnostics, and adapter argv are retained separately under HOME for review. No candidate output or errors are substituted for the reference. Failure statuses are compared as nonzero; the raw diagnostic and command trace are retained. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. The adapter records invocation before reading a verified scratch configuration; the expected result also requires the relevant peer stage.",
+      "covers": [
+        "sftp/local-session-verbs"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "grep",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-sftp-ssh-r3.py": "18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b"
+      },
+      "files": {
+        "commands.batch": "lpwd\nlls \"local dir\"\nlcd \"local dir\"\nput \"payload\" \"should-not-exist\"\n",
+        "local dir/payload": "secret\n",
+        "local dir/needle-file": "needle\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-sftp-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == 18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-sftp-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"deny\":false}' > \"$HOME/sftp-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\nprintf 'control contents\\n' > \"$FIXTURE_REMOTE_ROOT/control-name\"\nprintf 'pwd\\nls\\n' > \"$HOME/control.batch\"\n[[ -x /usr/lib/openssh/sftp-server && -x \"$H\" ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED shell endpoint'; exit 98; }\n/usr/bin/sftp -b \"$HOME/control.batch\" -S \"$H\" fixture > \"$HOME/control-sftp.out\" 2> \"$HOME/control-sftp.err\"\n/usr/bin/grep -Fq 'control-name' \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED OpenSSH SFTP endpoint'; exit 98; }\n/usr/bin/grep -Fq \"$FIXTURE_REMOTE_ROOT\" \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED remote pwd'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"deny\":true}' > \"$HOME/sftp-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\"\n/usr/bin/cmp -s \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n",
+      "setup_timeout": 30,
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin sftp --openssh -b commands.batch fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nif [[ $rc -eq 0 ]]; then printf 'status=zero\\n'; else printf 'status=nonzero\\n'; fi\n[[ -s \"$HOME/client.stderr\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n[[ $(/bin/pwd -P) == /tmp/parity-case ]] && printf 'local=unchanged\\n' || printf 'local=changed\\n'\n[[ -e remote/should-not-exist ]] && printf 'remote=changed\\n' || printf 'remote=unchanged\\n'\nif /usr/bin/grep -Eq 'Local working directory:|needle-file' \"$HOME/client.stdout\"; then printf 'local-output=present\\n'; else printf 'local-output=absent\\n'; fi\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid = valid and 'denied' in stages and 'fixture transport denied' in (p/'client.stderr').read_text(errors='replace')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/sftp -b commands.batch -S \"$H\" fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nif [[ $rc -eq 0 ]]; then printf 'status=zero\\n'; else printf 'status=nonzero\\n'; fi\n[[ -s \"$HOME/client.stderr\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n[[ $(/bin/pwd -P) == /tmp/parity-case ]] && printf 'local=unchanged\\n' || printf 'local=changed\\n'\n[[ -e remote/should-not-exist ]] && printf 'remote=changed\\n' || printf 'remote=unchanged\\n'\nif /usr/bin/grep -Eq 'Local working directory:|needle-file' \"$HOME/client.stdout\"; then printf 'local-output=present\\n'; else printf 'local-output=absent\\n'; fi\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid = valid and 'denied' in stages and 'fixture transport denied' in (p/'client.stderr').read_text(errors='replace')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "stdout": "status=nonzero\ndiagnostic=yes\nlocal=unchanged\nremote=unchanged\nlocal-output=absent\npeer-stage=observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "control-command.out",
+        "control-sftp.out",
+        "control-sftp.err",
+        "control-peer.jsonl",
+        "adapter-control.txt",
+        "sftp-invocations.jsonl",
+        "control-invocations.jsonl",
+        "sftp-config.json",
+        "sftp-case-config.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-sftp-mkdir-r4",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "remote-mutations-errors: sftp-mkdir",
+      "oracle": "OpenSSH sftp client against the actual OpenSSH sftp-server over a local fixture-only SSH-shaped adapter, using the same private remote tree. The candidate uses that adapter for its documented shell command-stream transport. Setup controls both adapter modes in the disposable VM; no SSH authentication or encrypted connection is claimed.",
+      "comparison": "Exact normalized status and explicitly checked observations, expected file bytes, and the complete per-side fixture tree including modes. Raw client output, diagnostics, and adapter argv are retained separately under HOME for review. No candidate output or errors are substituted for the reference. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. The adapter records invocation before reading a verified scratch configuration; the expected result also requires the relevant peer stage.",
+      "covers": [
+        "sftp/remote-mutations-errors"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "grep",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-sftp-ssh-r3.py": "18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b"
+      },
+      "files": {
+        "commands.batch": "mkdir created\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-sftp-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == 18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-sftp-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"deny\":false}' > \"$HOME/sftp-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\nprintf 'control contents\\n' > \"$FIXTURE_REMOTE_ROOT/control-name\"\nprintf 'pwd\\nls\\n' > \"$HOME/control.batch\"\n[[ -x /usr/lib/openssh/sftp-server && -x \"$H\" ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED shell endpoint'; exit 98; }\n/usr/bin/sftp -b \"$HOME/control.batch\" -S \"$H\" fixture > \"$HOME/control-sftp.out\" 2> \"$HOME/control-sftp.err\"\n/usr/bin/grep -Fq 'control-name' \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED OpenSSH SFTP endpoint'; exit 98; }\n/usr/bin/grep -Fq \"$FIXTURE_REMOTE_ROOT\" \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED remote pwd'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"deny\":false}' > \"$HOME/sftp-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\"\n/usr/bin/cmp -s \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n",
+      "setup_timeout": 30,
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin sftp --openssh -b commands.batch fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n[[ -d remote/created ]] && printf 'remote/created=present\\n' || printf 'remote/created=absent\\n'\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/sftp -b commands.batch -S \"$H\" fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n[[ -d remote/created ]] && printf 'remote/created=present\\n' || printf 'remote/created=absent\\n'\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "stdout": "status=0\nremote/created=present\npeer-stage=observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "control-command.out",
+        "control-sftp.out",
+        "control-sftp.err",
+        "control-peer.jsonl",
+        "adapter-control.txt",
+        "sftp-invocations.jsonl",
+        "control-invocations.jsonl",
+        "sftp-config.json",
+        "sftp-case-config.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-sftp-rmdir-r4",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "remote-mutations-errors: sftp-rmdir",
+      "oracle": "OpenSSH sftp client against the actual OpenSSH sftp-server over a local fixture-only SSH-shaped adapter, using the same private remote tree. The candidate uses that adapter for its documented shell command-stream transport. Setup controls both adapter modes in the disposable VM; no SSH authentication or encrypted connection is claimed.",
+      "comparison": "Exact normalized status and explicitly checked observations, expected file bytes, and the complete per-side fixture tree including modes. Raw client output, diagnostics, and adapter argv are retained separately under HOME for review. No candidate output or errors are substituted for the reference. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. The adapter records invocation before reading a verified scratch configuration; the expected result also requires the relevant peer stage.",
+      "covers": [
+        "sftp/remote-mutations-errors"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "grep",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-sftp-ssh-r3.py": "18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b"
+      },
+      "files": {
+        "commands.batch": "rmdir empty\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-sftp-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == 18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-sftp-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"deny\":false}' > \"$HOME/sftp-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\nprintf 'control contents\\n' > \"$FIXTURE_REMOTE_ROOT/control-name\"\nprintf 'pwd\\nls\\n' > \"$HOME/control.batch\"\n[[ -x /usr/lib/openssh/sftp-server && -x \"$H\" ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED shell endpoint'; exit 98; }\n/usr/bin/sftp -b \"$HOME/control.batch\" -S \"$H\" fixture > \"$HOME/control-sftp.out\" 2> \"$HOME/control-sftp.err\"\n/usr/bin/grep -Fq 'control-name' \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED OpenSSH SFTP endpoint'; exit 98; }\n/usr/bin/grep -Fq \"$FIXTURE_REMOTE_ROOT\" \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED remote pwd'; exit 98; }\nmkdir remote/empty\nprintf '%s\\n' '{\"phase\":\"case\",\"deny\":false}' > \"$HOME/sftp-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\"\n/usr/bin/cmp -s \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n",
+      "setup_timeout": 30,
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin sftp --openssh -b commands.batch fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n[[ -e remote/empty ]] && v=present || v=absent\nprintf \"remote/empty=%s\\n\" \"$v\"\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/sftp -b commands.batch -S \"$H\" fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n[[ -e remote/empty ]] && v=present || v=absent\nprintf \"remote/empty=%s\\n\" \"$v\"\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "stdout": "status=0\nremote/empty=absent\npeer-stage=observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "control-command.out",
+        "control-sftp.out",
+        "control-sftp.err",
+        "control-peer.jsonl",
+        "adapter-control.txt",
+        "sftp-invocations.jsonl",
+        "control-invocations.jsonl",
+        "sftp-config.json",
+        "sftp-case-config.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-sftp-rename-r4",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "remote-mutations-errors: sftp-rename",
+      "oracle": "OpenSSH sftp client against the actual OpenSSH sftp-server over a local fixture-only SSH-shaped adapter, using the same private remote tree. The candidate uses that adapter for its documented shell command-stream transport. Setup controls both adapter modes in the disposable VM; no SSH authentication or encrypted connection is claimed.",
+      "comparison": "Exact normalized status and explicitly checked observations, expected file bytes, and the complete per-side fixture tree including modes. Raw client output, diagnostics, and adapter argv are retained separately under HOME for review. No candidate output or errors are substituted for the reference. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. The adapter records invocation before reading a verified scratch configuration; the expected result also requires the relevant peer stage.",
+      "covers": [
+        "sftp/remote-mutations-errors"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "grep",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-sftp-ssh-r3.py": "18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b"
+      },
+      "files": {
+        "commands.batch": "rename old new\n",
+        "remote/old": "content\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-sftp-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == 18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-sftp-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"deny\":false}' > \"$HOME/sftp-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\nprintf 'control contents\\n' > \"$FIXTURE_REMOTE_ROOT/control-name\"\nprintf 'pwd\\nls\\n' > \"$HOME/control.batch\"\n[[ -x /usr/lib/openssh/sftp-server && -x \"$H\" ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED shell endpoint'; exit 98; }\n/usr/bin/sftp -b \"$HOME/control.batch\" -S \"$H\" fixture > \"$HOME/control-sftp.out\" 2> \"$HOME/control-sftp.err\"\n/usr/bin/grep -Fq 'control-name' \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED OpenSSH SFTP endpoint'; exit 98; }\n/usr/bin/grep -Fq \"$FIXTURE_REMOTE_ROOT\" \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED remote pwd'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"deny\":false}' > \"$HOME/sftp-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\"\n/usr/bin/cmp -s \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n",
+      "setup_timeout": 30,
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin sftp --openssh -b commands.batch fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n[[ -e remote/old ]] && v=present || v=absent\nprintf \"remote/old=%s\\n\" \"$v\"\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/sftp -b commands.batch -S \"$H\" fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n[[ -e remote/old ]] && v=present || v=absent\nprintf \"remote/old=%s\\n\" \"$v\"\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "stdout": "status=0\nremote/old=absent\npeer-stage=observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "control-command.out",
+        "control-sftp.out",
+        "control-sftp.err",
+        "control-peer.jsonl",
+        "adapter-control.txt",
+        "sftp-invocations.jsonl",
+        "control-invocations.jsonl",
+        "sftp-config.json",
+        "sftp-case-config.json"
+      ],
+      "expected_files": {
+        "remote/new": "content\n"
+      }
+    },
+    {
+      "id": "migration-transfer-sftp-chmod-r4",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "remote-mutations-errors: sftp-chmod",
+      "oracle": "OpenSSH sftp client against the actual OpenSSH sftp-server over a local fixture-only SSH-shaped adapter, using the same private remote tree. The candidate uses that adapter for its documented shell command-stream transport. Setup controls both adapter modes in the disposable VM; no SSH authentication or encrypted connection is claimed.",
+      "comparison": "Exact normalized status and explicitly checked observations, expected file bytes, and the complete per-side fixture tree including modes. Raw client output, diagnostics, and adapter argv are retained separately under HOME for review. No candidate output or errors are substituted for the reference. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. The adapter records invocation before reading a verified scratch configuration; the expected result also requires the relevant peer stage.",
+      "covers": [
+        "sftp/remote-mutations-errors"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "grep",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-sftp-ssh-r3.py": "18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b"
+      },
+      "files": {
+        "commands.batch": "chmod 600 modefile\n",
+        "remote/modefile": "content\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-sftp-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == 18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-sftp-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"deny\":false}' > \"$HOME/sftp-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\nprintf 'control contents\\n' > \"$FIXTURE_REMOTE_ROOT/control-name\"\nprintf 'pwd\\nls\\n' > \"$HOME/control.batch\"\n[[ -x /usr/lib/openssh/sftp-server && -x \"$H\" ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED shell endpoint'; exit 98; }\n/usr/bin/sftp -b \"$HOME/control.batch\" -S \"$H\" fixture > \"$HOME/control-sftp.out\" 2> \"$HOME/control-sftp.err\"\n/usr/bin/grep -Fq 'control-name' \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED OpenSSH SFTP endpoint'; exit 98; }\n/usr/bin/grep -Fq \"$FIXTURE_REMOTE_ROOT\" \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED remote pwd'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"deny\":false}' > \"$HOME/sftp-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\"\n/usr/bin/cmp -s \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n",
+      "setup_timeout": 30,
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin sftp --openssh -b commands.batch fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nprintf 'mode=%s\\n' \"$(/usr/bin/stat -c %a remote/modefile 2>/dev/null)\"\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/sftp -b commands.batch -S \"$H\" fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nprintf 'mode=%s\\n' \"$(/usr/bin/stat -c %a remote/modefile 2>/dev/null)\"\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "stdout": "status=0\nmode=600\npeer-stage=observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "control-command.out",
+        "control-sftp.out",
+        "control-sftp.err",
+        "control-peer.jsonl",
+        "adapter-control.txt",
+        "sftp-invocations.jsonl",
+        "control-invocations.jsonl",
+        "sftp-config.json",
+        "sftp-case-config.json"
+      ],
+      "expected_files": {
+        "remote/modefile": "content\n"
+      }
+    },
+    {
+      "id": "migration-transfer-sftp-rm-r4",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "remote-mutations-errors: sftp-rm",
+      "oracle": "OpenSSH sftp client against the actual OpenSSH sftp-server over a local fixture-only SSH-shaped adapter, using the same private remote tree. The candidate uses that adapter for its documented shell command-stream transport. Setup controls both adapter modes in the disposable VM; no SSH authentication or encrypted connection is claimed.",
+      "comparison": "Exact normalized status and explicitly checked observations, expected file bytes, and the complete per-side fixture tree including modes. Raw client output, diagnostics, and adapter argv are retained separately under HOME for review. No candidate output or errors are substituted for the reference. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. The adapter records invocation before reading a verified scratch configuration; the expected result also requires the relevant peer stage.",
+      "covers": [
+        "sftp/remote-mutations-errors"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "grep",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-sftp-ssh-r3.py": "18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b"
+      },
+      "files": {
+        "commands.batch": "rm target\n",
+        "remote/target": "delete me\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-sftp-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == 18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-sftp-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"deny\":false}' > \"$HOME/sftp-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\nprintf 'control contents\\n' > \"$FIXTURE_REMOTE_ROOT/control-name\"\nprintf 'pwd\\nls\\n' > \"$HOME/control.batch\"\n[[ -x /usr/lib/openssh/sftp-server && -x \"$H\" ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED shell endpoint'; exit 98; }\n/usr/bin/sftp -b \"$HOME/control.batch\" -S \"$H\" fixture > \"$HOME/control-sftp.out\" 2> \"$HOME/control-sftp.err\"\n/usr/bin/grep -Fq 'control-name' \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED OpenSSH SFTP endpoint'; exit 98; }\n/usr/bin/grep -Fq \"$FIXTURE_REMOTE_ROOT\" \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED remote pwd'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"deny\":false}' > \"$HOME/sftp-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\"\n/usr/bin/cmp -s \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n",
+      "setup_timeout": 30,
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin sftp --openssh -b commands.batch fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n[[ -e remote/target ]] && v=present || v=absent\nprintf \"remote/target=%s\\n\" \"$v\"\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/sftp -b commands.batch -S \"$H\" fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n[[ -e remote/target ]] && v=present || v=absent\nprintf \"remote/target=%s\\n\" \"$v\"\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "stdout": "status=0\nremote/target=absent\npeer-stage=observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "control-command.out",
+        "control-sftp.out",
+        "control-sftp.err",
+        "control-peer.jsonl",
+        "adapter-control.txt",
+        "sftp-invocations.jsonl",
+        "control-invocations.jsonl",
+        "sftp-config.json",
+        "sftp-case-config.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-sftp-missing-path-aborts-r4",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "remote-mutations-errors: sftp-missing-path-aborts",
+      "oracle": "OpenSSH sftp client against the actual OpenSSH sftp-server over a local fixture-only SSH-shaped adapter, using the same private remote tree. The candidate uses that adapter for its documented shell command-stream transport. Setup controls both adapter modes in the disposable VM; no SSH authentication or encrypted connection is claimed.",
+      "comparison": "Exact normalized status and explicitly checked observations, expected file bytes, and the complete per-side fixture tree including modes. Raw client output, diagnostics, and adapter argv are retained separately under HOME for review. No candidate output or errors are substituted for the reference. For the missing-path error, exit statuses are compared as zero/nonzero; stderr is checked for a diagnostic and the complete raw output is retained. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. The adapter records invocation before reading a verified scratch configuration; the expected result also requires the relevant peer stage.",
+      "covers": [
+        "sftp/remote-mutations-errors"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "grep",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-sftp-ssh-r3.py": "18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b"
+      },
+      "files": {
+        "commands.batch": "rm no-such-file\nmkdir after-error\nbye\n",
+        "remote/sentinel": "unchanged\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-sftp-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == 18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-sftp-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"deny\":false}' > \"$HOME/sftp-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\nprintf 'control contents\\n' > \"$FIXTURE_REMOTE_ROOT/control-name\"\nprintf 'pwd\\nls\\n' > \"$HOME/control.batch\"\n[[ -x /usr/lib/openssh/sftp-server && -x \"$H\" ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED shell endpoint'; exit 98; }\n/usr/bin/sftp -b \"$HOME/control.batch\" -S \"$H\" fixture > \"$HOME/control-sftp.out\" 2> \"$HOME/control-sftp.err\"\n/usr/bin/grep -Fq 'control-name' \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED OpenSSH SFTP endpoint'; exit 98; }\n/usr/bin/grep -Fq \"$FIXTURE_REMOTE_ROOT\" \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED remote pwd'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"deny\":false}' > \"$HOME/sftp-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\"\n/usr/bin/cmp -s \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n",
+      "setup_timeout": 30,
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin sftp --openssh -b commands.batch fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nif [[ $rc -eq 0 ]]; then printf 'status=zero\\n'; else printf 'status=nonzero\\n'; fi\n[[ -s \"$HOME/client.stderr\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n[[ -e remote/after-error ]] && printf 'after=present\\n' || printf 'after=absent\\n'\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nerr=(p/'client.stderr').read_text(errors='replace').lower()\ncommand=any(x.get('event')=='command' and 'rm' in x.get('command','') and 'no-such-file' in x.get('command','') for x in e)\nsftp='sftp-server' in stages and 'no-such-file' in err\nvalid=valid and (command or sftp) and ('no such file' in err or 'not found' in err)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/sftp -b commands.batch -S \"$H\" fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nif [[ $rc -eq 0 ]]; then printf 'status=zero\\n'; else printf 'status=nonzero\\n'; fi\n[[ -s \"$HOME/client.stderr\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n[[ -e remote/after-error ]] && printf 'after=present\\n' || printf 'after=absent\\n'\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nerr=(p/'client.stderr').read_text(errors='replace').lower()\ncommand=any(x.get('event')=='command' and 'rm' in x.get('command','') and 'no-such-file' in x.get('command','') for x in e)\nsftp='sftp-server' in stages and 'no-such-file' in err\nvalid=valid and (command or sftp) and ('no such file' in err or 'not found' in err)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "stdout": "status=nonzero\ndiagnostic=yes\nafter=absent\npeer-stage=observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "control-command.out",
+        "control-sftp.out",
+        "control-sftp.err",
+        "control-peer.jsonl",
+        "adapter-control.txt",
+        "sftp-invocations.jsonl",
+        "control-invocations.jsonl",
+        "sftp-config.json",
+        "sftp-case-config.json"
+      ],
+      "expected_files": {
+        "remote/sentinel": "unchanged\n"
+      }
+    },
+    {
+      "id": "migration-transfer-sftp-navigation-r4",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "session-navigation-listing: sftp-navigation",
+      "oracle": "OpenSSH sftp client against the actual OpenSSH sftp-server over a local fixture-only SSH-shaped adapter, using the same private remote tree. The candidate uses that adapter for its documented shell command-stream transport. Setup controls both adapter modes in the disposable VM; no SSH authentication or encrypted connection is claimed.",
+      "comparison": "Exact normalized status and explicitly checked observations, expected file bytes, and the complete per-side fixture tree including modes. Raw client output, diagnostics, and adapter argv are retained separately under HOME for review. No candidate output or errors are substituted for the reference. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. The adapter records invocation before reading a verified scratch configuration; the expected result also requires the relevant peer stage.",
+      "covers": [
+        "sftp/session-navigation-listing"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "grep",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-sftp-ssh-r3.py": "18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b"
+      },
+      "files": {
+        "commands.batch": "pwd\ncd \"space dir\"\npwd\nls\nbye\n",
+        "remote/space dir/navigation-needle": "contents\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-sftp-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == 18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-sftp-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"deny\":false}' > \"$HOME/sftp-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\nprintf 'control contents\\n' > \"$FIXTURE_REMOTE_ROOT/control-name\"\nprintf 'pwd\\nls\\n' > \"$HOME/control.batch\"\n[[ -x /usr/lib/openssh/sftp-server && -x \"$H\" ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED shell endpoint'; exit 98; }\n/usr/bin/sftp -b \"$HOME/control.batch\" -S \"$H\" fixture > \"$HOME/control-sftp.out\" 2> \"$HOME/control-sftp.err\"\n/usr/bin/grep -Fq 'control-name' \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED OpenSSH SFTP endpoint'; exit 98; }\n/usr/bin/grep -Fq \"$FIXTURE_REMOTE_ROOT\" \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED remote pwd'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"deny\":false}' > \"$HOME/sftp-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\"\n/usr/bin/cmp -s \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n",
+      "setup_timeout": 30,
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin sftp --openssh -b commands.batch fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - \"$HOME/client.stdout\" <<'PY'\nimport pathlib,sys\ns=pathlib.Path(sys.argv[1]).read_text(errors='replace')\nprint('pwd-initial=%d' % ('Remote working directory: /tmp/parity-case/remote\\n' in s))\nprint('pwd-after-cd=%d' % ('Remote working directory: /tmp/parity-case/remote/space dir\\n' in s))\nprint('listing=%d' % ('navigation-needle' in s))\nPY\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/sftp -b commands.batch -S \"$H\" fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - \"$HOME/client.stdout\" <<'PY'\nimport pathlib,sys\ns=pathlib.Path(sys.argv[1]).read_text(errors='replace')\nprint('pwd-initial=%d' % ('Remote working directory: /tmp/parity-case/remote\\n' in s))\nprint('pwd-after-cd=%d' % ('Remote working directory: /tmp/parity-case/remote/space dir\\n' in s))\nprint('listing=%d' % ('navigation-needle' in s))\nPY\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "stdout": "status=0\npwd-initial=1\npwd-after-cd=1\nlisting=1\npeer-stage=observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "control-command.out",
+        "control-sftp.out",
+        "control-sftp.err",
+        "control-peer.jsonl",
+        "adapter-control.txt",
+        "sftp-invocations.jsonl",
+        "control-invocations.jsonl",
+        "sftp-config.json",
+        "sftp-case-config.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-sftp-navigation-escaped-list-r4",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "session-navigation-listing: sftp-navigation-escaped-list",
+      "oracle": "OpenSSH sftp client against the actual OpenSSH sftp-server over a local fixture-only SSH-shaped adapter, using the same private remote tree. The candidate uses that adapter for its documented shell command-stream transport. Setup controls both adapter modes in the disposable VM; no SSH authentication or encrypted connection is claimed.",
+      "comparison": "Exact normalized status and explicitly checked observations, expected file bytes, and the complete per-side fixture tree including modes. Raw client output, diagnostics, and adapter argv are retained separately under HOME for review. No candidate output or errors are substituted for the reference. Adapter source is pinned; the guest-local executable copy is byte-compared and SHA-256 checked before any client runs. The adapter records invocation before reading a verified scratch configuration; the expected result also requires the relevant peer stage.",
+      "covers": [
+        "sftp/session-navigation-listing"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "grep",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-sftp-ssh-r3.py": "18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b"
+      },
+      "files": {
+        "commands.batch": "cd space\\ dir\nls\n",
+        "remote/space dir/navigation-needle": "contents\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-sftp-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == 18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-sftp-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"deny\":false}' > \"$HOME/sftp-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\nprintf 'control contents\\n' > \"$FIXTURE_REMOTE_ROOT/control-name\"\nprintf 'pwd\\nls\\n' > \"$HOME/control.batch\"\n[[ -x /usr/lib/openssh/sftp-server && -x \"$H\" ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED shell endpoint'; exit 98; }\n/usr/bin/sftp -b \"$HOME/control.batch\" -S \"$H\" fixture > \"$HOME/control-sftp.out\" 2> \"$HOME/control-sftp.err\"\n/usr/bin/grep -Fq 'control-name' \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED OpenSSH SFTP endpoint'; exit 98; }\n/usr/bin/grep -Fq \"$FIXTURE_REMOTE_ROOT\" \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED remote pwd'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"deny\":false}' > \"$HOME/sftp-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\"\n/usr/bin/cmp -s \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n",
+      "setup_timeout": 30,
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin sftp --openssh -b commands.batch fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - \"$HOME/client.stdout\" <<'PY'\nimport pathlib,sys\ns=pathlib.Path(sys.argv[1]).read_text(errors='replace')\nprint('listing=%d' % ('navigation-needle' in s))\nPY\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/sftp -b commands.batch -S \"$H\" fixture > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - \"$HOME/client.stdout\" <<'PY'\nimport pathlib,sys\ns=pathlib.Path(sys.argv[1]).read_text(errors='replace')\nprint('listing=%d' % ('navigation-needle' in s))\nPY\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\ne=[json.loads(x) for x in (p/'sftp-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid=('invoked' in stages and 'configured' in stages and 'error' not in stages)\nvalid=valid and ('command' in stages or 'sftp-server' in stages)\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "stdout": "status=0\nlisting=1\npeer-stage=observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "control-command.out",
+        "control-sftp.out",
+        "control-sftp.err",
+        "control-peer.jsonl",
+        "adapter-control.txt",
+        "sftp-invocations.jsonl",
+        "control-invocations.jsonl",
+        "sftp-config.json",
+        "sftp-case-config.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-sftp-native-frames-r4",
+      "loadable": "sftp",
+      "group": "network",
+      "driver": "network",
+      "peer": "bashssh",
+      "kind": "contract",
+      "purpose": "Record each BASHSSH1 request for session startup, quoted cd, and subsequent listing.",
+      "oracle": "Existing independent BASHSSH1 fixture decoder; hand-specified framing and literal canned pwd/cd/list replies. This is project-native plaintext framing, not encrypted SSH.",
+      "comparison": "Exact stdout, stderr, status, three ordered commands, header lengths, empty stdin and no trailing request bytes.",
+      "covers": [
+        "sftp/session-navigation-listing"
+      ],
+      "files": {
+        "commands.batch": "cd space\\ dir\nls\nbye\n"
+      },
+      "candidate_script": "builtin sftp --native -p \"$FIXTURE_PORT\" -b commands.batch 127.0.0.1",
+      "peer_replies": [
+        {
+          "cmd": "pwd",
+          "rc": 0,
+          "stdout": "/srv/fixture\n",
+          "stderr": ""
+        },
+        {
+          "cmd": "cd '/srv/fixture' && cd 'space dir' && pwd",
+          "rc": 0,
+          "stdout": "/srv/fixture/space dir\n",
+          "stderr": ""
+        },
+        {
+          "cmd": "cd '/srv/fixture/space dir' && ls -la",
+          "rc": 0,
+          "stdout": "navigation-needle\n",
+          "stderr": ""
+        }
+      ],
+      "expected_requests": [
+        {
+          "cmd": "pwd",
+          "header_lines": [
+            "cmd-len 3",
+            "stdin-len 0"
+          ],
+          "stdin_base64": "",
+          "trailing_bytes": 0
+        },
+        {
+          "cmd": "cd '/srv/fixture' && cd 'space dir' && pwd",
+          "header_lines": [
+            "cmd-len 42",
+            "stdin-len 0"
+          ],
+          "stdin_base64": "",
+          "trailing_bytes": 0
+        },
+        {
+          "cmd": "cd '/srv/fixture/space dir' && ls -la",
+          "header_lines": [
+            "cmd-len 37",
+            "stdin-len 0"
+          ],
+          "stdin_base64": "",
+          "trailing_bytes": 0
+        }
+      ],
+      "stdout": "Remote working directory: /srv/fixture\nnavigation-needle\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15
+    }
+  ]
+}

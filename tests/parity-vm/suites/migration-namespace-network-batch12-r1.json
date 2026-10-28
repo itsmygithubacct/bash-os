@@ -1,0 +1,132 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-namespace-network-mount-propagation-isolation-r1",
+      "loadable": "ns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ns/ns-mount-operations"
+      ],
+      "purpose": "Prove a shared sibling sees a control mount, then ns mount-private prevents propagation of a later mount.",
+      "oracle": "Same-state util-linux controls and independently read mountinfo, namespace identities, root links and child output.",
+      "comparison": "Exact semantic markers; raw native/candidate outputs, status, owned process and mount namespace observations retained.",
+      "requires": [
+        "python3",
+        "unshare",
+        "readlink",
+        "mount",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-propagation-r1.py": "76f79701952eeea0aac4e51c9a044f0b7e493672721edaadfa1c2b78643e9ed0"
+      },
+      "setup_script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n mapfile -t maps </proc/self/uid_map || exit 125\n (( ${#maps[@]} == 1 )) || exit 125\n read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-propagation-r1.py\nowner=$BASHPID\nFIXTURE_OUTER_MNT=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\") || exit 98\nexport FIXTURE_OUTER_MNT\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 \"$H\" isolation control\n",
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n mapfile -t maps </proc/self/uid_map || exit 125\n (( ${#maps[@]} == 1 )) || exit 125\n read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-propagation-r1.py\nowner=$BASHPID\nFIXTURE_OUTER_MNT=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\") || exit 98\nexport FIXTURE_OUTER_MNT\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 \"$H\" isolation run \"$BASH\"\n",
+      "files": {},
+      "diagnostic_files": [
+        "isolation-control.json",
+        "isolation-run.json"
+      ],
+      "expected_status": 0,
+      "stdout": "propagation-isolation=verified\n",
+      "timeout": 60,
+      "setup_timeout": 60
+    },
+    {
+      "id": "migration-namespace-network-spawn-propagation-modes-r1",
+      "loadable": "ns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ns/ns-spawn-child-exec"
+      ],
+      "purpose": "Compare private, slave and shared child mount propagation to native unshare while the parent namespace stays unchanged.",
+      "oracle": "Same-state util-linux controls and independently read mountinfo, namespace identities, root links and child output.",
+      "comparison": "Exact semantic markers; raw native/candidate outputs, status, owned process and mount namespace observations retained.",
+      "requires": [
+        "python3",
+        "unshare",
+        "readlink",
+        "mount",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-propagation-r1.py": "76f79701952eeea0aac4e51c9a044f0b7e493672721edaadfa1c2b78643e9ed0"
+      },
+      "setup_script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n mapfile -t maps </proc/self/uid_map || exit 125\n (( ${#maps[@]} == 1 )) || exit 125\n read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-propagation-r1.py\nowner=$BASHPID\nFIXTURE_OUTER_MNT=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\") || exit 98\nexport FIXTURE_OUTER_MNT\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 \"$H\" spawn-modes control\n",
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n mapfile -t maps </proc/self/uid_map || exit 125\n (( ${#maps[@]} == 1 )) || exit 125\n read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-propagation-r1.py\nowner=$BASHPID\nFIXTURE_OUTER_MNT=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\") || exit 98\nexport FIXTURE_OUTER_MNT\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 \"$H\" spawn-modes run \"$BASH\"\n",
+      "files": {},
+      "diagnostic_files": [
+        "spawn-modes-control.json",
+        "spawn-modes-run.json",
+        "spawn-native-private.json",
+        "spawn-native-slave.json",
+        "spawn-native-shared.json",
+        "spawn-candidate-private.json",
+        "spawn-candidate-slave.json",
+        "spawn-candidate-shared.json"
+      ],
+      "expected_status": 0,
+      "stdout": "spawn-propagation=verified\n",
+      "timeout": 60,
+      "setup_timeout": 60
+    },
+    {
+      "id": "migration-namespace-network-pivot-child-root-r1",
+      "loadable": "ns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ns/ns-pivot-root"
+      ],
+      "purpose": "Execute readlink and ls as children after pivoting into a minimal private root tree.",
+      "oracle": "Same-state util-linux controls and independently read mountinfo, namespace identities, root links and child output.",
+      "comparison": "Exact semantic markers; raw native/candidate outputs, status, owned process and mount namespace observations retained.",
+      "requires": [
+        "python3",
+        "unshare",
+        "readlink",
+        "mount",
+        "systemd-detect-virt",
+        "pivot_root",
+        "ls",
+        "ln"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-propagation-r1.py": "76f79701952eeea0aac4e51c9a044f0b7e493672721edaadfa1c2b78643e9ed0"
+      },
+      "setup_script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n mapfile -t maps </proc/self/uid_map || exit 125\n (( ${#maps[@]} == 1 )) || exit 125\n read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-propagation-r1.py\nowner=$BASHPID\nFIXTURE_OUTER_MNT=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\") || exit 98\nexport FIXTURE_OUTER_MNT\n[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n mapfile -t maps </proc/self/uid_map || exit 125\n (( ${#maps[@]} == 1 )) || exit 125\n read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-propagation-r1.py\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc pivot-runner.sh control >\"$HOME/pivot-native.out\" 2>\"$HOME/pivot-native.err\"\n[[ $(<\"$HOME/pivot-native.out\") == 'pivot=0 root=expected listing=expected' ]] || { echo 'CONTROL-FAILED pivot child' >&2; exit 98; }\n",
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n mapfile -t maps </proc/self/uid_map || exit 125\n (( ${#maps[@]} == 1 )) || exit 125\n read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-propagation-r1.py\nowner=$BASHPID\nFIXTURE_OUTER_MNT=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\") || exit 98\nexport FIXTURE_OUTER_MNT\n[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n mapfile -t maps </proc/self/uid_map || exit 125\n (( ${#maps[@]} == 1 )) || exit 125\n read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-propagation-r1.py\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc pivot-runner.sh run\n",
+      "files": {
+        "pivot.sh": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n mapfile -t maps </proc/self/uid_map || exit 125\n (( ${#maps[@]} == 1 )) || exit 125\n read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-propagation-r1.py\nowner=$BASHPID\ninside=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\") || exit 98\n[[ $EUID == 0 && -n $PARENT_MNT && $inside != \"$PARENT_MNT\" && $inside != \"$FIXTURE_OUTER_MNT\" ]] || exit 125\nmode=$1\n[[ $mode == control || $mode == run ]] || exit 98\nif [[ $mode == run ]]; then [[ $(type -t ns) == builtin ]] || exit 99; fi\n/usr/bin/mkdir \"pivot-child-$mode\" || exit 98\n/usr/bin/mount -t tmpfs -o size=1m tmpfs \"pivot-child-$mode\" || exit 98\nroot=$PWD/pivot-child-$mode\n/usr/bin/mkdir \"$root/old\" \"$root/usr\" \"$root/proc\" || exit 98\n/usr/bin/ln -s usr/lib \"$root/lib\" || exit 98\n/usr/bin/ln -s usr/lib64 \"$root/lib64\" || exit 98\n/usr/bin/mount --bind /usr \"$root/usr\" || exit 98\n/usr/bin/mount --bind /proc \"$root/proc\" || exit 98\nprintf 'marker\\n' >\"$root/marker\"\nexec 8</ 9>\"$HOME/pivot-$mode.raw\" 10>\"$HOME/pivot-$mode.err\"\nif [[ $mode == control ]]; then /usr/sbin/pivot_root \"$root\" \"$root/old\" >&9 2>&10; rc=$?; else ns pivot-root \"$root\" \"$root/old\" >&9 2>&10; rc=$?; fi\nprintf 'pivot=%s\\n' \"$rc\" >&9\nif ((rc!=0)); then printf 'pivot=%s\\n' \"$rc\"; exit \"$rc\"; fi\ncd / || exit 98\nrootlink=$(/usr/bin/readlink /proc/self/root) || exit 98\nlisting=$(/usr/bin/ls -A /) || exit 98\nif [[ $rootlink == / && / -ef /proc/self/root && /old -ef /proc/self/fd/8 ]]; then root_state=expected; else root_state=other; fi\nif [[ $listing == $'lib\\nlib64\\nmarker\\nold\\nproc\\nusr' ]]; then listing_state=expected; else listing_state=other; fi\nprintf 'pivot=%s root=%s listing=%s\\n' \"$rc\" \"$root_state\" \"$listing_state\" >&9\nprintf 'pivot=%s root=%s listing=%s\\n' \"$rc\" \"$root_state\" \"$listing_state\"\nprintf 'readlink=[%s]\\nlisting=[%s]\\n' \"$rootlink\" \"$listing\" >&9\n",
+        "pivot-runner.sh": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n mapfile -t maps </proc/self/uid_map || exit 125\n (( ${#maps[@]} == 1 )) || exit 125\n read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-propagation-r1.py\nowner=$BASHPID\nPARENT_MNT=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\") || exit 98\n[[ $EUID == 0 && -n $FIXTURE_OUTER_MNT && $PARENT_MNT != \"$FIXTURE_OUTER_MNT\" ]] || exit 125\nexport PARENT_MNT\n/usr/bin/unshare --mount --propagation private \"$BASH\" --noprofile --norc pivot.sh \"$1\"\n"
+      },
+      "diagnostic_files": [
+        "pivot-native.out",
+        "pivot-native.err",
+        "pivot-control.raw",
+        "pivot-control.err",
+        "pivot-run.raw",
+        "pivot-run.err"
+      ],
+      "expected_status": 0,
+      "stdout": "pivot=0 root=expected listing=expected\n",
+      "timeout": 60,
+      "setup_timeout": 60
+    }
+  ]
+}

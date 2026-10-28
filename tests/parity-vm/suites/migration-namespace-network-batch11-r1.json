@@ -1,0 +1,242 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-namespace-network-ss-netlink-retry-r1",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ss/deferred_netlink_protocol_errors"
+      ],
+      "purpose": "Inject EINTR, an unmatched sequence, a zero ACK, a valid row and dump completion, requiring only the correctly decoded row.",
+      "oracle": "An independent probe decodes and checks each injected netlink packet and errno; actual fallback rows are identified by a locally owned listener and raw proc data.",
+      "comparison": "Check explicit semantic marker; retain exact notification requests/replies, injected message bytes, independent decoding, proc rows, child identity and raw output/status.",
+      "requires": [
+        "python3",
+        "ip",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-netlink-fault-r1.py": "07f3a55af100057cebf979e2339e290f59457a5f5f61d55316079d3431b8ade2"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-netlink-fault-r1.py\n/usr/bin/python3 \"$H\" run retry control\n",
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-netlink-fault-r1.py\n/usr/bin/python3 \"$H\" run retry ss \"$BASH\"\n",
+      "diagnostic_files": [
+        "fault-control-retry.json",
+        "probe-retry.json",
+        "fault-control-retry.out",
+        "fault-control-retry.err",
+        "fault-ss-retry.json",
+        "fault-ss-retry.out",
+        "fault-ss-retry.err"
+      ],
+      "expected_status": 0,
+      "stdout": "ss-retry=verified\n",
+      "timeout": 45,
+      "setup_timeout": 45
+    },
+    {
+      "id": "migration-namespace-network-ss-netlink-malformed-r1",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ss/deferred_netlink_protocol_errors",
+        "ss/deferred_proc_fallback"
+      ],
+      "purpose": "Inject a valid row followed by a truncated header and require atomic proc fallback or an explicit error.",
+      "oracle": "An independent probe decodes and checks each injected netlink packet and errno; actual fallback rows are identified by a locally owned listener and raw proc data.",
+      "comparison": "Check explicit semantic marker; retain exact notification requests/replies, injected message bytes, independent decoding, proc rows, child identity and raw output/status.",
+      "requires": [
+        "python3",
+        "ip",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-netlink-fault-r1.py": "07f3a55af100057cebf979e2339e290f59457a5f5f61d55316079d3431b8ade2"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-netlink-fault-r1.py\n/usr/bin/python3 \"$H\" run malformed control\n",
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-netlink-fault-r1.py\n/usr/bin/python3 \"$H\" run malformed ss \"$BASH\"\n",
+      "diagnostic_files": [
+        "fault-control-malformed.json",
+        "probe-malformed.json",
+        "fault-control-malformed.out",
+        "fault-control-malformed.err",
+        "fault-ss-malformed.json",
+        "fault-ss-malformed.out",
+        "fault-ss-malformed.err"
+      ],
+      "expected_status": 0,
+      "stdout": "ss-malformed=verified\n",
+      "timeout": 45,
+      "setup_timeout": 45
+    },
+    {
+      "id": "migration-namespace-network-ss-netlink-error-r1",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ss/deferred_netlink_protocol_errors",
+        "ss/deferred_proc_fallback"
+      ],
+      "purpose": "Inject a valid row followed by NLMSG_ERROR and require no leaked partial rows or duplicate fallback rows.",
+      "oracle": "An independent probe decodes and checks each injected netlink packet and errno; actual fallback rows are identified by a locally owned listener and raw proc data.",
+      "comparison": "Check explicit semantic marker; retain exact notification requests/replies, injected message bytes, independent decoding, proc rows, child identity and raw output/status.",
+      "requires": [
+        "python3",
+        "ip",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-netlink-fault-r1.py": "07f3a55af100057cebf979e2339e290f59457a5f5f61d55316079d3431b8ade2"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-netlink-fault-r1.py\n/usr/bin/python3 \"$H\" run error control\n",
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-netlink-fault-r1.py\n/usr/bin/python3 \"$H\" run error ss \"$BASH\"\n",
+      "diagnostic_files": [
+        "fault-control-error.json",
+        "probe-error.json",
+        "fault-control-error.out",
+        "fault-control-error.err",
+        "fault-ss-error.json",
+        "fault-ss-error.out",
+        "fault-ss-error.err"
+      ],
+      "expected_status": 0,
+      "stdout": "ss-error=verified\n",
+      "timeout": 45,
+      "setup_timeout": 45
+    },
+    {
+      "id": "migration-namespace-network-ss-netlink-interrupt-r1",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ss/deferred_netlink_protocol_errors",
+        "ss/deferred_proc_fallback"
+      ],
+      "purpose": "Inject a valid row followed by DUMP_INTR; require retry or explicit diagnostic, with no leaked partial row.",
+      "oracle": "An independent probe decodes and checks each injected netlink packet and errno; actual fallback rows are identified by a locally owned listener and raw proc data.",
+      "comparison": "Check explicit semantic marker; retain exact notification requests/replies, injected message bytes, independent decoding, proc rows, child identity and raw output/status.",
+      "requires": [
+        "python3",
+        "ip",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-netlink-fault-r1.py": "07f3a55af100057cebf979e2339e290f59457a5f5f61d55316079d3431b8ade2"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-netlink-fault-r1.py\n/usr/bin/python3 \"$H\" run interrupt control\n",
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-netlink-fault-r1.py\n/usr/bin/python3 \"$H\" run interrupt ss \"$BASH\"\n",
+      "diagnostic_files": [
+        "fault-control-interrupt.json",
+        "probe-interrupt.json",
+        "fault-control-interrupt.out",
+        "fault-control-interrupt.err",
+        "fault-ss-interrupt.json",
+        "fault-ss-interrupt.out",
+        "fault-ss-interrupt.err"
+      ],
+      "expected_status": 0,
+      "stdout": "ss-interrupt=verified\n",
+      "timeout": 45,
+      "setup_timeout": 45
+    },
+    {
+      "id": "migration-namespace-network-netstat-netlink-malformed-r1",
+      "loadable": "netstat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "netstat/defer-transport-errors"
+      ],
+      "purpose": "Inject a valid row followed by a truncated header and require atomic fallback or a reported error.",
+      "oracle": "An independent probe decodes and checks each injected netlink packet and errno; actual fallback rows are identified by a locally owned listener and raw proc data.",
+      "comparison": "Check explicit semantic marker; retain exact notification requests/replies, injected message bytes, independent decoding, proc rows, child identity and raw output/status.",
+      "requires": [
+        "python3",
+        "ip",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-netlink-fault-r1.py": "07f3a55af100057cebf979e2339e290f59457a5f5f61d55316079d3431b8ade2"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-netlink-fault-r1.py\n/usr/bin/python3 \"$H\" run malformed control\n",
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-netlink-fault-r1.py\n/usr/bin/python3 \"$H\" run malformed netstat \"$BASH\"\n",
+      "diagnostic_files": [
+        "fault-control-malformed.json",
+        "probe-malformed.json",
+        "fault-control-malformed.out",
+        "fault-control-malformed.err",
+        "fault-netstat-malformed.json",
+        "fault-netstat-malformed.out",
+        "fault-netstat-malformed.err"
+      ],
+      "expected_status": 0,
+      "stdout": "netstat-malformed=verified\n",
+      "timeout": 45,
+      "setup_timeout": 45
+    },
+    {
+      "id": "migration-namespace-network-netstat-netlink-interrupt-r1",
+      "loadable": "netstat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "netstat/defer-transport-errors"
+      ],
+      "purpose": "Inject a valid row followed by DUMP_INTR and require a retry, atomic fallback or reported error.",
+      "oracle": "An independent probe decodes and checks each injected netlink packet and errno; actual fallback rows are identified by a locally owned listener and raw proc data.",
+      "comparison": "Check explicit semantic marker; retain exact notification requests/replies, injected message bytes, independent decoding, proc rows, child identity and raw output/status.",
+      "requires": [
+        "python3",
+        "ip",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-netlink-fault-r1.py": "07f3a55af100057cebf979e2339e290f59457a5f5f61d55316079d3431b8ade2"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-netlink-fault-r1.py\n/usr/bin/python3 \"$H\" run interrupt control\n",
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-netlink-fault-r1.py\n/usr/bin/python3 \"$H\" run interrupt netstat \"$BASH\"\n",
+      "diagnostic_files": [
+        "fault-control-interrupt.json",
+        "probe-interrupt.json",
+        "fault-control-interrupt.out",
+        "fault-control-interrupt.err",
+        "fault-netstat-interrupt.json",
+        "fault-netstat-interrupt.out",
+        "fault-netstat-interrupt.err"
+      ],
+      "expected_status": 0,
+      "stdout": "netstat-interrupt=verified\n",
+      "timeout": 45,
+      "setup_timeout": 45
+    }
+  ]
+}

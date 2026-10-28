@@ -1,0 +1,157 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "trace-vm-mlock-syscalls-small-r2",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Record actual mmap, mlock, munlock and munmap entry/exit events around a bounded try-lock small operation. Use guarded exact-child lifecycle controls and PTRACE_O_EXITKILL.",
+      "covers": [
+        "mlock/try-lock-operation"
+      ],
+      "oracle": "An independent libc mmap/mlock/munlock/munmap probe validates the owned-child ptrace observer and a deliberately altered unmap result is rejected before the candidate runs.",
+      "comparison": "Trace exact syscall numbers, arguments, addresses, return values, error flags and descriptor marker bytes; require absent mappings on precheck or matching ordered lock/unlock/unmap on operation paths. Retain pre-cleanup failure, pidfd, wait/signal, descriptor and cleanup observations.",
+      "requires": [
+        "python3",
+        "cp",
+        "chmod"
+      ],
+      "timeout": 40,
+      "setup_timeout": 60,
+      "helpers_sha256": {
+        "helpers/trace-vm-mlock-observer-r2.py": "93d7fdb2c588a1bd71439da856706f7cc8c889ac41145c1e5db61868869fe638",
+        "helpers/trace-vm-supervisor-r2.py": "75398c78e45c87aab5bf780340266e83d3119862a0d418110b04e77ad1f67a0e"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-mlock-observer-r2.py ./trace-vm-mlock-observer-r2.py\n/bin/chmod 0755 ./trace-vm-mlock-observer-r2.py\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-supervisor-r2.py ./trace-vm-supervisor-r2.py\n/bin/chmod 0755 ./trace-vm-supervisor-r2.py\n./trace-vm-supervisor-r2.py --selftest\n./trace-vm-mlock-observer-r2.py --control\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-mlock-observer-r2.py small\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "small: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "mlock-syscall-control.json",
+        "mlock-syscall-observation.json",
+        "mlock-trace-markers",
+        "mlock-trace-operation.out",
+        "mlock-trace-operation.err",
+        "trace-supervisor-control.json",
+        "mlock-syscall-lifecycle.jsonl"
+      ]
+    },
+    {
+      "id": "trace-vm-mlock-syscalls-large-r2",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Record actual mmap, mlock, munlock and munmap entry/exit events around a bounded try-lock large operation. Use guarded exact-child lifecycle controls and PTRACE_O_EXITKILL.",
+      "covers": [
+        "mlock/try-lock-operation"
+      ],
+      "oracle": "An independent libc mmap/mlock/munlock/munmap probe validates the owned-child ptrace observer and a deliberately altered unmap result is rejected before the candidate runs.",
+      "comparison": "Trace exact syscall numbers, arguments, addresses, return values, error flags and descriptor marker bytes; require absent mappings on precheck or matching ordered lock/unlock/unmap on operation paths. Retain pre-cleanup failure, pidfd, wait/signal, descriptor and cleanup observations.",
+      "requires": [
+        "python3",
+        "cp",
+        "chmod"
+      ],
+      "timeout": 40,
+      "setup_timeout": 60,
+      "helpers_sha256": {
+        "helpers/trace-vm-mlock-observer-r2.py": "93d7fdb2c588a1bd71439da856706f7cc8c889ac41145c1e5db61868869fe638",
+        "helpers/trace-vm-supervisor-r2.py": "75398c78e45c87aab5bf780340266e83d3119862a0d418110b04e77ad1f67a0e"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-mlock-observer-r2.py ./trace-vm-mlock-observer-r2.py\n/bin/chmod 0755 ./trace-vm-mlock-observer-r2.py\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-supervisor-r2.py ./trace-vm-supervisor-r2.py\n/bin/chmod 0755 ./trace-vm-supervisor-r2.py\n./trace-vm-supervisor-r2.py --selftest\n./trace-vm-mlock-observer-r2.py --control\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-mlock-observer-r2.py large\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "large: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "mlock-syscall-control.json",
+        "mlock-syscall-observation.json",
+        "mlock-trace-markers",
+        "mlock-trace-operation.out",
+        "mlock-trace-operation.err",
+        "trace-supervisor-control.json",
+        "mlock-syscall-lifecycle.jsonl"
+      ]
+    },
+    {
+      "id": "trace-vm-mlock-syscalls-precheck-r2",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Record actual mmap, mlock, munlock and munmap entry/exit events around a bounded try-lock precheck operation. Use guarded exact-child lifecycle controls and PTRACE_O_EXITKILL.",
+      "covers": [
+        "mlock/try-lock-operation"
+      ],
+      "oracle": "An independent libc mmap/mlock/munlock/munmap probe validates the owned-child ptrace observer and a deliberately altered unmap result is rejected before the candidate runs.",
+      "comparison": "Trace exact syscall numbers, arguments, addresses, return values, error flags and descriptor marker bytes; require absent mappings on precheck or matching ordered lock/unlock/unmap on operation paths. Retain pre-cleanup failure, pidfd, wait/signal, descriptor and cleanup observations.",
+      "requires": [
+        "python3",
+        "cp",
+        "chmod"
+      ],
+      "timeout": 40,
+      "setup_timeout": 60,
+      "helpers_sha256": {
+        "helpers/trace-vm-mlock-observer-r2.py": "93d7fdb2c588a1bd71439da856706f7cc8c889ac41145c1e5db61868869fe638",
+        "helpers/trace-vm-supervisor-r2.py": "75398c78e45c87aab5bf780340266e83d3119862a0d418110b04e77ad1f67a0e"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-mlock-observer-r2.py ./trace-vm-mlock-observer-r2.py\n/bin/chmod 0755 ./trace-vm-mlock-observer-r2.py\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-supervisor-r2.py ./trace-vm-supervisor-r2.py\n/bin/chmod 0755 ./trace-vm-supervisor-r2.py\n./trace-vm-supervisor-r2.py --selftest\n./trace-vm-mlock-observer-r2.py --control\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-mlock-observer-r2.py precheck\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "precheck: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "mlock-syscall-control.json",
+        "mlock-syscall-observation.json",
+        "mlock-trace-markers",
+        "mlock-trace-operation.out",
+        "mlock-trace-operation.err",
+        "trace-supervisor-control.json",
+        "mlock-syscall-lifecycle.jsonl"
+      ]
+    },
+    {
+      "id": "trace-vm-mlock-syscalls-round-r2",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Record actual mmap, mlock, munlock and munmap entry/exit events around a bounded try-lock round operation. Use guarded exact-child lifecycle controls and PTRACE_O_EXITKILL.",
+      "covers": [
+        "mlock/try-lock-operation"
+      ],
+      "oracle": "An independent libc mmap/mlock/munlock/munmap probe validates the owned-child ptrace observer and a deliberately altered unmap result is rejected before the candidate runs.",
+      "comparison": "Trace exact syscall numbers, arguments, addresses, return values, error flags and descriptor marker bytes; require absent mappings on precheck or matching ordered lock/unlock/unmap on operation paths. Retain pre-cleanup failure, pidfd, wait/signal, descriptor and cleanup observations.",
+      "requires": [
+        "python3",
+        "cp",
+        "chmod"
+      ],
+      "timeout": 40,
+      "setup_timeout": 60,
+      "helpers_sha256": {
+        "helpers/trace-vm-mlock-observer-r2.py": "93d7fdb2c588a1bd71439da856706f7cc8c889ac41145c1e5db61868869fe638",
+        "helpers/trace-vm-supervisor-r2.py": "75398c78e45c87aab5bf780340266e83d3119862a0d418110b04e77ad1f67a0e"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-mlock-observer-r2.py ./trace-vm-mlock-observer-r2.py\n/bin/chmod 0755 ./trace-vm-mlock-observer-r2.py\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-supervisor-r2.py ./trace-vm-supervisor-r2.py\n/bin/chmod 0755 ./trace-vm-supervisor-r2.py\n./trace-vm-supervisor-r2.py --selftest\n./trace-vm-mlock-observer-r2.py --control\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-mlock-observer-r2.py round\nrc=$?\nexit \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "round: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "mlock-syscall-control.json",
+        "mlock-syscall-observation.json",
+        "mlock-trace-markers",
+        "mlock-trace-operation.out",
+        "mlock-trace-operation.err",
+        "trace-supervisor-control.json",
+        "mlock-syscall-lifecycle.jsonl"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-namespace-network-unshare-user-inode-r1",
+      "loadable": "ns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ns/ns-unshare-namespaces"
+      ],
+      "purpose": "Create and map a user namespace in the candidate shell and compare its inode with independently created util-linux namespace state.",
+      "oracle": "Independent util-linux, procfs and direct Linux syscall controls with remembered owned child processes.",
+      "comparison": "Explicit semantic markers with raw child identities, namespace maps, direct syscall results and candidate/native output retained.",
+      "requires": [
+        "python3",
+        "unshare",
+        "nsenter",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-enter-r1.py": "30a944fabe37f19a63eb0885aacb1f0cd75a7f4321916adadd6c6b19a688c2af"
+      },
+      "setup_script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-enter-r1.py\nowner=$BASHPID\n/usr/bin/python3 \"$H\" snapshot \"$owner\" control-user-before.json\n/usr/bin/unshare --user --map-root-user /usr/bin/python3 \"$H\" inspect native-user\n/usr/bin/python3 \"$H\" compare-user control-user-before.json inspect-native-user.json\n",
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-enter-r1.py\n\"$BASH\" --noprofile --norc inner.sh\n",
+      "files": {
+        "inner.sh": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-enter-r1.py\n[[ $(type -t ns) == builtin ]] || exit 99\nowner=$BASHPID\n/usr/bin/python3 \"$H\" snapshot \"$owner\" user-before.json || exit 98\nns unshare user >\"$HOME/user.out\" 2>\"$HOME/user.err\"; a=$?\nif ((a!=0)); then printf 'unshare=%s\\n' \"$a\"; exit 98; fi\nns deny-setgroups >\"$HOME/deny.out\" 2>\"$HOME/deny.err\"; b=$?\nns map-uid 0 2000 1 >\"$HOME/uid.out\" 2>\"$HOME/uid.err\"; c=$?\nns map-gid 0 2000 1 >\"$HOME/gid.out\" 2>\"$HOME/gid.err\"; d=$?\nprintf 'unshare=%s deny=%s uid=%s gid=%s\\n' \"$a\" \"$b\" \"$c\" \"$d\"\nprintf 'unshare=%s deny=%s uid=%s gid=%s\\n' \"$a\" \"$b\" \"$c\" \"$d\" >\"$HOME/user-status.raw\"\n/usr/bin/python3 \"$H\" snapshot \"$owner\" user-after.json || exit 98\n/usr/bin/python3 \"$H\" compare-user user-before.json user-after.json\n"
+      },
+      "diagnostic_files": [
+        "control-user-before.json",
+        "inspect-native-user.json",
+        "user-before.json",
+        "user-after.json",
+        "compare-user.json",
+        "user.out",
+        "user.err",
+        "deny.out",
+        "deny.err",
+        "uid.out",
+        "uid.err",
+        "gid.out",
+        "gid.err",
+        "user-status.raw"
+      ],
+      "expected_status": 0,
+      "stdout": "unshare=0 deny=0 uid=0 gid=0\nuser-namespace=verified\n",
+      "timeout": 45,
+      "features": [
+        "userns"
+      ]
+    },
+    {
+      "id": "migration-namespace-network-spawn-unprivileged-pid-r1",
+      "loadable": "ns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ns/ns-spawn-child-exec"
+      ],
+      "purpose": "Require a PID namespace clone to fail EPERM for uid 2000 outside a user namespace, matching util-linux.",
+      "oracle": "Independent util-linux, procfs and direct Linux syscall controls with remembered owned child processes.",
+      "comparison": "Explicit semantic markers with raw child identities, namespace maps, direct syscall results and candidate/native output retained.",
+      "requires": [
+        "python3",
+        "unshare",
+        "nsenter",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-enter-r1.py": "30a944fabe37f19a63eb0885aacb1f0cd75a7f4321916adadd6c6b19a688c2af"
+      },
+      "setup_script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-enter-r1.py\n/usr/bin/unshare --pid --fork /usr/bin/true >\"$HOME/native.out\" 2>\"$HOME/native.err\" && { echo 'CONTROL-FAILED pid clone unexpectedly allowed' >&2; exit 98; }\nerr=$(<\"$HOME/native.err\"); [[ $err == *'Operation not permitted'* ]] || { echo 'CONTROL-FAILED unexpected native refusal' >&2; exit 98; }\n",
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-enter-r1.py\n[[ $EUID == 2000 && $(type -t ns) == builtin ]] || exit 99\nns spawn pid /usr/bin/true >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\"; rc=$?\nerr=$(<\"$HOME/candidate.err\"); verdict=other; [[ $err == *'Operation not permitted'* ]] && verdict=expected\nprintf 'spawn=%s diagnostic=%s\\n' \"$rc\" \"$verdict\"\nprintf 'spawn=%s\\n' \"$rc\" >\"$HOME/spawn-status.raw\"\n",
+      "files": {},
+      "diagnostic_files": [
+        "native.out",
+        "native.err",
+        "candidate.out",
+        "candidate.err",
+        "spawn-status.raw"
+      ],
+      "expected_status": 0,
+      "stdout": "spawn=1 diagnostic=expected\n",
+      "timeout": 45
+    }
+  ]
+}

@@ -55,7 +55,7 @@
       "id": "defer-unix-sockets",
       "kind": "deferred",
       "purpose": "Compare Unix listener and connected rows, legacy state labels, and queue fields using an independently encoded Unix diagnostic fixture.",
-      "reason": "No unix-socket fixture; unix sockets are scoped to the network namespace, so a private netns gives a deterministic table."
+      "reason": "Remaining obligations: r1: The listener has the correct path, type and decoded queue counts, but candidate prints LISTEN instead of LISTENING.; r2: The connected paths and decoded queues are present, but candidate prints ESTAB instead of CONNECTED.; r3: Candidate labels unix states with LISTEN/ESTAB rather than the required SS_* labels."
     },
     {
       "id": "defer-process-ownership",
@@ -67,7 +67,7 @@
       "id": "defer-transport-errors",
       "kind": "deferred",
       "purpose": "Exercise malformed and interrupted sock_diag dumps, per-family proc fallback, denied transports, and output-write failure recovery while checking exact status and rows.",
-      "reason": "r4 is implementable now. r1 cannot be produced by a bounded script: the kernel builds the sock_diag reply for a static binary and nothing in the VM lets a fixture forge or truncate those netlink messages. r2/r3 need the netlink socket to be refused, which needs a seccomp filter around the candidate."
+      "reason": "Remaining obligations: r2: Not exercised.; r3: Not exercised.; r4: Not exercised; no capability needed."
     }
   ]
 }

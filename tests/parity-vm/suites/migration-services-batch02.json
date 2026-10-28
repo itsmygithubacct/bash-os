@@ -1,0 +1,587 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-services-userdb-ldap-normal",
+      "loadable": "userdb",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Password sent on fd 3 without argv disclosure.",
+      "covers": [
+        "userdb/defer-ldap-password-fd"
+      ],
+      "oracle": "Literal operation contract; fixture-owned adapter and independent setup controls supply known bytes, statuses and process identities.",
+      "comparison": "Exact candidate status and observations, with bounded raw inputs, outputs, events and process observations retained separately. Missing later branches remain failures/gaps.",
+      "requires": [
+        "python3",
+        "setsid"
+      ],
+      "files": {
+        "passwd.empty": "",
+        "providers.empty": "",
+        "dummy-password": "fixture-password\n"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-auth.py \"$HOME/ldap-provider\"\n/usr/bin/chmod 700 \"$HOME/ldap-provider\"\nBASHUSERDB_VERIFY_FD=3 /usr/bin/setsid \"$HOME/ldap-provider\" verify external 3< dummy-password > \"$HOME/control.out\" 2> \"$HOME/control.err\"\n\"$HOME/ldap-provider\" --check-normal > \"$HOME/control.check\"\n[[ $(< \"$HOME/control.check\") == 'provider-observation=ok' && ! -s $HOME/control.out && ! -s $HOME/control.err ]] || { echo 'CONTROL-FAILED LDAP adapter' >&2; exit 98; }\n/usr/bin/mv \"$HOME/ldap.events\" \"$HOME/control.events\"; : > \"$HOME/ldap.events\"\n",
+      "setup_timeout": 25,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHUSERDB_PASSWD=/tmp/parity-case/passwd.empty BASHUSERDB_CONF=/tmp/parity-case/providers.empty\nuserdb add-provider ldap \"$HOME/ldap-provider\"\nuserdb verify external fixture-password > \"$HOME/normal.out\" 2> \"$HOME/normal.err\"; printf 'verify=%s\\n' \"$?\"\n\"$HOME/ldap-provider\" --check-normal\n",
+      "stdout": "verify=0\nprovider-observation=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "control.events",
+        "control.out",
+        "control.err",
+        "control.check",
+        "ldap.events",
+        "normal.out",
+        "normal.err"
+      ],
+      "helpers_sha256": {
+        "helpers/services-auth.py": "333f3f37ae1f08cd17493136fb621f644614b7e212e6195ea0706a53e2d5776b"
+      }
+    },
+    {
+      "id": "migration-services-userdb-ldap-oversize",
+      "loadable": "userdb",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Oversized provider output must be treated as invalid.",
+      "covers": [
+        "userdb/defer-ldap-password-fd"
+      ],
+      "oracle": "Literal operation contract; fixture-owned adapter and independent setup controls supply known bytes, statuses and process identities.",
+      "comparison": "Exact candidate status and observations, with bounded raw inputs, outputs, events and process observations retained separately. Missing later branches remain failures/gaps.",
+      "requires": [
+        "python3",
+        "setsid"
+      ],
+      "files": {
+        "passwd.empty": "",
+        "providers.empty": "",
+        "dummy-password": "fixture-password\n"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-auth.py \"$HOME/ldap-provider\"\n/usr/bin/chmod 700 \"$HOME/ldap-provider\"\nBASHUSERDB_VERIFY_FD=3 /usr/bin/setsid \"$HOME/ldap-provider\" verify external 3< dummy-password > \"$HOME/control.out\" 2> \"$HOME/control.err\"\n\"$HOME/ldap-provider\" --check-normal > \"$HOME/control.check\"\n[[ $(< \"$HOME/control.check\") == 'provider-observation=ok' && ! -s $HOME/control.out && ! -s $HOME/control.err ]] || { echo 'CONTROL-FAILED LDAP adapter' >&2; exit 98; }\n/usr/bin/mv \"$HOME/ldap.events\" \"$HOME/control.events\"; : > \"$HOME/ldap.events\"\n",
+      "setup_timeout": 25,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHUSERDB_PASSWD=/tmp/parity-case/passwd.empty BASHUSERDB_CONF=/tmp/parity-case/providers.empty\nuserdb add-provider ldap \"$HOME/ldap-provider\"\nuserdb verify oversize fixture-password > \"$HOME/oversize.out\" 2> \"$HOME/oversize.err\"; printf 'verify=%s\\n' \"$?\"\n\"$HOME/ldap-provider\" --check-oversize\n",
+      "stdout": "verify=1\nprovider-observation=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "control.events",
+        "control.out",
+        "control.err",
+        "control.check",
+        "ldap.events",
+        "oversize.out",
+        "oversize.err"
+      ],
+      "helpers_sha256": {
+        "helpers/services-auth.py": "333f3f37ae1f08cd17493136fb621f644614b7e212e6195ea0706a53e2d5776b"
+      }
+    },
+    {
+      "id": "migration-services-userdb-ldap-timeout",
+      "loadable": "userdb",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Provider process-group cleanup after timeout",
+      "covers": [
+        "userdb/defer-ldap-password-fd"
+      ],
+      "oracle": "Literal operation contract; fixture-owned adapter and independent setup controls supply known bytes, statuses and process identities.",
+      "comparison": "Exact candidate status and observations, with bounded raw inputs, outputs, events and process observations retained separately. Missing later branches remain failures/gaps.",
+      "requires": [
+        "python3",
+        "setsid"
+      ],
+      "files": {
+        "passwd.empty": "",
+        "providers.empty": "",
+        "dummy-password": "fixture-password\n"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-auth.py \"$HOME/ldap-provider\"\n/usr/bin/chmod 700 \"$HOME/ldap-provider\"\nBASHUSERDB_VERIFY_FD=3 /usr/bin/setsid \"$HOME/ldap-provider\" verify external 3< dummy-password > \"$HOME/control.out\" 2> \"$HOME/control.err\"\n\"$HOME/ldap-provider\" --check-normal > \"$HOME/control.check\"\n[[ $(< \"$HOME/control.check\") == 'provider-observation=ok' && ! -s $HOME/control.out && ! -s $HOME/control.err ]] || { echo 'CONTROL-FAILED LDAP adapter' >&2; exit 98; }\n/usr/bin/mv \"$HOME/ldap.events\" \"$HOME/control.events\"; : > \"$HOME/ldap.events\"\n",
+      "setup_timeout": 25,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHUSERDB_PASSWD=/tmp/parity-case/passwd.empty BASHUSERDB_CONF=/tmp/parity-case/providers.empty\nuserdb add-provider ldap \"$HOME/ldap-provider\"\nSECONDS=0; userdb verify timeout fixture-password > \"$HOME/timeout.out\" 2> \"$HOME/timeout.err\"; rc=$?; elapsed=$SECONDS\nprintf '%s\\n' \"$elapsed\" > \"$HOME/elapsed.txt\"\nprintf 'verify=%s\\n' \"$rc\"\n[[ $elapsed -ge 4 && $elapsed -le 7 ]] && echo deadline=bounded || echo deadline=BAD\n[[ $(< \"$HOME/timeout.err\") == *'provider ldap verify timed out'* ]] && echo diagnostic=yes || echo diagnostic=BAD\n\"$HOME/ldap-provider\" --check-timeout\n",
+      "stdout": "verify=1\ndeadline=bounded\ndiagnostic=yes\nprovider-observation=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 18,
+      "diagnostic_files": [
+        "control.events",
+        "control.check",
+        "ldap.events",
+        "child-observation.json",
+        "elapsed.txt",
+        "timeout.out",
+        "timeout.err"
+      ],
+      "helpers_sha256": {
+        "helpers/services-auth.py": "333f3f37ae1f08cd17493136fb621f644614b7e212e6195ea0706a53e2d5776b"
+      }
+    },
+    {
+      "id": "migration-services-userdb-ldap-complete",
+      "loadable": "userdb",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Provider process-group cleanup after complete",
+      "covers": [
+        "userdb/defer-ldap-password-fd"
+      ],
+      "oracle": "Literal operation contract; fixture-owned adapter and independent setup controls supply known bytes, statuses and process identities.",
+      "comparison": "Exact candidate status and observations, with bounded raw inputs, outputs, events and process observations retained separately. Missing later branches remain failures/gaps.",
+      "requires": [
+        "python3",
+        "setsid"
+      ],
+      "files": {
+        "passwd.empty": "",
+        "providers.empty": "",
+        "dummy-password": "fixture-password\n"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-auth.py \"$HOME/ldap-provider\"\n/usr/bin/chmod 700 \"$HOME/ldap-provider\"\nBASHUSERDB_VERIFY_FD=3 /usr/bin/setsid \"$HOME/ldap-provider\" verify external 3< dummy-password > \"$HOME/control.out\" 2> \"$HOME/control.err\"\n\"$HOME/ldap-provider\" --check-normal > \"$HOME/control.check\"\n[[ $(< \"$HOME/control.check\") == 'provider-observation=ok' && ! -s $HOME/control.out && ! -s $HOME/control.err ]] || { echo 'CONTROL-FAILED LDAP adapter' >&2; exit 98; }\n/usr/bin/mv \"$HOME/ldap.events\" \"$HOME/control.events\"; : > \"$HOME/ldap.events\"\n",
+      "setup_timeout": 25,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHUSERDB_PASSWD=/tmp/parity-case/passwd.empty BASHUSERDB_CONF=/tmp/parity-case/providers.empty\nuserdb add-provider ldap \"$HOME/ldap-provider\"\nSECONDS=0; userdb verify complete fixture-password > \"$HOME/complete.out\" 2> \"$HOME/complete.err\"; rc=$?; elapsed=$SECONDS\nprintf '%s\\n' \"$elapsed\" > \"$HOME/elapsed.txt\"\nprintf 'verify=%s\\n' \"$rc\"\n\"$HOME/ldap-provider\" --check-complete\n",
+      "stdout": "verify=0\nprovider-observation=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 18,
+      "diagnostic_files": [
+        "control.events",
+        "control.check",
+        "ldap.events",
+        "child-observation.json",
+        "elapsed.txt",
+        "complete.out",
+        "complete.err"
+      ],
+      "helpers_sha256": {
+        "helpers/services-auth.py": "333f3f37ae1f08cd17493136fb621f644614b7e212e6195ea0706a53e2d5776b"
+      }
+    },
+    {
+      "id": "migration-services-userdb-passwd-verification",
+      "loadable": "userdb",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Independently generated Argon2id verifies only against synthetic passwd/shadow files.",
+      "covers": [
+        "userdb/defer-passwd-verification"
+      ],
+      "oracle": "Debian argon2 executable generates the raw Argon2id digest independently using a fixed synthetic password and salt; a second independent digest and private-shadow substitution control the failure.",
+      "comparison": "Exact candidate status and observations, with bounded raw inputs, outputs, events and process observations retained separately. Missing later branches remain failures/gaps.",
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "files": {
+        "passwd.fixture": "fixtureuser:x:7101:7102:Fixture:/srv/fixture:/bin/sh\n",
+        "providers.empty": ""
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n[[ ! -e /dev/bashos-auth ]] || { echo 'CONTROL-FAILED auth device present' >&2; exit 98; }\n/usr/bin/mkdir -m 700 \"$HOME/lock\"\nhash=$(printf '%s' fixture-password | /usr/bin/argon2 0123456789abcdef -id -t 1 -k 1024 -p 1 -l 32 -r)\nwrong=$(printf '%s' wrong-password | /usr/bin/argon2 0123456789abcdef -id -t 1 -k 1024 -p 1 -l 32 -r)\n[[ $hash =~ ^[0-9a-f]{64}$ && $wrong =~ ^[0-9a-f]{64}$ && $hash != \"$wrong\" ]] || { echo 'CONTROL-FAILED independent Argon2id' >&2; exit 98; }\nprintf 'right=%s\\nwrong=%s\\n' \"$hash\" \"$wrong\" > \"$HOME/argon-control.txt\"\nprintf 'fixtureuser:$argon2id$v=19$m=1024,t=1,p=1$30313233343536373839616263646566$%s:19000:0:99999:7:::\\n' \"$hash\" > \"$HOME/shadow\"\nprintf 'fixtureuser:$argon2id$v=19$m=1024,t=1,p=1$30313233343536373839616263646566$%s:19000:0:99999:7:::\\n' \"$wrong\" > \"$HOME/shadow-wrong\"\n/usr/bin/cp \"$HOME/shadow\" \"$HOME/shadow-before\"\n",
+      "setup_timeout": 25,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHUSERDB_CONF=/tmp/parity-case/providers.empty BASHUSERDB_PASSWD=/tmp/parity-case/passwd.fixture PHCLIB_PASSWD=/tmp/parity-case/passwd.fixture PHCLIB_SHADOW=\"$HOME/shadow\" BPW_LOCK_DIR=\"$HOME/lock\" BASHPASSWD_KERNEL_SECRETS=0\nuserdb verify fixtureuser fixture-password > \"$HOME/right.out\" 2> \"$HOME/right.err\"; printf 'correct=%s\\n' \"$?\"\nuserdb verify fixtureuser wrong-password > \"$HOME/wrong.out\" 2> \"$HOME/wrong.err\"; printf 'wrong=%s\\n' \"$?\"\nPHCLIB_SHADOW=\"$HOME/shadow-wrong\" userdb verify fixtureuser fixture-password > \"$HOME/swap.out\" 2> \"$HOME/swap.err\"; printf 'private-shadow-swap=%s\\n' \"$?\"\n/usr/bin/cmp -s \"$HOME/shadow\" \"$HOME/shadow-before\" && echo shadow=unchanged || echo shadow=BAD\n",
+      "stdout": "correct=0\nwrong=1\nprivate-shadow-swap=1\nshadow=unchanged\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "argon-control.txt",
+        "shadow",
+        "shadow-before",
+        "shadow-wrong",
+        "right.out",
+        "right.err",
+        "wrong.out",
+        "wrong.err",
+        "swap.out",
+        "swap.err"
+      ]
+    },
+    {
+      "id": "migration-services-lpr-file",
+      "loadable": "lpr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Print binary data via file",
+      "covers": [
+        "lpr/submit_fixture_backend"
+      ],
+      "oracle": "Literal operation contract; fixture-owned adapter and independent setup controls supply known bytes, statuses and process identities.",
+      "comparison": "Exact candidate status and observations, with bounded raw inputs, outputs, events and process observations retained separately. Missing later branches remain failures/gaps.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "control-input": "ABCDEF",
+        "data/file with space": {
+          "base64": "cHJpbnQgZml4dHVyZQoA/3NlY29uZCBsaW5lCg=="
+        }
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-lpr.py \"$HOME/backend\"\n/usr/bin/chmod 700 \"$HOME/backend\"\n/usr/bin/mkdir -m 700 \"$HOME/spool\"\nLPR_FIXTURE_MODE=control \"$HOME/backend\" 0123456789abcdef 6 proof < control-input > \"$HOME/control.out\" 2> \"$HOME/control.err\"\n\"$HOME/backend\" --check control > \"$HOME/control.check\"\n[[ $(< \"$HOME/control.check\") == 'control-observation=ok' && ! -s $HOME/control.out && ! -s $HOME/control.err ]] || { echo 'CONTROL-FAILED print backend' >&2; exit 98; }\n",
+      "setup_timeout": 25,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHLPR_SPOOL=\"$HOME/spool\" BASHLPR_BACKEND=\"$HOME/backend\" BASHLPR_TIMEOUT=0\nexport LPR_FIXTURE_MODE=file\nlpr submit 'data/file with space' > \"$HOME/file.out\" 2> \"$HOME/file.err\"; printf 'status=%s\\n' \"$?\"\n\"$HOME/backend\" --check file\n",
+      "stdout": "status=0\nfile-observation=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "control.events",
+        "control.data",
+        "control.check",
+        "file.events",
+        "file.data",
+        "file.out",
+        "file.err"
+      ],
+      "helpers_sha256": {
+        "helpers/services-lpr.py": "69dcaeb175868709cb4ddef9739ac31548c302da516952c8607904b6c3d4dba1"
+      }
+    },
+    {
+      "id": "migration-services-lpr-stdin",
+      "loadable": "lpr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Print binary data via stdin",
+      "covers": [
+        "lpr/submit_fixture_backend"
+      ],
+      "oracle": "Literal operation contract; fixture-owned adapter and independent setup controls supply known bytes, statuses and process identities.",
+      "comparison": "Exact candidate status and observations, with bounded raw inputs, outputs, events and process observations retained separately. Missing later branches remain failures/gaps.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "control-input": "ABCDEF",
+        "data/file with space": {
+          "base64": "cHJpbnQgZml4dHVyZQoA/3NlY29uZCBsaW5lCg=="
+        }
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-lpr.py \"$HOME/backend\"\n/usr/bin/chmod 700 \"$HOME/backend\"\n/usr/bin/mkdir -m 700 \"$HOME/spool\"\nLPR_FIXTURE_MODE=control \"$HOME/backend\" 0123456789abcdef 6 proof < control-input > \"$HOME/control.out\" 2> \"$HOME/control.err\"\n\"$HOME/backend\" --check control > \"$HOME/control.check\"\n[[ $(< \"$HOME/control.check\") == 'control-observation=ok' && ! -s $HOME/control.out && ! -s $HOME/control.err ]] || { echo 'CONTROL-FAILED print backend' >&2; exit 98; }\n",
+      "setup_timeout": 25,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHLPR_SPOOL=\"$HOME/spool\" BASHLPR_BACKEND=\"$HOME/backend\" BASHLPR_TIMEOUT=0\nexport LPR_FIXTURE_MODE=stdin\nlpr submit - < 'data/file with space' > \"$HOME/stdin.out\" 2> \"$HOME/stdin.err\"; printf 'status=%s\\n' \"$?\"\n\"$HOME/backend\" --check stdin\n",
+      "stdout": "status=0\nstdin-observation=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "control.events",
+        "control.data",
+        "control.check",
+        "stdin.events",
+        "stdin.data",
+        "stdin.out",
+        "stdin.err"
+      ],
+      "helpers_sha256": {
+        "helpers/services-lpr.py": "69dcaeb175868709cb4ddef9739ac31548c302da516952c8607904b6c3d4dba1"
+      }
+    },
+    {
+      "id": "migration-services-lpr-barefile",
+      "loadable": "lpr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Print binary data via barefile",
+      "covers": [
+        "lpr/submit_fixture_backend"
+      ],
+      "oracle": "Literal operation contract; fixture-owned adapter and independent setup controls supply known bytes, statuses and process identities.",
+      "comparison": "Exact candidate status and observations, with bounded raw inputs, outputs, events and process observations retained separately. Missing later branches remain failures/gaps.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "control-input": "ABCDEF",
+        "data/file with space": {
+          "base64": "cHJpbnQgZml4dHVyZQoA/3NlY29uZCBsaW5lCg=="
+        }
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-lpr.py \"$HOME/backend\"\n/usr/bin/chmod 700 \"$HOME/backend\"\n/usr/bin/mkdir -m 700 \"$HOME/spool\"\nLPR_FIXTURE_MODE=control \"$HOME/backend\" 0123456789abcdef 6 proof < control-input > \"$HOME/control.out\" 2> \"$HOME/control.err\"\n\"$HOME/backend\" --check control > \"$HOME/control.check\"\n[[ $(< \"$HOME/control.check\") == 'control-observation=ok' && ! -s $HOME/control.out && ! -s $HOME/control.err ]] || { echo 'CONTROL-FAILED print backend' >&2; exit 98; }\n",
+      "setup_timeout": 25,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHLPR_SPOOL=\"$HOME/spool\" BASHLPR_BACKEND=\"$HOME/backend\" BASHLPR_TIMEOUT=0\nexport LPR_FIXTURE_MODE=barefile\nlpr 'data/file with space' > \"$HOME/barefile.out\" 2> \"$HOME/barefile.err\"; printf 'status=%s\\n' \"$?\"\n\"$HOME/backend\" --check barefile\n",
+      "stdout": "status=0\nbarefile-observation=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "control.events",
+        "control.data",
+        "control.check",
+        "barefile.events",
+        "barefile.data",
+        "barefile.out",
+        "barefile.err"
+      ],
+      "helpers_sha256": {
+        "helpers/services-lpr.py": "69dcaeb175868709cb4ddef9739ac31548c302da516952c8607904b6c3d4dba1"
+      }
+    },
+    {
+      "id": "migration-services-lpr-barestdin",
+      "loadable": "lpr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Print binary data via barestdin",
+      "covers": [
+        "lpr/submit_fixture_backend"
+      ],
+      "oracle": "Literal operation contract; fixture-owned adapter and independent setup controls supply known bytes, statuses and process identities.",
+      "comparison": "Exact candidate status and observations, with bounded raw inputs, outputs, events and process observations retained separately. Missing later branches remain failures/gaps.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "control-input": "ABCDEF",
+        "data/file with space": {
+          "base64": "cHJpbnQgZml4dHVyZQoA/3NlY29uZCBsaW5lCg=="
+        }
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-lpr.py \"$HOME/backend\"\n/usr/bin/chmod 700 \"$HOME/backend\"\n/usr/bin/mkdir -m 700 \"$HOME/spool\"\nLPR_FIXTURE_MODE=control \"$HOME/backend\" 0123456789abcdef 6 proof < control-input > \"$HOME/control.out\" 2> \"$HOME/control.err\"\n\"$HOME/backend\" --check control > \"$HOME/control.check\"\n[[ $(< \"$HOME/control.check\") == 'control-observation=ok' && ! -s $HOME/control.out && ! -s $HOME/control.err ]] || { echo 'CONTROL-FAILED print backend' >&2; exit 98; }\n",
+      "setup_timeout": 25,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHLPR_SPOOL=\"$HOME/spool\" BASHLPR_BACKEND=\"$HOME/backend\" BASHLPR_TIMEOUT=0\nexport LPR_FIXTURE_MODE=barestdin\nlpr < 'data/file with space' > \"$HOME/barestdin.out\" 2> \"$HOME/barestdin.err\"; printf 'status=%s\\n' \"$?\"\n\"$HOME/backend\" --check barestdin\n",
+      "stdout": "status=0\nbarestdin-observation=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "control.events",
+        "control.data",
+        "control.check",
+        "barestdin.events",
+        "barestdin.data",
+        "barestdin.out",
+        "barestdin.err"
+      ],
+      "helpers_sha256": {
+        "helpers/services-lpr.py": "69dcaeb175868709cb4ddef9739ac31548c302da516952c8607904b6c3d4dba1"
+      }
+    },
+    {
+      "id": "migration-services-lpr-partial",
+      "loadable": "lpr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Spool and failure reporting for partial",
+      "covers": [
+        "lpr/submit_fixture_backend"
+      ],
+      "oracle": "Literal operation contract; fixture-owned adapter and independent setup controls supply known bytes, statuses and process identities.",
+      "comparison": "Exact candidate status and observations, with bounded raw inputs, outputs, events and process observations retained separately. Missing later branches remain failures/gaps.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "control-input": "ABCDEF",
+        "data/file with space": {
+          "base64": "cHJpbnQgZml4dHVyZQoA/3NlY29uZCBsaW5lCg=="
+        }
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-lpr.py \"$HOME/backend\"\n/usr/bin/chmod 700 \"$HOME/backend\"\n/usr/bin/mkdir -m 700 \"$HOME/spool\"\nLPR_FIXTURE_MODE=control \"$HOME/backend\" 0123456789abcdef 6 proof < control-input > \"$HOME/control.out\" 2> \"$HOME/control.err\"\n\"$HOME/backend\" --check control > \"$HOME/control.check\"\n[[ $(< \"$HOME/control.check\") == 'control-observation=ok' && ! -s $HOME/control.out && ! -s $HOME/control.err ]] || { echo 'CONTROL-FAILED print backend' >&2; exit 98; }\n",
+      "setup_timeout": 25,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHLPR_SPOOL=\"$HOME/spool\" BASHLPR_BACKEND=\"$HOME/backend\" BASHLPR_TIMEOUT=0\nexport LPR_FIXTURE_MODE=partial\nlpr submit 'data/file with space' > \"$HOME/partial.out\" 2> \"$HOME/partial.err\"; printf 'status=%s\\n' \"$?\"\n\"$HOME/backend\" --check partial\n",
+      "stdout": "status=1\npartial-observation=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 16,
+      "diagnostic_files": [
+        "control.events",
+        "control.check",
+        "partial.events",
+        "partial.data",
+        "partial.out",
+        "partial.err",
+        "elapsed.txt"
+      ],
+      "helpers_sha256": {
+        "helpers/services-lpr.py": "69dcaeb175868709cb4ddef9739ac31548c302da516952c8607904b6c3d4dba1"
+      }
+    },
+    {
+      "id": "migration-services-lpr-failure",
+      "loadable": "lpr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Spool and failure reporting for failure",
+      "covers": [
+        "lpr/submit_fixture_backend"
+      ],
+      "oracle": "Literal operation contract; fixture-owned adapter and independent setup controls supply known bytes, statuses and process identities.",
+      "comparison": "Exact candidate status and observations, with bounded raw inputs, outputs, events and process observations retained separately. Missing later branches remain failures/gaps.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "control-input": "ABCDEF",
+        "data/file with space": {
+          "base64": "cHJpbnQgZml4dHVyZQoA/3NlY29uZCBsaW5lCg=="
+        }
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-lpr.py \"$HOME/backend\"\n/usr/bin/chmod 700 \"$HOME/backend\"\n/usr/bin/mkdir -m 700 \"$HOME/spool\"\nLPR_FIXTURE_MODE=control \"$HOME/backend\" 0123456789abcdef 6 proof < control-input > \"$HOME/control.out\" 2> \"$HOME/control.err\"\n\"$HOME/backend\" --check control > \"$HOME/control.check\"\n[[ $(< \"$HOME/control.check\") == 'control-observation=ok' && ! -s $HOME/control.out && ! -s $HOME/control.err ]] || { echo 'CONTROL-FAILED print backend' >&2; exit 98; }\n",
+      "setup_timeout": 25,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHLPR_SPOOL=\"$HOME/spool\" BASHLPR_BACKEND=\"$HOME/backend\" BASHLPR_TIMEOUT=0\nexport LPR_FIXTURE_MODE=failure\nlpr submit 'data/file with space' > \"$HOME/failure.out\" 2> \"$HOME/failure.err\"; printf 'status=%s\\n' \"$?\"\n\"$HOME/backend\" --check failure\n",
+      "stdout": "status=1\nfailure-observation=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 16,
+      "diagnostic_files": [
+        "control.events",
+        "control.check",
+        "failure.events",
+        "failure.data",
+        "failure.out",
+        "failure.err",
+        "elapsed.txt"
+      ],
+      "helpers_sha256": {
+        "helpers/services-lpr.py": "69dcaeb175868709cb4ddef9739ac31548c302da516952c8607904b6c3d4dba1"
+      }
+    },
+    {
+      "id": "migration-services-lpr-timeout",
+      "loadable": "lpr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Spool and failure reporting for timeout",
+      "covers": [
+        "lpr/submit_fixture_backend"
+      ],
+      "oracle": "Literal operation contract; fixture-owned adapter and independent setup controls supply known bytes, statuses and process identities.",
+      "comparison": "Exact candidate status and observations, with bounded raw inputs, outputs, events and process observations retained separately. Missing later branches remain failures/gaps.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "control-input": "ABCDEF",
+        "data/file with space": {
+          "base64": "cHJpbnQgZml4dHVyZQoA/3NlY29uZCBsaW5lCg=="
+        }
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-lpr.py \"$HOME/backend\"\n/usr/bin/chmod 700 \"$HOME/backend\"\n/usr/bin/mkdir -m 700 \"$HOME/spool\"\nLPR_FIXTURE_MODE=control \"$HOME/backend\" 0123456789abcdef 6 proof < control-input > \"$HOME/control.out\" 2> \"$HOME/control.err\"\n\"$HOME/backend\" --check control > \"$HOME/control.check\"\n[[ $(< \"$HOME/control.check\") == 'control-observation=ok' && ! -s $HOME/control.out && ! -s $HOME/control.err ]] || { echo 'CONTROL-FAILED print backend' >&2; exit 98; }\n",
+      "setup_timeout": 25,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHLPR_SPOOL=\"$HOME/spool\" BASHLPR_BACKEND=\"$HOME/backend\" BASHLPR_TIMEOUT=0\nexport LPR_FIXTURE_MODE=timeout\nexport BASHLPR_TIMEOUT=1\nSECONDS=0\nlpr submit 'data/file with space' > \"$HOME/timeout.out\" 2> \"$HOME/timeout.err\"; printf 'status=%s\\n' \"$?\"\nelapsed=$SECONDS; printf '%s\\n' \"$elapsed\" > \"$HOME/elapsed.txt\"\n[[ $elapsed -le 5 ]] && echo timeout=bounded || echo timeout=BAD\n\"$HOME/backend\" --check timeout\n",
+      "stdout": "status=1\ntimeout=bounded\ntimeout-observation=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 16,
+      "diagnostic_files": [
+        "control.events",
+        "control.check",
+        "timeout.events",
+        "timeout.data",
+        "timeout.out",
+        "timeout.err",
+        "elapsed.txt"
+      ],
+      "helpers_sha256": {
+        "helpers/services-lpr.py": "69dcaeb175868709cb4ddef9739ac31548c302da516952c8607904b6c3d4dba1"
+      }
+    },
+    {
+      "id": "migration-services-lpr-cancel-live",
+      "loadable": "lpr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe FIFO request, owned backend PID, SIGTERM, submit status and cleanup.",
+      "covers": [
+        "lpr/cancel_owned_child"
+      ],
+      "oracle": "Literal operation contract; fixture-owned adapter and independent setup controls supply known bytes, statuses and process identities.",
+      "comparison": "Exact candidate status and observations, with bounded raw inputs, outputs, events and process observations retained separately. Missing later branches remain failures/gaps.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "control-input": "ABCDEF",
+        "data/file with space": {
+          "base64": "cHJpbnQgZml4dHVyZQoA/3NlY29uZCBsaW5lCg=="
+        }
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-lpr.py \"$HOME/backend\"\n/usr/bin/chmod 700 \"$HOME/backend\"\n/usr/bin/mkdir -m 700 \"$HOME/spool\"\nLPR_FIXTURE_MODE=control \"$HOME/backend\" 0123456789abcdef 6 proof < control-input > \"$HOME/control.out\" 2> \"$HOME/control.err\"\n\"$HOME/backend\" --check control > \"$HOME/control.check\"\n[[ $(< \"$HOME/control.check\") == 'control-observation=ok' && ! -s $HOME/control.out && ! -s $HOME/control.err ]] || { echo 'CONTROL-FAILED print backend' >&2; exit 98; }\n",
+      "setup_timeout": 25,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHLPR_SPOOL=\"$HOME/spool\" BASHLPR_BACKEND=\"$HOME/backend\" BASHLPR_TIMEOUT=0\nexport LPR_FIXTURE_MODE=cancel\n\"$HOME/backend\" --witness > \"$HOME/witness.out\" 2> \"$HOME/witness.err\" & witness=$!\nfor ((i=0;i<100;i++)); do [[ -s $HOME/witness.ready ]] && break; /usr/bin/sleep .05; done\n[[ -s $HOME/witness.ready ]] && echo witness=ready || echo witness=BAD\n( lpr submit 'data/file with space' > \"$HOME/cancel.out\" 2> \"$HOME/cancel.err\"; printf '%s\\n' \"$?\" > \"$HOME/submit.status\" ) &\nowner=$!\nfor ((i=0;i<120;i++)); do [[ -s $HOME/cancel.ready ]] && break; /usr/bin/sleep .05; done\nif [[ -s $HOME/cancel.ready ]]; then\n read -r id < \"$HOME/cancel.ready\"\n [[ $id =~ ^[0-9a-f]{16}$ && -p $BASHLPR_SPOOL/$id.ctl && -f $BASHLPR_SPOOL/$id.lpr ]] && echo ready=fifo-and-spool || echo ready=BAD\n lpr list -l > \"$HOME/list.out\" 2> \"$HOME/list.err\"; list_rc=$?\n [[ $list_rc == 0 && $(< \"$HOME/list.out\") == \"$id active 28\" ]] && echo list=active || echo list=BAD\n lpr cancel \"$id\" > \"$HOME/cancel-command.out\" 2> \"$HOME/cancel-command.err\"; printf 'cancel=%s\\n' \"$?\"\nelse\n echo ready=BAD; echo list=BAD; echo cancel=missing\nfi\nwait \"$owner\"; printf 'submit=%s\\n' \"$(< \"$HOME/submit.status\")\"\n\"$HOME/backend\" --check cancel \"$owner\"\n: > \"$HOME/witness.stop\"; wait \"$witness\"; printf 'witness-status=%s\\n' \"$?\"\n\"$HOME/backend\" --check witness\n",
+      "stdout": "witness=ready\nready=fifo-and-spool\nlist=active\ncancel=0\nsubmit=3\ncancel-observation=ok\nwitness-status=0\nwitness-observation=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "control.events",
+        "cancel.events",
+        "cancel.data",
+        "cancel.ready",
+        "cancel.out",
+        "cancel.err",
+        "cancel-command.out",
+        "cancel-command.err",
+        "list.out",
+        "list.err",
+        "submit.status",
+        "witness.events",
+        "witness.ready",
+        "witness.err"
+      ],
+      "helpers_sha256": {
+        "helpers/services-lpr.py": "69dcaeb175868709cb4ddef9739ac31548c302da516952c8607904b6c3d4dba1"
+      }
+    },
+    {
+      "id": "migration-services-lpr-cancel-stale",
+      "loadable": "lpr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Stale pid metadata points at owned witness, FIFO has no reader, cancellation never signals it.",
+      "covers": [
+        "lpr/cancel_owned_child"
+      ],
+      "oracle": "Literal operation contract; fixture-owned adapter and independent setup controls supply known bytes, statuses and process identities.",
+      "comparison": "Exact candidate status and observations, with bounded raw inputs, outputs, events and process observations retained separately. Missing later branches remain failures/gaps.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "control-input": "ABCDEF",
+        "data/file with space": {
+          "base64": "cHJpbnQgZml4dHVyZQoA/3NlY29uZCBsaW5lCg=="
+        }
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-lpr.py \"$HOME/backend\"\n/usr/bin/chmod 700 \"$HOME/backend\"\n/usr/bin/mkdir -m 700 \"$HOME/spool\"\nLPR_FIXTURE_MODE=control \"$HOME/backend\" 0123456789abcdef 6 proof < control-input > \"$HOME/control.out\" 2> \"$HOME/control.err\"\n\"$HOME/backend\" --check control > \"$HOME/control.check\"\n[[ $(< \"$HOME/control.check\") == 'control-observation=ok' && ! -s $HOME/control.out && ! -s $HOME/control.err ]] || { echo 'CONTROL-FAILED print backend' >&2; exit 98; }\n",
+      "setup_timeout": 25,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHLPR_SPOOL=\"$HOME/spool\" BASHLPR_BACKEND=\"$HOME/backend\" BASHLPR_TIMEOUT=0\n\"$HOME/backend\" --witness > \"$HOME/witness.out\" 2> \"$HOME/witness.err\" & witness=$!\nfor ((i=0;i<100;i++)); do [[ -s $HOME/witness.ready ]] && break; /usr/bin/sleep .05; done\nif [[ -s $HOME/witness.ready ]]; then\n read -r witness_pid < \"$HOME/witness.ready\"\n printf 'stale\\n' > \"$BASHLPR_SPOOL/0123456789abcdef.lpr\"\n printf '%s\\n' \"$witness_pid\" > \"$BASHLPR_SPOOL/0123456789abcdef.lpr.pid\"\n /usr/bin/mkfifo \"$BASHLPR_SPOOL/0123456789abcdef.ctl\"\n lpr cancel 0123456789abcdef > \"$HOME/stale.out\" 2> \"$HOME/stale.err\"; printf 'stale=%s\\n' \"$?\"\n [[ $(< \"$HOME/stale.out\") == 'lpr: removed stale job 0123456789abcdef (no live submitter; nothing signalled)' && -z $(/usr/bin/ls -A \"$BASHLPR_SPOOL\") ]] && echo cleanup=exact || echo cleanup=BAD\nelse echo stale=missing; echo cleanup=BAD; fi\nlpr cancel bad/name > \"$HOME/slash.out\" 2> \"$HOME/slash.err\"; printf 'slash=%s\\n' \"$?\"\n: > \"$HOME/witness.stop\"; wait \"$witness\"; printf 'witness-status=%s\\n' \"$?\"\n\"$HOME/backend\" --check witness\n",
+      "stdout": "stale=0\ncleanup=exact\nslash=2\nwitness-status=0\nwitness-observation=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "control.events",
+        "witness.events",
+        "witness.ready",
+        "witness.out",
+        "witness.err",
+        "stale.out",
+        "stale.err",
+        "slash.out",
+        "slash.err"
+      ],
+      "helpers_sha256": {
+        "helpers/services-lpr.py": "69dcaeb175868709cb4ddef9739ac31548c302da516952c8607904b6c3d4dba1"
+      }
+    }
+  ]
+}

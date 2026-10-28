@@ -1,0 +1,329 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "trace-vm-mlock-success-1-r1",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Lock and unlock the bounded mapping and check the parent shell for retained locked pages and large anonymous mappings.",
+      "covers": [
+        "mlock/try-lock-operation"
+      ],
+      "oracle": "Independent libc/kernel mlock and munlock controls establish page size, lock limits, successful lock/unlock and page-rounded ENOMEM; explicit documented size and status expectations, plus parent-shell procfs snapshots.",
+      "comparison": "Raw candidate output/error and before/after /proc/PID/status and maps are saved; cleanup checks compare VmLck and all anonymous mappings at least 1 MiB.",
+      "requires": [
+        "python3",
+        "cp",
+        "chmod",
+        "cmp"
+      ],
+      "timeout": 40,
+      "setup_timeout": 30,
+      "helpers_sha256": {
+        "helpers/trace-vm-mlock-r1.py": "530e30fe5060310338ad42691e1f534d5c49d1fa110179f41424c93376c040ea"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-mlock-r1.py ./trace-vm-mlock-r1.py\n/bin/chmod 0755 ./trace-vm-mlock-r1.py\n./trace-vm-mlock-r1.py --control\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-mlock-r1.py --snapshot \"$$\" before || exit 91\nmlock try-lock 1 >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\n./trace-vm-mlock-r1.py --snapshot \"$$\" after || exit 92\n[[ $rc == 0 && ! -s \"$HOME/operation.err\" ]] || exit 31\n/usr/bin/cmp -s \"$HOME/operation.out\" expected-output || exit 32\n./trace-vm-mlock-r1.py --compare || exit 33\nprintf 'operation ok\\n'\nexit 0\n",
+      "expected_status": 0,
+      "stdout": "procfs cleanup checks ok\noperation ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "mlock-control.json",
+        "mlock-before.json",
+        "mlock-after.json",
+        "mlock-comparison.json",
+        "operation.out",
+        "operation.err"
+      ],
+      "files": {
+        "expected-output": "try-lock ok size=1\n"
+      }
+    },
+    {
+      "id": "trace-vm-mlock-success-1048576-r1",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Lock and unlock the bounded mapping and check the parent shell for retained locked pages and large anonymous mappings.",
+      "covers": [
+        "mlock/try-lock-operation"
+      ],
+      "oracle": "Independent libc/kernel mlock and munlock controls establish page size, lock limits, successful lock/unlock and page-rounded ENOMEM; explicit documented size and status expectations, plus parent-shell procfs snapshots.",
+      "comparison": "Raw candidate output/error and before/after /proc/PID/status and maps are saved; cleanup checks compare VmLck and all anonymous mappings at least 1 MiB.",
+      "requires": [
+        "python3",
+        "cp",
+        "chmod",
+        "cmp"
+      ],
+      "timeout": 40,
+      "setup_timeout": 30,
+      "helpers_sha256": {
+        "helpers/trace-vm-mlock-r1.py": "530e30fe5060310338ad42691e1f534d5c49d1fa110179f41424c93376c040ea"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-mlock-r1.py ./trace-vm-mlock-r1.py\n/bin/chmod 0755 ./trace-vm-mlock-r1.py\n./trace-vm-mlock-r1.py --control\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-mlock-r1.py --snapshot \"$$\" before || exit 91\nmlock try-lock 1048576 >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\n./trace-vm-mlock-r1.py --snapshot \"$$\" after || exit 92\n[[ $rc == 0 && ! -s \"$HOME/operation.err\" ]] || exit 31\n/usr/bin/cmp -s \"$HOME/operation.out\" expected-output || exit 32\n./trace-vm-mlock-r1.py --compare || exit 33\nprintf 'operation ok\\n'\nexit 0\n",
+      "expected_status": 0,
+      "stdout": "procfs cleanup checks ok\noperation ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "mlock-control.json",
+        "mlock-before.json",
+        "mlock-after.json",
+        "mlock-comparison.json",
+        "operation.out",
+        "operation.err"
+      ],
+      "files": {
+        "expected-output": "try-lock ok size=1048576\n"
+      }
+    },
+    {
+      "id": "trace-vm-mlock-invalid-r1",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Check the six distinct malformed or out-of-range size cases, including status and documented diagnostics.",
+      "covers": [
+        "mlock/try-lock-operation"
+      ],
+      "oracle": "Independent libc/kernel mlock and munlock controls establish page size, lock limits, successful lock/unlock and page-rounded ENOMEM; explicit documented size and status expectations, plus parent-shell procfs snapshots.",
+      "comparison": "Raw candidate output/error and before/after /proc/PID/status and maps are saved; cleanup checks compare VmLck and all anonymous mappings at least 1 MiB.",
+      "requires": [
+        "python3",
+        "cp",
+        "chmod",
+        "cmp"
+      ],
+      "timeout": 40,
+      "setup_timeout": 30,
+      "helpers_sha256": {
+        "helpers/trace-vm-mlock-r1.py": "530e30fe5060310338ad42691e1f534d5c49d1fa110179f41424c93376c040ea"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-mlock-r1.py ./trace-vm-mlock-r1.py\n/bin/chmod 0755 ./trace-vm-mlock-r1.py\n./trace-vm-mlock-r1.py --control\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-mlock-r1.py --snapshot \"$$\" before || exit 91\nrun_bad() {\n  local name=$1 message=$2; shift 2\n  mlock try-lock \"$@\" >\"$HOME/$name.out\" 2>\"$HOME/$name.err\"\n  local rc=$? text\n  text=$(<\"$HOME/$name.err\")\n  [[ $rc == 2 && ! -s \"$HOME/$name.out\" && $text == *\"mlock: $message\" ]] || return 1\n}\nrun_bad missing 'try-lock: SIZE argument required (bytes, 1..1048576)' || exit 11\nrun_bad empty 'try-lock: SIZE argument required (bytes, 1..1048576)' '' || exit 12\nrun_bad negative \"try-lock: SIZE must be a non-negative decimal integer (got '-1')\" -1 || exit 13\nrun_bad text \"try-lock: SIZE must be a non-negative decimal integer (got '1x')\" 1x || exit 14\nrun_bad zero 'try-lock: SIZE out of range (1..1048576, got 0)' 0 || exit 15\nrun_bad large 'try-lock: SIZE out of range (1..1048576, got 1048577)' 1048577 || exit 16\n./trace-vm-mlock-r1.py --snapshot \"$$\" after || exit 92\n./trace-vm-mlock-r1.py --compare || exit 17\nprintf 'invalid sizes ok\\n'\nexit 0\n",
+      "expected_status": 0,
+      "stdout": "procfs cleanup checks ok\ninvalid sizes ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "mlock-control.json",
+        "mlock-before.json",
+        "mlock-after.json",
+        "mlock-comparison.json",
+        "missing.out",
+        "missing.err",
+        "empty.out",
+        "empty.err",
+        "negative.out",
+        "negative.err",
+        "text.out",
+        "text.err",
+        "zero.out",
+        "zero.err",
+        "large.out",
+        "large.err"
+      ]
+    },
+    {
+      "id": "trace-vm-mlock-precheck-r1",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Lower only the soft limit and assert the insufficient-limit diagnostic and unchanged procfs state.",
+      "covers": [
+        "mlock/try-lock-operation"
+      ],
+      "oracle": "Independent libc/kernel mlock and munlock controls establish page size, lock limits, successful lock/unlock and page-rounded ENOMEM; explicit documented size and status expectations, plus parent-shell procfs snapshots.",
+      "comparison": "Raw candidate output/error and before/after /proc/PID/status and maps are saved; cleanup checks compare VmLck and all anonymous mappings at least 1 MiB.",
+      "requires": [
+        "python3",
+        "cp",
+        "chmod",
+        "cmp"
+      ],
+      "timeout": 40,
+      "setup_timeout": 30,
+      "helpers_sha256": {
+        "helpers/trace-vm-mlock-r1.py": "530e30fe5060310338ad42691e1f534d5c49d1fa110179f41424c93376c040ea"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-mlock-r1.py ./trace-vm-mlock-r1.py\n/bin/chmod 0755 ./trace-vm-mlock-r1.py\n./trace-vm-mlock-r1.py --control\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nulimit -S -l 64 || exit 80\n./trace-vm-mlock-r1.py --snapshot \"$$\" before || exit 91\nmlock try-lock 65537 >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\n./trace-vm-mlock-r1.py --snapshot \"$$\" after || exit 92\ntext=$(<\"$HOME/operation.err\")\n[[ $rc == 1 && ! -s \"$HOME/operation.out\" && $text == *'mlock: rlimit: needed=65537 soft=65536 hard='*' - set ulimit -l before continuing' ]] || exit 31\n./trace-vm-mlock-r1.py --compare || exit 33\nprintf 'limit precheck ok\\n'\nexit 0\n",
+      "expected_status": 0,
+      "stdout": "procfs cleanup checks ok\nlimit precheck ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "mlock-control.json",
+        "mlock-before.json",
+        "mlock-after.json",
+        "mlock-comparison.json",
+        "operation.out",
+        "operation.err"
+      ]
+    },
+    {
+      "id": "trace-vm-mlock-rounded-failure-r1",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Pass the byte precheck but fail the actual kernel lock because the rounded mapping exceeds the 1023-KiB soft limit.",
+      "covers": [
+        "mlock/try-lock-operation"
+      ],
+      "oracle": "Independent libc/kernel mlock and munlock controls establish page size, lock limits, successful lock/unlock and page-rounded ENOMEM; explicit documented size and status expectations, plus parent-shell procfs snapshots.",
+      "comparison": "Raw candidate output/error and before/after /proc/PID/status and maps are saved; cleanup checks compare VmLck and all anonymous mappings at least 1 MiB.",
+      "requires": [
+        "python3",
+        "cp",
+        "chmod",
+        "cmp"
+      ],
+      "timeout": 40,
+      "setup_timeout": 30,
+      "helpers_sha256": {
+        "helpers/trace-vm-mlock-r1.py": "530e30fe5060310338ad42691e1f534d5c49d1fa110179f41424c93376c040ea"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-mlock-r1.py ./trace-vm-mlock-r1.py\n/bin/chmod 0755 ./trace-vm-mlock-r1.py\n./trace-vm-mlock-r1.py --control\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nulimit -S -l 1023 || exit 80\n./trace-vm-mlock-r1.py --snapshot \"$$\" before || exit 91\nmlock try-lock 1047552 >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\n./trace-vm-mlock-r1.py --snapshot \"$$\" after || exit 92\ntext=$(<\"$HOME/operation.err\")\n[[ $rc == 1 && ! -s \"$HOME/operation.out\" && $text == *'mlock: try-lock: mlock(1047552): Cannot allocate memory' ]] || exit 31\n./trace-vm-mlock-r1.py --compare || exit 33\nprintf 'rounded limit failure ok\\n'\nexit 0\n",
+      "expected_status": 0,
+      "stdout": "procfs cleanup checks ok\nrounded limit failure ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "mlock-control.json",
+        "mlock-before.json",
+        "mlock-after.json",
+        "mlock-comparison.json",
+        "operation.out",
+        "operation.err"
+      ]
+    },
+    {
+      "id": "trace-vm-crypto-secret-terminal-r1",
+      "loadable": "crypto",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Use an owned controlling PTY and synthetic input to check prompt routing, no echo, handle delivery and terminal restoration.",
+      "covers": [
+        "crypto/secret-read-terminal"
+      ],
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\ncrypto secret-read -h handle -p 'FIXTURE-PROMPT> ' --no-echo > read.stdout 2> read.stderr || exit 21\nexec 3> secret.bin\nexpect send-secret 3 \"$handle\" > send.stdout 2> send.stderr || exit 22\nexec 3>&-\nprintf 'READY-END\\n'\nIFS= read -r ignored </dev/tty || exit 23\nexit 0\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n{ printf 'FIXTURE-PROMPT> ' >/dev/tty; IFS= read -r -s value </dev/tty; printf '\\n' >/dev/tty; } >read.stdout 2>read.stderr || exit 21\nexec 3>secret.bin\nprintf '%s' \"$value\" >&3 || exit 22\n: >send.stdout; : >send.stderr\nexec 3>&-\nprintf 'READY-END\\n'\nIFS= read -r ignored </dev/tty || exit 23\nexit 0\n",
+      "timeout": 20,
+      "oracle": "The reference uses Bash read -s and a separate /dev/tty prompt with ordinary fd writes; the candidate exports its secret via expect send-secret, which calls the crypto handle FD API.",
+      "comparison": "Both sides check raw prompt and newline, explicit ECHO transitions, absence of the synthetic secret in the PTY transcript, exact descriptor output, and the terminal driver compares before/after modes.",
+      "steps": [
+        {
+          "expect": "FIXTURE-PROMPT> "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "send": "sample_42_secret\r"
+        },
+        {
+          "expect": "\\r\\nREADY-END\\r\\n"
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "output_lacks": "sample_42_secret"
+        },
+        {
+          "send": "\r"
+        }
+      ],
+      "expected_status": 0,
+      "restore_terminal": true,
+      "expected_files": {
+        "read.stdout": "",
+        "read.stderr": "",
+        "send.stdout": "",
+        "send.stderr": "",
+        "secret.bin": "sample_42_secret"
+      }
+    },
+    {
+      "id": "trace-vm-scrub-live-history-r1",
+      "loadable": "scrub",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Check prompt hook installation without duplication, prompt-driven and explicit pruning, benign history retention, and restoration of an existing PROMPT_COMMAND.",
+      "covers": [
+        "scrub/live-history-deferred"
+      ],
+      "oracle": "Bash interactive history semantics, an explicitly anchored synthetic denylist, a pre-existing colon prompt command and literal expected count/file bytes.",
+      "comparison": "A controlled interactive PTY records both history snapshots and terminal transcript; shell assertions verify whole history records, not substrings embedded in command lines.",
+      "requires": [
+        "grep"
+      ],
+      "interactive_shell": true,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125; IFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125; IFS= read -r u </etc/bashos-parity-vm || exit 125; [[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "PROMPT_COMMAND=':'; scrub clear-patterns; scrub add-pattern '^private_secret_'; history -c; history -s private_secret_a; history -s safe_anchor_a; scrub live enable; scrub live enable; printf '%s\\n' \"$PROMPT_COMMAND\" > pc-enabled\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "history -s private_secret_b; history -s safe_anchor_b\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "history > \"$HOME/live-hook-history\"; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+private_secret_[ab]$' \"$HOME/live-hook-history\" && exit 11; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+safe_anchor_a$' \"$HOME/live-hook-history\" || exit 12; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+safe_anchor_b$' \"$HOME/live-hook-history\" || exit 13; printf 'hook ok\\n' > hook-check\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "history -s private_secret_c; history -s safe_anchor_c; scrub live prune > prune-count; history > \"$HOME/live-explicit-history\"; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+private_secret_c$' \"$HOME/live-explicit-history\" && exit 14; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+safe_anchor_c$' \"$HOME/live-explicit-history\" || exit 15\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "scrub live disable; printf '%s\\n' \"$PROMPT_COMMAND\" > pc-restored; [[ $HISTFILE == /dev/null ]] || exit 16; printf '%s\\n' \"$HISTFILE\" > histfile; exit 0\r"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 25,
+      "expected_files": {
+        "pc-enabled": "scrub live prune >/dev/null; :\n",
+        "hook-check": "hook ok\n",
+        "prune-count": "1\n",
+        "pc-restored": ":\n",
+        "histfile": "/dev/null\n"
+      },
+      "diagnostic_files": [
+        "live-hook-history",
+        "live-explicit-history"
+      ]
+    }
+  ]
+}

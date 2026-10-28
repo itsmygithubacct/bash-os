@@ -185,7 +185,7 @@
       "id": "caps-file-decoder",
       "kind": "deferred",
       "purpose": "Check security.capability revision 2 and 3 decoding, effective flag handling, empty xattrs, malformed payload lengths, and -V binding.",
-      "reason": "Remaining obligations: r6: Malformed xattr lengths need a reviewed buffer-writing getxattr mock. Worker214 is preparing it; current kernel-written revision2/3 cases cannot supply invalid payloads."
+      "reason": "Remaining obligations: r6: Only lengths 0, 4, 11, 12, 16 and 19 were observed; the two full malformed-length ranges were not exhaustively exercised."
     },
     {
       "id": "caps-input-validation",

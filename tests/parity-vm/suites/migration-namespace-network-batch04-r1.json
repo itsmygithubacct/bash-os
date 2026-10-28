@@ -1,0 +1,458 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-namespace-network-idmap-valid-r1",
+      "loadable": "ns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ns/ns-id-mapping"
+      ],
+      "purpose": "Map guest uid/gid 2000 to namespace id 4242 after denying setgroups, with independent map and identity readback.",
+      "oracle": "Independent Linux syscall, util-linux and procfs controls operating only in contained guest child namespaces.",
+      "comparison": "Exact semantic result and status markers; raw controls, namespace maps, syscall bytes/results, diagnostics and child observations retained for review.",
+      "requires": [
+        "python3",
+        "unshare",
+        "systemd-detect-virt",
+        "id"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-idmap-r1.py": "14314b83999f29690d5d9791a1d1ee47f8361d0b4766566dc312197ce885cd83",
+        "helpers/namespace-network-ns-controls-r1.py": "f4a6084b6f4318c35d1343c508b78f7b1935379a59d8d8c091d819c52a6c04f1"
+      },
+      "setup_script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n/usr/bin/python3 \"$I\" control valid\n/usr/bin/unshare --user --map-user=4242 --map-group=4242 /usr/bin/id -u >\"$HOME/native-id.raw\"\n[[ $(<\"$HOME/native-id.raw\") == 4242 ]] || exit 98\n",
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n\"$BASH\" --noprofile --norc inner.sh\n",
+      "files": {
+        "inner.sh": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n[[ $(type -t ns) == builtin ]] || exit 99\nns unshare user >\"$HOME/unshare.out\" 2>\"$HOME/unshare.err\"; a=$?\nprintf 'unshare=%s\\n' \"$a\" >\"$HOME/map-status.raw\"\nif ((a!=0)); then printf 'unshare=%s\\n' \"$a\"; exit 98; fi\nns deny-setgroups >\"$HOME/deny.out\" 2>\"$HOME/deny.err\"; b=$?\nns map-uid 4242 2000 1 >\"$HOME/uid.out\" 2>\"$HOME/uid.err\"; c=$?\nns map-gid 4242 2000 1 >\"$HOME/gid.out\" 2>\"$HOME/gid.err\"; d=$?\nprintf 'deny=%s uid=%s gid=%s\\n' \"$b\" \"$c\" \"$d\" >>\"$HOME/map-status.raw\"\nIFS= read -r groups </proc/self/setgroups || groups=missing\nread -r iu ou lu extra </proc/self/uid_map\nread -r ig og lg extra </proc/self/gid_map\nprintf 'uid_map=%s %s %s\\ngid_map=%s %s %s\\nsetgroups=%s\\n' \"$iu\" \"$ou\" \"$lu\" \"$ig\" \"$og\" \"$lg\" \"$groups\" >\"$HOME/map-readback.raw\"\nuid=$(/usr/bin/id -u); gid=$(/usr/bin/id -g)\nif [[ $iu == 4242 && $ou == 2000 && $lu == 1 && $ig == 4242 && $og == 2000 && $lg == 1 ]]; then maps=expected; else maps=other; fi\nprintf 'unshare=%s deny=%s uid=%s gid=%s ids=%s:%s maps=%s setgroups=%s\\n' \"$a\" \"$b\" \"$c\" \"$d\" \"$uid\" \"$gid\" \"$maps\" \"$groups\"\n"
+      },
+      "diagnostic_files": [
+        "map-control-valid.json",
+        "native-id.raw",
+        "unshare.out",
+        "unshare.err",
+        "deny.out",
+        "deny.err",
+        "uid.out",
+        "uid.err",
+        "gid.out",
+        "gid.err",
+        "map-status.raw",
+        "map-readback.raw"
+      ],
+      "expected_status": 0,
+      "stdout": "unshare=0 deny=0 uid=0 gid=0 ids=4242:4242 maps=expected setgroups=deny\n",
+      "timeout": 45
+    },
+    {
+      "id": "migration-namespace-network-idmap-ordering-r1",
+      "loadable": "ns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ns/ns-id-mapping"
+      ],
+      "purpose": "Test ordering mapping rejection in a fresh owned user namespace.",
+      "oracle": "Independent Linux syscall, util-linux and procfs controls operating only in contained guest child namespaces.",
+      "comparison": "Exact semantic result and status markers; raw controls, namespace maps, syscall bytes/results, diagnostics and child observations retained for review.",
+      "requires": [
+        "python3",
+        "unshare",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-idmap-r1.py": "14314b83999f29690d5d9791a1d1ee47f8361d0b4766566dc312197ce885cd83",
+        "helpers/namespace-network-ns-controls-r1.py": "f4a6084b6f4318c35d1343c508b78f7b1935379a59d8d8c091d819c52a6c04f1"
+      },
+      "setup_script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n/usr/bin/python3 \"$I\" control ordering\n",
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n\"$BASH\" --noprofile --norc inner.sh\n",
+      "files": {
+        "inner.sh": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n[[ $(type -t ns) == builtin ]] || exit 99\nns unshare user >\"$HOME/unshare.out\" 2>\"$HOME/unshare.err\"; a=$?\nprintf 'unshare=%s\\n' \"$a\" >\"$HOME/map-status.raw\"\nif ((a!=0)); then printf 'unshare=%s\\n' \"$a\"; exit 98; fi\nns map-gid 4242 2000 1 >\"$HOME/invalid.out\" 2>\"$HOME/invalid.err\"; rc=$?\nerr=$(<\"$HOME/invalid.err\"); verdict=other\n[[ $err == *'Operation not permitted'* ]] && verdict=expected\nprintf 'invalid=%s diagnostic=%s\\n' \"$rc\" \"$verdict\"\nprintf 'invalid=%s\\n' \"$rc\" >>\"$HOME/map-status.raw\"\nwhile IFS= read -r line; do printf '%s\\n' \"$line\"; done </proc/self/uid_map >\"$HOME/uid-map.raw\"\nwhile IFS= read -r line; do printf '%s\\n' \"$line\"; done </proc/self/gid_map >\"$HOME/gid-map.raw\"\nIFS= read -r line </proc/self/setgroups; printf '%s\\n' \"$line\" >\"$HOME/setgroups.raw\"\n"
+      },
+      "diagnostic_files": [
+        "map-control-ordering.json",
+        "unshare.out",
+        "unshare.err",
+        "invalid.out",
+        "invalid.err",
+        "first.out",
+        "first.err",
+        "map-status.raw",
+        "uid-map.raw",
+        "gid-map.raw",
+        "setgroups.raw"
+      ],
+      "expected_status": 0,
+      "stdout": "invalid=1 diagnostic=expected\n",
+      "timeout": 45
+    },
+    {
+      "id": "migration-namespace-network-idmap-unowned-r1",
+      "loadable": "ns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ns/ns-id-mapping"
+      ],
+      "purpose": "Test unowned mapping rejection in a fresh owned user namespace.",
+      "oracle": "Independent Linux syscall, util-linux and procfs controls operating only in contained guest child namespaces.",
+      "comparison": "Exact semantic result and status markers; raw controls, namespace maps, syscall bytes/results, diagnostics and child observations retained for review.",
+      "requires": [
+        "python3",
+        "unshare",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-idmap-r1.py": "14314b83999f29690d5d9791a1d1ee47f8361d0b4766566dc312197ce885cd83",
+        "helpers/namespace-network-ns-controls-r1.py": "f4a6084b6f4318c35d1343c508b78f7b1935379a59d8d8c091d819c52a6c04f1"
+      },
+      "setup_script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n/usr/bin/python3 \"$I\" control unowned\n",
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n\"$BASH\" --noprofile --norc inner.sh\n",
+      "files": {
+        "inner.sh": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n[[ $(type -t ns) == builtin ]] || exit 99\nns unshare user >\"$HOME/unshare.out\" 2>\"$HOME/unshare.err\"; a=$?\nprintf 'unshare=%s\\n' \"$a\" >\"$HOME/map-status.raw\"\nif ((a!=0)); then printf 'unshare=%s\\n' \"$a\"; exit 98; fi\nns map-uid 4242 2001 1 >\"$HOME/invalid.out\" 2>\"$HOME/invalid.err\"; rc=$?\nerr=$(<\"$HOME/invalid.err\"); verdict=other\n[[ $err == *'Operation not permitted'* ]] && verdict=expected\nprintf 'invalid=%s diagnostic=%s\\n' \"$rc\" \"$verdict\"\nprintf 'invalid=%s\\n' \"$rc\" >>\"$HOME/map-status.raw\"\nwhile IFS= read -r line; do printf '%s\\n' \"$line\"; done </proc/self/uid_map >\"$HOME/uid-map.raw\"\nwhile IFS= read -r line; do printf '%s\\n' \"$line\"; done </proc/self/gid_map >\"$HOME/gid-map.raw\"\nIFS= read -r line </proc/self/setgroups; printf '%s\\n' \"$line\" >\"$HOME/setgroups.raw\"\n"
+      },
+      "diagnostic_files": [
+        "map-control-unowned.json",
+        "unshare.out",
+        "unshare.err",
+        "invalid.out",
+        "invalid.err",
+        "first.out",
+        "first.err",
+        "map-status.raw",
+        "uid-map.raw",
+        "gid-map.raw",
+        "setgroups.raw"
+      ],
+      "expected_status": 0,
+      "stdout": "invalid=1 diagnostic=expected\n",
+      "timeout": 45
+    },
+    {
+      "id": "migration-namespace-network-idmap-zero-r1",
+      "loadable": "ns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ns/ns-id-mapping"
+      ],
+      "purpose": "Test zero mapping rejection in a fresh owned user namespace.",
+      "oracle": "Independent Linux syscall, util-linux and procfs controls operating only in contained guest child namespaces.",
+      "comparison": "Exact semantic result and status markers; raw controls, namespace maps, syscall bytes/results, diagnostics and child observations retained for review.",
+      "requires": [
+        "python3",
+        "unshare",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-idmap-r1.py": "14314b83999f29690d5d9791a1d1ee47f8361d0b4766566dc312197ce885cd83",
+        "helpers/namespace-network-ns-controls-r1.py": "f4a6084b6f4318c35d1343c508b78f7b1935379a59d8d8c091d819c52a6c04f1"
+      },
+      "setup_script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n/usr/bin/python3 \"$I\" control zero\n",
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n\"$BASH\" --noprofile --norc inner.sh\n",
+      "files": {
+        "inner.sh": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n[[ $(type -t ns) == builtin ]] || exit 99\nns unshare user >\"$HOME/unshare.out\" 2>\"$HOME/unshare.err\"; a=$?\nprintf 'unshare=%s\\n' \"$a\" >\"$HOME/map-status.raw\"\nif ((a!=0)); then printf 'unshare=%s\\n' \"$a\"; exit 98; fi\nns map-uid 4242 2000 0 >\"$HOME/invalid.out\" 2>\"$HOME/invalid.err\"; rc=$?\nerr=$(<\"$HOME/invalid.err\"); verdict=other\n[[ $err == *'Invalid argument'* ]] && verdict=expected\nprintf 'invalid=%s diagnostic=%s\\n' \"$rc\" \"$verdict\"\nprintf 'invalid=%s\\n' \"$rc\" >>\"$HOME/map-status.raw\"\nwhile IFS= read -r line; do printf '%s\\n' \"$line\"; done </proc/self/uid_map >\"$HOME/uid-map.raw\"\nwhile IFS= read -r line; do printf '%s\\n' \"$line\"; done </proc/self/gid_map >\"$HOME/gid-map.raw\"\nIFS= read -r line </proc/self/setgroups; printf '%s\\n' \"$line\" >\"$HOME/setgroups.raw\"\n"
+      },
+      "diagnostic_files": [
+        "map-control-zero.json",
+        "unshare.out",
+        "unshare.err",
+        "invalid.out",
+        "invalid.err",
+        "first.out",
+        "first.err",
+        "map-status.raw",
+        "uid-map.raw",
+        "gid-map.raw",
+        "setgroups.raw"
+      ],
+      "expected_status": 0,
+      "stdout": "invalid=1 diagnostic=expected\n",
+      "timeout": 45
+    },
+    {
+      "id": "migration-namespace-network-idmap-overlap-r1",
+      "loadable": "ns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ns/ns-id-mapping"
+      ],
+      "purpose": "Test overlap mapping rejection in a fresh owned user namespace.",
+      "oracle": "Independent Linux syscall, util-linux and procfs controls operating only in contained guest child namespaces.",
+      "comparison": "Exact semantic result and status markers; raw controls, namespace maps, syscall bytes/results, diagnostics and child observations retained for review.",
+      "requires": [
+        "python3",
+        "unshare",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-idmap-r1.py": "14314b83999f29690d5d9791a1d1ee47f8361d0b4766566dc312197ce885cd83",
+        "helpers/namespace-network-ns-controls-r1.py": "f4a6084b6f4318c35d1343c508b78f7b1935379a59d8d8c091d819c52a6c04f1"
+      },
+      "setup_script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n/usr/bin/python3 \"$I\" control overlap\n",
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n\"$BASH\" --noprofile --norc inner.sh\n",
+      "files": {
+        "inner.sh": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n[[ $(type -t ns) == builtin ]] || exit 99\nns unshare user >\"$HOME/unshare.out\" 2>\"$HOME/unshare.err\"; a=$?\nprintf 'unshare=%s\\n' \"$a\" >\"$HOME/map-status.raw\"\nif ((a!=0)); then printf 'unshare=%s\\n' \"$a\"; exit 98; fi\nns map-uid $'4242 2000 1\\n4242' 2000 1 >\"$HOME/invalid.out\" 2>\"$HOME/invalid.err\"; rc=$?\nerr=$(<\"$HOME/invalid.err\"); verdict=other\n[[ $err == *'Invalid argument'* ]] && verdict=expected\nprintf 'invalid=%s diagnostic=%s\\n' \"$rc\" \"$verdict\"\nprintf 'invalid=%s\\n' \"$rc\" >>\"$HOME/map-status.raw\"\nwhile IFS= read -r line; do printf '%s\\n' \"$line\"; done </proc/self/uid_map >\"$HOME/uid-map.raw\"\nwhile IFS= read -r line; do printf '%s\\n' \"$line\"; done </proc/self/gid_map >\"$HOME/gid-map.raw\"\nIFS= read -r line </proc/self/setgroups; printf '%s\\n' \"$line\" >\"$HOME/setgroups.raw\"\n"
+      },
+      "diagnostic_files": [
+        "map-control-overlap.json",
+        "unshare.out",
+        "unshare.err",
+        "invalid.out",
+        "invalid.err",
+        "first.out",
+        "first.err",
+        "map-status.raw",
+        "uid-map.raw",
+        "gid-map.raw",
+        "setgroups.raw"
+      ],
+      "expected_status": 0,
+      "stdout": "invalid=1 diagnostic=expected\n",
+      "timeout": 45
+    },
+    {
+      "id": "migration-namespace-network-idmap-second-r1",
+      "loadable": "ns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ns/ns-id-mapping"
+      ],
+      "purpose": "Test second mapping rejection in a fresh owned user namespace.",
+      "oracle": "Independent Linux syscall, util-linux and procfs controls operating only in contained guest child namespaces.",
+      "comparison": "Exact semantic result and status markers; raw controls, namespace maps, syscall bytes/results, diagnostics and child observations retained for review.",
+      "requires": [
+        "python3",
+        "unshare",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-idmap-r1.py": "14314b83999f29690d5d9791a1d1ee47f8361d0b4766566dc312197ce885cd83",
+        "helpers/namespace-network-ns-controls-r1.py": "f4a6084b6f4318c35d1343c508b78f7b1935379a59d8d8c091d819c52a6c04f1"
+      },
+      "setup_script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n/usr/bin/python3 \"$I\" control second\n",
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n\"$BASH\" --noprofile --norc inner.sh\n",
+      "files": {
+        "inner.sh": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n[[ $(type -t ns) == builtin ]] || exit 99\nns unshare user >\"$HOME/unshare.out\" 2>\"$HOME/unshare.err\"; a=$?\nprintf 'unshare=%s\\n' \"$a\" >\"$HOME/map-status.raw\"\nif ((a!=0)); then printf 'unshare=%s\\n' \"$a\"; exit 98; fi\nns map-uid 4242 2000 1 >\"$HOME/first.out\" 2>\"$HOME/first.err\"; first=$?\nprintf 'first=%s\\n' \"$first\"\nprintf 'first=%s\\n' \"$first\" >>\"$HOME/map-status.raw\"\nns map-uid 4242 2000 1 >\"$HOME/invalid.out\" 2>\"$HOME/invalid.err\"; rc=$?\nerr=$(<\"$HOME/invalid.err\"); verdict=other\n[[ $err == *'Operation not permitted'* ]] && verdict=expected\nprintf 'invalid=%s diagnostic=%s\\n' \"$rc\" \"$verdict\"\nprintf 'invalid=%s\\n' \"$rc\" >>\"$HOME/map-status.raw\"\nwhile IFS= read -r line; do printf '%s\\n' \"$line\"; done </proc/self/uid_map >\"$HOME/uid-map.raw\"\nwhile IFS= read -r line; do printf '%s\\n' \"$line\"; done </proc/self/gid_map >\"$HOME/gid-map.raw\"\nIFS= read -r line </proc/self/setgroups; printf '%s\\n' \"$line\" >\"$HOME/setgroups.raw\"\n"
+      },
+      "diagnostic_files": [
+        "map-control-second.json",
+        "unshare.out",
+        "unshare.err",
+        "invalid.out",
+        "invalid.err",
+        "first.out",
+        "first.err",
+        "map-status.raw",
+        "uid-map.raw",
+        "gid-map.raw",
+        "setgroups.raw"
+      ],
+      "expected_status": 0,
+      "stdout": "first=0\ninvalid=1 diagnostic=expected\n",
+      "timeout": 45
+    },
+    {
+      "id": "migration-namespace-network-pivot-valid-r1",
+      "loadable": "ns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ns/ns-pivot-root"
+      ],
+      "purpose": "Switch the root in a private one-ID user/mount namespace and observe the new and old roots from the shell and a child.",
+      "oracle": "Independent Linux syscall, util-linux and procfs controls operating only in contained guest child namespaces.",
+      "comparison": "Exact semantic result and status markers; raw controls, namespace maps, syscall bytes/results, diagnostics and child observations retained for review.",
+      "requires": [
+        "python3",
+        "unshare",
+        "systemd-detect-virt",
+        "mount",
+        "readlink"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-idmap-r1.py": "14314b83999f29690d5d9791a1d1ee47f8361d0b4766566dc312197ce885cd83",
+        "helpers/namespace-network-ns-controls-r1.py": "f4a6084b6f4318c35d1343c508b78f7b1935379a59d8d8c091d819c52a6c04f1"
+      },
+      "setup_script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\nowner=$BASHPID\nFIXTURE_OUTER_MNT=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\") || exit 98\nexport FIXTURE_OUTER_MNT\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 \"$H\" pivot-control valid\n",
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\nowner=$BASHPID\nFIXTURE_OUTER_MNT=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\") || exit 98\nexport FIXTURE_OUTER_MNT\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\nrc=$?\ncurrent=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\")\n[[ $current == \"$FIXTURE_OUTER_MNT\" ]] && outside=unchanged || outside=changed\nprintf 'inner=%s outer-mount=%s\\n' \"$rc\" \"$outside\"\n",
+      "files": {
+        "inner.sh": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\nowner=$BASHPID\ninside=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\") || exit 98\n[[ $EUID == 0 && -n $FIXTURE_OUTER_MNT && $inside != \"$FIXTURE_OUTER_MNT\" ]] || exit 125\n[[ $(type -t ns) == builtin ]] || exit 99\n/usr/bin/mkdir test-pivot || exit 98\n/usr/bin/mount -t tmpfs -o size=1m tmpfs test-pivot || exit 98\n/usr/bin/mkdir test-pivot/old || exit 98\nprintf 'pivot-fixture\\n' >test-pivot/marker\nexec 8</ 9>\"$HOME/pivot.raw\" 10>\"$HOME/pivot.err\"\nnew=$PWD/test-pivot\nns pivot-root \"$new\" \"$new/old\" >&9 2>&10; rc=$?\nprintf 'pivot=%s\\n' \"$rc\" >&9\nprintf 'pivot=%s\\n' \"$rc\"\nif ((rc!=0)); then exit \"$rc\"; fi\ncd / || exit 98\nif [[ -f /marker && /old -ef /old/proc/self/fd/8 && / -ef /old/proc/self/root ]]; then root=expected; else root=other; fi\nprintf 'root=%s\\n' \"$root\" >&9\nprintf 'root=%s\\n' \"$root\"\n( [[ $PWD == / && -f /marker && -f /old/etc/bashos-parity-vm && / -ef /old/proc/self/root ]] ) && child=expected || child=other\nprintf 'child=%s\\n' \"$child\" >&9\nprintf 'child=%s\\n' \"$child\"\n"
+      },
+      "diagnostic_files": [
+        "pivot-control-valid.json",
+        "pivot.raw",
+        "pivot.err"
+      ],
+      "expected_status": 0,
+      "stdout": "pivot=0\nroot=expected\nchild=expected\ninner=0 outer-mount=unchanged\n",
+      "timeout": 45
+    },
+    {
+      "id": "migration-namespace-network-pivot-not-mountpoint-r1",
+      "loadable": "ns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ns/ns-pivot-root"
+      ],
+      "purpose": "Require EINVAL for new_root that is not a mount point, in a contained user/mount namespace.",
+      "oracle": "Independent Linux syscall, util-linux and procfs controls operating only in contained guest child namespaces.",
+      "comparison": "Exact semantic result and status markers; raw controls, namespace maps, syscall bytes/results, diagnostics and child observations retained for review.",
+      "requires": [
+        "python3",
+        "unshare",
+        "systemd-detect-virt",
+        "mount",
+        "readlink"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-idmap-r1.py": "14314b83999f29690d5d9791a1d1ee47f8361d0b4766566dc312197ce885cd83",
+        "helpers/namespace-network-ns-controls-r1.py": "f4a6084b6f4318c35d1343c508b78f7b1935379a59d8d8c091d819c52a6c04f1"
+      },
+      "setup_script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\nowner=$BASHPID\nFIXTURE_OUTER_MNT=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\") || exit 98\nexport FIXTURE_OUTER_MNT\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 \"$H\" pivot-control invalid\n",
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\nowner=$BASHPID\nFIXTURE_OUTER_MNT=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\") || exit 98\nexport FIXTURE_OUTER_MNT\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\nrc=$?\ncurrent=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\")\n[[ $current == \"$FIXTURE_OUTER_MNT\" ]] && outside=unchanged || outside=changed\nprintf 'inner=%s outer-mount=%s\\n' \"$rc\" \"$outside\"\n",
+      "files": {
+        "inner.sh": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\nowner=$BASHPID\ninside=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\") || exit 98\n[[ $EUID == 0 && -n $FIXTURE_OUTER_MNT && $inside != \"$FIXTURE_OUTER_MNT\" ]] || exit 125\n[[ $(type -t ns) == builtin ]] || exit 99\n/usr/bin/mkdir test-pivot-invalid || exit 98\n/usr/bin/mount -t tmpfs -o size=1m tmpfs test-pivot-invalid || exit 98\n/usr/bin/mkdir -p test-pivot-invalid/new/old || exit 98\nns pivot-root \"$PWD/test-pivot-invalid/new\" \"$PWD/test-pivot-invalid/new/old\" >\"$HOME/invalid.out\" 2>\"$HOME/invalid.err\"; rc=$?\nerr=$(<\"$HOME/invalid.err\"); verdict=other; [[ $err == *'Invalid argument'* ]] && verdict=expected\nprintf 'invalid=%s diagnostic=%s\\n' \"$rc\" \"$verdict\"\nprintf 'invalid=%s\\n' \"$rc\" >\"$HOME/pivot-status.raw\"\n"
+      },
+      "diagnostic_files": [
+        "pivot-control-invalid.json",
+        "invalid.out",
+        "invalid.err",
+        "pivot-status.raw"
+      ],
+      "expected_status": 0,
+      "stdout": "invalid=1 diagnostic=expected\ninner=0 outer-mount=unchanged\n",
+      "timeout": 45
+    },
+    {
+      "id": "migration-namespace-network-spawn-env-status-r1",
+      "loadable": "ns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ns/ns-spawn-child-exec"
+      ],
+      "purpose": "Check owned-child argv and exported sentinel environment, child-only no-new-privileges, normal exit and exec failure.",
+      "oracle": "Independent Linux syscall, util-linux and procfs controls operating only in contained guest child namespaces.",
+      "comparison": "Exact semantic result and status markers; raw controls, namespace maps, syscall bytes/results, diagnostics and child observations retained for review.",
+      "requires": [
+        "python3",
+        "unshare",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-idmap-r1.py": "14314b83999f29690d5d9791a1d1ee47f8361d0b4766566dc312197ce885cd83",
+        "helpers/namespace-network-ns-controls-r1.py": "f4a6084b6f4318c35d1343c508b78f7b1935379a59d8d8c091d819c52a6c04f1"
+      },
+      "setup_script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\nexport NN_TOKEN='value with spaces' NN_EMPTY=''\n/usr/bin/python3 \"$H\" child native one 'two words' >\"$HOME/native.out\" 2>\"$HOME/native.err\"\n/usr/bin/python3 \"$H\" check-spawn native 0 0 one 'two words' >\"$HOME/native-check.out\"\n",
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n[[ $(type -t ns) == builtin ]] || exit 99\nexport NN_TOKEN='value with spaces' NN_EMPTY=''\nns spawn none /usr/bin/python3 \"$H\" child plain one 'two words' >\"$HOME/plain.out\" 2>\"$HOME/plain.err\"; a=$?\nns spawn --no-new-privs none /usr/bin/python3 \"$H\" child nnp one 'two words' >\"$HOME/nnp.out\" 2>\"$HOME/nnp.err\"; b=$?\nns spawn none /usr/bin/python3 \"$H\" child-exit 37 >\"$HOME/exit.out\" 2>\"$HOME/exit.err\"; c=$?\nns spawn none /opt/bashos-parity/absent-fixture-executable >\"$HOME/exec.out\" 2>\"$HOME/exec.err\"; d=$?\nerr=$(<\"$HOME/exec.err\"); diag=other; [[ $err == *'No such file or directory'* ]] && diag=expected\nparent=''; while read -r k v tail; do [[ $k == NoNewPrivs: ]] && parent=$v; done </proc/$BASHPID/status\nprintf 'plain=%s nnp=%s exit=%s exec=%s exec-diagnostic=%s parent-nnp=%s\\n' \"$a\" \"$b\" \"$c\" \"$d\" \"$diag\" \"$parent\"\nprintf 'plain=%s nnp=%s exit=%s exec=%s\\n' \"$a\" \"$b\" \"$c\" \"$d\" >\"$HOME/spawn-status.raw\"\n/usr/bin/python3 \"$H\" check-spawn plain 0 0 one 'two words'\n/usr/bin/python3 \"$H\" check-spawn nnp 1 0 one 'two words'\n",
+      "files": {},
+      "diagnostic_files": [
+        "child-native.json",
+        "child-check-native.json",
+        "native.out",
+        "native.err",
+        "native-check.out",
+        "child-plain.json",
+        "child-nnp.json",
+        "child-check-plain.json",
+        "child-check-nnp.json",
+        "plain.out",
+        "plain.err",
+        "nnp.out",
+        "nnp.err",
+        "spawn-status.raw",
+        "exec.err",
+        "exit.err"
+      ],
+      "expected_status": 0,
+      "stdout": "plain=0 nnp=0 exit=37 exec=127 exec-diagnostic=expected parent-nnp=0\nchild-plain=verified\nchild-nnp=verified\n",
+      "timeout": 45
+    },
+    {
+      "id": "migration-namespace-network-spawn-pid-one-r1",
+      "loadable": "ns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ns/ns-spawn-child-exec"
+      ],
+      "purpose": "Clone a child into a PID namespace owned by a one-ID user namespace and verify PID 1, argv and changed namespace inode.",
+      "oracle": "Independent Linux syscall, util-linux and procfs controls operating only in contained guest child namespaces.",
+      "comparison": "Exact semantic result and status markers; raw controls, namespace maps, syscall bytes/results, diagnostics and child observations retained for review.",
+      "requires": [
+        "python3",
+        "unshare",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-idmap-r1.py": "14314b83999f29690d5d9791a1d1ee47f8361d0b4766566dc312197ce885cd83",
+        "helpers/namespace-network-ns-controls-r1.py": "f4a6084b6f4318c35d1343c508b78f7b1935379a59d8d8c091d819c52a6c04f1"
+      },
+      "setup_script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\nexport NN_TOKEN='value with spaces' NN_EMPTY=''\n/usr/bin/unshare --user --map-root-user --pid --fork /usr/bin/python3 \"$H\" child native-pid one 'two words' >\"$HOME/native.out\" 2>\"$HOME/native.err\"\n/usr/bin/python3 \"$H\" check-native-pid\n",
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n/usr/bin/unshare --user --map-root-user \"$BASH\" --noprofile --norc inner.sh\n",
+      "files": {
+        "inner.sh": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nif ((EUID==0)); then\n  mapfile -t maps </proc/self/uid_map || exit 125\n  (( ${#maps[@]} == 1 )) || exit 125\n  read -r a b n tail <<<\"${maps[0]}\"; [[ $a == 0 && $b == 2000 && $n == 1 && -z $tail ]] || exit 125\nelse ((EUID==2000)) || exit 125; fi\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nI=/opt/bashos-parity/harness/helpers/namespace-network-idmap-r1.py\nH=/opt/bashos-parity/harness/helpers/namespace-network-ns-controls-r1.py\n[[ $EUID == 0 && $(type -t ns) == builtin ]] || exit 99\nexport NN_TOKEN='value with spaces' NN_EMPTY=''\n/usr/bin/python3 \"$H\" snapshot parent || exit 98\nns spawn pid /usr/bin/python3 \"$H\" child pid-one one 'two words' >\"$HOME/pid.out\" 2>\"$HOME/pid.err\"; rc=$?\nprintf 'spawn-pid=%s\\n' \"$rc\"\nprintf 'spawn-pid=%s\\n' \"$rc\" >\"$HOME/spawn-status.raw\"\n/usr/bin/python3 \"$H\" check-spawn pid-one 0 1 one 'two words'\n"
+      },
+      "diagnostic_files": [
+        "child-native-pid.json",
+        "native-pid-check.json",
+        "native.out",
+        "native.err",
+        "snapshot-parent.json",
+        "child-pid-one.json",
+        "child-check-pid-one.json",
+        "pid.out",
+        "pid.err",
+        "spawn-status.raw"
+      ],
+      "expected_status": 0,
+      "stdout": "spawn-pid=0\nchild-pid-one=verified\n",
+      "timeout": 45
+    }
+  ]
+}

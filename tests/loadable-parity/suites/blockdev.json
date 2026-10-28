@@ -41,9 +41,18 @@
     },
     {
       "id": "query-actions-mock",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise query ioctl dispatch and formatting for size in sectors, size in bytes, legacy size, logical sector size, block size, and normalized read-only state.",
-      "reason": "Remaining obligations: r5: Not producible by a real block device (minimum logical block 512 B; loop/dm sizes are sector multiples); only an ioctl return-value mock can supply it."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-blockdev-query-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-device-storage-block-r3"
+        }
+      ]
     },
     {
       "id": "readonly-transitions-mock",

@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-transfer-pkg-repo-fetch-artifacts-r4",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Fetch signed repository artifacts over a bounded, independently controlled loopback HTTP peer.",
+      "covers": [
+        "pkg/pkg-repository-io"
+      ],
+      "oracle": "Independent OpenSSL-signed per-architecture INDEX and package fixtures served by a VM-guarded loopback-only HTTP peer. A separate Python HTTP client first verifies exact signed index, signature, package, and package-signature bytes served. The evaluator enforces a fresh network namespace containing only loopback.",
+      "comparison": "Require successful remote pkg fetch, exact mirrored package and signature bytes, and raw server evidence that the candidate requested the signed index and both artifacts; preserve independent signature controls and HTTP request records.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf",
+        "timeout"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-repository-r2.py": "7aac8833c06c8eb07111353e61b135b08ce740cc2cf811f24fc8852780872b81",
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c",
+        "helpers/transfer-repo-http-r2.py": "8e92e870153d68e54b40b0ed75886d64147727e7a062fe515ee6e535d0c138fa"
+      },
+      "files": {
+        "inner.sh": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"; ARCH=$(/usr/bin/uname -m)\nbuiltin pkg fetch --root root --sources \"$HOME/http-sources.list\" --timeout 4 > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'fetch=%s\\n' \"$?\"\n/usr/bin/cmp -s \"$F/v2.pkg\" \"root/var/lib/pkg/repos/repository/$ARCH/fixtureprobe-2.pkg\" && /usr/bin/cmp -s \"$F/v2.pkg.sig\" \"root/var/lib/pkg/repos/repository/$ARCH/fixtureprobe-2.pkg.sig\" && printf 'artifacts=exact\\n' || printf 'artifacts=missing\\n'\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py capture-after > \"$HOME/repository-capture.out\" 2> \"$HOME/repository-capture.err\" || exit 97\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-repository-r2.py\nmkdir -p root\n",
+      "setup_timeout": 60,
+      "candidate_script": "export PATH=/usr/bin:/bin BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nHTTP=/opt/bashos-parity/harness/helpers/transfer-repo-http-r2.py\nport=; peer=\ncleanup_http() {\n    saved=$?\n    trap - EXIT\n    if [[ -n $peer ]]; then\n        if [[ -n $port ]]; then /usr/bin/python3 \"$HTTP\" stop \"$port\" >> \"$HOME/repo-http-stop.out\" 2>> \"$HOME/repo-http-stop.err\" || :; fi\n        wait \"$peer\" 2>/dev/null || :\n    fi\n    return \"$saved\"\n}\ntrap cleanup_http EXIT\n/usr/bin/python3 \"$HTTP\" serve > \"$HOME/repo-http-peer.out\" 2> \"$HOME/repo-http-peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/repo-http-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/repo-http-port\" ]] || { echo 'CONTROL-FAILED HTTP listen'; exit 98; }\nport=$(<\"$HOME/repo-http-port\")\n/usr/bin/python3 \"$HTTP\" control \"$port\" > \"$HOME/repo-http-control.out\" 2> \"$HOME/repo-http-control.err\" || { echo 'CONTROL-FAILED independent HTTP retrieval'; exit 98; }\nprintf 'http://127.0.0.1:%s/repository\\n' \"$port\" > \"$HOME/http-sources.list\"\n/usr/bin/timeout --signal=TERM --kill-after=3s 24s \"$BASH\" --noprofile --norc \"$PWD/inner.sh\"\ninner_rc=$?\n/usr/bin/python3 \"$HTTP\" stop \"$port\" > \"$HOME/repo-http-stop.out\" 2> \"$HOME/repo-http-stop.err\"; stop_rc=$?\nwait \"$peer\"; peer_rc=$?; peer=\ntrap - EXIT\n/usr/bin/python3 - \"$inner_rc\" \"$stop_rc\" \"$peer_rc\" <<'PYH'\nimport json,pathlib,platform,sys\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'repo-http-events.jsonl').read_text().splitlines()]\nr=json.loads((p/'repo-http-result.json').read_text()); a=platform.machine(); base='/repository/'+a+'/'\nneeded={base+x for x in ('INDEX','INDEX.sig','fixtureprobe-2.pkg','fixtureprobe-2.pkg.sig')}\nobserved={x['path'] for x in e if not x['control'] and x['method']=='GET' and x['status']==200 and x['peer']=='127.0.0.1'}\nvalid=needed <= observed and r['stopped'] and r['error'] is None and sys.argv[1:] == ['0','0','0']\nprint('http-peer=observed' if valid else 'http-peer=unobserved')\nPYH\n",
+      "stdout": "fetch=0\nartifacts=exact\nhttp-peer=observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 60,
+      "diagnostic_files": [
+        "first.out",
+        "first.err",
+        "pkg-fixture/public-evidence.json",
+        "repository-control.jsonl",
+        "repository-evidence-before.json",
+        "repository-evidence-after.json",
+        "repository-capture.err",
+        "repo-http-control.out",
+        "repo-http-control.err",
+        "repo-http-events.jsonl",
+        "repo-http-result.json",
+        "repo-http-peer.out",
+        "repo-http-peer.err",
+        "repo-http-stop.out",
+        "repo-http-stop.err",
+        "http-sources.list"
+      ]
+    }
+  ]
+}

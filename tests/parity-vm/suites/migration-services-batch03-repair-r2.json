@@ -1,0 +1,96 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-services-sv-run-shutdown-r2",
+      "loadable": "sv",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "run-shutdown: bounded service-child cleanup and monitored session",
+      "covers": [
+        "sv/deferred-service-lifecycle",
+        "sv/deferred-readiness-and-ordering"
+      ],
+      "oracle": "Documented service and firewall request contracts, independently checked fixture services, private peers and explicit event/order assertions. Independent forced-cleanup and parent-death controls verify exact child reaping and must fail the candidate-cleanup predicate.",
+      "comparison": "Statuses and normalized observations are checked against fixed expectations; raw input, output, event order, PIDs, peer data and fixture controls are retained for review. Pre-cleanup process snapshots, raw child events, trap actions and subreaper wait statuses are retained; any forced cleanup or live survivor is a failure.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "case-inner.sh": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nfixture_exit() {\n local code=$?\n trap - EXIT TERM INT HUP\n \"$HOME/sv-helper\" --trap-cleanup > \"$HOME/trap.out\" 2> \"$HOME/trap.err\" || code=1\n exit \"$code\"\n}\ntrap fixture_exit EXIT\ntrap 'exit 124' TERM INT HUP\nfor ((i=0;i<100;i++)); do [[ -s $HOME/monitor-context.json ]] && break; /usr/bin/sleep .02; done\n[[ -s $HOME/monitor-context.json ]] || exit 98\nexport BASHSV_DIR=\"$HOME/services\" BASHSV_RUNDIR=\"$HOME/state\" BASHSV_LOGDIR=\"$HOME/logs\"\nwait_file() { for ((i=0;i<120;i++)); do [[ -s $1 ]] && return 0; /usr/bin/sleep .05; done; return 1; }\nwait_contains() { local file=$1 text=$2; for ((i=0;i<120;i++)); do [[ -r $file && $(< \"$file\") == *\"$text\"* ]] && return 0; /usr/bin/sleep .05; done; return 1; }\nwait_stopped() { local file=\"$HOME/state/$1/super-pid\"; for ((i=0;i<120;i++)); do [[ ! -e $file ]] && return 0; /usr/bin/sleep .05; done; return 1; }\nBASHSV_DIR=\"$HOME/no-such-services\" sv run -d \"$HOME/services\" > \"$HOME/run.out\" 2> \"$HOME/run.err\" & owner=$!\nwait_file \"$HOME/started.life\" && echo started=ready || echo started=BAD\nif [[ -s $HOME/started.life ]]; then target=$(< \"$HOME/started.life\"); wait_contains \"$HOME/state/life/status\" \"running pid=$target\" || :; fi\nif \"$HOME/sv-helper\" --safe-tree; then sv shutdown > \"$HOME/shutdown.out\" 2> \"$HOME/shutdown.err\"; printf 'shutdown=%s\\n' \"$?\"; else echo shutdown=UNSAFE; fi\nwait \"$owner\"; printf 'run=%s\\n' \"$?\"\n\"$HOME/sv-helper\" --check run\n"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-supervisor-r2.py \"$HOME/sv-helper\"\n/usr/bin/chmod 700 \"$HOME/sv-helper\"\n\"$HOME/sv-helper\" --setup run\n\"$HOME/sv-helper\" --cleanup-controls run\n",
+      "setup_timeout": 30,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n\"$HOME/sv-helper\" --monitor \"$BASH\" /tmp/parity-case/case-inner.sh\n",
+      "stdout": "started=ready\nshutdown=0\nrun=0\nrun-observation=ok\nmonitor-clean=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 60,
+      "diagnostic_files": [
+        "control.events",
+        "svconfig.json",
+        "sv.events",
+        "check-error.txt",
+        "run.out",
+        "run.err",
+        "shutdown.out",
+        "shutdown.err",
+        "ownership.jsonl",
+        "cleanup-controls.json",
+        "trap-evidence.json",
+        "monitor-evidence.json"
+      ],
+      "helpers_sha256": {
+        "helpers/services-supervisor-r2.py": "72566aa175074cc6528ba152176f988d9b3f6fe167ec74890eebfda49e0b232a"
+      }
+    },
+    {
+      "id": "migration-services-sv-notify-r2",
+      "loadable": "sv",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "notify: bounded service-child cleanup and monitored session",
+      "covers": [
+        "sv/deferred-activation-protocols",
+        "sv/deferred-readiness-and-ordering"
+      ],
+      "oracle": "Documented service and firewall request contracts, independently checked fixture services, private peers and explicit event/order assertions. Independent forced-cleanup and parent-death controls verify exact child reaping and must fail the candidate-cleanup predicate.",
+      "comparison": "Statuses and normalized observations are checked against fixed expectations; raw input, output, event order, PIDs, peer data and fixture controls are retained for review. Pre-cleanup process snapshots, raw child events, trap actions and subreaper wait statuses are retained; any forced cleanup or live survivor is a failure.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "case-inner.sh": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nfixture_exit() {\n local code=$?\n trap - EXIT TERM INT HUP\n \"$HOME/sv-helper\" --trap-cleanup > \"$HOME/trap.out\" 2> \"$HOME/trap.err\" || code=1\n exit \"$code\"\n}\ntrap fixture_exit EXIT\ntrap 'exit 124' TERM INT HUP\nfor ((i=0;i<100;i++)); do [[ -s $HOME/monitor-context.json ]] && break; /usr/bin/sleep .02; done\n[[ -s $HOME/monitor-context.json ]] || exit 98\nexport BASHSV_DIR=\"$HOME/services\" BASHSV_RUNDIR=\"$HOME/state\" BASHSV_LOGDIR=\"$HOME/logs\"\nwait_file() { for ((i=0;i<120;i++)); do [[ -s $1 ]] && return 0; /usr/bin/sleep .05; done; return 1; }\nwait_contains() { local file=$1 text=$2; for ((i=0;i<120;i++)); do [[ -r $file && $(< \"$file\") == *\"$text\"* ]] && return 0; /usr/bin/sleep .05; done; return 1; }\nwait_stopped() { local file=\"$HOME/state/$1/super-pid\"; for ((i=0;i<120;i++)); do [[ ! -e $file ]] && return 0; /usr/bin/sleep .05; done; return 1; }\n( sv boot > \"$HOME/boot.out\" 2> \"$HOME/boot.err\"; printf '%s\\n' \"$?\" > \"$HOME/boot.status\" ) & owner=$!\nwait_file \"$HOME/started.a_notify\" && echo notify-service=started || echo notify-service=BAD\n[[ ! -e $HOME/started.z_dependent ]] && echo gate=held || echo gate=BAD\n: > \"$HOME/notify.ready\"\nwait_contains \"$HOME/state/a_notify/status\" 'ready pid=' && /usr/bin/cp \"$HOME/state/a_notify/status\" \"$HOME/status.ready\" && /usr/bin/cp \"$HOME/state/a_notify/pid\" \"$HOME/pid.ready\" && echo ready=observed || echo ready=BAD\nwait \"$owner\"; printf 'boot=%s\\n' \"$(< \"$HOME/boot.status\")\"\n: > \"$HOME/notify.reload\"\nwait_contains \"$HOME/state/a_notify/status\" 'reloading pid=' && /usr/bin/cp \"$HOME/state/a_notify/status\" \"$HOME/status.reload\" && echo reload=observed || echo reload=BAD\n: > \"$HOME/notify.stopping\"\nwait_contains \"$HOME/state/a_notify/status\" 'stopping pid=' && /usr/bin/cp \"$HOME/state/a_notify/status\" \"$HOME/status.stopping\" && echo stopping=observed || echo stopping=BAD\nif \"$HOME/sv-helper\" --safe-tree; then sv shutdown > \"$HOME/shutdown.out\" 2> \"$HOME/shutdown.err\"; printf 'shutdown=%s\\n' \"$?\"; else echo shutdown=UNSAFE; fi\n\"$HOME/sv-helper\" --check notify\n"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-supervisor-r2.py \"$HOME/sv-helper\"\n/usr/bin/chmod 700 \"$HOME/sv-helper\"\n\"$HOME/sv-helper\" --setup notify\n\"$HOME/sv-helper\" --cleanup-controls notify\n\"$HOME/sv-helper\" --notify-control\n",
+      "setup_timeout": 30,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n\"$HOME/sv-helper\" --monitor \"$BASH\" /tmp/parity-case/case-inner.sh\n",
+      "stdout": "notify-service=started\ngate=held\nready=observed\nboot=0\nreload=observed\nstopping=observed\nshutdown=0\nnotify-observation=ok\nmonitor-clean=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 60,
+      "diagnostic_files": [
+        "control.events",
+        "sv.events",
+        "boot.out",
+        "boot.err",
+        "boot.status",
+        "status.ready",
+        "pid.ready",
+        "status.reload",
+        "status.stopping",
+        "shutdown.out",
+        "shutdown.err",
+        "notify-control.json",
+        "cleanup-controls.json",
+        "trap-evidence.json",
+        "monitor-evidence.json"
+      ],
+      "helpers_sha256": {
+        "helpers/services-supervisor-r2.py": "72566aa175074cc6528ba152176f988d9b3f6fe167ec74890eebfda49e0b232a"
+      }
+    }
+  ]
+}

@@ -125,13 +125,13 @@
       "id": "tls-and-ntske-loopback",
       "kind": "deferred",
       "purpose": "TLS and NTS-KE require protocol-level integration coverage.",
-      "reason": "HTTPS client integration exercised crypto tls connect indirectly, but no dedicated crypto TLS client/server or NTS-KE peer fixture covers this topic. The current loopback TLS peer and guest certificate generation remove the earlier transport capability gap."
+      "reason": "Remaining obligations: r1: TLS 1.3 exchange succeeded; the candidate TLS 1.2 handshake failed before request and response bytes were relayed. Cryptographic verification was not recomputed.; r3: Not exercised.; r4: Not exercised. It needs an independent exporter oracle.; r5: Not exercised."
     },
     {
       "id": "secret-read-terminal",
       "kind": "deferred",
       "purpose": "Terminal secret input requires an interactive no-echo check.",
-      "reason": "No PTY case exists for secret-read. The PTY driver now supplies a controlling terminal (setsid plus TIOCSCTTY, so /dev/tty opens), a termios step and output_lacks, which are enough to observe every obligation."
+      "reason": "Remaining obligations: r2: The typed synthetic value is absent from the PTY screen, but the intermediate terminal flags at the blocking read were not retained.; r3: The LF scenario stores and emits exact synthetic bytes; the CR reference timed out and was withheld."
     },
     {
       "id": "aes-gcm-decrypt-known-vector",

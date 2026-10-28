@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-namespace-network-logname-mapped-session-r1",
+      "loadable": "logname",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "logname/successful-login-session"
+      ],
+      "purpose": "Resolve a controlled non-default audit login identity from a private mapped passwd entry, before and after spoofing LOGNAME and USER.",
+      "oracle": "Same-state native utility and guarded independent proc, namespace, terminal or libc identity controls in a disposable user-owned guest namespace.",
+      "comparison": "Fixed semantic success marker; raw native/candidate output and status, process identities, utmp bytes, namespace maps and independent controls retained.",
+      "requires": [
+        "python3",
+        "unshare",
+        "readlink",
+        "systemd-detect-virt",
+        "getent",
+        "logname"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-session-r1.py": "27b02dd2c161f2611d163c21d127aad7540b29e84fa5038c1de3bfe40024cc76"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nowner=$BASHPID\nFIXTURE_OUTER_MNT=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\") || exit 125\nexport FIXTURE_OUTER_MNT\nH=/opt/bashos-parity/harness/helpers/namespace-network-session-r1.py\n/usr/bin/python3 \"$H\" login-wrap control\n",
+      "setup_timeout": 60,
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nowner=$BASHPID\nFIXTURE_OUTER_MNT=$(/usr/bin/readlink \"/proc/$owner/ns/mnt\") || exit 125\nexport FIXTURE_OUTER_MNT\nH=/opt/bashos-parity/harness/helpers/namespace-network-session-r1.py\n/usr/bin/python3 \"$H\" login-wrap run \"$BASH\"\n",
+      "files": {
+        "passwd.fixture": "namespace-login:x:0:0:Fixture login:/tmp:/bin/sh\n"
+      },
+      "diagnostic_files": [
+        "login-origin.json",
+        "login-control.json",
+        "login-run.json",
+        "logname-plain.out",
+        "logname-plain.err",
+        "logname-spoof.out",
+        "logname-spoof.err"
+      ],
+      "expected_status": 0,
+      "stdout": "login=ok\n",
+      "timeout": 60
+    }
+  ]
+}
