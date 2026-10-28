@@ -77,7 +77,7 @@
       "id": "password_hash_updates",
       "purpose": "Future coverage for set, set-fd, change, add, and add-fd password hashing and shadow updates.",
       "kind": "deferred",
-      "reason": "Remaining obligations: r3: Not executed.; r5: Requires guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour; with the device absent the required mode must fail closed, which is observable now."
+      "reason": "Remaining obligations: r3: Not executed.; r5: The secret-slot path that uses the device needs /dev/bashos-auth."
     },
     {
       "id": "password_verification_lockout",

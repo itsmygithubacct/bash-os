@@ -36,14 +36,56 @@
     {
       "id": "pty-round-trip",
       "purpose": "Defer an end-to-end session covering PTY allocation, prompt matching, sendline input, EOF, close, and child exit status.",
-      "kind": "deferred",
-      "reason": "Remaining obligations: r1: The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/expect/regular-file-match-and-eof"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/expect/send-private-descriptor"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/expect/unmatched-file-eof"
+        },
+        {
+          "group": "shell",
+          "id": "migration-expect-close-signal-status"
+        },
+        {
+          "group": "shell",
+          "id": "migration-expect-spawn-round-trip"
+        },
+        {
+          "group": "shell",
+          "id": "migration-expect-tcl-round-trip"
+        }
+      ]
     },
     {
       "id": "alt-pattern-buffering",
       "purpose": "Defer validation of expect-alt first-pattern priority, regex match capture, matches spanning reads, and zero-timeout draining of already-ready bytes.",
-      "kind": "deferred",
-      "reason": "Remaining obligations: r1: The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/expect/alternative-priority"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/expect/regular-file-match-and-eof"
+        },
+        {
+          "group": "shell",
+          "id": "migration-expect-alt-on-pty"
+        },
+        {
+          "group": "shell",
+          "id": "migration-expect-tcl-alt-pattern"
+        }
+      ]
     },
     {
       "id": "deadline-eof-timeout",

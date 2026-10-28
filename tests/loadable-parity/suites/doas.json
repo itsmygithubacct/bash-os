@@ -49,9 +49,18 @@
     },
     {
       "id": "external_delegate_fallback",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check the no-authority fallback's doas argv translation, status propagation, environment refresh, and descriptor cleanup.",
-      "reason": "The fallback is unprivileged and observable with a private delegate script; the original deferral to a privileged VM is unnecessary."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-doas-external-delegate-verbatim"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sudo-doas-fallback-translation"
+        }
+      ]
     },
     {
       "id": "root_target_and_group_drop",

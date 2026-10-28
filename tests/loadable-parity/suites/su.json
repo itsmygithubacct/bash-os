@@ -46,7 +46,7 @@
       "id": "private-account-lookup",
       "kind": "deferred",
       "purpose": "Check account lookup for present, absent, malformed, and unreadable synthetic passwd records, including target UID/GID/home/shell selection.",
-      "reason": "su reads PHCLIB_PASSWD/PHCLIB_SHADOW (su.c bsu_passwd_path/bsu_shadow_path) and BPW-style lock files under its lock dir, so account lookup, parsing and password verification run unprivileged on private files; the token mint (su.c bsu_kernel_proof) and credential drop happen only after verification. Absent/malformed/unreadable paths are implementable now; observing the selected UID/GID/home/shell needs the exec path, which needs guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour (non-root) or guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid) plus the device (root route also calls bsu_kernel_proof)."
+      "reason": "Remaining obligations: r1: Observable only after successful authentication (exec) or via diagnostics; selection itself is internal."
     },
     {
       "id": "password-and-lockout-flow",

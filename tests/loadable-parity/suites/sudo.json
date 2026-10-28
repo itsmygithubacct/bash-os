@@ -58,13 +58,13 @@
       "id": "login-shell-and-command-quoting",
       "kind": "deferred",
       "purpose": "Check -i home and login-shell selection, -s shell selection, and sudo command-string escaping for metacharacters, dollar signs, empty arguments, quotes, and newlines.",
-      "reason": "Escaping and -i/-s semantics are observed after exec on the root or authority route; only the delegate refusal is reachable unprivileged."
+      "reason": "Remaining obligations: r1: Requires euid 0 (root route) or the device; the delegate route refuses -i.; r2: Requires an executing route.; r3: The quoting function (doas.c bda_sudo_shell_join/bda_sudo_escape_append) is pure, but it is only reachable through an executing route; no device-free entry point prints it."
     },
     {
       "id": "timestamp-validation-flows",
       "kind": "deferred",
       "purpose": "Verify -k, -K, -v, and -k COMMAND ordering, including that a failed reset prevents the requested action.",
-      "reason": "Only the reset translation on the delegate route is reachable unprivileged; validation and ordering need guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour."
+      "reason": "Remaining obligations: r1: The authority-route credential reset needs the /dev/bashos-auth device.; r2: Validation itself needs the /dev/bashos-auth device.; r3: Reset-then-run and a failed reset preventing the command need the /dev/bashos-auth device."
     },
     {
       "id": "sudoedit-safe-copyback",
@@ -76,7 +76,7 @@
       "id": "policy-list-projection",
       "kind": "deferred",
       "purpose": "Check -l, -ll, and --list against a caller-readable private policy snapshot, including digest binding and empty/no-match behavior, without treating listing as execution approval.",
-      "reason": "The renderer is shared with `auth policy-list FILE` (device-free, see auth/authority-policy-audit-and-child-flow), but the sudo path reads only the authority-advertised file. Delegate behaviour is reachable now."
+      "reason": "Remaining obligations: r1: Requires the device for the advertised path and digest.; r2: Requires the device.; r4: The authority route (listing then never approving execution) needs the /dev/bashos-auth device."
     }
   ]
 }

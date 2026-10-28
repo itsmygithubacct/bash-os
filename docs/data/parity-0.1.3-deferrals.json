@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "cda2f4e2881c0d66bd0c0e47994ef4874e5bff153836a26da09bbfdda9cf9c37",
+  "ledger_sha256": "c4d98a05dbcbf72aa07d43e30424c3caea20eeee9f7158ee0bbc55b4308e7e87",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 97,
-    "none": 260,
-    "full": 243
+    "partial": 100,
+    "none": 253,
+    "full": 247
   },
   "migrations": {
-    "deferred": 357,
-    "replacement": 243
+    "deferred": 353,
+    "replacement": 247
   },
   "pending_full_topics": [],
   "builds": {
@@ -2351,27 +2351,47 @@
         {
           "topic": "auth/authority-policy-audit-and-child-flow",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "auth policy-parse FILE validates and normalizes the sudoers subset (accept/reject, normalized output).",
-              "coverage": "missing",
-              "gap": "Device-free; not exercised by any case although it reads only a private file.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-policy-parse-grammar",
+                  "status": "FAIL",
+                  "run": "auth-static-39"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-policy-fnmatch-pathname",
+                  "status": "FAIL",
+                  "run": "auth-static-39"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "auth policy-list FILE [--user U] [--long] renders the caller-filtered projection.",
-              "coverage": "missing",
-              "gap": "Device-free with a FILE argument; not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-policy-list-caller-projection",
+                  "status": "PASS",
+                  "run": "auth-static-39"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -2405,7 +2425,7 @@
         {
           "topic": "auth/device-abi-and-fd-lifecycle",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -2448,11 +2468,18 @@
             {
               "id": "r5",
               "behavior": "Absent device: probe/open fail with a diagnostic and nonzero status.",
-              "coverage": "missing",
-              "gap": "Not executed, although it is observable now in any runner because /dev/bashos-auth is absent.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-device-absent-fails-closed",
+                  "status": "PASS",
+                  "run": "auth-static-39"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -8715,18 +8742,32 @@
             {
               "id": "r1",
               "behavior": "drop USER performs setgroups -> setresgid(g,g,g) -> setresuid(u,u,u) in that order and the process ends with all real/effective/saved ids equal to the target",
-              "coverage": "missing",
-              "gap": "No case. Missing capability for success paths: CAP_SETUID+CAP_SETGID (+setgroups allowed) over at least two mapped uid/gid pairs. An unprivileged user namespace can map only the caller's own id with setgroups=deny, so setgroups() returns EPERM and setresuid()/setresgid() to any other id return EINVAL; under uid 2000 without capabilities they return EPERM. Driver option: either a controller-written multi-id uid_map/gid_map for a per-side user-namespace child (e.g. '0 100000 65536', root writes it from the init namespace) or PRIV-ROOT with exactly CAP_SETUID,CAP_SETGID; plus SYNTH-IDENT passwd/group bound over /etc in the child's mount namespace.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The calls are mocked, so the end state (all real/effective/saved ids equal to the target) is not observed; needs a real-root case.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cred-drop",
+                  "status": "PASS",
+                  "run": "workers-d-static-64"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Without --keep-supplementary the group list becomes exactly {primary gid}; with it, /etc/group memberships plus primary (deduplicated)",
-              "coverage": "missing",
-              "gap": "No case; same capability need.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Only the requested count is recorded; the resulting group list needs a real-root case.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cred-drop",
+                  "status": "PASS",
+                  "run": "workers-d-static-64"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -8781,9 +8822,16 @@
             {
               "id": "r6",
               "behavior": "setgroups/setresgid/setresuid failure leaves a reported partial transition (e.g. groups changed, uid unchanged) with status 64 naming the failing call",
-              "coverage": "missing",
-              "gap": "Needs injected failure inside a privileged child.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The partial transition (groups actually changed, uid unchanged) needs a real-root case with an injected setresuid failure.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cred-drop",
+                  "status": "PASS",
+                  "run": "workers-d-static-64"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -12596,55 +12644,90 @@
         },
         {
           "topic": "doas/external_delegate_fallback",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Without the authority, doas runs the external delegate with the original words (BASHDOAS_EXTERNAL or doas on PATH).",
-              "coverage": "missing",
-              "gap": "Not executed, although fully unprivileged: BASHDOAS_EXTERNAL=./delegate.sh records its argv.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-doas-external-delegate-verbatim",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-static-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Delegate exit status propagates; exec failure returns 127/126.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-doas-external-delegate-verbatim",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-static-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Environment refresh: exported shell variables reach the delegate.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-doas-external-delegate-verbatim",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-static-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Inherited descriptors are closed and signals reset in the delegate.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-doas-external-delegate-verbatim",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-static-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "sudo-to-doas argv translation (-u, -n, -s, -L) and refusal of inexpressible options.",
-              "coverage": "missing",
-              "gap": "Not executed; shared with the sudo frontend (doas.c bda_sudo_doas_argv).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-doas-fallback-translation",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-static-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -12859,26 +12942,32 @@
         },
         {
           "topic": "escdelay/decoder-timing-integration",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A value configured through the escdelay builtin (escdelay set MS, global or --screen) changes the ESC grace interval of an input decoder",
-              "coverage": "partial",
-              "gap": "Configured state and the resulting decoder mismatch are observed on both builds. The original controlled-clock requirement is under review; current tests use timed pipes and tolerant real-time windows.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-escdelay-builtin-state-reaches-decoder",
                   "status": "FAIL",
                   "run": "migration-terminal-static-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-escdelay-pty-builtin-state",
+                  "status": "FAIL",
+                  "run": "oracles-static-46"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -12991,16 +13080,16 @@
         },
         {
           "topic": "expect/alt-pattern-buffering",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "expect-alt picks the first listed pattern that matches, regardless of position in already-ready input",
-              "coverage": "partial",
-              "gap": "The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -13013,10 +13102,16 @@
                   "id": "migration-expect-alt-on-pty",
                   "status": "PASS",
                   "run": "migration-terminal-static-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-alt-pattern",
+                  "status": "PASS",
+                  "run": "oracles-static-46"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -13151,26 +13246,32 @@
         },
         {
           "topic": "expect/pty-round-trip",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "spawn allocates a PTY and starts the child as session leader with the PTY as controlling terminal; FD_VAR/PID_VAR bound",
-              "coverage": "partial",
-              "gap": "The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-expect-spawn-round-trip",
                   "status": "PASS",
                   "run": "migration-terminal-static-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-round-trip",
+                  "status": "PASS",
+                  "run": "oracles-static-46"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -25484,9 +25585,16 @@
             {
               "id": "r5",
               "behavior": "Kernel secret-slot path (BASHPASSWD_REQUIRE_KERNEL_SECRETS=1) uses the device.",
-              "coverage": "missing",
-              "gap": "Requires guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour; with the device absent the required mode must fail closed, which is observable now.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The secret-slot path that uses the device needs /dev/bashos-auth.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-passwd-set-fd-refusals",
+                  "status": "FAIL",
+                  "run": "workers-d-static-63"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -34330,7 +34438,7 @@
         {
           "topic": "su/private-account-lookup",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -34346,29 +34454,56 @@
             {
               "id": "r2",
               "behavior": "Absent user: 'no such user' and status 1.",
-              "coverage": "missing",
-              "gap": "Not executed; device-free.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-su-private-account-lookup-seven-field-rows",
+                  "status": "FAIL",
+                  "run": "data-auth-corrections-static-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Malformed rows are skipped or rejected fail-closed.",
-              "coverage": "missing",
-              "gap": "Not executed; device-free.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-su-private-account-lookup-failclosed",
+                  "status": "FAIL",
+                  "run": "auth-static-39"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-su-private-account-lookup-seven-field-rows",
+                  "status": "FAIL",
+                  "run": "data-auth-corrections-static-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Unreadable passwd file: 'cannot read passwd database' and status 1.",
-              "coverage": "missing",
-              "gap": "Not executed; reproducible unprivileged with a mode-0000 fixture file owned by uid 2000.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-su-private-account-lookup-seven-field-rows",
+                  "status": "FAIL",
+                  "run": "data-auth-corrections-static-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -34501,7 +34636,7 @@
         {
           "topic": "sudo/login-shell-and-command-quoting",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -34535,18 +34670,25 @@
             {
               "id": "r4",
               "behavior": "Delegate route refusal of -i and -s with a command.",
-              "coverage": "missing",
-              "gap": "Observable now unprivileged: refusal diagnostic 'requires the bash-os authority' and status 1.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-doas-fallback-translation",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-static-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "sudo/policy-list-projection",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -34571,18 +34713,32 @@
             {
               "id": "r3",
               "behavior": "Without the authority, listing uses only an explicit BASHSUDO_EXTERNAL delegate, else fails.",
-              "coverage": "missing",
-              "gap": "Observable now unprivileged: `sudo -l` without BASHSUDO_EXTERNAL fails with 'listing requires the bash-os authority or BASHSUDO_EXTERNAL'; with it, the delegate receives the verbatim words.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-list-delegate-only",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-static-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Listing is never an execution approval.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The authority route (listing then never approving execution) needs the /dev/bashos-auth device.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-list-delegate-only",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-static-47"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -34681,34 +34837,55 @@
         {
           "topic": "sudo/timestamp-validation-flows",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-k / -K reset the cached credential.",
-              "coverage": "missing",
-              "gap": "Observable on the delegate route now (translated to `doas -L`, see doas external fallback); on the root route -k returns 0 without action (bda_run_root).",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The authority-route credential reset needs the /dev/bashos-auth device.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-doas-fallback-translation",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-static-47"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "-v validates.",
-              "coverage": "missing",
-              "gap": "Delegate refuses -v; authority route requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Validation itself needs the /dev/bashos-auth device.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-doas-fallback-translation",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-static-47"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "-k COMMAND resets first and a failed reset prevents the command.",
-              "coverage": "missing",
-              "gap": "Delegate refuses '-k with a command'; requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Reset-then-run and a failed reset preventing the command need the /dev/bashos-auth device.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-doas-fallback-translation",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-static-47"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -41951,9 +42128,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 357,
-        "FAIL": 135,
-        "PASS": 108
+        "UNRESOLVED": 353,
+        "FAIL": 136,
+        "PASS": 111
       },
       "migration_without_complete_evidence": []
     },
@@ -44294,27 +44471,47 @@
         {
           "topic": "auth/authority-policy-audit-and-child-flow",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "auth policy-parse FILE validates and normalizes the sudoers subset (accept/reject, normalized output).",
-              "coverage": "missing",
-              "gap": "Device-free; not exercised by any case although it reads only a private file.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-policy-parse-grammar",
+                  "status": "FAIL",
+                  "run": "auth-dynamic-39"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-auth-policy-fnmatch-pathname",
+                  "status": "FAIL",
+                  "run": "auth-dynamic-39"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "auth policy-list FILE [--user U] [--long] renders the caller-filtered projection.",
-              "coverage": "missing",
-              "gap": "Device-free with a FILE argument; not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-policy-list-caller-projection",
+                  "status": "PASS",
+                  "run": "auth-dynamic-39"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -44348,7 +44545,7 @@
         {
           "topic": "auth/device-abi-and-fd-lifecycle",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -44391,11 +44588,18 @@
             {
               "id": "r5",
               "behavior": "Absent device: probe/open fail with a diagnostic and nonzero status.",
-              "coverage": "missing",
-              "gap": "Not executed, although it is observable now in any runner because /dev/bashos-auth is absent.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-auth-device-absent-fails-closed",
+                  "status": "PASS",
+                  "run": "auth-dynamic-39"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -50658,18 +50862,32 @@
             {
               "id": "r1",
               "behavior": "drop USER performs setgroups -> setresgid(g,g,g) -> setresuid(u,u,u) in that order and the process ends with all real/effective/saved ids equal to the target",
-              "coverage": "missing",
-              "gap": "No case. Missing capability for success paths: CAP_SETUID+CAP_SETGID (+setgroups allowed) over at least two mapped uid/gid pairs. An unprivileged user namespace can map only the caller's own id with setgroups=deny, so setgroups() returns EPERM and setresuid()/setresgid() to any other id return EINVAL; under uid 2000 without capabilities they return EPERM. Driver option: either a controller-written multi-id uid_map/gid_map for a per-side user-namespace child (e.g. '0 100000 65536', root writes it from the init namespace) or PRIV-ROOT with exactly CAP_SETUID,CAP_SETGID; plus SYNTH-IDENT passwd/group bound over /etc in the child's mount namespace.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The calls are mocked, so the end state (all real/effective/saved ids equal to the target) is not observed; needs a real-root case.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cred-drop",
+                  "status": "PASS",
+                  "run": "workers-d-dynamic-64"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Without --keep-supplementary the group list becomes exactly {primary gid}; with it, /etc/group memberships plus primary (deduplicated)",
-              "coverage": "missing",
-              "gap": "No case; same capability need.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Only the requested count is recorded; the resulting group list needs a real-root case.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cred-drop",
+                  "status": "PASS",
+                  "run": "workers-d-dynamic-64"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -50724,9 +50942,16 @@
             {
               "id": "r6",
               "behavior": "setgroups/setresgid/setresuid failure leaves a reported partial transition (e.g. groups changed, uid unchanged) with status 64 naming the failing call",
-              "coverage": "missing",
-              "gap": "Needs injected failure inside a privileged child.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The partial transition (groups actually changed, uid unchanged) needs a real-root case with an injected setresuid failure.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cred-drop",
+                  "status": "PASS",
+                  "run": "workers-d-dynamic-64"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -54539,55 +54764,90 @@
         },
         {
           "topic": "doas/external_delegate_fallback",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Without the authority, doas runs the external delegate with the original words (BASHDOAS_EXTERNAL or doas on PATH).",
-              "coverage": "missing",
-              "gap": "Not executed, although fully unprivileged: BASHDOAS_EXTERNAL=./delegate.sh records its argv.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-doas-external-delegate-verbatim",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-dynamic-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Delegate exit status propagates; exec failure returns 127/126.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-doas-external-delegate-verbatim",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-dynamic-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Environment refresh: exported shell variables reach the delegate.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-doas-external-delegate-verbatim",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-dynamic-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Inherited descriptors are closed and signals reset in the delegate.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-doas-external-delegate-verbatim",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-dynamic-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "sudo-to-doas argv translation (-u, -n, -s, -L) and refusal of inexpressible options.",
-              "coverage": "missing",
-              "gap": "Not executed; shared with the sudo frontend (doas.c bda_sudo_doas_argv).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-doas-fallback-translation",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-dynamic-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -54802,26 +55062,32 @@
         },
         {
           "topic": "escdelay/decoder-timing-integration",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A value configured through the escdelay builtin (escdelay set MS, global or --screen) changes the ESC grace interval of an input decoder",
-              "coverage": "partial",
-              "gap": "Configured state and the resulting decoder mismatch are observed on both builds. The original controlled-clock requirement is under review; current tests use timed pipes and tolerant real-time windows.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-escdelay-builtin-state-reaches-decoder",
                   "status": "FAIL",
                   "run": "migration-terminal-dynamic-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-escdelay-pty-builtin-state",
+                  "status": "FAIL",
+                  "run": "oracles-dynamic-46"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -54934,16 +55200,16 @@
         },
         {
           "topic": "expect/alt-pattern-buffering",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "expect-alt picks the first listed pattern that matches, regardless of position in already-ready input",
-              "coverage": "partial",
-              "gap": "The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -54956,10 +55222,16 @@
                   "id": "migration-expect-alt-on-pty",
                   "status": "PASS",
                   "run": "migration-terminal-dynamic-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-alt-pattern",
+                  "status": "PASS",
+                  "run": "oracles-dynamic-46"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -55094,26 +55366,32 @@
         },
         {
           "topic": "expect/pty-round-trip",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "spawn allocates a PTY and starts the child as session leader with the PTY as controlling terminal; FD_VAR/PID_VAR bound",
-              "coverage": "partial",
-              "gap": "The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-expect-spawn-round-trip",
                   "status": "PASS",
                   "run": "migration-terminal-dynamic-30"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-expect-tcl-round-trip",
+                  "status": "PASS",
+                  "run": "oracles-dynamic-46"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -67427,9 +67705,16 @@
             {
               "id": "r5",
               "behavior": "Kernel secret-slot path (BASHPASSWD_REQUIRE_KERNEL_SECRETS=1) uses the device.",
-              "coverage": "missing",
-              "gap": "Requires guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour; with the device absent the required mode must fail closed, which is observable now.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The secret-slot path that uses the device needs /dev/bashos-auth.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-passwd-set-fd-refusals",
+                  "status": "FAIL",
+                  "run": "workers-d-dynamic-63"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -76273,7 +76558,7 @@
         {
           "topic": "su/private-account-lookup",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -76289,29 +76574,56 @@
             {
               "id": "r2",
               "behavior": "Absent user: 'no such user' and status 1.",
-              "coverage": "missing",
-              "gap": "Not executed; device-free.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-su-private-account-lookup-seven-field-rows",
+                  "status": "FAIL",
+                  "run": "data-auth-corrections-dynamic-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Malformed rows are skipped or rejected fail-closed.",
-              "coverage": "missing",
-              "gap": "Not executed; device-free.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-su-private-account-lookup-failclosed",
+                  "status": "FAIL",
+                  "run": "auth-dynamic-39"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-su-private-account-lookup-seven-field-rows",
+                  "status": "FAIL",
+                  "run": "data-auth-corrections-dynamic-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Unreadable passwd file: 'cannot read passwd database' and status 1.",
-              "coverage": "missing",
-              "gap": "Not executed; reproducible unprivileged with a mode-0000 fixture file owned by uid 2000.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-su-private-account-lookup-seven-field-rows",
+                  "status": "FAIL",
+                  "run": "data-auth-corrections-dynamic-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -76444,7 +76756,7 @@
         {
           "topic": "sudo/login-shell-and-command-quoting",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -76478,18 +76790,25 @@
             {
               "id": "r4",
               "behavior": "Delegate route refusal of -i and -s with a command.",
-              "coverage": "missing",
-              "gap": "Observable now unprivileged: refusal diagnostic 'requires the bash-os authority' and status 1.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-doas-fallback-translation",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-dynamic-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "sudo/policy-list-projection",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -76514,18 +76833,32 @@
             {
               "id": "r3",
               "behavior": "Without the authority, listing uses only an explicit BASHSUDO_EXTERNAL delegate, else fails.",
-              "coverage": "missing",
-              "gap": "Observable now unprivileged: `sudo -l` without BASHSUDO_EXTERNAL fails with 'listing requires the bash-os authority or BASHSUDO_EXTERNAL'; with it, the delegate receives the verbatim words.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-list-delegate-only",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-dynamic-47"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Listing is never an execution approval.",
-              "coverage": "missing",
-              "gap": "Requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The authority route (listing then never approving execution) needs the /dev/bashos-auth device.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-list-delegate-only",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-dynamic-47"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -76624,34 +76957,55 @@
         {
           "topic": "sudo/timestamp-validation-flows",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-k / -K reset the cached credential.",
-              "coverage": "missing",
-              "gap": "Observable on the delegate route now (translated to `doas -L`, see doas external fallback); on the root route -k returns 0 without action (bda_run_root).",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The authority-route credential reset needs the /dev/bashos-auth device.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-doas-fallback-translation",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-dynamic-47"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "-v validates.",
-              "coverage": "missing",
-              "gap": "Delegate refuses -v; authority route requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Validation itself needs the /dev/bashos-auth device.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-doas-fallback-translation",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-dynamic-47"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "-k COMMAND resets first and a failed reset prevents the command.",
-              "coverage": "missing",
-              "gap": "Delegate refuses '-k with a command'; requires the device.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Reset-then-run and a failed reset preventing the command need the /dev/bashos-auth device.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sudo-doas-fallback-translation",
+                  "status": "PASS",
+                  "run": "data-auth-corrections-dynamic-47"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -83894,9 +84248,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 357,
-        "FAIL": 135,
-        "PASS": 108
+        "UNRESOLVED": 353,
+        "FAIL": 136,
+        "PASS": 111
       },
       "migration_without_complete_evidence": []
     }

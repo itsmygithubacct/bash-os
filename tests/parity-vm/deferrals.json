@@ -429,23 +429,43 @@
         "purpose": "Future operation coverage for authority policy decisions, request binding, audit decoding, and child status/denial handling across the privcmd interfaces.",
         "reason": "Requires a disposable VM or reviewed kernel/syscall mock that scripts policy and audit ioctls, plus an independent SHA-256 request-digest oracle and an owned harmless child fixture. The future test must prove deny/failure paths do not start a child and allow paths preserve child status without changing host credentials. The current suite must not invoke auth authorization or execution operations."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Policy parsing/listing of a private file is device-free and implementable now as contract cases; decisions, request binding, audit and child flow require guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour.",
+      "current_reason": "Remaining obligations: r3: Requires the device.; r4: Requires the device.; r5: Requires the device.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "auth policy-parse FILE validates and normalizes the sudoers subset (accept/reject, normalized output).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Device-free; not exercised by any case although it reads only a private file."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-policy-parse-grammar",
+              "assertion": "policy-parse accepts and normalizes the valid, reformatted, nopasswd and digest forms and rejects 9 of 11 invalid lines at line 3; it diverges from sudoers(5) by treating whitespace inside a spaced alias/runas as significant (normalized=differ), accepting '#include' and '#includedir' (status 0) instead of refusing them, rejecting a substring user match and silently dropping a '#uid' rule. Contract FAIL.",
+              "definition_sha256": "e39e960475cda94c04cc6f083cfa5d787c66dd6c94102b56a485138e09c2fe07"
+            },
+            {
+              "group": "shell",
+              "id": "migration-auth-policy-fnmatch-pathname",
+              "assertion": "16 of 18 command-path vectors agree with in-guest glibc fnmatch(FNM_PATHNAME); '[!a-c]at' is inverted (matches cat, not dat): bracket '!' negation is unsupported. Contract FAIL.",
+              "definition_sha256": "6d5c83d3bebcc94e90fdd98cc6411ee71bda5622961948c2e18a4b98c0389ebf"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "auth policy-list FILE [--user U] [--long] renders the caller-filtered projection.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Device-free with a FILE argument; not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-policy-list-caller-projection",
+              "assertion": "policy-list FILE renders the caller's short and long projections with the policy digest; foreign rules are absent, another user is refused, and empty, no-match, invalid and usage cases match the contract. Contract PASS.",
+              "definition_sha256": "6650fd03cef955148cb484375e5303173a2cd9fe76fcd19ee2a3294a0208d4b3"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
@@ -469,7 +489,7 @@
           "gap": "Requires the device."
         }
       ],
-      "notes": "auth.c policy-parse/policy-list; doas.c:383 bda_fill_request_digest."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
     },
     {
       "topic": "auth/device-abi-and-fd-lifecycle",
@@ -479,9 +499,9 @@
         "purpose": "Future operation coverage for version probing, opening the authority descriptor, per-descriptor counters, secret clearing, close-on-exec behavior, and cleanup.",
         "reason": "Requires a disposable Linux VM with a matching /dev/bashos-auth UAPI implementation or a reviewed ioctl/device mock. The fixture must return scripted ABI/features and lifecycle responses so probe output and descriptor ownership can be checked independently; the current runner provides no auth device and this suite must not invoke device operations."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Everything except the absent-device diagnostic needs the authority device. guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour.",
+      "current_reason": "Remaining obligations: r1: No device exists in the guest.; r2: Not executed.; r3: Not executed.; r4: Not executed.",
       "requirements": [
         {
           "id": "r1",
@@ -514,12 +534,19 @@
         {
           "id": "r5",
           "behavior": "Absent device: probe/open fail with a diagnostic and nonzero status.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed, although it is observable now in any runner because /dev/bashos-auth is absent."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-auth-device-absent-fails-closed",
+              "assertion": "With /dev/bashos-auth absent, probe, privcmd-probe and open fail with a diagnostic and status 1, bind no descriptor variable and leave the shell's descriptor count unchanged; usage errors are status 2. Contract PASS.",
+              "definition_sha256": "1ab07480f67a1dc05468bd33f8aec86f595f815b26de63f75762566acb39d19e"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "auth.c auth_doc; executed metadata: legacy/auth/builtin-type-metadata, bash-help-contract, auth-help-aliases (metadata only (type/help); not operation coverage)."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
     },
     {
       "topic": "auth/pty-sealed-secret-lifecycle",
@@ -6522,21 +6549,35 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: No case. Missing capability for success paths: CAP_SETUID+CAP_SETGID (+setgroups allowed) over at least two mapped uid/gid pairs. An unprivileged user namespace can map only the caller's own id with setgroups=deny, so setgroups() returns EPERM and setresuid()/setresgid() to any other id return EINVAL; under uid 2000 without capabilities they return EPERM. Driver option: either a controller-written multi-id uid_map/gid_map for a per-side user-namespace child (e.g. '0 100000 65536', root writes it from the init namespace) or PRIV-ROOT with exactly CAP_SETUID,CAP_SETGID; plus SYNTH-IDENT passwd/group bound over /etc in the child's mount namespace.; r2: No case; same capability need.; r6: Needs injected failure inside a privileged child.",
+      "current_reason": "Remaining obligations: r1: The calls are mocked, so the end state (all real/effective/saved ids equal to the target) is not observed; needs a real-root case.; r2: Only the requested count is recorded; the resulting group list needs a real-root case.; r6: The partial transition (groups actually changed, uid unchanged) needs a real-root case with an injected setresuid failure.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "drop USER performs setgroups -> setresgid(g,g,g) -> setresuid(u,u,u) in that order and the process ends with all real/effective/saved ids equal to the target",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case. Missing capability for success paths: CAP_SETUID+CAP_SETGID (+setgroups allowed) over at least two mapped uid/gid pairs. An unprivileged user namespace can map only the caller's own id with setgroups=deny, so setgroups() returns EPERM and setresuid()/setresgid() to any other id return EINVAL; under uid 2000 without capabilities they return EPERM. Driver option: either a controller-written multi-id uid_map/gid_map for a per-side user-namespace child (e.g. '0 100000 65536', root writes it from the init namespace) or PRIV-ROOT with exactly CAP_SETUID,CAP_SETGID; plus SYNTH-IDENT passwd/group bound over /etc in the child's mount namespace."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cred-drop",
+              "assertion": "In a user namespace with setgroups, setresgid and setresuid answered 0 by a seccomp-notify supervisor, the recorded order and arguments are setgroups -> setresgid(1001,1001,1001) -> setresuid(1001,1001,1001), and the candidate detects that the ids did not stick (status 64).",
+              "definition_sha256": "9f05b76ea35aebab01b0d1d53cce7acde35dd0863d4a9973af71f3de9161dbb4"
+            }
+          ],
+          "gap": "The calls are mocked, so the end state (all real/effective/saved ids equal to the target) is not observed; needs a real-root case."
         },
         {
           "id": "r2",
           "behavior": "Without --keep-supplementary the group list becomes exactly {primary gid}; with it, /etc/group memberships plus primary (deduplicated)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; same capability need."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cred-drop",
+              "assertion": "Recorded setgroups count is 1 without and 4 with --keep-supplementary (three /etc/group memberships plus the primary).",
+              "definition_sha256": "9f05b76ea35aebab01b0d1d53cce7acde35dd0863d4a9973af71f3de9161dbb4"
+            }
+          ],
+          "gap": "Only the requested count is recorded; the resulting group list needs a real-root case."
         },
         {
           "id": "r3",
@@ -6583,12 +6624,19 @@
         {
           "id": "r6",
           "behavior": "setgroups/setresgid/setresuid failure leaves a reported partial transition (e.g. groups changed, uid unchanged) with status 64 naming the failing call",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs injected failure inside a privileged child."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cred-drop",
+              "assertion": "A real setgroups EPERM in the user namespace and injected setresgid/setresuid EPERM after an answered setgroups give status 64 naming the call with ids unchanged.",
+              "definition_sha256": "9f05b76ea35aebab01b0d1d53cce7acde35dd0863d4a9973af71f3de9161dbb4"
+            }
+          ],
+          "gap": "The partial transition (groups actually changed, uid unchanged) needs a real-root case with an injected setresuid failure."
         }
       ],
-      "notes": "Root review (2026-10-27) reconciled workers-d-63/64 raw VM records on both unchanged builds against the original obligations. Covered requirements may PASS or FAIL. Pane-214 batch 9 (fstrim-selection, 5de79f06) and pane-217 A4r1/A5/A6 (account-files 750929ff, hash 95c46e75, verify 648c98c2) ran unchanged in workers-d-63. Pane-214 batch 13 cred: migration-cred-drop's verify.sh printed a deleted log on its second observation (ipcobs.py calls removes LOG while the helper keeps appending), a fixture defect corrected by root without changing expectations; all five cred cases re-ran in workers-d-64 and workers-d-63's cred records are not used."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
     },
     {
       "topic": "cred/lookup-synthetic-databases",
@@ -10262,47 +10310,82 @@
         "purpose": "Check the no-authority fallback's doas argv translation, status propagation, environment refresh, and descriptor cleanup.",
         "reason": "Requires a disposable non-root VM and a harmless executable delegate created inside its private fixture directory. The delegate must record argv/environment/open descriptors and return selected statuses; no delegate or command is launched by this suite."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "The fallback is unprivileged and observable with a private delegate script; the original deferral to a privileged VM is unnecessary.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Without the authority, doas runs the external delegate with the original words (BASHDOAS_EXTERNAL or doas on PATH).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed, although fully unprivileged: BASHDOAS_EXTERNAL=./delegate.sh records its argv."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-doas-external-delegate-verbatim",
+              "assertion": "Without the authority, BASHDOAS_EXTERNAL=./delegate.sh receives the original words byte for byte (-u bob -- printf %s 'a b' '' and an embedded newline, argc 8), and with it unset a doas found on PATH is run ('default-path'). Contract PASS on both builds.",
+              "definition_sha256": "cd436e0923ff98bd7fed82e128a67a461370bb38288abbcc106c224427227ec4"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Delegate exit status propagates; exec failure returns 127/126.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-doas-external-delegate-verbatim",
+              "assertion": "Delegate exit status 7 propagates; a delegate killed by SIGTERM gives 143; a missing delegate 127 and a non-executable one 126, with a diagnostic and the delegate not run. Contract PASS.",
+              "definition_sha256": "cd436e0923ff98bd7fed82e128a67a461370bb38288abbcc106c224427227ec4"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Environment refresh: exported shell variables reach the delegate.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-doas-external-delegate-verbatim",
+              "assertion": "An exported X reaches the delegate (first, then second after reassignment without re-export) and the unexported Y does not. Contract PASS.",
+              "definition_sha256": "cd436e0923ff98bd7fed82e128a67a461370bb38288abbcc106c224427227ec4"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Inherited descriptors are closed and signals reset in the delegate.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-doas-external-delegate-verbatim",
+              "assertion": "The shell holds fds 7 and 9 open and ignores USR1 and TERM; every delegate run reports open-fds=[] and usr1-ignored=0 term-ignored=0 blocked=0000000000000000. Contract PASS.",
+              "definition_sha256": "cd436e0923ff98bd7fed82e128a67a461370bb38288abbcc106c224427227ec4"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "sudo-to-doas argv translation (-u, -n, -s, -L) and refusal of inexpressible options.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed; shared with the sudo frontend (doas.c bda_sudo_doas_argv)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sudo-doas-fallback-translation",
+              "assertion": "With the default doas on PATH: -u/-u attached/--user/numeric uid become '-u USER --', -n is kept, -s, bundled flags, separators and operand stops translate, -k/-K become -L; -i, -i -u, -e, -v, -g, -k COMMAND, VAR=value and -s COMMAND are refused with status 1 and doas not run. Contract PASS.",
+              "definition_sha256": "66d0153ef22965b8870cfda66e69fa9aabc514fe7bbcb91b4fc27295584a2eee"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "doas.c:1864 bda_sudo_doas_argv, bda_run_external."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
     },
     {
       "topic": "doas/root_target_and_group_drop",
@@ -10511,23 +10594,29 @@
         "purpose": "Specify future integration coverage that demonstrates the configured grace interval changes bare-ESC versus CSI decoding.",
         "reason": "This requires a disposable VM with a private PTY or mocked input stream, an isolated decoder consumer, and a controllable mock clock. Feed deterministic bare ESC and CSI sequences at times on either side of configured delays (including 0 and the upper bound), then assert the decoded key events. No terminal driver or clock mock is provided here, and this operation is not claimed as passed."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: Configured state and the resulting decoder mismatch are observed on both builds. The original controlled-clock requirement is under review; current tests use timed pipes and tolerant real-time windows.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A value configured through the escdelay builtin (escdelay set MS, global or --screen) changes the ESC grace interval of an input decoder",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-escdelay-builtin-state-reaches-decoder",
               "assertion": "after 'escdelay set 1000' (get == '1000') a CSI 200 ms after ESC decodes as key_up for kgetch read and wgetch read 0; after 'escdelay set --screen tty 1000' (get --screen tty == '1000') the same via a wgetch handle opened with NAME tty. Expected FAIL on the candidate (decoders read only the environment); the case exercises the obligation fully, it does not claim a pass.",
               "definition_sha256": "5ee0f1890178d1eff91cdf8dced47bf2b287ce0f85e5d578669302105453c90b"
+            },
+            {
+              "group": "shell",
+              "id": "migration-escdelay-pty-builtin-state",
+              "assertion": "Private PTY with a timed feeder: after 'escdelay set 1000' (global, and --screen for the named screen), ESC then '[A' 200 ms later is documented to decode as key_up; kgetch, wgetch and the screen all record 'esc 27' then 'char 91' on both builds, so the configured grace never reaches the decoders (the 200 ms gap is 5x below the configured grace and 4x above the 50 ms default). Contract FAIL.",
+              "definition_sha256": "b5f09069e2e6b9a6a5b0ca7cfe1b54ed8397325c4c7695ab4b6eeb307e1e8742"
             }
           ],
-          "gap": "Configured state and the resulting decoder mismatch are observed on both builds. The original controlled-clock requirement is under review; current tests use timed pipes and tolerant real-time windows."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -10590,7 +10679,7 @@
           "gap": ""
         }
       ],
-      "notes": "Root reviewed original compound obligations, fixture definitions and both unchanged-build VM records. Only reached assertions are covered; early candidate rejection remains partial. Reference/fixture errors are excluded. PASS and FAIL retain their distinct meanings."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
     },
     {
       "topic": "expand/terminal-newline-flush",
@@ -10643,14 +10732,14 @@
         "kind": "deferred",
         "reason": "Requires a future disposable VM or deterministic PTY mock that can schedule input chunks and readiness, plus an independent Tcl Expect oracle for pattern selection. No operation result is claimed."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "expect-alt picks the first listed pattern that matches, regardless of position in already-ready input",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -10663,9 +10752,15 @@
               "id": "migration-expect-alt-on-pty",
               "assertion": "PTY buffer 'beta alpha id=42': expect-alt alpha beta -> 'rc=0 which=0 match=alpha'",
               "definition_sha256": "b14e4dc978dabf4dc34d281c2093eed2326cbe28fe83994126ed30fa5a3598c8"
+            },
+            {
+              "group": "shell",
+              "id": "migration-expect-tcl-alt-pattern",
+              "assertion": "Independent oracle: Tcl Expect 5.45 (/usr/bin/expect) drives the same child; both sides write the record file 'out' and it is byte-identical on both builds: 'rc=0 which=0 match=alpha' for ready 'beta alpha id=42' with patterns alpha, beta (first listed pattern wins), 'which=1 match=id=42' capture, a split match, timeout-0 statuses, eof and close. Parity PASS.",
+              "definition_sha256": "da8792ccd55f87856cf296c862215341ff96de3740156a479a3a35dd7088f139"
             }
           ],
-          "gap": "The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -10728,7 +10823,7 @@
           "gap": ""
         }
       ],
-      "notes": "Root reviewed the assertions and raw VM records. PASS and FAIL both show an exercised scenario; ERROR, SKIP and stale definitions do not qualify. Results are reconciled separately for each build."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
     },
     {
       "topic": "expect/deadline-eof-timeout",
@@ -10801,23 +10896,29 @@
         "kind": "deferred",
         "reason": "Requires a future disposable Linux VM with a controlled private PTY child and a bounded independent Tcl Expect reference transcript. This suite does not claim PTY session behavior passed."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "spawn allocates a PTY and starts the child as session leader with the PTY as controlling terminal; FD_VAR/PID_VAR bound",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-expect-spawn-round-trip",
               "assertion": "spawn=0; FD_VAR open in /proc/self/fd; PID_VAR equals the child's self-reported pid; child reports leader=yes ctty=yes",
               "definition_sha256": "adfc20bdef6bf11b4f565de2b740ff93490a2b27c25e9736f6af442c5e9d1e91"
+            },
+            {
+              "group": "shell",
+              "id": "migration-expect-tcl-round-trip",
+              "assertion": "Independent oracle: Tcl Expect; the record file is byte-identical on both builds: 'pid-is-child', 'leader=yes ctty=yes' (session leader with the PTY as controlling terminal), prompt and reply captures, expect-at-eof=2, close=7, kill and hangup close statuses 143 and 129. Parity PASS.",
+              "definition_sha256": "07e3d6a780e1d8937446beddb4a3489ee53cc69761a92b4d459aa49a635d9985"
             }
           ],
-          "gap": "The candidate PTY contract assertions pass on both builds. The original independent Tcl Expect oracle/transcript has not yet been supplied; the current VM image has no Tcl/Expect package."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -10926,7 +11027,7 @@
           "gap": ""
         }
       ],
-      "notes": "Root reviewed the assertions and raw VM records. PASS and FAIL both show an exercised scenario; ERROR, SKIP and stale definitions do not qualify. Results are reconciled separately for each build."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
     },
     {
       "topic": "expect/secret-handle-delivery",
@@ -22693,7 +22794,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r3: Not executed.; r5: Requires guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour; with the device absent the required mode must fail closed, which is observable now.",
+      "current_reason": "Remaining obligations: r3: Not executed.; r5: The secret-slot path that uses the device needs /dev/bashos-auth.",
       "requirements": [
         {
           "id": "r1",
@@ -22747,12 +22848,19 @@
         {
           "id": "r5",
           "behavior": "Kernel secret-slot path (BASHPASSWD_REQUIRE_KERNEL_SECRETS=1) uses the device.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour; with the device absent the required mode must fail closed, which is observable now."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-passwd-set-fd-refusals",
+              "assertion": "BASHPASSWD_REQUIRE_KERNEL_SECRETS=1 with the device absent fails closed (nonzero status, files unchanged, no residue).",
+              "definition_sha256": "d20ed5fb47756808957f930dc8eb4a3f0a8b7eae8cabc0bc9be3edd562ee679a"
+            }
+          ],
+          "gap": "The secret-slot path that uses the device needs /dev/bashos-auth."
         }
       ],
-      "notes": "Root review (2026-10-27) reconciled workers-d-63/64 raw VM records on both unchanged builds against the original obligations. Covered requirements may PASS or FAIL. Pane-214 batch 9 (fstrim-selection, 5de79f06) and pane-217 A4r1/A5/A6 (account-files 750929ff, hash 95c46e75, verify 648c98c2) ran unchanged in workers-d-63. Pane-214 batch 13 cred: migration-cred-drop's verify.sh printed a deleted log on its second observation (ipcobs.py calls removes LOG while the helper keeps appending), a fixture defect corrected by root without changing expectations; all five cred cases re-ran in workers-d-64 and workers-d-63's cred records are not used."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
     },
     {
       "topic": "passwd/password_verification_lockout",
@@ -31370,9 +31478,9 @@
         "purpose": "Check account lookup for present, absent, malformed, and unreadable synthetic passwd records, including target UID/GID/home/shell selection.",
         "reason": "Requires a future disposable VM or reviewed account-file syscall mock with private passwd data and injected file-open errors. It must not consult installed accounts or change account state."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "su reads PHCLIB_PASSWD/PHCLIB_SHADOW (su.c bsu_passwd_path/bsu_shadow_path) and BPW-style lock files under its lock dir, so account lookup, parsing and password verification run unprivileged on private files; the token mint (su.c bsu_kernel_proof) and credential drop happen only after verification. Absent/malformed/unreadable paths are implementable now; observing the selected UID/GID/home/shell needs the exec path, which needs guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour (non-root) or guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid) plus the device (root route also calls bsu_kernel_proof).",
+      "current_reason": "Remaining obligations: r1: Observable only after successful authentication (exec) or via diagnostics; selection itself is internal.",
       "requirements": [
         {
           "id": "r1",
@@ -31384,26 +31492,53 @@
         {
           "id": "r2",
           "behavior": "Absent user: 'no such user' and status 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed; device-free."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-su-private-account-lookup-seven-field-rows",
+              "assertion": "Absent user against a valid database, an empty database and PHCLIB_PASSWD-over-PASSWD_FILE precedence: status 1, empty stdout, 'no such user'. Contract PASS lines on both builds.",
+              "definition_sha256": "6873caca6a1c716ce9c2a909c4948255e2ddecc0f724cd9c0d7dc6d4862f00d6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Malformed rows are skipped or rejected fail-closed.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed; device-free."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-su-private-account-lookup-failclosed",
+              "assertion": "A passwd database containing an eight-field row ('eight:x:1001:1001:g:/h:/bin/sh:extra') makes the candidate shell abort with SIGABRT (status -6, '*** stack smashing detected ***') on the first lookup, on both builds: loadables/_bashauth/passwd_lookup.c declares char *fields[7], the scan stops at nf == 7 and line 104 then writes fields[7]. Not fail-closed: contract FAIL.",
+              "definition_sha256": "d6d26861f46e708e3e5e11b57c99c0bacedfa50b4b570429f2359f125ba3de50"
+            },
+            {
+              "group": "shell",
+              "id": "migration-su-private-account-lookup-seven-field-rows",
+              "assertion": "Rows with a non-numeric uid, uid 4294967295, gid 4294967295, an empty gid and six fields never select an account (status 1, 'no such user'); the shell survives.",
+              "definition_sha256": "6873caca6a1c716ce9c2a909c4948255e2ddecc0f724cd9c0d7dc6d4862f00d6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Unreadable passwd file: 'cannot read passwd database' and status 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed; reproducible unprivileged with a mode-0000 fixture file owned by uid 2000."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-su-private-account-lookup-seven-field-rows",
+              "assertion": "A mode-000 database and an absent PASSWD_FILE give 'cannot read passwd database' with status 1; a directory given as the database reports 'no such user' instead (getline's EISDIR is read as end of file). Contract FAIL.",
+              "definition_sha256": "6873caca6a1c716ce9c2a909c4948255e2ddecc0f724cd9c0d7dc6d4862f00d6"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "su.c bashos_lookup_user -1/-2 handling."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
     },
     {
       "topic": "su/pty-echo-and-cancellation",
@@ -31535,9 +31670,9 @@
         "purpose": "Check -i home and login-shell selection, -s shell selection, and sudo command-string escaping for metacharacters, dollar signs, empty arguments, quotes, and newlines.",
         "reason": "Requires the root credential route in a disposable account namespace plus controlled target shells and an argv recorder. These execution semantics cannot be reached here without invoking sudo."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Escaping and -i/-s semantics are observed after exec on the root or authority route; only the delegate refusal is reachable unprivileged.",
+      "current_reason": "Remaining obligations: r1: Requires euid 0 (root route) or the device; the delegate route refuses -i.; r2: Requires an executing route.; r3: The quoting function (doas.c bda_sudo_shell_join/bda_sudo_escape_append) is pure, but it is only reachable through an executing route; no device-free entry point prints it.",
       "requirements": [
         {
           "id": "r1",
@@ -31563,12 +31698,19 @@
         {
           "id": "r4",
           "behavior": "Delegate route refusal of -i and -s with a command.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Observable now unprivileged: refusal diagnostic 'requires the bash-os authority' and status 1."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sudo-doas-fallback-translation",
+              "assertion": "On the doas delegate route, 'sudo -i', 'sudo -i -u USER' and 'sudo -s COMMAND' are refused with status 1 and a diagnostic, and doas is not run. Contract PASS.",
+              "definition_sha256": "66d0153ef22965b8870cfda66e69fa9aabc514fe7bbcb91b4fc27295584a2eee"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "doas.c:1745 bda_sudo_escape_append, 1768 bda_sudo_shell_join, 939 bda_sudo_invoke_shell."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
     },
     {
       "topic": "sudo/policy-list-projection",
@@ -31578,9 +31720,9 @@
         "purpose": "Check -l, -ll, and --list against a caller-readable private policy snapshot, including digest binding and empty/no-match behavior, without treating listing as execution approval.",
         "reason": "Requires a disposable authority mock that publishes a private fixture policy path, digest, and generation. No live authority metadata or host policy can be read here, and invoking sudo is prohibited."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "The renderer is shared with `auth policy-list FILE` (device-free, see auth/authority-policy-audit-and-child-flow), but the sudo path reads only the authority-advertised file. Delegate behaviour is reachable now.",
+      "current_reason": "Remaining obligations: r1: Requires the device for the advertised path and digest.; r2: Requires the device.; r4: The authority route (listing then never approving execution) needs the /dev/bashos-auth device.",
       "requirements": [
         {
           "id": "r1",
@@ -31599,19 +31741,33 @@
         {
           "id": "r3",
           "behavior": "Without the authority, listing uses only an explicit BASHSUDO_EXTERNAL delegate, else fails.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Observable now unprivileged: `sudo -l` without BASHSUDO_EXTERNAL fails with 'listing requires the bash-os authority or BASHSUDO_EXTERNAL'; with it, the delegate receives the verbatim words."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sudo-list-delegate-only",
+              "assertion": "Without the authority and without BASHSUDO_EXTERNAL, -l, -ll and -l WORD fail with status 1 and a diagnostic, and a BASHDOAS_EXTERNAL-only setup is never used for listing; with BASHSUDO_EXTERNAL the delegate receives -l, -ll and '-l id' verbatim; a bad option is status 2. Contract PASS.",
+              "definition_sha256": "3ab0e8db504b10b77af20d069f4ec8ecb77003e7117cc3d99f37818202deccb6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Listing is never an execution approval.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sudo-list-delegate-only",
+              "assertion": "On the delegate route '-l id' is handed to the listing delegate only and the command is not run.",
+              "definition_sha256": "3ab0e8db504b10b77af20d069f4ec8ecb77003e7117cc3d99f37818202deccb6"
+            }
+          ],
+          "gap": "The authority route (listing then never approving execution) needs the /dev/bashos-auth device."
         }
       ],
-      "notes": "doas.c bda_run_list; extern bashos_auth_policy_list in auth.c."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
     },
     {
       "topic": "sudo/root-credential-drop",
@@ -31707,33 +31863,54 @@
         "purpose": "Verify -k, -K, -v, and -k COMMAND ordering, including that a failed reset prevents the requested action.",
         "reason": "Requires a disposable v2 authority or reviewed authority mock that records reset and authorization requests and supplies deterministic policy/verifier outcomes; no live authorization state may be used."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Only the reset translation on the delegate route is reachable unprivileged; validation and ordering need guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour.",
+      "current_reason": "Remaining obligations: r1: The authority-route credential reset needs the /dev/bashos-auth device.; r2: Validation itself needs the /dev/bashos-auth device.; r3: Reset-then-run and a failed reset preventing the command need the /dev/bashos-auth device.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-k / -K reset the cached credential.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Observable on the delegate route now (translated to `doas -L`, see doas external fallback); on the root route -k returns 0 without action (bda_run_root)."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sudo-doas-fallback-translation",
+              "assertion": "On the doas delegate route -k and -K are translated to 'doas -L'.",
+              "definition_sha256": "66d0153ef22965b8870cfda66e69fa9aabc514fe7bbcb91b4fc27295584a2eee"
+            }
+          ],
+          "gap": "The authority-route credential reset needs the /dev/bashos-auth device."
         },
         {
           "id": "r2",
           "behavior": "-v validates.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Delegate refuses -v; authority route requires the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sudo-doas-fallback-translation",
+              "assertion": "The doas delegate route refuses -v with status 1 and doas not run.",
+              "definition_sha256": "66d0153ef22965b8870cfda66e69fa9aabc514fe7bbcb91b4fc27295584a2eee"
+            }
+          ],
+          "gap": "Validation itself needs the /dev/bashos-auth device."
         },
         {
           "id": "r3",
           "behavior": "-k COMMAND resets first and a failed reset prevents the command.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Delegate refuses '-k with a command'; requires the device."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sudo-doas-fallback-translation",
+              "assertion": "The doas delegate route refuses -k COMMAND with status 1 and doas not run.",
+              "definition_sha256": "66d0153ef22965b8870cfda66e69fa9aabc514fe7bbcb91b4fc27295584a2eee"
+            }
+          ],
+          "gap": "Reset-then-run and a failed reset preventing the command need the /dev/bashos-auth device."
         }
       ],
-      "notes": "doas.c bda_sudo_doas_argv reset handling."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited."
     },
     {
       "topic": "sv/deferred-activation-protocols",

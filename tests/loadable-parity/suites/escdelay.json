@@ -42,9 +42,38 @@
     },
     {
       "id": "decoder-timing-integration",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Specify future integration coverage that demonstrates the configured grace interval changes bare-ESC versus CSI decoding.",
-      "reason": "Remaining obligations: r1: Configured state and the resulting decoder mismatch are observed on both builds. The original controlled-clock requirement is under review; current tests use timed pipes and tolerant real-time windows."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-escdelay-builtin-state-reaches-decoder"
+        },
+        {
+          "group": "shell",
+          "id": "migration-escdelay-env-boundaries"
+        },
+        {
+          "group": "shell",
+          "id": "migration-escdelay-env-fallback"
+        },
+        {
+          "group": "shell",
+          "id": "migration-escdelay-env-grace"
+        },
+        {
+          "group": "shell",
+          "id": "migration-escdelay-pty-builtin-state"
+        },
+        {
+          "group": "shell",
+          "id": "migration-escdelay-pty-env-fallback"
+        },
+        {
+          "group": "shell",
+          "id": "migration-escdelay-pty-env-grace-and-bounds"
+        }
+      ]
     },
     {
       "id": "global-state-validation",

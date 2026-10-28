@@ -52,7 +52,7 @@
       "id": "drop-identity-transition",
       "kind": "deferred",
       "purpose": "Verify the ordered setgroups, setresgid, and setresuid transition, primary-group fallback, optional supplementary-group retention, saved-ID verification, and fail-closed diagnostics.",
-      "reason": "Remaining obligations: r1: No case. Missing capability for success paths: CAP_SETUID+CAP_SETGID (+setgroups allowed) over at least two mapped uid/gid pairs. An unprivileged user namespace can map only the caller's own id with setgroups=deny, so setgroups() returns EPERM and setresuid()/setresgid() to any other id return EINVAL; under uid 2000 without capabilities they return EPERM. Driver option: either a controller-written multi-id uid_map/gid_map for a per-side user-namespace child (e.g. '0 100000 65536', root writes it from the init namespace) or PRIV-ROOT with exactly CAP_SETUID,CAP_SETGID; plus SYNTH-IDENT passwd/group bound over /etc in the child's mount namespace.; r2: No case; same capability need.; r6: Needs injected failure inside a privileged child."
+      "reason": "Remaining obligations: r1: The calls are mocked, so the end state (all real/effective/saved ids equal to the target) is not observed; needs a real-root case.; r2: Only the requested count is recorded; the resulting group list needs a real-root case.; r6: The partial transition (groups actually changed, uid unchanged) needs a real-root case with an injected setresuid failure."
     },
     {
       "id": "no-new-privileges",
