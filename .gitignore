@@ -7,3 +7,6 @@
 # Python helper bytecode
 __pycache__/
 *.pyc
+
+# Private session handoff documents
+*HANDOFF*.md
