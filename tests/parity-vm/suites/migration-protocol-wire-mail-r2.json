@@ -1,0 +1,343 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Documented BASHMAIL1 framing and mail queue layout; RFC 5321 SMTP reply codes, CRLF and dot-stuffing; documented queue-flush pidfile and status rules. Expectations and peers are independently assembled in Python.",
+      "comparison": "Exact framed bytes, per-command SMTP responses and DATA bytes, queue members/metadata, owned-child signal count, exit status and bounded diagnostics compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-mail-r2.py": "a95c402e342e67c9ffd7690c0b3391de05214d8654ec5ba97e5eb0a356b38a22",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 20,
+      "id": "protocol-wire-mail-control-r2",
+      "purpose": "Positive and negative BASHMAIL1 framing and socket EOF controls.",
+      "covers": [],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-mail-r2.py control",
+      "stdout": "mail-control=ok\n",
+      "diagnostic_files": [
+        "mail-trace.json"
+      ]
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Documented BASHMAIL1 framing and mail queue layout; RFC 5321 SMTP reply codes, CRLF and dot-stuffing; documented queue-flush pidfile and status rules. Expectations and peers are independently assembled in Python.",
+      "comparison": "Exact framed bytes, per-command SMTP responses and DATA bytes, queue members/metadata, owned-child signal count, exit status and bounded diagnostics compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-mail-r2.py": "a95c402e342e67c9ffd7690c0b3391de05214d8654ec5ba97e5eb0a356b38a22",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 45,
+      "diagnostic_files": [
+        "mail-trace.json"
+      ],
+      "id": "protocol-wire-mail-signal-control-r2",
+      "purpose": "Positive controls intercept and block all six signal-sending syscall classes with recorded targets and child results.",
+      "covers": [],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-mail-r2.py \"$BASH\" signal-control",
+      "stdout": "mail-signal-control=ok\n",
+      "features": [
+        "seccomp-notify"
+      ]
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Documented BASHMAIL1 framing and mail queue layout; RFC 5321 SMTP reply codes, CRLF and dot-stuffing; documented queue-flush pidfile and status rules. Expectations and peers are independently assembled in Python.",
+      "comparison": "Exact framed bytes, per-command SMTP responses and DATA bytes, queue members/metadata, owned-child signal count, exit status and bounded diagnostics compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-mail-r2.py": "a95c402e342e67c9ffd7690c0b3391de05214d8654ec5ba97e5eb0a356b38a22",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 20,
+      "diagnostic_files": [
+        "mail-trace.json"
+      ],
+      "id": "protocol-wire-mail-unix-server-r2",
+      "purpose": "Normal, fragmented, malformed and truncated BASHMAIL1 frames and clean daemon termination.",
+      "covers": [
+        "mail/unix_submission_protocol"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-mail-r2.py \"$BASH\" unix-server",
+      "stdout": "mail-unix-server=ok\n"
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Documented BASHMAIL1 framing and mail queue layout; RFC 5321 SMTP reply codes, CRLF and dot-stuffing; documented queue-flush pidfile and status rules. Expectations and peers are independently assembled in Python.",
+      "comparison": "Exact framed bytes, per-command SMTP responses and DATA bytes, queue members/metadata, owned-child signal count, exit status and bounded diagnostics compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-mail-r2.py": "a95c402e342e67c9ffd7690c0b3391de05214d8654ec5ba97e5eb0a356b38a22",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 20,
+      "diagnostic_files": [
+        "mail-trace.json"
+      ],
+      "id": "protocol-wire-mail-unix-client-r2",
+      "purpose": "Capture exact binary-safe BASHMAIL1 submission bytes and return a fixed OK queue id.",
+      "covers": [
+        "mail/unix_submission_protocol"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-mail-r2.py \"$BASH\" unix-client",
+      "stdout": "mail-unix-client=ok\n"
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Documented BASHMAIL1 framing and mail queue layout; RFC 5321 SMTP reply codes, CRLF and dot-stuffing; documented queue-flush pidfile and status rules. Expectations and peers are independently assembled in Python.",
+      "comparison": "Exact framed bytes, per-command SMTP responses and DATA bytes, queue members/metadata, owned-child signal count, exit status and bounded diagnostics compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-mail-r2.py": "a95c402e342e67c9ffd7690c0b3391de05214d8654ec5ba97e5eb0a356b38a22",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 20,
+      "diagnostic_files": [
+        "mail-trace.json"
+      ],
+      "id": "protocol-wire-mail-unix-absent-r2",
+      "purpose": "Absent Unix submission socket returns 75.",
+      "covers": [
+        "mail/unix_submission_protocol"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-mail-r2.py \"$BASH\" unix-absent",
+      "stdout": "mail-unix-absent=ok\n"
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Documented BASHMAIL1 framing and mail queue layout; RFC 5321 SMTP reply codes, CRLF and dot-stuffing; documented queue-flush pidfile and status rules. Expectations and peers are independently assembled in Python.",
+      "comparison": "Exact framed bytes, per-command SMTP responses and DATA bytes, queue members/metadata, owned-child signal count, exit status and bounded diagnostics compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-mail-r2.py": "a95c402e342e67c9ffd7690c0b3391de05214d8654ec5ba97e5eb0a356b38a22",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 20,
+      "diagnostic_files": [
+        "mail-trace.json"
+      ],
+      "id": "protocol-wire-mail-smtp-inbound-r2",
+      "purpose": "Loopback SMTP transaction including error codes, dot unstuffing, queue metadata and SIGTERM.",
+      "covers": [
+        "mail/smtp_inbound_server"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-mail-r2.py \"$BASH\" smtp-inbound",
+      "stdout": "mail-smtp-inbound=ok\n"
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Documented BASHMAIL1 framing and mail queue layout; RFC 5321 SMTP reply codes, CRLF and dot-stuffing; documented queue-flush pidfile and status rules. Expectations and peers are independently assembled in Python.",
+      "comparison": "Exact framed bytes, per-command SMTP responses and DATA bytes, queue members/metadata, owned-child signal count, exit status and bounded diagnostics compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-mail-r2.py": "a95c402e342e67c9ffd7690c0b3391de05214d8654ec5ba97e5eb0a356b38a22",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 20,
+      "diagnostic_files": [
+        "mail-trace.json"
+      ],
+      "id": "protocol-wire-mail-smtp-success-r2",
+      "purpose": "Two accepted recipients, full SMTP wire and unchanged queue entry.",
+      "covers": [
+        "mail/smtp_outbound_delivery"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-mail-r2.py \"$BASH\" smtp-success",
+      "stdout": "mail-smtp-success=ok\n"
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Documented BASHMAIL1 framing and mail queue layout; RFC 5321 SMTP reply codes, CRLF and dot-stuffing; documented queue-flush pidfile and status rules. Expectations and peers are independently assembled in Python.",
+      "comparison": "Exact framed bytes, per-command SMTP responses and DATA bytes, queue members/metadata, owned-child signal count, exit status and bounded diagnostics compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-mail-r2.py": "a95c402e342e67c9ffd7690c0b3391de05214d8654ec5ba97e5eb0a356b38a22",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 20,
+      "diagnostic_files": [
+        "mail-trace.json"
+      ],
+      "id": "protocol-wire-mail-smtp-mixed-temp-r2",
+      "purpose": "One accepted and one temporary recipient, full DATA and status 75.",
+      "covers": [
+        "mail/smtp_outbound_delivery"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-mail-r2.py \"$BASH\" smtp-mixed-temp",
+      "stdout": "mail-smtp-mixed-temp=ok\n"
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Documented BASHMAIL1 framing and mail queue layout; RFC 5321 SMTP reply codes, CRLF and dot-stuffing; documented queue-flush pidfile and status rules. Expectations and peers are independently assembled in Python.",
+      "comparison": "Exact framed bytes, per-command SMTP responses and DATA bytes, queue members/metadata, owned-child signal count, exit status and bounded diagnostics compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-mail-r2.py": "a95c402e342e67c9ffd7690c0b3391de05214d8654ec5ba97e5eb0a356b38a22",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 20,
+      "diagnostic_files": [
+        "mail-trace.json"
+      ],
+      "id": "protocol-wire-mail-smtp-mixed-perm-r2",
+      "purpose": "One accepted and one permanent recipient, full DATA and status 69.",
+      "covers": [
+        "mail/smtp_outbound_delivery"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-mail-r2.py \"$BASH\" smtp-mixed-perm",
+      "stdout": "mail-smtp-mixed-perm=ok\n"
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Documented BASHMAIL1 framing and mail queue layout; RFC 5321 SMTP reply codes, CRLF and dot-stuffing; documented queue-flush pidfile and status rules. Expectations and peers are independently assembled in Python.",
+      "comparison": "Exact framed bytes, per-command SMTP responses and DATA bytes, queue members/metadata, owned-child signal count, exit status and bounded diagnostics compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-mail-r2.py": "a95c402e342e67c9ffd7690c0b3391de05214d8654ec5ba97e5eb0a356b38a22",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 20,
+      "diagnostic_files": [
+        "mail-trace.json"
+      ],
+      "id": "protocol-wire-mail-smtp-all-temp-r2",
+      "purpose": "No recipient accepted, one temporary and one permanent, status 75.",
+      "covers": [
+        "mail/smtp_outbound_delivery"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-mail-r2.py \"$BASH\" smtp-all-temp",
+      "stdout": "mail-smtp-all-temp=ok\n"
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Documented BASHMAIL1 framing and mail queue layout; RFC 5321 SMTP reply codes, CRLF and dot-stuffing; documented queue-flush pidfile and status rules. Expectations and peers are independently assembled in Python.",
+      "comparison": "Exact framed bytes, per-command SMTP responses and DATA bytes, queue members/metadata, owned-child signal count, exit status and bounded diagnostics compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-mail-r2.py": "a95c402e342e67c9ffd7690c0b3391de05214d8654ec5ba97e5eb0a356b38a22",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 20,
+      "diagnostic_files": [
+        "mail-trace.json"
+      ],
+      "id": "protocol-wire-mail-smtp-all-perm-r2",
+      "purpose": "No recipient accepted, all permanent, status 69.",
+      "covers": [
+        "mail/smtp_outbound_delivery"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-mail-r2.py \"$BASH\" smtp-all-perm",
+      "stdout": "mail-smtp-all-perm=ok\n"
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Documented BASHMAIL1 framing and mail queue layout; RFC 5321 SMTP reply codes, CRLF and dot-stuffing; documented queue-flush pidfile and status rules. Expectations and peers are independently assembled in Python.",
+      "comparison": "Exact framed bytes, per-command SMTP responses and DATA bytes, queue members/metadata, owned-child signal count, exit status and bounded diagnostics compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-mail-r2.py": "a95c402e342e67c9ffd7690c0b3391de05214d8654ec5ba97e5eb0a356b38a22",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 45,
+      "diagnostic_files": [
+        "mail-trace.json"
+      ],
+      "id": "protocol-wire-mail-queue-flush-r2",
+      "purpose": "Absent, malformed, own-child wakeup and reaped-child stale pidfiles.",
+      "covers": [
+        "mail/queue_runner_wakeup"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-mail-r2.py \"$BASH\" queue-flush",
+      "stdout": "mail-queue-flush=ok\n",
+      "features": [
+        "seccomp-notify"
+      ]
+    }
+  ]
+}

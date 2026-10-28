@@ -1,0 +1,620 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-transfer-ldap-whoami-password-r2",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "deferred-bind-whoami: ldap-whoami-password",
+      "covers": [
+        "ldap/deferred-bind-whoami"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve bind-ok > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap whoami -H \"ldap://127.0.0.1:$port\" -D \"cn=alice,dc=example\" -w s3cret > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check bind-ok\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err"
+      ],
+      "stdout": "status=0\npeer-status=0\npeer=ok\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-transfer-ldap-whoami-password-file-r2",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "deferred-bind-whoami: ldap-whoami-password-file",
+      "covers": [
+        "ldap/deferred-bind-whoami"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {
+        "password.txt": "s3cret\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve bind-ok > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap whoami -H \"ldap://127.0.0.1:$port\" -D \"cn=alice,dc=example\" -y password.txt > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check bind-ok\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err"
+      ],
+      "stdout": "status=0\npeer-status=0\npeer=ok\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-transfer-ldap-whoami-password-prompt-r2",
+      "loadable": "ldap",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "deferred-bind-whoami: ldap-whoami-password-prompt",
+      "covers": [
+        "ldap/deferred-bind-whoami"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve bind-ok > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap whoami -H \"ldap://127.0.0.1:$port\" -D \"cn=alice,dc=example\" -W > \"$HOME/client.out\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check bind-ok\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err"
+      ],
+      "steps": [
+        {
+          "expect": "LDAP Password: "
+        },
+        {
+          "send": "s3cret\n"
+        },
+        {
+          "expect": "status=0"
+        },
+        {
+          "expect": "peer-status=0"
+        },
+        {
+          "expect": "peer=ok"
+        }
+      ]
+    },
+    {
+      "id": "migration-transfer-ldap-bind-invalid-r2",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "deferred-bind-whoami: ldap-bind-invalid",
+      "covers": [
+        "ldap/deferred-bind-whoami"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve bind-invalid > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap whoami -H \"ldap://127.0.0.1:$port\" -D \"cn=alice,dc=example\" -w s3cret > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check bind-invalid\n[[ -s \"$HOME/client.err\" ]] && printf \"diagnostic=yes\\n\" || printf \"diagnostic=no\\n\"\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err"
+      ],
+      "stdout": "status=1\npeer-status=0\npeer=ok\ndiagnostic=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-transfer-ldap-search-sub-r2",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "deferred-plain-search: ldap-search-sub",
+      "covers": [
+        "ldap/deferred-plain-search"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve search-sub > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap search -H \"ldap://127.0.0.1:$port\" -b dc=ex --scope sub \"(cn=x)\" cn mail > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check search-sub\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err"
+      ],
+      "stdout": "status=0\npeer-status=0\npeer=ok\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-transfer-ldap-search-one-r2",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "deferred-plain-search: ldap-search-one",
+      "covers": [
+        "ldap/deferred-plain-search"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve search-one > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap search -H \"ldap://127.0.0.1:$port\" -b dc=ex --scope one \"(cn=x)\" cn mail > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check search-one\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err"
+      ],
+      "stdout": "status=0\npeer-status=0\npeer=ok\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-transfer-ldap-search-base-r2",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "deferred-plain-search: ldap-search-base",
+      "covers": [
+        "ldap/deferred-plain-search"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve search-base > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap search -H \"ldap://127.0.0.1:$port\" -b dc=ex --scope base \"(cn=x)\" cn mail > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check search-base\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err"
+      ],
+      "stdout": "status=0\npeer-status=0\npeer=ok\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-transfer-ldap-search-no-such-object-r2",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "deferred-plain-search: ldap-search-no-such-object",
+      "covers": [
+        "ldap/deferred-plain-search"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve search-error > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap search -H \"ldap://127.0.0.1:$port\" -b dc=ex --scope sub \"(cn=x)\" cn mail > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check search-error\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err"
+      ],
+      "stdout": "status=1\npeer-status=0\npeer=ok\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-transfer-ldap-search-invalid-filter-before-connect-r2",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "deferred-plain-search: ldap-search-invalid-filter-before-connect",
+      "covers": [
+        "ldap/deferred-plain-search"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve invalid-filter > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap search -H \"ldap://127.0.0.1:$port\" -b dc=ex \"(cn=x\" cn > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check invalid-filter\n[[ -s \"$HOME/client.err\" ]] && printf \"diagnostic=yes\\n\" || printf \"diagnostic=no\\n\"\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err"
+      ],
+      "stdout": "status=1\npeer-status=0\npeer=ok\ndiagnostic=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-transfer-ldap-tls-trusted-default-sni-r2",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "deferred-tls-starttls: ldap-tls-trusted-default-sni",
+      "covers": [
+        "ldap/deferred-tls-starttls"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py material\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve tls-default > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap whoami -H \"ldaps://localhost:$port\" -D \"cn=alice,dc=example\" -w s3cret -c \"$HOME/tls/server.pem\" > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check tls-default\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err",
+        "tls/server.pem",
+        "tls/other.pem",
+        "tls/verification.json"
+      ],
+      "stdout": "status=0\npeer-status=0\npeer=ok\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-transfer-ldap-tls-explicit-sni-r2",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "deferred-tls-starttls: ldap-tls-explicit-sni",
+      "covers": [
+        "ldap/deferred-tls-starttls"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py material\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve tls-override > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap whoami -H \"ldaps://localhost:$port\" -D \"cn=alice,dc=example\" -w s3cret -c \"$HOME/tls/server.pem\" -s override.fixture > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check tls-override\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err",
+        "tls/server.pem",
+        "tls/other.pem",
+        "tls/verification.json"
+      ],
+      "stdout": "status=0\npeer-status=0\npeer=ok\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-transfer-ldap-tls-untrusted-r2",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "deferred-tls-starttls: ldap-tls-untrusted",
+      "covers": [
+        "ldap/deferred-tls-starttls"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py material\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve tls-untrusted > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap whoami -H \"ldaps://localhost:$port\" -D \"cn=alice,dc=example\" -w s3cret -c \"$HOME/tls/other.pem\" > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check tls-untrusted\n[[ -s \"$HOME/client.err\" ]] && printf \"diagnostic=yes\\n\" || printf \"diagnostic=no\\n\"\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err",
+        "tls/server.pem",
+        "tls/other.pem",
+        "tls/verification.json"
+      ],
+      "stdout": "status=1\npeer-status=0\npeer=ok\ndiagnostic=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-transfer-ldap-tls-wrong-name-r2",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "deferred-tls-starttls: ldap-tls-wrong-name",
+      "covers": [
+        "ldap/deferred-tls-starttls"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py material\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve tls-wrong-name > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap whoami -H \"ldaps://127.0.0.1:$port\" -D \"cn=alice,dc=example\" -w s3cret -c \"$HOME/tls/server.pem\" > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check tls-wrong-name\n[[ -s \"$HOME/client.err\" ]] && printf \"diagnostic=yes\\n\" || printf \"diagnostic=no\\n\"\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err",
+        "tls/server.pem",
+        "tls/other.pem",
+        "tls/verification.json"
+      ],
+      "stdout": "status=1\npeer-status=0\npeer=ok\ndiagnostic=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-transfer-ldap-tls-insecure-r2",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "deferred-tls-starttls: ldap-tls-insecure",
+      "covers": [
+        "ldap/deferred-tls-starttls"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py material\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve tls-insecure > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap whoami -H \"ldaps://127.0.0.1:$port\" -D \"cn=alice,dc=example\" -w s3cret -k > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check tls-insecure\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err",
+        "tls/server.pem",
+        "tls/other.pem",
+        "tls/verification.json"
+      ],
+      "stdout": "status=0\npeer-status=0\npeer=ok\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-transfer-ldap-starttls-optional-refusal-r2",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "deferred-tls-starttls: ldap-starttls-optional-refusal",
+      "covers": [
+        "ldap/deferred-tls-starttls"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve starttls-optional > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap whoami -H \"ldap://127.0.0.1:$port\" -D \"cn=alice,dc=example\" -w s3cret -Z > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check starttls-optional\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err"
+      ],
+      "stdout": "status=0\npeer-status=0\npeer=ok\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-transfer-ldap-starttls-required-refusal-r2",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "deferred-tls-starttls: ldap-starttls-required-refusal",
+      "covers": [
+        "ldap/deferred-tls-starttls"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve starttls-required-refusal > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap whoami -H \"ldap://127.0.0.1:$port\" -D \"cn=alice,dc=example\" -w s3cret -ZZ > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check starttls-required-refusal\n[[ -s \"$HOME/client.err\" ]] && printf \"diagnostic=yes\\n\" || printf \"diagnostic=no\\n\"\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err"
+      ],
+      "stdout": "status=1\npeer-status=0\npeer=ok\ndiagnostic=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-transfer-ldap-starttls-required-handshake-failure-r2",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "deferred-tls-starttls: ldap-starttls-required-handshake-failure",
+      "covers": [
+        "ldap/deferred-tls-starttls"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Actual client exit status and complete literal BER request sequence, reply-derived text, connection closure and TLS/SNI observations; raw client output and bounded peer records are retained.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve starttls-handshake-failure > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap whoami -H \"ldap://127.0.0.1:$port\" -D \"cn=alice,dc=example\" -w s3cret -ZZ > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check starttls-handshake-failure\n[[ -s \"$HOME/client.err\" ]] && printf \"diagnostic=yes\\n\" || printf \"diagnostic=no\\n\"\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err"
+      ],
+      "stdout": "status=1\npeer-status=0\npeer=ok\ndiagnostic=yes\n",
+      "stderr": ""
+    }
+  ]
+}

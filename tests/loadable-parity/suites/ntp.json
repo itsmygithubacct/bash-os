@@ -35,27 +35,111 @@
     },
     {
       "id": "ntp-query-packet-cases",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise query request/reply matching and the normal, alarm, KoD, malformed-response and timeout paths.",
-      "reason": "No executed fixture supplies an RFC 5905 UDP responder with scenario-specific packets; the existing 'udp' peer only echoes 'echo:'+datagram and cannot build NTP packets."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-query-alarm-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-query-kod-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-query-normal-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-query-short-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-query-timeout-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-query-wrong-mode-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-query-wrong-origin-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-query-zero-transmit-r2"
+        }
+      ]
     },
     {
       "id": "ntp-sync-median-dry-run",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify multi-server offset aggregation, panic/clamp boundaries and the documented -n applied=no result.",
-      "reason": "No executed fixture provides several deterministic NTP servers; sync uses one BASHNTP_SERVER_PORT for all servers, so distinct loopback addresses are needed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-sync-allow-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-sync-even-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-sync-limit-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-sync-odd-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-sync-panic-negative-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-sync-panic-positive-r2"
+        }
+      ]
     },
     {
       "id": "ntp-serve-wire-response",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check a serve response's mode/version/leap/stratum/refid and timestamp fields against a fixed client request.",
-      "reason": "No executed fixture sends a client request to a candidate-run ntp serve and decodes the response. The existing udp-client peer sends one text datagram and does not record replies."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-serve-max-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-serve-v3-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-serve-v4-r2"
+        }
+      ]
     },
     {
       "id": "ntp-run-config-state",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check config parsing, cfg/last state records, one-shot completion and the documented dry-run discipline output.",
-      "reason": "No executed fixture provides an NTP responder for run, and no case observes the clock around a dry-run discipline call."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-run-kernel-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-run-slew-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-ntp-run-step-r2"
+        }
+      ]
     },
     {
       "id": "ntp-nts-ke-query",

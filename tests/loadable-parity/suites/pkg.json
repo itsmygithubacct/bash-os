@@ -73,15 +73,100 @@
     },
     {
       "id": "pkg-package-validation",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Cover info and verify for valid, unsigned, untrusted, revoked, tampered, malformed, wrong-architecture, and wrong-ABI package files.",
-      "reason": "Only unsigned manifest parsing executed. All signature, digest, ELF and ABI policies are reachable in the legacy runner using fixture-relative trust directories and an independent python signer."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/pkg/pkg-info-independent-ustar"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pkg/pkg-pack-manifest-parity"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-info-signed-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-info-unsigned-independent-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-bad-abi-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-bad-arch-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-bad-class-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-bad-machine-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-bad-sha-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-foreign-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-missing-abi-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-missing-arch-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-missing-builtin-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-missing-name-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-missing-sha256-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-missing-version-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-revoked-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-signed-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-tampered-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-truncated-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-verify-unsigned-r2"
+        }
+      ]
     },
     {
       "id": "pkg-install-rollback-remove",
       "kind": "deferred",
       "purpose": "Check signed package installation, data-tree replacement, failed-install rollback, explicit rollback, and removal effects.",
-      "reason": "Never executed; package installation into a fixture-relative --root is ordinary file IO and reachable in the existing legacy runner (no system paths, no privilege)."
+      "reason": "Remaining obligations: r4: Package removal is exercised and unrelated content is retained. Explicit pkg rollback TXN has no selected evidence and remains unresolved."
     },
     {
       "id": "pkg-repository-io",
@@ -97,15 +182,61 @@
     },
     {
       "id": "pkg-load-unload",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check pkg load verifies installed state before enabling a package builtin, and record the documented unload behavior.",
-      "reason": "Never executed. Refusals are reachable in legacy; the positive path needs an in-VM fixture module build and per-build expectations (static build may legitimately be unable to dlopen)."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-load-bad-sha-state-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-load-missing-manifest-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-load-missing-object-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-load-tampered-object-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-load-unload-positive-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-load-wrong-abi-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-static-builtin-refusal-r2"
+        }
+      ]
     },
     {
       "id": "pkg-legacy-hooks",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Cover explicitly opted-in legacy rootfs package hooks and refusal of undeclared legacy payloads.",
-      "reason": "Never executed; legacy hooks are shell scripts writing inside a fixture-relative root and are reachable in the existing legacy runner."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-legacy-install-hooks-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-legacy-opt-in-required-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-legacy-pre-hook-fails-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-legacy-remove-hooks-r2"
+        }
+      ]
     },
     {
       "id": "pkg-info-independent-ustar",

@@ -1,0 +1,635 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 30,
+      "id": "protocol-wire-ntp-control-r2",
+      "purpose": "Positive/negative packet controls and a harmless seccomp-intercepted clock-set attempt.",
+      "covers": [],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py control",
+      "stdout": "ntp-control=ok\n",
+      "features": [
+        "seccomp-notify"
+      ],
+      "diagnostic_files": [
+        "ntp-trace.json",
+        "clock-legacy-notify.jsonl",
+        "clock-control-trace.json"
+      ]
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "ntp-trace.json"
+      ],
+      "id": "protocol-wire-ntp-query-normal-r2",
+      "purpose": "Accept a mode-4 response matching the mode-3 request timestamp.",
+      "covers": [
+        "ntp/ntp-query-packet-cases"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" query-normal",
+      "stdout": "ntp-query-normal=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "ntp-trace.json"
+      ],
+      "id": "protocol-wire-ntp-query-wrong-origin-r2",
+      "purpose": "Reject a response with a different originate timestamp.",
+      "covers": [
+        "ntp/ntp-query-packet-cases"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" query-wrong-origin",
+      "stdout": "ntp-query-wrong-origin=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "ntp-trace.json"
+      ],
+      "id": "protocol-wire-ntp-query-alarm-r2",
+      "purpose": "Reject leap alarm LI=3.",
+      "covers": [
+        "ntp/ntp-query-packet-cases"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" query-alarm",
+      "stdout": "ntp-query-alarm=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "ntp-trace.json"
+      ],
+      "id": "protocol-wire-ntp-query-kod-r2",
+      "purpose": "Report a stratum-zero RATE kiss-of-death.",
+      "covers": [
+        "ntp/ntp-query-packet-cases"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" query-kod",
+      "stdout": "ntp-query-kod=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "ntp-trace.json"
+      ],
+      "id": "protocol-wire-ntp-query-wrong-mode-r2",
+      "purpose": "Reject a response in client mode.",
+      "covers": [
+        "ntp/ntp-query-packet-cases"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" query-wrong-mode",
+      "stdout": "ntp-query-wrong-mode=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "ntp-trace.json"
+      ],
+      "id": "protocol-wire-ntp-query-short-r2",
+      "purpose": "Reject a 12-byte response.",
+      "covers": [
+        "ntp/ntp-query-packet-cases"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" query-short",
+      "stdout": "ntp-query-short=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "ntp-trace.json"
+      ],
+      "id": "protocol-wire-ntp-query-zero-transmit-r2",
+      "purpose": "Reject a zero server transmit timestamp.",
+      "covers": [
+        "ntp/ntp-query-packet-cases"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" query-zero-transmit",
+      "stdout": "ntp-query-zero-transmit=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "ntp-trace.json"
+      ],
+      "id": "protocol-wire-ntp-query-timeout-r2",
+      "purpose": "A bound peer receives but never answers; 350ms timeout stays bounded.",
+      "covers": [
+        "ntp/ntp-query-packet-cases"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" query-timeout",
+      "stdout": "ntp-query-timeout=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "ntp-trace.json"
+      ],
+      "id": "protocol-wire-ntp-serve-v3-r2",
+      "purpose": "Version-3 client request receives a version-3 mode-4 response.",
+      "covers": [
+        "ntp/ntp-serve-wire-response"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" serve-v3",
+      "stdout": "ntp-serve-v3=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "ntp-trace.json"
+      ],
+      "id": "protocol-wire-ntp-serve-v4-r2",
+      "purpose": "Version-4 client request receives a version-4 mode-4 response.",
+      "covers": [
+        "ntp/ntp-serve-wire-response"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" serve-v4",
+      "stdout": "ntp-serve-v4=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "diagnostic_files": [
+        "ntp-trace.json"
+      ],
+      "id": "protocol-wire-ntp-serve-max-r2",
+      "purpose": "Server configured with --max 2 exits after two decoded responses.",
+      "covers": [
+        "ntp/ntp-serve-wire-response"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" serve-max",
+      "stdout": "ntp-serve-max=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 32,
+      "diagnostic_files": [
+        "ntp-trace.json",
+        "clock-control-trace.json",
+        "clock-candidate-trace.json"
+      ],
+      "id": "protocol-wire-ntp-sync-odd-r2",
+      "purpose": "Median of independent -4, +2, +8 second peers is +2.",
+      "covers": [
+        "ntp/ntp-sync-median-dry-run"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" sync-odd",
+      "stdout": "ntp-sync-odd=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 32,
+      "diagnostic_files": [
+        "ntp-trace.json",
+        "clock-control-trace.json",
+        "clock-candidate-trace.json"
+      ],
+      "id": "protocol-wire-ntp-sync-even-r2",
+      "purpose": "Mean of middle two peers -4, +2, +8, +10 is +5.",
+      "covers": [
+        "ntp/ntp-sync-median-dry-run"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" sync-even",
+      "stdout": "ntp-sync-even=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 32,
+      "diagnostic_files": [
+        "ntp-trace.json",
+        "clock-control-trace.json",
+        "clock-candidate-trace.json"
+      ],
+      "id": "protocol-wire-ntp-sync-panic-positive-r2",
+      "purpose": "Refuse a +1200 second offset without override.",
+      "covers": [
+        "ntp/ntp-sync-median-dry-run"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" sync-panic-positive",
+      "stdout": "ntp-sync-panic-positive=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 32,
+      "diagnostic_files": [
+        "ntp-trace.json",
+        "clock-control-trace.json",
+        "clock-candidate-trace.json"
+      ],
+      "id": "protocol-wire-ntp-sync-panic-negative-r2",
+      "purpose": "Refuse a -1200 second offset without override.",
+      "covers": [
+        "ntp/ntp-sync-median-dry-run"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" sync-panic-negative",
+      "stdout": "ntp-sync-panic-negative=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 32,
+      "diagnostic_files": [
+        "ntp-trace.json",
+        "clock-control-trace.json",
+        "clock-candidate-trace.json"
+      ],
+      "id": "protocol-wire-ntp-sync-allow-r2",
+      "purpose": "The allow-big-jump override admits +1200 seconds in dry-run.",
+      "covers": [
+        "ntp/ntp-sync-median-dry-run"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" sync-allow",
+      "stdout": "ntp-sync-allow=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 32,
+      "diagnostic_files": [
+        "ntp-trace.json",
+        "clock-control-trace.json",
+        "clock-candidate-trace.json"
+      ],
+      "id": "protocol-wire-ntp-sync-limit-r2",
+      "purpose": "An offset of +4 seconds is refused by the one-second apply limit.",
+      "covers": [
+        "ntp/ntp-sync-median-dry-run"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" sync-limit",
+      "stdout": "ntp-sync-limit=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 32,
+      "diagnostic_files": [
+        "ntp-trace.json",
+        "clock-control-trace.json",
+        "clock-candidate-trace.json"
+      ],
+      "id": "protocol-wire-ntp-run-slew-r2",
+      "purpose": "Run once using a slew configuration and dry-run discipline.",
+      "covers": [
+        "ntp/ntp-run-config-state"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" run-slew",
+      "stdout": "ntp-run-slew=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 32,
+      "diagnostic_files": [
+        "ntp-trace.json",
+        "clock-control-trace.json",
+        "clock-candidate-trace.json"
+      ],
+      "id": "protocol-wire-ntp-run-step-r2",
+      "purpose": "Run once using a step configuration and dry-run discipline.",
+      "covers": [
+        "ntp/ntp-run-config-state"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" run-step",
+      "stdout": "ntp-run-step=ok\n"
+    },
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 5905 NTP packet layout, mode/version, originate matching, server timestamps and RATE KoD; documented ntp sync/run configuration, median, boundaries and dry-run behavior. Timestamp values are assembled and decoded independently in Python.",
+      "comparison": "UDP peer validates one 48-byte client request per address and captures exact requests and responses. Candidate status/output, wire fields, state files, measured timing and read-only before/after clock state are checked; seccomp notification intercepts forbidden clock mutation calls.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-ntp-r2.py": "de851f47ebcb8629bee6a37cfaf14e4892e9178e73c0e1a260bb87ea77a1a949",
+        "helpers/protocol-wire-ptrace-r2.py": "e11fe220c6ce2377c711287f4097b0c66481f76bb8ab427dc345031b2df1f27f",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 32,
+      "diagnostic_files": [
+        "ntp-trace.json",
+        "clock-control-trace.json",
+        "clock-candidate-trace.json"
+      ],
+      "id": "protocol-wire-ntp-run-kernel-r2",
+      "purpose": "Run once using a kernel configuration and dry-run discipline.",
+      "covers": [
+        "ntp/ntp-run-config-state"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-ntp-r2.py \"$BASH\" run-kernel",
+      "stdout": "ntp-run-kernel=ok\n"
+    }
+  ]
+}

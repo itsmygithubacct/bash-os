@@ -85,19 +85,19 @@
       "id": "deferred-plain-search",
       "purpose": "Exercise an LDAPv3 search round trip, entry decoding, and SearchResultDone status against a deterministic server response.",
       "kind": "deferred",
-      "reason": "No LDAP peer exists; offline encoders/decoders are covered but no round trip."
+      "reason": "Remaining obligations: r2: The expected entry lines are captured, but sent SearchResultEntry BER and segmentation are not retained; comparing output with actual input requires those raw bytes.; r3: The candidate outputs resultCode 0 or 32 and corresponding statuses, but the peer does not retain the actual SearchResultDone BER it sent."
     },
     {
       "id": "deferred-bind-whoami",
       "purpose": "Exercise simple bind sequencing and the WhoAmI extended request/response using fixture-only credentials.",
       "kind": "deferred",
-      "reason": "No LDAP peer exists; ldap-utils (ldapwhoami) is not in the VM image, so the oracle is hand-encoded RFC 4511/4532 BER."
+      "reason": "Remaining obligations: r2: The valid session continues and the invalid session returns status 1 with no diagnostic, a reached candidate FAIL. The peer does not retain the actual BindResponse BER or result code sent, so the nonzero-result input is not independently demonstrated.; r4: The client prints the expected authorization ID and status 0, but the peer does not retain the sent ExtendedResponse BER needed to compare the decoded value to its input."
     },
     {
       "id": "deferred-tls-starttls",
       "purpose": "Exercise implicit LDAPS and both optional and required StartTLS paths, certificate verification, and SNI behavior.",
       "kind": "deferred",
-      "reason": "No TLS-capable LDAP peer exists; python3 ssl/python3-cryptography and openssl in the VM can provide one with a throwaway CA."
+      "reason": "Remaining obligations: r3: The StartTLS request, subsequent plaintext bind and WhoAmI are captured, but the peer does not retain the refusal response BER; the refusal-to-fallback transition remains unproved.; r4: The required cases return failure with diagnostics and no bind, but the server response BER for refusal or handshake initiation is not retained; retain those input gaps."
     },
     {
       "id": "or-and-not-filter-vectors",

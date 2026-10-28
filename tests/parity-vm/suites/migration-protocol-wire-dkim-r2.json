@@ -1,0 +1,199 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 8463 Appendix A published Ed25519 and RSA signatures/public keys, RFC 6376 relaxed DKIM canonicalization and SHA-256; OpenSSL verifies Ed25519 or RSA cryptography independently of the candidate.",
+      "comparison": "Published positive vectors and mutated-body control are checked with OpenSSL on each case. Candidate valid/tamper/usage statuses and SMTP-generated signature/body hash are compared to explicit expectations; peer captures exact delivered bytes.",
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-dkim-r2.py": "7e2ebb340948e7cc845c451ab915c382b743195e0529ff95e347e61ca985b1e1"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 22,
+      "diagnostic_files": [
+        "dkim-trace.json"
+      ],
+      "id": "protocol-wire-dkim-control-r2",
+      "purpose": "Verify both published signatures with OpenSSL and reject tampered bodies.",
+      "covers": [],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-dkim-r2.py \"$BASH\" control",
+      "stdout": "dkim-control=ok\n"
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 8463 Appendix A published Ed25519 and RSA signatures/public keys, RFC 6376 relaxed DKIM canonicalization and SHA-256; OpenSSL verifies Ed25519 or RSA cryptography independently of the candidate.",
+      "comparison": "Published positive vectors and mutated-body control are checked with OpenSSL on each case. Candidate valid/tamper/usage statuses and SMTP-generated signature/body hash are compared to explicit expectations; peer captures exact delivered bytes.",
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-dkim-r2.py": "7e2ebb340948e7cc845c451ab915c382b743195e0529ff95e347e61ca985b1e1"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 22,
+      "diagnostic_files": [
+        "dkim-trace.json"
+      ],
+      "id": "protocol-wire-dkim-ed-valid-r2",
+      "purpose": "Verify the published RFC 8463 Ed25519-SHA256 signature and public key.",
+      "covers": [
+        "mail/dkim_contract_vectors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-dkim-r2.py \"$BASH\" ed-valid",
+      "stdout": "dkim-ed-valid=ok\n"
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 8463 Appendix A published Ed25519 and RSA signatures/public keys, RFC 6376 relaxed DKIM canonicalization and SHA-256; OpenSSL verifies Ed25519 or RSA cryptography independently of the candidate.",
+      "comparison": "Published positive vectors and mutated-body control are checked with OpenSSL on each case. Candidate valid/tamper/usage statuses and SMTP-generated signature/body hash are compared to explicit expectations; peer captures exact delivered bytes.",
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-dkim-r2.py": "7e2ebb340948e7cc845c451ab915c382b743195e0529ff95e347e61ca985b1e1"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 22,
+      "diagnostic_files": [
+        "dkim-trace.json"
+      ],
+      "id": "protocol-wire-dkim-rsa-valid-r2",
+      "purpose": "Verify the published RFC 8463 RSA-SHA256 signature and public key.",
+      "covers": [
+        "mail/dkim_contract_vectors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-dkim-r2.py \"$BASH\" rsa-valid",
+      "stdout": "dkim-rsa-valid=ok\n"
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 8463 Appendix A published Ed25519 and RSA signatures/public keys, RFC 6376 relaxed DKIM canonicalization and SHA-256; OpenSSL verifies Ed25519 or RSA cryptography independently of the candidate.",
+      "comparison": "Published positive vectors and mutated-body control are checked with OpenSSL on each case. Candidate valid/tamper/usage statuses and SMTP-generated signature/body hash are compared to explicit expectations; peer captures exact delivered bytes.",
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-dkim-r2.py": "7e2ebb340948e7cc845c451ab915c382b743195e0529ff95e347e61ca985b1e1"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 22,
+      "diagnostic_files": [
+        "dkim-trace.json"
+      ],
+      "id": "protocol-wire-dkim-usage-r2",
+      "purpose": "Missing key and unknown option both produce status 2.",
+      "covers": [
+        "mail/dkim_contract_vectors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-dkim-r2.py \"$BASH\" usage",
+      "stdout": "dkim-usage=ok\n"
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 8463 Appendix A published Ed25519 and RSA signatures/public keys, RFC 6376 relaxed DKIM canonicalization and SHA-256; OpenSSL verifies Ed25519 or RSA cryptography independently of the candidate.",
+      "comparison": "Published positive vectors and mutated-body control are checked with OpenSSL on each case. Candidate valid/tamper/usage statuses and SMTP-generated signature/body hash are compared to explicit expectations; peer captures exact delivered bytes.",
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-dkim-r2.py": "7e2ebb340948e7cc845c451ab915c382b743195e0529ff95e347e61ca985b1e1"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 22,
+      "diagnostic_files": [
+        "dkim-trace.json"
+      ],
+      "id": "protocol-wire-dkim-sign-r2",
+      "purpose": "Independently verify a fixture-only Ed25519 DKIM signature transmitted by deliver-fd.",
+      "covers": [
+        "mail/dkim_contract_vectors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-dkim-r2.py \"$BASH\" sign",
+      "stdout": "dkim-sign=ok\n"
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 8463 Appendix A published Ed25519 and RSA signatures/public keys, RFC 6376 relaxed DKIM canonicalization and SHA-256; OpenSSL verifies Ed25519 or RSA cryptography independently of the candidate.",
+      "comparison": "Published positive vectors and mutated-body control are checked with OpenSSL on each case. Candidate valid/tamper/usage statuses and SMTP-generated signature/body hash are compared to explicit expectations; peer captures exact delivered bytes.",
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-dkim-r2.py": "7e2ebb340948e7cc845c451ab915c382b743195e0529ff95e347e61ca985b1e1"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 22,
+      "diagnostic_files": [
+        "dkim-trace.json"
+      ],
+      "id": "protocol-wire-dkim-sign-tamper-body-r2",
+      "purpose": "Verify an independently validated generated signature, then reject a modified body.",
+      "covers": [
+        "mail/dkim_contract_vectors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-dkim-r2.py \"$BASH\" sign-tamper-body",
+      "stdout": "dkim-sign-tamper-body=ok\n"
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 8463 Appendix A published Ed25519 and RSA signatures/public keys, RFC 6376 relaxed DKIM canonicalization and SHA-256; OpenSSL verifies Ed25519 or RSA cryptography independently of the candidate.",
+      "comparison": "Published positive vectors and mutated-body control are checked with OpenSSL on each case. Candidate valid/tamper/usage statuses and SMTP-generated signature/body hash are compared to explicit expectations; peer captures exact delivered bytes.",
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-dkim-r2.py": "7e2ebb340948e7cc845c451ab915c382b743195e0529ff95e347e61ca985b1e1"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 22,
+      "diagnostic_files": [
+        "dkim-trace.json"
+      ],
+      "id": "protocol-wire-dkim-sign-tamper-header-r2",
+      "purpose": "Verify an independently validated generated signature, then reject a modified signed Subject.",
+      "covers": [
+        "mail/dkim_contract_vectors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-dkim-r2.py \"$BASH\" sign-tamper-header",
+      "stdout": "dkim-sign-tamper-header=ok\n"
+    }
+  ]
+}

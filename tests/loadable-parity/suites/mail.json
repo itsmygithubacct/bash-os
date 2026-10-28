@@ -45,31 +45,36 @@
       "id": "unix_submission_protocol",
       "kind": "deferred",
       "purpose": "Exercise mail serve and client submission framing, including fragmented valid frames, malformed/truncated fields, and queue persistence.",
-      "reason": "No AF_UNIX fixture; an independent BASHMAIL1 peer is a short python3 helper."
+      "reason": "Remaining obligations: r5: The absent-socket status, daemon exit 0 and post-run socket absence are captured; actual SIGTERM delivery and target are not independently retained."
     },
     {
       "id": "smtp_outbound_delivery",
       "kind": "deferred",
       "purpose": "Check deliver-fd's SMTP command sequence, message line-ending conversion, dot stuffing, recipient response handling, and preservation of queued data after failures.",
-      "reason": "No SMTP server stub exists; the existing peers cannot give scripted per-command replies."
+      "reason": "Remaining obligations: r3: Client commands, delivered lines and statuses are captured, but the peer does not retain the 250/4xx/5xx reply bytes. Capture replies to prove the recipient-code-to-result mapping."
     },
     {
       "id": "smtp_inbound_server",
       "kind": "deferred",
       "purpose": "Check smtpd command parsing and bounded inbound SMTP message acceptance into a private incoming queue.",
-      "reason": "No inbound SMTP fixture; smtpd reads commands line by line, so the existing tcp-client peer can send a pipelined dialog and read to EOF after QUIT."
+      "reason": "Remaining obligations: r2: The candidate reply lines and codes are captured, but the peer does not retain the corresponding inbound command bytes; command-to-reply sequencing needs a raw sent-byte transcript.; r3: The incoming queue body, headers, envelope and metadata are captured, but the raw SMTP message sent to the server is not retained, so dot-unstuffing and LF normalization cannot be independently compared to its wire input.; r4: The owned daemon exit status 0 is captured; actual SIGTERM delivery and target are specified in source but not independently retained in the raw trace."
     },
     {
       "id": "dkim_contract_vectors",
       "kind": "deferred",
       "purpose": "Verify DKIM valid, invalid, and usage outcomes using fixed messages and independently generated public test vectors; optionally cover signing output with a fixture-only key.",
-      "reason": "dkim-verify is offline (message on stdin, key on the command line) and needs no socket, so r1-r4 are cheap data fixtures; r5 depends on the outbound SMTP stub."
+      "reason": "Remaining obligations: r3: The generated-message cases accepted independently verified generated originals and rejected the body and header alterations. In the older private diagnostic runs, both published-vector altered inputs were actually invoked and returned status 1, but the corresponding valid original also returned status 1, so these results do not demonstrate discrimination. Those historical case IDs are not selected canonical evidence, and the two canonical r2 tamper definitions were excluded and not executed in the canonical runs. Preserve the published-vector obligation and do not relabel the old results."
     },
     {
       "id": "queue_runner_wakeup",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check queue-flush PID parsing and the documented runner wakeup request without signaling an unrelated process.",
-      "reason": "No fixture; an owned background child with a USR1 trap makes the signal observable without touching other processes."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-queue-flush-r2"
+        }
+      ]
     },
     {
       "id": "direct_queue_submission",

@@ -51,27 +51,50 @@
     },
     {
       "id": "deferred_socket_lifecycle",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify listen on loopback with an ephemeral port, one successful HTTP/1.1 GET accept and its bound variables, then a nonblocking timeout with no client.",
-      "reason": "No socket fixture; r3 can run today in the shell group (no client needed), r1-r2 need a loopback client."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-http-lifecycle-r2"
+        }
+      ]
     },
     {
       "id": "deferred_request_errors",
       "kind": "deferred",
       "purpose": "Verify malformed request handling and the documented 400, 413, and 431 refusals, including an oversized Content-Length rejected before a body is sent.",
-      "reason": "No raw-request fixture; the tcp-client peer covers r1-r4 (it sends a fixed payload and reads to EOF), r5 needs a client that half-closes after sending."
+      "reason": "Remaining obligations: r2: The 9216-byte request produced all bytes of a 431 response, then the peer recorded a TCP reset; clean EOF and the accept status were not retained. The separate 8192-byte boundary case recorded 431 and EOF. Retain the strictly over-limit reset and accept-status observation gap."
     },
     {
       "id": "deferred_reply_framing",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify reply emits byte-exact status, Content-Type, Content-Length, Connection: close, and file/stdin bodies, and closes the client descriptor.",
-      "reason": "No socket fixture exercises httpd reply; the existing tcp-client network peer can drive it."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-http-reply-file-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-http-reply-stdin-r2"
+        }
+      ]
     },
     {
       "id": "deferred_request_deadline",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify a partial request that stalls past the documented total request deadline receives 408 and leaves request variables unbound.",
-      "reason": "Needs a client that sends a partial request and keeps reading for longer than the 10 s deadline; the existing tcp-client peer gives up after its 3 s IO timeout, so a helper or peer option is needed. A short-timeout build is not required."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-http-deadline-body-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-http-deadline-head-r2"
+        }
+      ]
     },
     {
       "id": "part-binary-and-output-mode",

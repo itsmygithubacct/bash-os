@@ -1,0 +1,1500 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-transfer-pkg-info-signed-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-info-signed",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg info \"$F/valid.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - \"$HOME/out.txt\" \"$F/probe.so\" <<'PY'\nimport hashlib,pathlib,sys\ntext=pathlib.Path(sys.argv[1]).read_text(); sha=hashlib.sha256(pathlib.Path(sys.argv[2]).read_bytes()).hexdigest()\nfields=('name: fixtureprobe\\n','type: loadable\\n','version: 1\\n','builtin: fixtureprobe\\n','abi: bash-5.3\\n','sha256: '+sha+'\\n')\nprint('fields=%d' % all(x in text for x in fields))\nPY\n",
+      "stdout": "status=0\nfields=1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-signed-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-signed",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg verify \"$F/valid.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - \"$HOME/out.txt\" <<'PY'\nimport pathlib,sys\nprint('verified=%d' % (pathlib.Path(sys.argv[1]).read_text()=='verify fixtureprobe\\tpackage=ok\\n'))\nPY\n",
+      "stdout": "status=0\nverified=1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-info-unsigned-independent-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-info-unsigned-independent",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg info \"$F/unsigned-info.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - \"$HOME/out.txt\" <<'PY'\nimport pathlib,sys\ns=pathlib.Path(sys.argv[1]).read_text(); print('manifest=%d' % (s=='name: info-fixture\\ntype: payload\\nversion: 1\\ndescription: independent\\n'))\nPY\n",
+      "stdout": "status=0\nmanifest=1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-unsigned-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-unsigned",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg verify \"$F/unsigned.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/grep -Fq 'no signature for' \"$HOME/err.txt\" && printf \"diagnostic=yes\\n\" || printf \"diagnostic=no\\n\"\n",
+      "stdout": "status=1\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-foreign-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-foreign",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg verify \"$F/foreign.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/grep -Fq 'no trusted key matching keynum' \"$HOME/err.txt\" && printf \"diagnostic=yes\\n\" || printf \"diagnostic=no\\n\"\n",
+      "stdout": "status=1\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-revoked-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-revoked",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nexport BASHSIGNIFY_REVOKED_KEYS=\"$F/revoked\"\nbuiltin pkg verify \"$F/valid.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/grep -Fq 'has been revoked' \"$HOME/err.txt\" && printf \"diagnostic=yes\\n\" || printf \"diagnostic=no\\n\"\n",
+      "stdout": "status=1\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-tampered-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-tampered",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg verify \"$F/tampered.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/grep -Fq 'does not match its signature' \"$HOME/err.txt\" && printf \"diagnostic=yes\\n\" || printf \"diagnostic=no\\n\"\n",
+      "stdout": "status=1\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-truncated-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-truncated",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg verify \"$F/truncated.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-missing-name-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-missing-name",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg verify \"$F/missing-name.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-missing-version-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-missing-version",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg verify \"$F/missing-version.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-missing-builtin-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-missing-builtin",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg verify \"$F/missing-builtin.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-missing-abi-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-missing-abi",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg verify \"$F/missing-abi.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-missing-arch-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-missing-arch",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg verify \"$F/missing-arch.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-missing-sha256-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-missing-sha256",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg verify \"$F/missing-sha256.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-bad-sha-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-bad-sha",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg verify \"$F/bad-sha.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-bad-abi-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-bad-abi",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg verify \"$F/bad-abi.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-bad-arch-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-bad-arch",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg verify \"$F/bad-arch.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-bad-machine-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-bad-machine",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg verify \"$F/bad-machine.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-verify-bad-class-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-package-validation: pkg-verify-bad-class",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg verify \"$F/bad-class.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-install-signed-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-install-rollback-remove: pkg-install-signed",
+      "covers": [
+        "pkg/pkg-install-rollback-remove"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg install \"$F/valid.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -f root/var/lib/pkg/installed/fixtureprobe/MANIFEST && -f root/var/lib/pkg/installed/fixtureprobe/sha256 ]] &&\n /usr/bin/cmp -s root/var/lib/pkg/installed/fixtureprobe/MANIFEST \"$F/installed.manifest\" &&\n /usr/bin/cmp -s root/usr/lib/bash-os/loadables/fixtureprobe.so \"$F/probe.so\" && printf 'state=valid\\n' || printf 'state=invalid\\n'\n",
+      "stdout": "status=0\nstate=valid\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ],
+      "expected_files": {
+        "root/usr/lib/bash-os/share/fixtureprobe/config": "version-one\n",
+        "root/usr/lib/bash-os/libexec/fixtureprobe/data": "data-one\n"
+      }
+    },
+    {
+      "id": "migration-transfer-pkg-install-replace-data-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-install-rollback-remove: pkg-install-replace-data",
+      "covers": [
+        "pkg/pkg-install-rollback-remove"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {
+        "root/usr/lib/bash-os/share/other/keep": "unrelated\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg install \"$F/valid.pkg\" --root root > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nfirst=$?; printf 'first=%s\\n' \"$first\"\nbuiltin pkg install \"$F/v2.pkg\" --root root > \"$HOME/second.out\" 2> \"$HOME/second.err\"\nsecond=$?; printf 'second=%s\\n' \"$second\"\n[[ ! -e root/usr/lib/bash-os/libexec/fixtureprobe/data ]] && printf 'stale=absent\\n' || printf 'stale=present\\n'\n",
+      "stdout": "first=0\nsecond=0\nstale=absent\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ],
+      "expected_files": {
+        "root/usr/lib/bash-os/share/other/keep": "unrelated\n",
+        "root/usr/lib/bash-os/share/fixtureprobe/config": "version-two\n"
+      }
+    },
+    {
+      "id": "migration-transfer-pkg-install-bad-data-rollback-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-install-rollback-remove: pkg-install-bad-data-rollback",
+      "covers": [
+        "pkg/pkg-install-rollback-remove"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {
+        "root/usr/lib/bash-os/share/other/keep": "unrelated\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nsnapshot() {\n/usr/bin/python3 - \"$1\" <<'PY'\nimport hashlib,json,pathlib,stat,sys\nroot=pathlib.Path('root'); out={}\nfor p in sorted(root.rglob('*')):\n s=p.lstat(); k=p.relative_to(root).as_posix()\n if stat.S_ISREG(s.st_mode): out[k]=['file',stat.S_IMODE(s.st_mode),hashlib.sha256(p.read_bytes()).hexdigest()]\n elif stat.S_ISDIR(s.st_mode): out[k]=['dir',stat.S_IMODE(s.st_mode)]\n elif stat.S_ISLNK(s.st_mode): out[k]=['link',str(p.readlink())]\n else: raise RuntimeError('unexpected fixture object')\npathlib.Path(sys.argv[1]).write_text(json.dumps(out,sort_keys=True)+'\\n')\nPY\n}\nbuiltin pkg install \"$F/valid.pkg\" --root root > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'first=%s\\n' \"$?\"\nsnapshot \"$HOME/before.json\"\nbuiltin pkg install \"$F/bad-data.pkg\" --root root > \"$HOME/second.out\" 2> \"$HOME/second.err\"\nrc=$?; printf 'rejected=%s\\n' \"$rc\"\nsnapshot \"$HOME/after.json\"\n/usr/bin/cmp -s \"$HOME/before.json\" \"$HOME/after.json\" && printf 'tree=unchanged\\n' || printf 'tree=changed\\n'\n[[ -s \"$HOME/second.err\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n",
+      "stdout": "first=0\nrejected=1\ntree=unchanged\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-remove-installed-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-install-rollback-remove: pkg-remove-installed",
+      "covers": [
+        "pkg/pkg-install-rollback-remove"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {
+        "root/usr/lib/bash-os/share/other/keep": "unrelated\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg install \"$F/valid.pkg\" --root root > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'first=%s\\n' \"$?\"\nbuiltin pkg remove fixtureprobe --root root > \"$HOME/second.out\" 2> \"$HOME/second.err\"\nprintf 'remove=%s\\n' \"$?\"\nif [[ ! -e root/usr/lib/bash-os/loadables/fixtureprobe.so && ! -e root/usr/lib/bash-os/share/fixtureprobe && ! -e root/usr/lib/bash-os/libexec/fixtureprobe && ! -e root/var/lib/pkg/installed/fixtureprobe ]]; then printf 'package=removed\\n'; else printf 'package=present\\n'; fi\n",
+      "stdout": "first=0\nremove=0\npackage=removed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ],
+      "expected_files": {
+        "root/usr/lib/bash-os/share/other/keep": "unrelated\n"
+      }
+    },
+    {
+      "id": "migration-transfer-pkg-legacy-install-hooks-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-legacy-hooks: pkg-legacy-install-hooks",
+      "covers": [
+        "pkg/pkg-legacy-hooks"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nexport BASHPKG_ALLOW_LEGACY_ROOTFS=1\nbuiltin pkg install \"$F/legacy.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n",
+      "stdout": "status=0\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ],
+      "expected_files": {
+        "root/etc/fixture.conf": "legacy-data\n",
+        "root/hook.log": "pre-install|legacyprobe|1|root|root\npost-install|legacyprobe|1|root|root\n",
+        "root/var/lib/pkg/installed/legacyprobe/MANIFEST": "name: legacyprobe\nversion: 1\n"
+      }
+    },
+    {
+      "id": "migration-transfer-pkg-legacy-opt-in-required-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-legacy-hooks: pkg-legacy-opt-in-required",
+      "covers": [
+        "pkg/pkg-legacy-hooks"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {
+        "root/sentinel": "untouched\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg install \"$F/legacy.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\nif [[ ! -e root/etc/fixture.conf && ! -e root/hook.log && ! -e root/var/lib/pkg/installed/legacyprobe ]]; then printf 'no-write=yes\\n'; else printf 'no-write=no\\n'; fi\n/usr/bin/grep -q 'legacy rootfs' \"$HOME/err.txt\" && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n",
+      "stdout": "status=1\nno-write=yes\ndiagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ],
+      "expected_files": {
+        "root/sentinel": "untouched\n"
+      }
+    },
+    {
+      "id": "migration-transfer-pkg-legacy-pre-hook-fails-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-legacy-hooks: pkg-legacy-pre-hook-fails",
+      "covers": [
+        "pkg/pkg-legacy-hooks"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nexport BASHPKG_ALLOW_LEGACY_ROOTFS=1\nbuiltin pkg install \"$F/legacy-fail.pkg\" --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ ! -e root/var/lib/pkg/installed/legacyprobe ]] && printf 'state=absent\\n' || printf 'state=present\\n'\n[[ ! -e root/etc/fixture.conf ]] && printf 'file=absent\\n' || printf 'file=present\\n'\n",
+      "stdout": "status=1\nstate=absent\nfile=absent\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ],
+      "expected_files": {
+        "root/hook.log": "pre-install|legacyprobe|1|root|root\n"
+      }
+    },
+    {
+      "id": "migration-transfer-pkg-legacy-remove-hooks-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-legacy-hooks: pkg-legacy-remove-hooks",
+      "covers": [
+        "pkg/pkg-legacy-hooks"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nexport BASHPKG_ALLOW_LEGACY_ROOTFS=1\nbuiltin pkg install \"$F/legacy.pkg\" --root root > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'first=%s\\n' \"$?\"\nbuiltin pkg remove legacyprobe --root root > \"$HOME/second.out\" 2> \"$HOME/second.err\"\nprintf 'remove=%s\\n' \"$?\"\n[[ ! -e root/etc/fixture.conf && ! -e root/var/lib/pkg/installed/legacyprobe ]] && printf 'removed=yes\\n' || printf 'removed=no\\n'\n",
+      "stdout": "first=0\nremove=0\nremoved=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ],
+      "expected_files": {
+        "root/hook.log": "pre-install|legacyprobe|1|root|root\npost-install|legacyprobe|1|root|root\npre-remove|legacyprobe|1|root|root\npost-remove|legacyprobe|1|root|root\n"
+      }
+    },
+    {
+      "id": "migration-transfer-pkg-load-missing-object-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-load-unload: pkg-load-missing-object",
+      "covers": [
+        "pkg/pkg-load-unload"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\nmkdir -p root/var/lib/pkg/installed/fixtureprobe root/usr/lib/bash-os/loadables\n/usr/bin/cp \"$HOME/pkg-fixture/installed.manifest\" root/var/lib/pkg/installed/fixtureprobe/MANIFEST\n/usr/bin/sha256sum \"$HOME/pkg-fixture/probe.so\" | { read -r sum rest; printf '%s' \"$sum\"; } > root/var/lib/pkg/installed/fixtureprobe/sha256\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg load fixtureprobe --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n[[ $(type -t fixtureprobe) != builtin ]] && printf 'builtin=absent\\n' || printf 'builtin=present\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\nbuiltin=absent\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-load-tampered-object-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-load-unload: pkg-load-tampered-object",
+      "covers": [
+        "pkg/pkg-load-unload"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\nmkdir -p root/var/lib/pkg/installed/fixtureprobe root/usr/lib/bash-os/loadables\n/usr/bin/cp \"$HOME/pkg-fixture/installed.manifest\" root/var/lib/pkg/installed/fixtureprobe/MANIFEST\n/usr/bin/sha256sum \"$HOME/pkg-fixture/probe.so\" | { read -r sum rest; printf '%s' \"$sum\"; } > root/var/lib/pkg/installed/fixtureprobe/sha256\nprintf corrupt > root/usr/lib/bash-os/loadables/fixtureprobe.so\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg load fixtureprobe --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n[[ $(type -t fixtureprobe) != builtin ]] && printf 'builtin=absent\\n' || printf 'builtin=present\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\nbuiltin=absent\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-load-bad-sha-state-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-load-unload: pkg-load-bad-sha-state",
+      "covers": [
+        "pkg/pkg-load-unload"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\nmkdir -p root/var/lib/pkg/installed/fixtureprobe root/usr/lib/bash-os/loadables\n/usr/bin/cp \"$HOME/pkg-fixture/installed.manifest\" root/var/lib/pkg/installed/fixtureprobe/MANIFEST\n/usr/bin/sha256sum \"$HOME/pkg-fixture/probe.so\" | { read -r sum rest; printf '%s' \"$sum\"; } > root/var/lib/pkg/installed/fixtureprobe/sha256\n/usr/bin/cp \"$HOME/pkg-fixture/probe.so\" root/usr/lib/bash-os/loadables/fixtureprobe.so\nprintf 0000 > root/var/lib/pkg/installed/fixtureprobe/sha256\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg load fixtureprobe --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n[[ $(type -t fixtureprobe) != builtin ]] && printf 'builtin=absent\\n' || printf 'builtin=present\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\nbuiltin=absent\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-load-wrong-abi-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-load-unload: pkg-load-wrong-abi",
+      "covers": [
+        "pkg/pkg-load-unload"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\nmkdir -p root/var/lib/pkg/installed/fixtureprobe root/usr/lib/bash-os/loadables\n/usr/bin/cp \"$HOME/pkg-fixture/installed.manifest\" root/var/lib/pkg/installed/fixtureprobe/MANIFEST\n/usr/bin/sha256sum \"$HOME/pkg-fixture/probe.so\" | { read -r sum rest; printf '%s' \"$sum\"; } > root/var/lib/pkg/installed/fixtureprobe/sha256\n/usr/bin/cp \"$HOME/pkg-fixture/probe.so\" root/usr/lib/bash-os/loadables/fixtureprobe.so\n/usr/bin/sed -i s/bash-5.3/bash-4.4/ root/var/lib/pkg/installed/fixtureprobe/MANIFEST\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg load fixtureprobe --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n[[ $(type -t fixtureprobe) != builtin ]] && printf 'builtin=absent\\n' || printf 'builtin=present\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\nbuiltin=absent\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-load-missing-manifest-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-load-unload: pkg-load-missing-manifest",
+      "covers": [
+        "pkg/pkg-load-unload"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\nmkdir -p root/var/lib/pkg/installed/fixtureprobe root/usr/lib/bash-os/loadables\n/usr/bin/cp \"$HOME/pkg-fixture/probe.so\" root/usr/lib/bash-os/loadables/fixtureprobe.so\n/usr/bin/sha256sum \"$HOME/pkg-fixture/probe.so\" | { read -r sum rest; printf '%s' \"$sum\"; } > root/var/lib/pkg/installed/fixtureprobe/sha256\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg load fixtureprobe --root root > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n[[ -s \"$HOME/err.txt\" ]] && printf 'diagnostic=yes\\n' || printf 'diagnostic=no\\n'\n[[ $(type -t fixtureprobe) != builtin ]] && printf 'builtin=absent\\n' || printf 'builtin=present\\n'\n",
+      "stdout": "status=1\ndiagnostic=yes\nbuiltin=absent\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-static-builtin-refusal-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-load-unload: pkg-static-builtin-refusal",
+      "covers": [
+        "pkg/pkg-load-unload"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\nmkdir -p root/var/lib/pkg/installed/fixtureprobe root/usr/lib/bash-os/loadables\n/usr/bin/cp \"$HOME/pkg-fixture/installed.manifest\" root/var/lib/pkg/installed/fixtureprobe/MANIFEST\n/usr/bin/sha256sum \"$HOME/pkg-fixture/probe.so\" | { read -r sum rest; printf '%s' \"$sum\"; } > root/var/lib/pkg/installed/fixtureprobe/sha256\n/usr/bin/cp \"$HOME/pkg-fixture/probe.so\" root/usr/lib/bash-os/loadables/fixtureprobe.so\n/usr/bin/cp \"$HOME/pkg-fixture/static.manifest\" root/var/lib/pkg/installed/fixtureprobe/MANIFEST\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg load fixtureprobe --root root > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'load=%s\\n' \"$?\"\nbuiltin pkg unload fixtureprobe --root root > \"$HOME/second.out\" 2> \"$HOME/second.err\"\nprintf 'unload=%s\\n' \"$?\"\n/usr/bin/grep -q static \"$HOME/first.err\" && /usr/bin/grep -q static \"$HOME/second.err\" && printf 'static=refused\\n' || printf 'static=not-refused\\n'\n",
+      "stdout": "load=1\nunload=1\nstatic=refused\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    },
+    {
+      "id": "migration-transfer-pkg-load-unload-positive-r2",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pkg-load-unload: pkg-load-unload-positive",
+      "covers": [
+        "pkg/pkg-load-unload"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\nmkdir -p root/var/lib/pkg/installed/fixtureprobe root/usr/lib/bash-os/loadables\n/usr/bin/cp \"$HOME/pkg-fixture/installed.manifest\" root/var/lib/pkg/installed/fixtureprobe/MANIFEST\n/usr/bin/sha256sum \"$HOME/pkg-fixture/probe.so\" | { read -r sum rest; printf '%s' \"$sum\"; } > root/var/lib/pkg/installed/fixtureprobe/sha256\n/usr/bin/cp \"$HOME/pkg-fixture/probe.so\" root/usr/lib/bash-os/loadables/fixtureprobe.so\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg load fixtureprobe --root root > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'load=%s\\n' \"$?\"\n[[ $(type -t fixtureprobe) == builtin ]] && printf 'enabled=yes\\n' || printf 'enabled=no\\n'\nif [[ $(type -t fixtureprobe) == builtin ]]; then fixtureprobe; printf 'invoke=%s\\n' \"$?\"; else printf 'invoke=not-reached\\n'; fi\nbuiltin pkg unload fixtureprobe --root root > \"$HOME/second.out\" 2> \"$HOME/second.err\"\nprintf 'unload=%s\\n' \"$?\"\n[[ $(type -t fixtureprobe) != builtin ]] && printf 'disabled=yes\\n' || printf 'disabled=no\\n'\n/usr/bin/grep -Fq $'loaded fixtureprobe\\tfixtureprobe\\troot/usr/lib/bash-os/loadables/fixtureprobe.so' \"$HOME/first.out\" && /usr/bin/grep -Fq $'unloaded fixtureprobe\\tfixtureprobe' \"$HOME/second.out\" && printf 'messages=yes\\n' || printf 'messages=no\\n'\n",
+      "stdout": "load=0\nenabled=yes\ninvoke=0\nunload=0\ndisabled=yes\nmessages=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json"
+      ]
+    }
+  ]
+}

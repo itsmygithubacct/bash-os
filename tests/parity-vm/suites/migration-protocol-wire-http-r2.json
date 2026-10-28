@@ -1,0 +1,426 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Bounded raw request/reply and shell diagnostics; exact response bytes and EOF, status, variables, descriptor state and timing compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-r2.py": "9bdce60b69eda87dcf1983b8b85618149fbc2434dd104ff1334d325c8cd22d69"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-control-r2",
+      "purpose": "Independently test positive byte/EOF capture plus mutated-byte and unclosed-peer negative controls.",
+      "covers": [],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-r2.py control",
+      "stdout": "http-control=ok\n",
+      "timeout": 6,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Bounded raw request/reply and shell diagnostics; exact response bytes and EOF, status, variables, descriptor state and timing compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-r2.py": "9bdce60b69eda87dcf1983b8b85618149fbc2434dd104ff1334d325c8cd22d69"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-lifecycle-r2",
+      "purpose": "Ephemeral loopback socket, empty-listener probes, GET binding, body truncation and close.",
+      "covers": [
+        "httpd/deferred_socket_lifecycle"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-r2.py \"$BASH\" lifecycle",
+      "stdout": "http-lifecycle=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ],
+      "files": {
+        "body": "stale body must be truncated",
+        "response.bin": {
+          "base64": "AEH/Ci56DQo="
+        }
+      }
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Bounded raw request/reply and shell diagnostics; exact response bytes and EOF, status, variables, descriptor state and timing compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-r2.py": "9bdce60b69eda87dcf1983b8b85618149fbc2434dd104ff1334d325c8cd22d69"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-reply-file-r2",
+      "purpose": "404 custom content type and binary file response.",
+      "covers": [
+        "httpd/deferred_reply_framing"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-r2.py \"$BASH\" reply-file",
+      "stdout": "http-reply-file=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ],
+      "files": {
+        "body": "stale body must be truncated",
+        "response.bin": {
+          "base64": "AEH/Ci56DQo="
+        }
+      }
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Bounded raw request/reply and shell diagnostics; exact response bytes and EOF, status, variables, descriptor state and timing compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-r2.py": "9bdce60b69eda87dcf1983b8b85618149fbc2434dd104ff1334d325c8cd22d69"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-reply-stdin-r2",
+      "purpose": "200 default content type and binary stdin response.",
+      "covers": [
+        "httpd/deferred_reply_framing"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-r2.py \"$BASH\" reply-stdin",
+      "stdout": "http-reply-stdin=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ],
+      "files": {
+        "body": "stale body must be truncated",
+        "response.bin": {
+          "base64": "AEH/Ci56DQo="
+        }
+      }
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Bounded raw request/reply and shell diagnostics; exact response bytes and EOF, status, variables, descriptor state and timing compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-r2.py": "9bdce60b69eda87dcf1983b8b85618149fbc2434dd104ff1334d325c8cd22d69"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-bad-line-r2",
+      "purpose": "Malformed request line returns 400.",
+      "covers": [
+        "httpd/deferred_request_errors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-r2.py \"$BASH\" bad-line",
+      "stdout": "http-bad-line=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Bounded raw request/reply and shell diagnostics; exact response bytes and EOF, status, variables, descriptor state and timing compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-r2.py": "9bdce60b69eda87dcf1983b8b85618149fbc2434dd104ff1334d325c8cd22d69"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-large-head-r2",
+      "purpose": "An 8192-byte unterminated request head returns 431.",
+      "covers": [
+        "httpd/deferred_request_errors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-r2.py \"$BASH\" large-head",
+      "stdout": "http-large-head=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Bounded raw request/reply and shell diagnostics; exact response bytes and EOF, status, variables, descriptor state and timing compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-r2.py": "9bdce60b69eda87dcf1983b8b85618149fbc2434dd104ff1334d325c8cd22d69"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-overlarge-head-r2",
+      "purpose": "A strictly over-8-KiB (9216-byte) unterminated request head must receive the exact 431 response and EOF.",
+      "covers": [
+        "httpd/deferred_request_errors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-r2.py \"$BASH\" overlarge-head",
+      "stdout": "http-overlarge-head=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Bounded raw request/reply and shell diagnostics; exact response bytes and EOF, status, variables, descriptor state and timing compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-r2.py": "9bdce60b69eda87dcf1983b8b85618149fbc2434dd104ff1334d325c8cd22d69"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-large-length-r2",
+      "purpose": "Content-Length 16777217 is refused 413 without sending body bytes.",
+      "covers": [
+        "httpd/deferred_request_errors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-r2.py \"$BASH\" large-length",
+      "stdout": "http-large-length=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Bounded raw request/reply and shell diagnostics; exact response bytes and EOF, status, variables, descriptor state and timing compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-r2.py": "9bdce60b69eda87dcf1983b8b85618149fbc2434dd104ff1334d325c8cd22d69"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-bad-length-r2",
+      "purpose": "Nonnumeric Content-Length returns 400.",
+      "covers": [
+        "httpd/deferred_request_errors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-r2.py \"$BASH\" bad-length",
+      "stdout": "http-bad-length=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Bounded raw request/reply and shell diagnostics; exact response bytes and EOF, status, variables, descriptor state and timing compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-r2.py": "9bdce60b69eda87dcf1983b8b85618149fbc2434dd104ff1334d325c8cd22d69"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-conflict-length-r2",
+      "purpose": "Conflicting Content-Length fields return 400.",
+      "covers": [
+        "httpd/deferred_request_errors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-r2.py \"$BASH\" conflict-length",
+      "stdout": "http-conflict-length=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Bounded raw request/reply and shell diagnostics; exact response bytes and EOF, status, variables, descriptor state and timing compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-r2.py": "9bdce60b69eda87dcf1983b8b85618149fbc2434dd104ff1334d325c8cd22d69"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-bad-header-r2",
+      "purpose": "Header without colon returns 400.",
+      "covers": [
+        "httpd/deferred_request_errors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-r2.py \"$BASH\" bad-header",
+      "stdout": "http-bad-header=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Bounded raw request/reply and shell diagnostics; exact response bytes and EOF, status, variables, descriptor state and timing compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-r2.py": "9bdce60b69eda87dcf1983b8b85618149fbc2434dd104ff1334d325c8cd22d69"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-short-head-r2",
+      "purpose": "Half-close before the head completes returns 400.",
+      "covers": [
+        "httpd/deferred_request_errors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-r2.py \"$BASH\" short-head",
+      "stdout": "http-short-head=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Bounded raw request/reply and shell diagnostics; exact response bytes and EOF, status, variables, descriptor state and timing compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-r2.py": "9bdce60b69eda87dcf1983b8b85618149fbc2434dd104ff1334d325c8cd22d69"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-short-body-r2",
+      "purpose": "Half-close before the stated body length returns 400.",
+      "covers": [
+        "httpd/deferred_request_errors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-r2.py \"$BASH\" short-body",
+      "stdout": "http-short-body=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Bounded raw request/reply and shell diagnostics; exact response bytes and EOF, status, variables, descriptor state and timing compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-r2.py": "9bdce60b69eda87dcf1983b8b85618149fbc2434dd104ff1334d325c8cd22d69"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-deadline-head-r2",
+      "purpose": "Partial head stalls past the unchanged ten-second total deadline.",
+      "covers": [
+        "httpd/deferred_request_deadline"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-r2.py \"$BASH\" deadline-head",
+      "stdout": "http-deadline-head=ok\n",
+      "timeout": 25,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Bounded raw request/reply and shell diagnostics; exact response bytes and EOF, status, variables, descriptor state and timing compared to explicit expectations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-r2.py": "9bdce60b69eda87dcf1983b8b85618149fbc2434dd104ff1334d325c8cd22d69"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-deadline-body-r2",
+      "purpose": "Incomplete body trickles at five seconds yet times out at the total ten-second deadline.",
+      "covers": [
+        "httpd/deferred_request_deadline"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-r2.py \"$BASH\" deadline-body",
+      "stdout": "http-deadline-body=ok\n",
+      "timeout": 25,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    }
+  ]
+}
