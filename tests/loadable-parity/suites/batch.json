@@ -49,9 +49,38 @@
     },
     {
       "id": "cron-consumer-semantics",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check that a separate cron consumer accepts queued jobs, executes them once in FIFO order, and applies the intended immediate/low-load policy.",
-      "reason": "The producer and consumer are each covered separately; an end-to-end batch -> cron run --once case with a fixed clock is implementable now."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/batch/queue-artifact"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/cron/run-once-atjob-boundary"
+        },
+        {
+          "group": "shell",
+          "id": "migration-batch-cron-end-to-end-once"
+        },
+        {
+          "group": "shell",
+          "id": "migration-batch-fifo-cross-process"
+        },
+        {
+          "group": "shell",
+          "id": "migration-batch-fifo-same-shell"
+        },
+        {
+          "group": "shell",
+          "id": "migration-batch-immediate-run-at-boundary"
+        },
+        {
+          "group": "shell",
+          "id": "migration-batch-no-load-source-read"
+        }
+      ]
     },
     {
       "id": "empty-and-terminated-job",

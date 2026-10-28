@@ -1,0 +1,321 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-batch-cron-end-to-end-once",
+      "loadable": "batch",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Three scripts queued by one shell with batch are accepted by separate cron run --once polls with a fixed clock, executed once each and removed; a second poll executes nothing.",
+      "oracle": "Documented bash-os contract (batch_doc and cron_doc): batch reads a script from stdin and queues ${BASHCRON_SPOOL_DIR}/atjobs/<seconds>.<pid>.<seq>.job whose first line is \"# run_at=<seconds>\"; cron's scanner runs ready jobs in submission (FIFO) order and removes them; \"low load\" is currently immediate. Expectations are computed by the observer from facts it controls (submitter pids, wall-clock seconds, the order in which it released each submitter, the fixed consumer clock), never from candidate output.",
+      "comparison": "Producer and consumer are separate candidate shells over one private spool (BASHCRON_SPOOL_DIR, OUTPUT, ETC and CROND under /tmp/parity-case/work/batch-once). Compared: the three \"job <id> scheduled for <sec>\" lines (id shape, seconds, submitter pid), the queued files (0600, exact bytes: \"# run_at=<sec>\" header plus the script), the labels executed by poll 1 (each exactly once), an empty atjobs directory afterwards (no .job and no .running leftover), and an unchanged job log after poll 2. Every observation is in observations.jsonl; tables, clock and state files, job logs, spool listings and daemon streams stay in the case workspace, which the harness preserves.",
+      "covers": [
+        "batch/cron-consumer-semantics"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup batch-once",
+      "setup_timeout": 30,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" batch-once",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "produced=3 ids=ok submitter-pid=ok files=ok mode=0600 bytes=ok\npoll-1 status=0 executed=3 each-once=yes removed=yes leftovers=none\npoll-2 status=0 executed=3 reexecuted=no\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-batch-immediate-run-at-boundary",
+      "loadable": "batch",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Immediate policy: run_at is the submission second, a poll one second earlier leaves the job queued, a poll at run_at executes and removes it, and a fresh job is executed by the very next poll on the real clock.",
+      "oracle": "Documented bash-os contract (batch_doc and cron_doc): batch reads a script from stdin and queues ${BASHCRON_SPOOL_DIR}/atjobs/<seconds>.<pid>.<seq>.job whose first line is \"# run_at=<seconds>\"; cron's scanner runs ready jobs in submission (FIFO) order and removes them; \"low load\" is currently immediate. Expectations are computed by the observer from facts it controls (submitter pids, wall-clock seconds, the order in which it released each submitter, the fixed consumer clock), never from candidate output.",
+      "comparison": "The submission second is bracketed by the observer's own wall-clock reads around releasing the submitter. Consumer polls use BASHCRON_NOW_EPOCH = run_at-1 (nothing runs, one job stays queued) and run_at (the job runs, the queue is empty); a second job is then consumed by a poll with no clock hook. Compared: run_at against the bracket, the header line, executed and queued counts and every poll status. Every observation is in observations.jsonl; tables, clock and state files, job logs, spool listings and daemon streams stay in the case workspace, which the harness preserves.",
+      "covers": [
+        "batch/cron-consumer-semantics"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup batch-boundary",
+      "setup_timeout": 30,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" batch-boundary",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "run_at=submission-time header=ok\nclock=run_at-1 status=0 executed=0 queued=1\nclock=run_at status=0 executed=1 queued=0\nclock=real status=0 executed=2 queued=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-batch-no-load-source-read",
+      "loadable": "batch",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "No load gating: neither batch nor the cron consumer reads a kernel load interface while queueing and dispatching a job, shown with a positive and a negative detector control.",
+      "oracle": "Documented bash-os contract (batch_doc and cron_doc): batch reads a script from stdin and queues ${BASHCRON_SPOOL_DIR}/atjobs/<seconds>.<pid>.<seq>.job whose first line is \"# run_at=<seconds>\"; cron's scanner runs ready jobs in submission (FIFO) order and removes them; \"low load\" is currently immediate. Expectations are computed by the observer from facts it controls (submitter pids, wall-clock seconds, the order in which it released each submitter, the fixed consumer clock), never from candidate output. Detector validity comes from the in-case controls, which setup verifies as well; a static search of loadables/cron.c and batch.c finds no load input.",
+      "comparison": "Producer and consumer each run under the pinned seccomp observer (helpers/system-seccomp.py), which notifies and continues openat, open and sysinfo and logs opened paths. Compared: the controls (cat /proc/loadavg is detected, true is not), zero opens of /proc/loadavg or /proc/pressure/* by the producer, and by the consumer, which still executes the job. Full trace logs, including sysinfo counts, are retained.",
+      "covers": [
+        "batch/cron-consumer-semantics"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup batch-load",
+      "setup_timeout": 30,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" batch-load",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "control: loadavg-open-detected=yes loadavg-absent-when-unread=yes\nproducer: status=0 loadavg-reads=0\nconsumer: status=0 executed=1 loadavg-reads=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-batch-fifo-same-shell",
+      "loadable": "batch",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Six jobs queued by one shell within one wall-clock second execute in submission order.",
+      "oracle": "Documented bash-os contract (batch_doc and cron_doc): batch reads a script from stdin and queues ${BASHCRON_SPOOL_DIR}/atjobs/<seconds>.<pid>.<seq>.job whose first line is \"# run_at=<seconds>\"; cron's scanner runs ready jobs in submission (FIFO) order and removes them; \"low load\" is currently immediate. Expectations are computed by the observer from facts it controls (submitter pids, wall-clock seconds, the order in which it released each submitter, the fixed consumer clock), never from candidate output.",
+      "comparison": "The submitter is released just after a second boundary and retried (up to six times, fresh spool each time) until all six ids carry one second. The execution order is read from the job log and compared with the submission order 1..6. Every observation is in observations.jsonl; tables, clock and state files, job logs, spool listings and daemon streams stay in the case workspace, which the harness preserves.",
+      "covers": [
+        "batch/cron-consumer-semantics"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup batch-fifo-shell",
+      "setup_timeout": 30,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" batch-fifo-shell",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "same-shell jobs=6 same-second=yes executed=123456 fifo=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-batch-fifo-cross-process",
+      "loadable": "batch",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Jobs queued in the same second by two different shells run in submission order whichever shell has the lower pid; submitted one second apart the order is also submission order (control).",
+      "oracle": "Documented bash-os contract (batch_doc and cron_doc): batch reads a script from stdin and queues ${BASHCRON_SPOOL_DIR}/atjobs/<seconds>.<pid>.<seq>.job whose first line is \"# run_at=<seconds>\"; cron's scanner runs ready jobs in submission (FIFO) order and removes them; \"low load\" is currently immediate. Expectations are computed by the observer from facts it controls (submitter pids, wall-clock seconds, the order in which it released each submitter, the fixed consumer clock), never from candidate output. Source note: ids sort by strcmp over <sec>.<pid>.<seq>, so within one second the pid text, not submission order, decides (batch.c:116-119, cron.c:865-892).",
+      "comparison": "Two candidate shells are spawned (the first has the lower pid) and each blocks until the observer releases it. The observer releases them in the stated order inside one aligned second (retried until both ids carry the same second), runs one consumer poll with a fixed clock, and compares the execution order with the release order. The last row releases the higher-pid shell first and the lower-pid shell in the following second. Ids, pids, seconds and the log are retained. Every observation is in observations.jsonl; tables, clock and state files, job logs, spool listings and daemon streams stay in the case workspace, which the harness preserves.",
+      "covers": [
+        "batch/cron-consumer-semantics"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup batch-fifo-cross",
+      "setup_timeout": 30,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" batch-fifo-cross",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "cross-process lower-pid-first same-second=yes order=LOW,HIGH fifo=yes\ncross-process higher-pid-first same-second=yes order=HIGH,LOW fifo=yes\ncross-process higher-pid-first different-second=yes order=HIGH,LOW fifo=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-cron-daemon-repeated-polls",
+      "loadable": "cron",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "cron run keeps polling at --interval and dispatches the due entry of each new minute once, without re-dispatching a minute on later polls.",
+      "oracle": "Documented bash-os contract (cron_doc): cron run polls the spool, system crontab, cron.d and per-user tables; each poll consumes one BASHCRON_NOW_FILE line and EOF reuses the last; @reboot runs once when daemon mode starts and is not run by --once; BASHCRON_CATCHUP_MAX_MIN (1..1440, default 5) bounds minute-by-minute replay after a forward gap and larger gaps collapse to the current minute; BASHCRON_STATE_FILE persists the last evaluated minute floor(epoch/60) with mode 0600. Expected marker sequences are derived by hand from those rules and calendar arithmetic (base 2023-11-14 12:10:00 UTC, offset k is minute 10+k), independent of the candidate.",
+      "comparison": "An owned daemon child runs `cron run --interval 2` over a private per-user table (rows for offsets 0, 1, 2), the clock read from BASHCRON_NOW_FILE (12:10:10, 12:11:25, 12:12:40) and no state file. Compared: the rows dispatched at successive polls (P0,P1,P2 in order, once each); two later polls with the clock exhausted, proven by two heartbeat at-jobs each executed by a later poll, adding no duplicate; and the gap between consecutive observed executions (at least 1.75 s for the 2 s interval). Every observation is in observations.jsonl; tables, clock and state files, job logs, spool listings and daemon streams stay in the case workspace, which the harness preserves. Each daemon owns a session: after the last observation the observer SIGKILLs anything left in it, waits until none of it is alive, reaps the leader and records the outcome (kind=daemon-finish), so the harness finds no live child; the setup controls use stand-ins that start no external process and verify the same teardown.",
+      "covers": [
+        "cron/deferred-daemon-lifecycle"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup cron-polls",
+      "setup_timeout": 30,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" cron-polls",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "dispatched=P0,P1,P2 duplicates=none heartbeat-polls=2 spacing=ok\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-cron-daemon-reboot-once",
+      "loadable": "cron",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "@reboot rows run exactly once when daemon mode starts, never under --once, and not again on later polls or after SIGHUP.",
+      "oracle": "Documented bash-os contract (cron_doc): cron run polls the spool, system crontab, cron.d and per-user tables; each poll consumes one BASHCRON_NOW_FILE line and EOF reuses the last; @reboot runs once when daemon mode starts and is not run by --once; BASHCRON_CATCHUP_MAX_MIN (1..1440, default 5) bounds minute-by-minute replay after a forward gap and larger gaps collapse to the current minute; BASHCRON_STATE_FILE persists the last evaluated minute floor(epoch/60) with mode 0600. Expected marker sequences are derived by hand from those rules and calendar arithmetic (base 2023-11-14 12:10:00 UTC, offset k is minute 10+k), independent of the candidate.",
+      "comparison": "Part 1 runs `cron run --once` over a table with an @reboot row and a due row. Part 2 runs a daemon over a similar table with the clock from BASHCRON_NOW_FILE; a state file is used only as a poll-completion signal. The @reboot count is read after the first two polls and again after a SIGHUP-forced poll plus two heartbeat polls. The duplicate dispatch of the current minute by the forced poll is recorded in observations.jsonl but not asserted. Every observation is in observations.jsonl; tables, clock and state files, job logs, spool listings and daemon streams stay in the case workspace, which the harness preserves. Each daemon owns a session: after the last observation the observer SIGKILLs anything left in it, waits until none of it is alive, reaps the leader and records the outcome (kind=daemon-finish), so the harness finds no live child; the setup controls use stand-ins that start no external process and verify the same teardown.",
+      "covers": [
+        "cron/deferred-daemon-lifecycle"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup cron-reboot",
+      "setup_timeout": 30,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" cron-reboot",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "once: status=0 reboot-runs=0 normal-runs=1\ndaemon: reboot-runs-at-start=1 normal-dispatch=yes\ndaemon: after-polls-and-sighup reboot-runs=1\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-cron-daemon-catchup-configured-limit",
+      "loadable": "cron",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "With BASHCRON_CATCHUP_MAX_MIN=3 a forward poll gap of exactly 3 minutes replays every missed minute, and a gap of 4 collapses to the current minute only.",
+      "oracle": "Documented bash-os contract (cron_doc): cron run polls the spool, system crontab, cron.d and per-user tables; each poll consumes one BASHCRON_NOW_FILE line and EOF reuses the last; @reboot runs once when daemon mode starts and is not run by --once; BASHCRON_CATCHUP_MAX_MIN (1..1440, default 5) bounds minute-by-minute replay after a forward gap and larger gaps collapse to the current minute; BASHCRON_STATE_FILE persists the last evaluated minute floor(epoch/60) with mode 0600. Expected marker sequences are derived by hand from those rules and calendar arithmetic (base 2023-11-14 12:10:00 UTC, offset k is minute 10+k), independent of the candidate.",
+      "comparison": "Each run is a daemon over a table with one row per minute (M0..M6), two clock lines (the second one gap minutes after the first) and a state file whose value reaches the final minute only after the replay pass has finished, used as the completion signal. Compared: which minute markers executed, in order. Every observation is in observations.jsonl; tables, clock and state files, job logs, spool listings and daemon streams stay in the case workspace, which the harness preserves. Each daemon owns a session: after the last observation the observer SIGKILLs anything left in it, waits until none of it is alive, reaps the leader and records the outcome (kind=daemon-finish), so the harness finds no live child; the setup controls use stand-ins that start no external process and verify the same teardown.",
+      "covers": [
+        "cron/deferred-daemon-lifecycle"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup cron-catchup-configured",
+      "setup_timeout": 30,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" cron-catchup-configured",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "limit=3 gap=3 ran=M0,M1,M2,M3\nlimit=3 gap=4 ran=M0,M4\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-cron-daemon-catchup-default-limit",
+      "loadable": "cron",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "With BASHCRON_CATCHUP_MAX_MIN unset the default window of 5 minutes applies: a gap of 5 replays every minute and a gap of 6 collapses.",
+      "oracle": "Documented bash-os contract (cron_doc): cron run polls the spool, system crontab, cron.d and per-user tables; each poll consumes one BASHCRON_NOW_FILE line and EOF reuses the last; @reboot runs once when daemon mode starts and is not run by --once; BASHCRON_CATCHUP_MAX_MIN (1..1440, default 5) bounds minute-by-minute replay after a forward gap and larger gaps collapse to the current minute; BASHCRON_STATE_FILE persists the last evaluated minute floor(epoch/60) with mode 0600. Expected marker sequences are derived by hand from those rules and calendar arithmetic (base 2023-11-14 12:10:00 UTC, offset k is minute 10+k), independent of the candidate.",
+      "comparison": "Same construction as the configured-limit case with the variable removed from the environment. Every observation is in observations.jsonl; tables, clock and state files, job logs, spool listings and daemon streams stay in the case workspace, which the harness preserves. Each daemon owns a session: after the last observation the observer SIGKILLs anything left in it, waits until none of it is alive, reaps the leader and records the outcome (kind=daemon-finish), so the harness finds no live child; the setup controls use stand-ins that start no external process and verify the same teardown.",
+      "covers": [
+        "cron/deferred-daemon-lifecycle"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup cron-catchup-default",
+      "setup_timeout": 30,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" cron-catchup-default",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "limit=default gap=5 ran=M0,M1,M2,M3,M4,M5\nlimit=default gap=6 ran=M0,M6\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-cron-catchup-once-boundary-matrix",
+      "loadable": "cron",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "The forward-gap window through `cron run --once` with a seeded state file: limits 1, 3, 1440 and the default, plus six invalid values, each at and beyond the window.",
+      "oracle": "Documented bash-os contract (cron_doc): cron run polls the spool, system crontab, cron.d and per-user tables; each poll consumes one BASHCRON_NOW_FILE line and EOF reuses the last; @reboot runs once when daemon mode starts and is not run by --once; BASHCRON_CATCHUP_MAX_MIN (1..1440, default 5) bounds minute-by-minute replay after a forward gap and larger gaps collapse to the current minute; BASHCRON_STATE_FILE persists the last evaluated minute floor(epoch/60) with mode 0600. Expected marker sequences are derived by hand from those rules and calendar arithmetic (base 2023-11-14 12:10:00 UTC, offset k is minute 10+k), independent of the candidate. Invalid BASHCRON_CATCHUP_MAX_MIN values fall back to the default (cron.c:95-109 comment and code); this matrix covers the same bc_poll_once branch the daemon uses and is supplementary to the daemon cases.",
+      "comparison": "Each row seeds a state file with the base minute, sets a fixed clock gap minutes later and runs one --once poll in a fresh private spool; the executed minute markers (the seeded minute M0 is not repeated) are compared. Every observation is in observations.jsonl; tables, clock and state files, job logs, spool listings and daemon streams stay in the case workspace, which the harness preserves.",
+      "covers": [
+        "cron/deferred-daemon-lifecycle"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup cron-catchup-once",
+      "setup_timeout": 30,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" cron-catchup-once",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "limit='1' gap=1 status=0 ran=M1\nlimit='1' gap=2 status=0 ran=M2\nlimit='3' gap=3 status=0 ran=M1,M2,M3\nlimit='3' gap=4 status=0 ran=M4\nlimit=default gap=5 status=0 ran=M1,M2,M3,M4,M5\nlimit=default gap=6 status=0 ran=M6\nlimit='1440' gap=9 status=0 ran=M1,M2,M3,M4,M5,M6,M7,M8,M9\nlimit='0' gap=5 status=0 ran=M1,M2,M3,M4,M5\nlimit='0' gap=6 status=0 ran=M6\nlimit='-5' gap=5 status=0 ran=M1,M2,M3,M4,M5\nlimit='-5' gap=6 status=0 ran=M6\nlimit='1441' gap=5 status=0 ran=M1,M2,M3,M4,M5\nlimit='1441' gap=6 status=0 ran=M6\nlimit='abc' gap=5 status=0 ran=M1,M2,M3,M4,M5\nlimit='abc' gap=6 status=0 ran=M6\nlimit='3x' gap=5 status=0 ran=M1,M2,M3,M4,M5\nlimit='3x' gap=6 status=0 ran=M6\nlimit='' gap=5 status=0 ran=M1,M2,M3,M4,M5\nlimit='' gap=6 status=0 ran=M6\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-cron-daemon-sighup-sigterm",
+      "loadable": "cron",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "SIGHUP makes the daemon re-read its tables and evaluate immediately (repeatedly), a table change is not picked up without it, and SIGTERM stops it promptly with status 0 and no leftovers.",
+      "oracle": "Documented bash-os contract (cron_doc): cron run polls the spool, system crontab, cron.d and per-user tables; each poll consumes one BASHCRON_NOW_FILE line and EOF reuses the last; @reboot runs once when daemon mode starts and is not run by --once; BASHCRON_CATCHUP_MAX_MIN (1..1440, default 5) bounds minute-by-minute replay after a forward gap and larger gaps collapse to the current minute; BASHCRON_STATE_FILE persists the last evaluated minute floor(epoch/60) with mode 0600. Expected marker sequences are derived by hand from those rules and calendar arithmetic (base 2023-11-14 12:10:00 UTC, offset k is minute 10+k), independent of the candidate. SIGHUP and SIGTERM behavior is not described in cron_doc; the obligation (cron/deferred-daemon-lifecycle r4) and the handlers in cron.c:1649-1651 define it.",
+      "comparison": "An owned daemon child runs with a 3600 s interval and a fixed clock, so no regular poll can occur; a state file replaced by every saving poll is the completion signal. Compared: the first dispatch, a negative control (table rewritten, no signal, nothing runs and no poll saves), two SIGHUP reloads each running only the new row while the daemon stays alive, and SIGTERM (exit status 0 within 3 s, no job.* captures or .running files left, state file intact with mode 0600). Signals go only to the owned child, after its first poll. Every observation is in observations.jsonl; tables, clock and state files, job logs, spool listings and daemon streams stay in the case workspace, which the harness preserves. Each daemon owns a session: after the last observation the observer SIGKILLs anything left in it, waits until none of it is alive, reaps the leader and records the outcome (kind=daemon-finish), so the harness finds no live child; the setup controls use stand-ins that start no external process and verify the same teardown.",
+      "covers": [
+        "cron/deferred-daemon-lifecycle"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup cron-signals",
+      "setup_timeout": 30,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" cron-signals",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "initial: ran=A\nwithout-signal: ran=A table-change-ignored=yes\nsighup-1: ran=A,B alive=yes\nsighup-2: ran=A,B,C alive=yes\nsigterm: status=0 prompt=yes leftovers=none state-intact=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-cron-daemon-restart-catchup",
+      "loadable": "cron",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "The persisted state file drives restart catch-up: a restart inside the window replays the gap, beyond it collapses, and in the same minute replays nothing; @reboot runs once per start.",
+      "oracle": "Documented bash-os contract (cron_doc): cron run polls the spool, system crontab, cron.d and per-user tables; each poll consumes one BASHCRON_NOW_FILE line and EOF reuses the last; @reboot runs once when daemon mode starts and is not run by --once; BASHCRON_CATCHUP_MAX_MIN (1..1440, default 5) bounds minute-by-minute replay after a forward gap and larger gaps collapse to the current minute; BASHCRON_STATE_FILE persists the last evaluated minute floor(epoch/60) with mode 0600. Expected marker sequences are derived by hand from those rules and calendar arithmetic (base 2023-11-14 12:10:00 UTC, offset k is minute 10+k), independent of the candidate.",
+      "comparison": "Four successive daemon starts share one state file and one table (an @reboot row plus rows for offsets 0..9). Each start uses a fixed clock; completion is the state value (runs 1-3) or two heartbeat polls (run 4, where the minute is unchanged and the state is not rewritten). Compared per run: the markers executed, the state value (floor(epoch/60) relative to the base) and, for run 1, mode 0600. Every observation is in observations.jsonl; tables, clock and state files, job logs, spool listings and daemon streams stay in the case workspace, which the harness preserves. Each daemon owns a session: after the last observation the observer SIGKILLs anything left in it, waits until none of it is alive, reaps the leader and records the outcome (kind=daemon-finish), so the harness finds no live child; the setup controls use stand-ins that start no external process and verify the same teardown.",
+      "covers": [
+        "cron/deferred-daemon-lifecycle"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup cron-restart",
+      "setup_timeout": 30,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" cron-restart",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "run-1 ran=BOOT,R0 state=m0+0 mode=0600\nrun-2 ran=BOOT,R1,R2,R3 state=m0+3\nrun-3 ran=BOOT,R9 state=m0+9\nrun-4 ran=BOOT state=m0+9\n",
+      "stderr": ""
+    }
+  ]
+}

@@ -1,0 +1,227 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "sshd",
+      "group": "shell",
+      "driver": "plain",
+      "requires": [
+        "python3",
+        "ssh",
+        "ssh-keygen",
+        "sshd"
+      ],
+      "helpers_sha256": {
+        "helpers/sshd-review-observer.py": "50695d1bd42254e581dee9954c9b6de0facf4502d4f0c9366482884ad8ca10e1"
+      },
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-sshd-review-mac-allowlist",
+      "kind": "parity",
+      "purpose": "Independently controlled allowed and real disallowed MAC negotiation; a non-AEAD cipher keeps the real MAC observable.",
+      "covers": [
+        "sshd/encrypted-ssh-interoperability"
+      ],
+      "oracle": "OpenSSH server and client with fixture-only generated Ed25519 host/client keys and strict known_hosts. Setup queries client-supported algorithms, proves both algorithms actually connect to a permissive OpenSSH server, and proves allowed success/disallowed negotiation refusal against a restricted OpenSSH server. MACs hmac-sha2-256 vs hmac-sha2-512 and KEX curve25519-sha256 vs diffie-hellman-group14-sha256 are forced explicitly. The MAC case uses aes256-ctr and both direction-specific debug negotiation lines must name the selected real MAC. The separate KEX case uses chacha20-poly1305@openssh.com and verifies its implicit MAC, which supplies no evidence for the explicit MAC requirement. Banner is absent because static95 found a pre-auth protocol blocker. Each candidate run requires its own successful allowed command; parser/startup/cipher/authentication rejection cannot substitute for the intended policy obligation.",
+      "comparison": "Exact semantic booleans for allowed encrypted command success, expected negotiated cipher/MAC/KEX, disallowed client status255 at the matching negotiation phase, no command marker, normal server teardown and no forced cleanup. The disallowed policy boolean is gated by successful allowed negotiation and command execution, even when raw refusal text is present. All raw ssh -vv client transcripts, statuses, configurations, server logs and owned PID identities are retained outside the compared tree.",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-review-observer.py setup mac",
+      "setup_timeout": 60,
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-review-observer.py run \"$BASH\" mac candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-review-observer.py run \"$BASH\" mac reference",
+      "stdout": "server-ready=yes\nallowed-negotiation-and-command=yes\ndisallowed-refused-at-negotiation=yes\ndisallowed-command-not-run=yes\nserver-stopped=yes\nunforced-cleanup=yes\n",
+      "diagnostic_files": [
+        "control-results.json",
+        "control-permissive-server.log",
+        "control-permissive-transcripts.json",
+        "control-restricted-server.log",
+        "control-restricted-transcripts.json",
+        "behavior-server.log",
+        "behavior-transcripts.json",
+        "behavior-results.json"
+      ]
+    },
+    {
+      "loadable": "sshd",
+      "group": "shell",
+      "driver": "plain",
+      "requires": [
+        "python3",
+        "ssh",
+        "ssh-keygen",
+        "sshd"
+      ],
+      "helpers_sha256": {
+        "helpers/sshd-review-observer.py": "50695d1bd42254e581dee9954c9b6de0facf4502d4f0c9366482884ad8ca10e1"
+      },
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-sshd-review-kex-allowlist",
+      "kind": "parity",
+      "purpose": "Independently controlled allowed and real disallowed KEX negotiation; a separate AEAD transport isolates KEX from the non-AEAD MAC control.",
+      "covers": [
+        "sshd/encrypted-ssh-interoperability"
+      ],
+      "oracle": "OpenSSH server and client with fixture-only generated Ed25519 host/client keys and strict known_hosts. Setup queries client-supported algorithms, proves both algorithms actually connect to a permissive OpenSSH server, and proves allowed success/disallowed negotiation refusal against a restricted OpenSSH server. MACs hmac-sha2-256 vs hmac-sha2-512 and KEX curve25519-sha256 vs diffie-hellman-group14-sha256 are forced explicitly. The MAC case uses aes256-ctr and both direction-specific debug negotiation lines must name the selected real MAC. The separate KEX case uses chacha20-poly1305@openssh.com and verifies its implicit MAC, which supplies no evidence for the explicit MAC requirement. Banner is absent because static95 found a pre-auth protocol blocker. Each candidate run requires its own successful allowed command; parser/startup/cipher/authentication rejection cannot substitute for the intended policy obligation.",
+      "comparison": "Exact semantic booleans for allowed encrypted command success, expected negotiated cipher/MAC/KEX, disallowed client status255 at the matching negotiation phase, no command marker, normal server teardown and no forced cleanup. The disallowed policy boolean is gated by successful allowed negotiation and command execution, even when raw refusal text is present. All raw ssh -vv client transcripts, statuses, configurations, server logs and owned PID identities are retained outside the compared tree.",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-review-observer.py setup kex",
+      "setup_timeout": 60,
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-review-observer.py run \"$BASH\" kex candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-review-observer.py run \"$BASH\" kex reference",
+      "stdout": "server-ready=yes\nallowed-negotiation-and-command=yes\ndisallowed-refused-at-negotiation=yes\ndisallowed-command-not-run=yes\nserver-stopped=yes\nunforced-cleanup=yes\n",
+      "diagnostic_files": [
+        "control-results.json",
+        "control-permissive-server.log",
+        "control-permissive-transcripts.json",
+        "control-restricted-server.log",
+        "control-restricted-transcripts.json",
+        "behavior-server.log",
+        "behavior-transcripts.json",
+        "behavior-results.json"
+      ]
+    },
+    {
+      "loadable": "sshd",
+      "group": "shell",
+      "driver": "plain",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/sshd-review-observer.py": "50695d1bd42254e581dee9954c9b6de0facf4502d4f0c9366482884ad8ca10e1"
+      },
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-sshd-review-native-placeholder-contract",
+      "kind": "contract",
+      "purpose": "Native keygen bytes and both permission terms of the preserved placeholder-key obligation, with an explicit022 umask.",
+      "covers": [
+        "sshd/hostkey-lifecycle"
+      ],
+      "oracle": "Declared source contract, not observed output: loadables/sshd.c:1181-1205 documents the placeholder host key plus .pub at PATH with mode0600 and declares the exact BASHSSHD-HOSTKEY %s\\n and sshd-%s AAAABASHOSHOSTKEY\\n format literals. keygen defaults the type to ed25519 at1285-1299. Expected literal private/public bytes are fixed fixture constants. The existing ledger r2 explicitly retains key and .pub plus mode0600; this fixture does not quietly discard the sidecar permission term. Under umask022, a sidecar mode0644 is an actual reached contract FAIL, not an oracle copied from candidate output. These are documented project placeholders, not valid OpenSSH private keys.",
+      "comparison": "Actual keygen status, diagnostic absence, exact independent private/public bytes and both actual stat modes. Final file-byte expectations repeat the byte checks; all modes/raw bytes/status are retained.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-review-observer.py native \"$BASH\"",
+      "stdout": "keygen-status=0 stderr-empty=yes\nprivate bytes=exact mode=0600\npublic bytes=exact mode=0600\n",
+      "expected_files": {
+        "review-native-key": "BASHSSHD-HOSTKEY ed25519\n",
+        "review-native-key.pub": "sshd-ed25519 AAAABASHOSHOSTKEY\n"
+      },
+      "diagnostic_files": [
+        "behavior-transcripts.json"
+      ]
+    },
+    {
+      "loadable": "sshd",
+      "group": "shell",
+      "driver": "plain",
+      "requires": [
+        "python3",
+        "ssh",
+        "ssh-keygen",
+        "sshd"
+      ],
+      "helpers_sha256": {
+        "helpers/sshd-review-observer.py": "50695d1bd42254e581dee9954c9b6de0facf4502d4f0c9366482884ad8ca10e1"
+      },
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-sshd-review-session-kick",
+      "kind": "contract",
+      "purpose": "Kick one of two live owned encrypted sessions; preserve the other session and an unrelated owned child, then assert disconnect cleanup.",
+      "covers": [
+        "sshd/session-management"
+      ],
+      "oracle": "Preserved sshd status/sessions/kick/reload/stop contract and independent OpenSSH client channel behavior. Fresh generated keys and strict known_hosts are used. Each held remote command reports its actual PID/PPID; /proc starttime,uid and ancestry must link that command and its recorded session handler to the fixture own Popen server before any kick. The independent OpenSSH setup exercises the same hold/release/disconnect or SIGHUP/config-effect substrate using exact owned PIDs. A separate live fixture child must survive selective kick. Reload starts with two distinct immutable authorized-key files: key A succeeds and key B fails at publickey authentication. Only the config AuthorizedKeysFile path changes. Before the reload signal the same A-allowed/B-refused controls must still hold. After explicit reload, key B must run the exact command and key A must fail at authentication; both files must retain their bytes. The same server and the existing session authenticated with now-revoked key A must survive and transfer exact bytes, then exit normally. Banner is absent to isolate lifecycle assertions from the independently diagnosed static95 banner protocol failure.",
+      "comparison": "Complete ordered semantic observations: exact server pidfile/status ownership, actual concurrent command/handler identities, target termination and survivor transfer, session cleanup, observable reload effect where applicable, server exit0, pidfile removal and stopped status. All readiness attempts, exact remote command/client argv, partial result maps even on exceptions, configurations, management outputs, client ssh -vv transcripts, owned /proc identities and any cleanup signals are retained. Missing initial or second held readiness returns incomplete failing output and never claims subsequent lifecycle assertions. No forced cleanup can pass. The observer adopts/reaps already-exited owned descendants; it does not kill them to satisfy termination checks.",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-review-observer.py setup kick",
+      "setup_timeout": 60,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-review-observer.py run \"$BASH\" kick candidate",
+      "stdout": "server-ready=yes\npidfile-is-owned-server=yes\nstatus-reports-owned-server=yes\ninitial-held-session-ready=yes\nsecond-held-session-ready=yes\ntwo-independent-live-sessions=yes\ntarget-kick-closes-only-target=yes\ntarget-command-terminated=yes\nother-session-and-bystander-survive=yes\nonly-surviving-session-listed=yes\nsurviving-session-still-transfers=yes\nsurviving-command-terminated=yes\nsessions-and-disconnect-cleanup-empty=yes\nstop-terminates-owned-server=yes\npidfile-removed-and-status-stopped=yes\nunforced-cleanup=yes\n",
+      "diagnostic_files": [
+        "control-results.json",
+        "control-server.log",
+        "control-transcripts.json",
+        "behavior-server.log",
+        "behavior-transcripts.json",
+        "behavior-results.json"
+      ]
+    },
+    {
+      "loadable": "sshd",
+      "group": "shell",
+      "driver": "plain",
+      "requires": [
+        "python3",
+        "ssh",
+        "ssh-keygen",
+        "sshd"
+      ],
+      "helpers_sha256": {
+        "helpers/sshd-review-observer.py": "50695d1bd42254e581dee9954c9b6de0facf4502d4f0c9366482884ad8ca10e1"
+      },
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-sshd-review-session-disconnect",
+      "kind": "contract",
+      "purpose": "Disconnect an actual held client and observe its command/handler termination, session cleanup and independent server ownership.",
+      "covers": [
+        "sshd/session-management"
+      ],
+      "oracle": "Preserved sshd status/sessions/kick/reload/stop contract and independent OpenSSH client channel behavior. Fresh generated keys and strict known_hosts are used. Each held remote command reports its actual PID/PPID; /proc starttime,uid and ancestry must link that command and its recorded session handler to the fixture own Popen server before any kick. The independent OpenSSH setup exercises the same hold/release/disconnect or SIGHUP/config-effect substrate using exact owned PIDs. A separate live fixture child must survive selective kick. Reload starts with two distinct immutable authorized-key files: key A succeeds and key B fails at publickey authentication. Only the config AuthorizedKeysFile path changes. Before the reload signal the same A-allowed/B-refused controls must still hold. After explicit reload, key B must run the exact command and key A must fail at authentication; both files must retain their bytes. The same server and the existing session authenticated with now-revoked key A must survive and transfer exact bytes, then exit normally. Banner is absent to isolate lifecycle assertions from the independently diagnosed static95 banner protocol failure.",
+      "comparison": "Complete ordered semantic observations: exact server pidfile/status ownership, actual concurrent command/handler identities, target termination and survivor transfer, session cleanup, observable reload effect where applicable, server exit0, pidfile removal and stopped status. All readiness attempts, exact remote command/client argv, partial result maps even on exceptions, configurations, management outputs, client ssh -vv transcripts, owned /proc identities and any cleanup signals are retained. Missing initial or second held readiness returns incomplete failing output and never claims subsequent lifecycle assertions. No forced cleanup can pass. The observer adopts/reaps already-exited owned descendants; it does not kill them to satisfy termination checks.",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-review-observer.py setup disconnect",
+      "setup_timeout": 60,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-review-observer.py run \"$BASH\" disconnect candidate",
+      "stdout": "server-ready=yes\npidfile-is-owned-server=yes\nstatus-reports-owned-server=yes\ninitial-held-session-ready=yes\ndisconnect-command-terminated=yes\ndisconnect-handler-terminated=yes\nsessions-and-disconnect-cleanup-empty=yes\nstop-terminates-owned-server=yes\npidfile-removed-and-status-stopped=yes\nunforced-cleanup=yes\n",
+      "diagnostic_files": [
+        "control-results.json",
+        "control-server.log",
+        "control-transcripts.json",
+        "behavior-server.log",
+        "behavior-transcripts.json",
+        "behavior-results.json"
+      ]
+    },
+    {
+      "loadable": "sshd",
+      "group": "shell",
+      "driver": "plain",
+      "requires": [
+        "python3",
+        "ssh",
+        "ssh-keygen",
+        "sshd"
+      ],
+      "helpers_sha256": {
+        "helpers/sshd-review-observer.py": "50695d1bd42254e581dee9954c9b6de0facf4502d4f0c9366482884ad8ca10e1"
+      },
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "migration-sshd-review-session-reload",
+      "kind": "contract",
+      "purpose": "Reload a changed AuthorizedKeysFile path; new connections switch which fresh key can authenticate while the same server and pre-existing held session survive.",
+      "covers": [
+        "sshd/session-management"
+      ],
+      "oracle": "Preserved sshd status/sessions/kick/reload/stop contract and independent OpenSSH client channel behavior. Fresh generated keys and strict known_hosts are used. Each held remote command reports its actual PID/PPID; /proc starttime,uid and ancestry must link that command and its recorded session handler to the fixture own Popen server before any kick. The independent OpenSSH setup exercises the same hold/release/disconnect or SIGHUP/config-effect substrate using exact owned PIDs. A separate live fixture child must survive selective kick. Reload starts with two distinct immutable authorized-key files: key A succeeds and key B fails at publickey authentication. Only the config AuthorizedKeysFile path changes. Before the reload signal the same A-allowed/B-refused controls must still hold. After explicit reload, key B must run the exact command and key A must fail at authentication; both files must retain their bytes. The same server and the existing session authenticated with now-revoked key A must survive and transfer exact bytes, then exit normally. Banner is absent to isolate lifecycle assertions from the independently diagnosed static95 banner protocol failure.",
+      "comparison": "Complete ordered semantic observations: exact server pidfile/status ownership, actual concurrent command/handler identities, target termination and survivor transfer, session cleanup, observable reload effect where applicable, server exit0, pidfile removal and stopped status. All readiness attempts, exact remote command/client argv, partial result maps even on exceptions, configurations, management outputs, client ssh -vv transcripts, owned /proc identities and any cleanup signals are retained. Missing initial or second held readiness returns incomplete failing output and never claims subsequent lifecycle assertions. No forced cleanup can pass. The observer adopts/reaps already-exited owned descendants; it does not kill them to satisfy termination checks.",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-review-observer.py setup reload",
+      "setup_timeout": 60,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/sshd-review-observer.py run \"$BASH\" reload candidate",
+      "stdout": "server-ready=yes\npidfile-is-owned-server=yes\nstatus-reports-owned-server=yes\ninitial-held-session-ready=yes\nbefore-authorized-key-and-command=yes\nbefore-alternate-key-auth-refused=yes\npending-config-original-key-still-allowed=yes\npending-config-alternate-key-still-refused=yes\nreload-command-and-new-config-effect=yes\nafter-original-key-auth-refused=yes\nauthorized-key-files-unchanged=yes\nreload-server-same-process=yes\nexisting-session-survives-reload=yes\nexisting-session-still-transfers=yes\nexisting-command-terminated=yes\nsessions-and-disconnect-cleanup-empty=yes\nstop-terminates-owned-server=yes\npidfile-removed-and-status-stopped=yes\nunforced-cleanup=yes\n",
+      "diagnostic_files": [
+        "control-results.json",
+        "control-server.log",
+        "control-transcripts.json",
+        "behavior-server.log",
+        "behavior-transcripts.json",
+        "behavior-results.json"
+      ]
+    }
+  ]
+}

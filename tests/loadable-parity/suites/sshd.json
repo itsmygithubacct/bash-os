@@ -42,9 +42,34 @@
     },
     {
       "id": "hostkey-lifecycle",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise sshd keygen, explicit missing-key refusal, and lazy native/encrypted host-key creation and permissions.",
-      "reason": "Remaining obligations: r2: Native key creation, mode and public file are checked, but the documented placeholder bytes are not asserted."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-sshd-explicit-key-missing"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-keygen-encrypted"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-keygen-native"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-lazy-encrypted-hostkey"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-lazy-native-hostkey"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-review-native-placeholder-contract"
+        }
+      ]
     },
     {
       "id": "native-command-stream",
@@ -65,13 +90,13 @@
       "id": "encrypted-ssh-interoperability",
       "kind": "deferred",
       "purpose": "Check encrypted SSH key exchange and public-key authentication against an independent SSH client using generated test-only keys.",
-      "reason": "Remaining obligations: r4: The Ciphers restriction is exercised against OpenSSH; MAC and KEX allow-list enforcement still need explicit probes."
+      "reason": "Remaining obligations: r4: MAC allowed-control handshake/command fails in revision98, so the MAC enforcement term remains unresolved; denied-offer output alone does not qualify policy."
     },
     {
       "id": "configuration-policy",
       "kind": "deferred",
       "purpose": "Check sshd -F parsing for supported directives, Include expansion, Match blocks, invalid values, and configuration reload behavior.",
-      "reason": "Remaining obligations: r1: The shared fixture exercises listen address/port, host key, authorized keys, password-disabled and forwarding policy. PubkeyAuthentication disable and a positive AllowAgentForwarding channel still need explicit assertions.; r2: Absolute Include glob expansion and exclusion of nonmatching files pass. Relative-to-parent expansion in the reviewed contract remains untested; OpenSSH resolves relative Includes differently.; r3: Matching/nonmatching Address blocks exercise PermitTTY. Match User/All and PermitRootLogin/forwarding overrides remain untested.; r5: Not executed."
+      "reason": "Remaining obligations: r1: The shared fixture exercises listen address/port, host key, authorized keys, password-disabled and forwarding policy. PubkeyAuthentication disable and a positive AllowAgentForwarding channel still need explicit assertions.; r2: Absolute Include glob expansion and exclusion of nonmatching files pass. Relative-to-parent expansion in the reviewed contract remains untested; OpenSSH resolves relative Includes differently.; r3: Matching/nonmatching Address blocks exercise PermitTTY. Match User/All and PermitRootLogin/forwarding overrides remain untested."
     },
     {
       "id": "authentication-authorization",
@@ -81,9 +106,30 @@
     },
     {
       "id": "session-management",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check status, sessions, stale-session cleanup, kick, stop, and reload against recorded runtime state.",
-      "reason": "Remaining obligations: r3: Kick terminates the held target session. A second concurrent session is needed to prove unrelated sessions remain alive.; r5: Reload signals the server and it remains running; a changed configuration value has not been observed taking effect."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-sshd-lazy-native-hostkey"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-review-session-disconnect"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-review-session-kick"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-review-session-reload"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-session-lifecycle"
+        }
+      ]
     },
     {
       "id": "sftp-and-forwarding",

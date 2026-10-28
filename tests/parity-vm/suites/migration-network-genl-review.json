@@ -1,0 +1,388 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-genl-get-id-record",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Look up the nlctrl controller by numeric ID in hexadecimal (0x10), decimal (16) and octal (020, strtoul base 0) and show that each prints the same nlctrl record as a lookup by name: the kernel ID, version, header size, max attribs, operations with capability flags and multicast groups.",
+      "oracle": "Independent kernel oracle: the helper's own NETLINK_GENERIC client (hand-encoded request builder, attribute parser including the nested operation and multicast-group arrays, several messages per buffer, several buffers per dump, NLMSG_DONE/NLMSG_ERROR/ACK handling, sequence and port matching) is first calibrated on hand-encoded vectors and then on the real guest kernel (by name, by id, dump, two interleaved requests, NLM_F_ACK, ENOENT); it is the only source of family IDs, versions, header sizes, operations, capability flags, multicast groups and errno values, so no expected value comes from candidate output. The text layout is the documented print contract of loadables/genl.c (bgenl_print_caps, bgenl_print_ops, bgenl_print_groups, bgenl_print_family_cb). The guest iproute2 genl is run on the same table as a gating control (name, id, version, header size and max attribs must agree with the raw oracle), so a disagreement is invalid evidence (a setup error), never a candidate result. The nlctrl record (id 0x10, discovered from the raw dump) is the expected content.",
+      "comparison": "semantic=yes means the stdout of each lookup, read by a tolerant parser, equals the oracle nlctrl record; same-as-name=yes means each id lookup is byte-identical to \"ctrl get name nlctrl\" from the same run; status is 0 with empty stderr. The same argv also runs through the guest iproute2 genl; its raw output and a structural comparison are saved in observations.jsonl and not asserted (byte parity with iproute2 is not part of this requirement; both raw outputs are kept so it can be examined offline). Every key is evaluated for every vector (no early exit). Retained in the case tree: the candidate's raw stdout, stderr and status for each vector (observations.jsonl), the raw oracle netlink transcripts (oracle-*transcript.jsonl), the iproute2 raw outputs (also in observations.jsonl); the setup control report is the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-get-id"
+      ],
+      "requires": [
+        "python3",
+        "genl"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup get-id-record",
+      "setup_timeout": 45,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" get-id-record",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "name-nlctrl status=0 stderr=empty semantic=yes\nid-hex-0x10 status=0 stderr=empty semantic=yes same-as-name=yes\nid-decimal-16 status=0 stderr=empty semantic=yes same-as-name=yes\nid-octal-020 status=0 stderr=empty semantic=yes same-as-name=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-get-id-unknown",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Unknown numeric IDs (0x3ff, 65535, 0) are refused by the kernel with ENOENT; the candidate must fail with the diagnostics the raw kernel answer implies and that iproute2 prints.",
+      "oracle": "Independent kernel oracle: the helper's own NETLINK_GENERIC client (hand-encoded request builder, attribute parser including the nested operation and multicast-group arrays, several messages per buffer, several buffers per dump, NLMSG_DONE/NLMSG_ERROR/ACK handling, sequence and port matching) is first calibrated on hand-encoded vectors and then on the real guest kernel (by name, by id, dump, two interleaved requests, NLM_F_ACK, ENOENT); it is the only source of family IDs, versions, header sizes, operations, capability flags, multicast groups and errno values, so no expected value comes from candidate output. For each vector the raw oracle first sends the same GETFAMILY-by-id request and requires an NLMSG_ERROR with errno ENOENT, no record, an answer within 1.5 s, and the id absent from its family table. The guest iproute2 genl is the reference for \"fails like iproute2\".",
+      "comparison": "failed=yes: no timeout and a nonzero status; stdout-empty=yes; stderr-exact=yes: stderr is exactly \"RTNETLINK answers: <strerror(errno)>\" LF \"Error talking to the kernel\" LF with the errno of the raw NLMSG_ERROR; iproute2-stderr-same=yes: the guest iproute2 genl run with the identical argv wrote byte-identical stderr. The numeric exit-status term of \"like iproute2\" is isolated in migration-genl-get-id-unknown-status. Every key is evaluated for every vector (no early exit). Retained in the case tree: the candidate's raw stdout, stderr and status for each vector (observations.jsonl), the raw oracle netlink transcripts (oracle-*transcript.jsonl), the iproute2 raw outputs (also in observations.jsonl); the setup control report is the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-get-id"
+      ],
+      "requires": [
+        "python3",
+        "genl"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup get-id-unknown",
+      "setup_timeout": 45,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" get-id-unknown",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "id-0x3ff failed=yes stdout-empty=yes stderr-exact=yes iproute2-stderr-same=yes\nid-65535 failed=yes stdout-empty=yes stderr-exact=yes iproute2-stderr-same=yes\nid-0 failed=yes stdout-empty=yes stderr-exact=yes iproute2-stderr-same=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-get-id-unknown-status",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "The numeric exit status of the unknown-ID failure compared with iproute2, kept apart from the diagnostic comparison so the status term can be included in or excluded from the \"fails like iproute2\" requirement.",
+      "oracle": "Independent kernel oracle: the helper's own NETLINK_GENERIC client (hand-encoded request builder, attribute parser including the nested operation and multicast-group arrays, several messages per buffer, several buffers per dump, NLMSG_DONE/NLMSG_ERROR/ACK handling, sequence and port matching) is first calibrated on hand-encoded vectors and then on the real guest kernel (by name, by id, dump, two interleaved requests, NLM_F_ACK, ENOENT); it is the only source of family IDs, versions, header sizes, operations, capability flags, multicast groups and errno values, so no expected value comes from candidate output. The same raw ENOENT control as migration-genl-get-id-unknown. The reference is the guest iproute2 genl run with the identical argv.",
+      "comparison": "failed=yes and iproute2-status-same=yes: the candidate and iproute2 exit with the same numeric status. Static disassembly of the Debian iproute2 6.15.0-1 genl installed on the host (the ledger records iproute2 6.15 for the guest) shows ctrl_list returning -1 (exit status 255) on this path and main tail-calling the parser, while loadables/genl.c returns EXECUTION_FAILURE (1); this case is therefore expected to FAIL, and that predicted difference is kept as a real result, not normalized. Every key is evaluated for every vector (no early exit). Retained in the case tree: the candidate's raw stdout, stderr and status for each vector (observations.jsonl), the raw oracle netlink transcripts (oracle-*transcript.jsonl), the iproute2 raw outputs (also in observations.jsonl); the setup control report is the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-get-id"
+      ],
+      "requires": [
+        "python3",
+        "genl"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup get-id-unknown-status",
+      "setup_timeout": 45,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" get-id-unknown-status",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "id-0x3ff failed=yes iproute2-status-same=yes\nid-65535 failed=yes iproute2-status-same=yes\nid-0 failed=yes iproute2-status-same=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-get-id-invalid",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Invalid family IDs (non-numeric, above 0xffff, trailing junk) are rejected with \"invalid family id\" and the builtin usage status before any NETLINK socket is created; the boundary 0xffff and a valid ID show that the observer sees a netlink socket when one is opened.",
+      "oracle": "Usage status and diagnostic framing are learned from the reference bash 5.3.15 (a builtin usage error from \"cd -z\" shows the exact \"NAME: line N: \" prefix and status 2); the message text is the source contract of loadables/genl.c (builtin_error then EX_USAGE). Netlink I/O is observed with the pinned seccomp-notify helper system-sequence.py, which counts socket() calls after a captured stdout marker; setup calibrates it against children that create one netlink socket after the marker, none, and one before it. The raw kernel oracle confirms that 0xffff, the largest accepted 16-bit ID, is a valid unknown ID (ENOENT), so rejection at 0x10000 is the validation boundary.",
+      "comparison": "Per rejected vector: status=2 (the builtin usage status), stdout-empty=yes, diag-exact=yes (stderr is exactly the framed \"genl: invalid family id: VALUE\" line) and sockets=0 (no AF_NETLINK socket() after the marker). Vectors: non-numeric (abc, empty, nlctrl); above 0xffff (0x10000, 65536, 4294967296, -1, a number that overflows strtoul); trailing junk (16x, 0x10g, \"16 \", 1.6, 0x). Controls: a valid ID 16 and the boundary 0xffff each open exactly one netlink socket, and 0xffff produces no invalid-id diagnostic. Every key is evaluated for every vector (no early exit). Retained in the case tree: the candidate's raw stdout, stderr and status for each vector (observations.jsonl), the raw oracle netlink transcripts (oracle-*transcript.jsonl), the syscall traces (trace-*.jsonl); the setup control report is the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-get-id"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup get-id-invalid",
+      "setup_timeout": 45,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" get-id-invalid",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "control-valid-16 sockets=1\ncontrol-boundary-0xffff sockets=1 no-invalid-diag=yes\nnonnumeric-abc status=2 stdout-empty=yes diag-exact=yes sockets=0\nnonnumeric-empty status=2 stdout-empty=yes diag-exact=yes sockets=0\nnonnumeric-name status=2 stdout-empty=yes diag-exact=yes sockets=0\nrange-0x10000 status=2 stdout-empty=yes diag-exact=yes sockets=0\nrange-65536 status=2 stdout-empty=yes diag-exact=yes sockets=0\nrange-4294967296 status=2 stdout-empty=yes diag-exact=yes sockets=0\nrange-negative status=2 stdout-empty=yes diag-exact=yes sockets=0\nrange-overflow status=2 stdout-empty=yes diag-exact=yes sockets=0\njunk-16x status=2 stdout-empty=yes diag-exact=yes sockets=0\njunk-0x10g status=2 stdout-empty=yes diag-exact=yes sockets=0\njunk-trailing-space status=2 stdout-empty=yes diag-exact=yes sockets=0\njunk-dot status=2 stdout-empty=yes diag-exact=yes sockets=0\njunk-bare-0x status=2 stdout-empty=yes diag-exact=yes sockets=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-get-name-record",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "ctrl get name nlctrl returns exactly the nlctrl record: ID 0x10, the kernel version, header size and max attribs, operations with capability flags, and the notify multicast group.",
+      "oracle": "Independent kernel oracle: the helper's own NETLINK_GENERIC client (hand-encoded request builder, attribute parser including the nested operation and multicast-group arrays, several messages per buffer, several buffers per dump, NLMSG_DONE/NLMSG_ERROR/ACK handling, sequence and port matching) is first calibrated on hand-encoded vectors and then on the real guest kernel (by name, by id, dump, two interleaved requests, NLM_F_ACK, ENOENT); it is the only source of family IDs, versions, header sizes, operations, capability flags, multicast groups and errno values, so no expected value comes from candidate output. The text layout is the documented print contract of loadables/genl.c (bgenl_print_caps, bgenl_print_ops, bgenl_print_groups, bgenl_print_family_cb). The guest iproute2 genl is run on the same table as a gating control (name, id, version, header size and max attribs must agree with the raw oracle), so a disagreement is invalid evidence (a setup error), never a candidate result. The nlctrl family (id 0x10, one group named notify) is discovered from the raw dump and cross-checked by name, by id and by dump.",
+      "comparison": "exact=yes: stdout is byte-identical to the print contract rendered from the oracle nlctrl record; semantic=yes: the tolerant parse equals the oracle record; one-record=yes; id-0x10=yes; groups-notify=yes; status 0 and empty stderr. iproute2 raw output is saved, not asserted. Every key is evaluated for every vector (no early exit). Retained in the case tree: the candidate's raw stdout, stderr and status for each vector (observations.jsonl), the raw oracle netlink transcripts (oracle-*transcript.jsonl), the iproute2 raw outputs (also in observations.jsonl); the setup control report is the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-get-name"
+      ],
+      "requires": [
+        "python3",
+        "genl"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup get-name-record",
+      "setup_timeout": 45,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" get-name-record",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "name-nlctrl status=0 stderr=empty exact=yes semantic=yes one-record=yes id-0x10=yes groups-notify=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-get-name-unknown",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Unknown family names (a name no module provides, and the case variant NLCTRL of nlctrl) fail with the RTNETLINK ENOENT diagnostics.",
+      "oracle": "Independent kernel oracle: the helper's own NETLINK_GENERIC client (hand-encoded request builder, attribute parser including the nested operation and multicast-group arrays, several messages per buffer, several buffers per dump, NLMSG_DONE/NLMSG_ERROR/ACK handling, sequence and port matching) is first calibrated on hand-encoded vectors and then on the real guest kernel (by name, by id, dump, two interleaved requests, NLM_F_ACK, ENOENT); it is the only source of family IDs, versions, header sizes, operations, capability flags, multicast groups and errno values, so no expected value comes from candidate output. For each vector the raw oracle first sends the same GETFAMILY-by-name request (the kernel runs the guest modprobe usermode helper and changes no state) and requires an NLMSG_ERROR with errno ENOENT, no record and an answer within 1.5 s, because the candidate gives up after 2 s.",
+      "comparison": "failed=yes, stdout-empty=yes and stderr-exact=yes: stderr is exactly \"RTNETLINK answers: <strerror(errno)>\" LF \"Error talking to the kernel\" LF with the errno of the raw NLMSG_ERROR. iproute2 runs on the same argv and its raw output is saved, not asserted. Every key is evaluated for every vector (no early exit). Retained in the case tree: the candidate's raw stdout, stderr and status for each vector (observations.jsonl), the raw oracle netlink transcripts (oracle-*transcript.jsonl), the iproute2 raw outputs (also in observations.jsonl); the setup control report is the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-get-name"
+      ],
+      "requires": [
+        "python3",
+        "genl"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup get-name-unknown",
+      "setup_timeout": 45,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" get-name-unknown",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "name-bashos_nofam failed=yes stdout-empty=yes stderr-exact=yes\nname-NLCTRL failed=yes stdout-empty=yes stderr-exact=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-get-name-malformed",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Malformed \"ctrl get\" commands (missing kind and value, missing value, extra operand, unknown kind) are usage errors.",
+      "oracle": "Usage status and diagnostic framing are learned from the reference bash 5.3.15 (a builtin usage error from \"cd -z\" shows the exact \"NAME: line N: \" prefix and status 2); the message text is the source contract of loadables/genl.c (builtin_error then EX_USAGE). The source falls through to \"unsupported ctrl command: get\" for an unknown kind, which is part of the pinned contract.",
+      "comparison": "Per vector: status=2, stdout-empty=yes, diag-exact=yes (\"wrong controller params\" for the arity errors, \"unsupported ctrl command: get\" for the unknown kinds bogus and NAME). Every key is evaluated for every vector (no early exit). Retained in the case tree: the candidate's raw stdout, stderr and status for each vector (observations.jsonl); the setup control report is the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-get-name"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup get-name-malformed",
+      "setup_timeout": 45,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" get-name-malformed",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "missing-kind-and-value status=2 stdout-empty=yes diag-exact=yes\nmissing-value-name status=2 stdout-empty=yes diag-exact=yes\nmissing-value-id status=2 stdout-empty=yes diag-exact=yes\nextra-after-name status=2 stdout-empty=yes diag-exact=yes\nextra-after-id status=2 stdout-empty=yes diag-exact=yes\nunknown-kind status=2 stdout-empty=yes diag-exact=yes\nunknown-kind-case status=2 stdout-empty=yes diag-exact=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-list-records",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "ctrl list prints one record per kernel family with Name, ID, Version, header size and max attribs, in dump order.",
+      "oracle": "Independent kernel oracle: the helper's own NETLINK_GENERIC client (hand-encoded request builder, attribute parser including the nested operation and multicast-group arrays, several messages per buffer, several buffers per dump, NLMSG_DONE/NLMSG_ERROR/ACK handling, sequence and port matching) is first calibrated on hand-encoded vectors and then on the real guest kernel (by name, by id, dump, two interleaved requests, NLM_F_ACK, ENOENT); it is the only source of family IDs, versions, header sizes, operations, capability flags, multicast groups and errno values, so no expected value comes from candidate output. The text layout is the documented print contract of loadables/genl.c (bgenl_print_caps, bgenl_print_ops, bgenl_print_groups, bgenl_print_family_cb). The guest iproute2 genl is run on the same table as a gating control (name, id, version, header size and max attribs must agree with the raw oracle), so a disagreement is invalid evidence (a setup error), never a candidate result. ",
+      "comparison": "families-complete=yes: the printed (name, id) sequence equals the complete raw dump in order; records=yes: version, header size and max attribs equal the oracle for every family; status 0 and empty stderr. These keys do not depend on the operation or group layout. Every key is evaluated for every vector (no early exit). Retained in the case tree: the candidate's raw stdout, stderr and status for each vector (observations.jsonl), the raw oracle netlink transcripts (oracle-*transcript.jsonl), the iproute2 raw outputs (also in observations.jsonl); the setup control report is the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-list"
+      ],
+      "requires": [
+        "python3",
+        "genl"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup list-records",
+      "setup_timeout": 45,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" list-records",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "list status=0 stderr=empty families-complete=yes records=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-list-capabilities",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Per-family \"commands supported\" blocks: #index, ID-0x.. and Capabilities (0x..) with the flag words for admin permission, doit, dumpit and has policy.",
+      "oracle": "Independent kernel oracle: the helper's own NETLINK_GENERIC client (hand-encoded request builder, attribute parser including the nested operation and multicast-group arrays, several messages per buffer, several buffers per dump, NLMSG_DONE/NLMSG_ERROR/ACK handling, sequence and port matching) is first calibrated on hand-encoded vectors and then on the real guest kernel (by name, by id, dump, two interleaved requests, NLM_F_ACK, ENOENT); it is the only source of family IDs, versions, header sizes, operations, capability flags, multicast groups and errno values, so no expected value comes from candidate output. The text layout is the documented print contract of loadables/genl.c (bgenl_print_caps, bgenl_print_ops, bgenl_print_groups, bgenl_print_family_cb). The guest iproute2 genl is run on the same table as a gating control (name, id, version, header size and max attribs must agree with the raw oracle), so a disagreement is invalid evidence (a setup error), never a candidate result. Setup requires the guest table to contain operations with each of the four capability bits, so every word assertion is non-vacuous, and records how many operations carry none of the four bits. The word \"none\" (an operation with no flag word) stays an explicit gap: a generic-netlink operation must have a doit or dumpit handler, from which the kernel derives the DO/DUMP capability bit, so the real controller never reports such an operation (the setup count is the evidence), and no unprivileged synthetic controller exists for this loadable.",
+      "comparison": "commands=yes: #index and ID-0x.. of every operation of every family equal the oracle; caps-hex=yes: every Capabilities value equals the oracle flags; word-admin/doit/dumpit/haspol=yes: the phrase appears for exactly the operations whose oracle flags contain the bit; status 0 and empty stderr. Every key is evaluated for every vector (no early exit). Retained in the case tree: the candidate's raw stdout, stderr and status for each vector (observations.jsonl), the raw oracle netlink transcripts (oracle-*transcript.jsonl), the iproute2 raw outputs (also in observations.jsonl); the setup control report is the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-list"
+      ],
+      "requires": [
+        "python3",
+        "genl"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup list-capabilities",
+      "setup_timeout": 45,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" list-capabilities",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "list status=0 stderr=empty commands=yes caps-hex=yes word-admin=yes word-doit=yes word-dumpit=yes word-haspol=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-list-groups",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Per-family \"multicast groups\" blocks with #index, ID-0x.. and name.",
+      "oracle": "Independent kernel oracle: the helper's own NETLINK_GENERIC client (hand-encoded request builder, attribute parser including the nested operation and multicast-group arrays, several messages per buffer, several buffers per dump, NLMSG_DONE/NLMSG_ERROR/ACK handling, sequence and port matching) is first calibrated on hand-encoded vectors and then on the real guest kernel (by name, by id, dump, two interleaved requests, NLM_F_ACK, ENOENT); it is the only source of family IDs, versions, header sizes, operations, capability flags, multicast groups and errno values, so no expected value comes from candidate output. The text layout is the documented print contract of loadables/genl.c (bgenl_print_caps, bgenl_print_ops, bgenl_print_groups, bgenl_print_family_cb). The guest iproute2 genl is run on the same table as a gating control (name, id, version, header size and max attribs must agree with the raw oracle), so a disagreement is invalid evidence (a setup error), never a candidate result. nlctrl always has the group notify, so the assertion is non-vacuous.",
+      "comparison": "groups=yes: the multicast groups (#index, id, name) of every family equal the oracle; families-complete=yes; status 0 and empty stderr. Every key is evaluated for every vector (no early exit). Retained in the case tree: the candidate's raw stdout, stderr and status for each vector (observations.jsonl), the raw oracle netlink transcripts (oracle-*transcript.jsonl), the iproute2 raw outputs (also in observations.jsonl); the setup control report is the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-list"
+      ],
+      "requires": [
+        "python3",
+        "genl"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup list-groups",
+      "setup_timeout": 45,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" list-groups",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "list status=0 stderr=empty families-complete=yes groups=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-list-multipart",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "The dump spans several receive buffers and ends with NLMSG_DONE; the candidate consumes all of it.",
+      "oracle": "Independent kernel oracle: the helper's own NETLINK_GENERIC client (hand-encoded request builder, attribute parser including the nested operation and multicast-group arrays, several messages per buffer, several buffers per dump, NLMSG_DONE/NLMSG_ERROR/ACK handling, sequence and port matching) is first calibrated on hand-encoded vectors and then on the real guest kernel (by name, by id, dump, two interleaved requests, NLM_F_ACK, ENOENT); it is the only source of family IDs, versions, header sizes, operations, capability flags, multicast groups and errno values, so no expected value comes from candidate output. Netlink I/O is observed with the pinned seccomp-notify helper system-sequence.py, which counts socket() calls after a captured stdout marker; setup calibrates it against children that create one netlink socket after the marker, none, and one before it. It also counts recvmsg() calls, calibrated against a child that performs a raw dump and reports its own recvmsg count. Setup requires the oracle's own dump to need at least two receive buffers that carry records, every record to carry NLM_F_MULTI and the dump to end with NLMSG_DONE; the same is re-checked before the run. If the guest family table fits in one buffer the control fails and the obligation stays open as a facility gap.",
+      "comparison": "status=0 with empty stderr (a candidate that never recognises NLMSG_DONE would wait for its 2 s timeout and fail); families-complete=yes (every family of the raw dump, in order, was printed: independent of layout); recv-buffers-ge2=yes (the candidate made at least two recvmsg calls after the marker); sockets=1. Every key is evaluated for every vector (no early exit). Retained in the case tree: the candidate's raw stdout, stderr and status for each vector (observations.jsonl), the raw oracle netlink transcripts (oracle-*transcript.jsonl), the syscall traces (trace-*.jsonl); the setup control report is the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-list"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup list-multipart",
+      "setup_timeout": 45,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" list-multipart",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "list-traced status=0 stderr=empty families-complete=yes recv-buffers-ge2=yes sockets=1\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-list-extra-argument",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Extra operands to ctrl list are usage errors: \"wrong controller params\".",
+      "oracle": "Usage status and diagnostic framing are learned from the reference bash 5.3.15 (a builtin usage error from \"cd -z\" shows the exact \"NAME: line N: \" prefix and status 2); the message text is the source contract of loadables/genl.c (builtin_error then EX_USAGE). ",
+      "comparison": "Per vector (one word, an empty word, two words): status=2, stdout-empty=yes, diag-exact=yes. Every key is evaluated for every vector (no early exit). Retained in the case tree: the candidate's raw stdout, stderr and status for each vector (observations.jsonl); the setup control report is the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-list"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup list-extra-argument",
+      "setup_timeout": 45,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" list-extra-argument",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "extra-word status=2 stdout-empty=yes diag-exact=yes\nextra-empty status=2 stdout-empty=yes diag-exact=yes\nextra-two status=2 stdout-empty=yes diag-exact=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-list-exact",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Supplementary exact-byte check, not mapped to a requirement: the complete ctrl list output is byte-identical to the documented print contract rendered from the raw dump.",
+      "oracle": "Independent kernel oracle: the helper's own NETLINK_GENERIC client (hand-encoded request builder, attribute parser including the nested operation and multicast-group arrays, several messages per buffer, several buffers per dump, NLMSG_DONE/NLMSG_ERROR/ACK handling, sequence and port matching) is first calibrated on hand-encoded vectors and then on the real guest kernel (by name, by id, dump, two interleaved requests, NLM_F_ACK, ENOENT); it is the only source of family IDs, versions, header sizes, operations, capability flags, multicast groups and errno values, so no expected value comes from candidate output. The text layout is the documented print contract of loadables/genl.c (bgenl_print_caps, bgenl_print_ops, bgenl_print_groups, bgenl_print_family_cb). The guest iproute2 genl is run on the same table as a gating control (name, id, version, header size and max attribs must agree with the raw oracle), so a disagreement is invalid evidence (a setup error), never a candidate result. ",
+      "comparison": "exact=yes: stdout equals the rendered contract byte for byte (blank-line layout, indexes, flag words); semantic=yes; status 0 and empty stderr. Every key is evaluated for every vector (no early exit). Retained in the case tree: the candidate's raw stdout, stderr and status for each vector (observations.jsonl), the raw oracle netlink transcripts (oracle-*transcript.jsonl), the iproute2 raw outputs (also in observations.jsonl); the setup control report is the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-list"
+      ],
+      "requires": [
+        "python3",
+        "genl"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup list-exact",
+      "setup_timeout": 45,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" list-exact",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "list status=0 stderr=empty exact=yes semantic=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-genl-get-dynamic-family",
+      "loadable": "genl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Supplementary dynamic-ID check, not mapped to a requirement: the same record is returned by name, by hexadecimal id and by decimal id for a family whose ID is assigned at run time (chosen from the raw dump: a family other than nlctrl with groups and the most operations).",
+      "oracle": "Independent kernel oracle: the helper's own NETLINK_GENERIC client (hand-encoded request builder, attribute parser including the nested operation and multicast-group arrays, several messages per buffer, several buffers per dump, NLMSG_DONE/NLMSG_ERROR/ACK handling, sequence and port matching) is first calibrated on hand-encoded vectors and then on the real guest kernel (by name, by id, dump, two interleaved requests, NLM_F_ACK, ENOENT); it is the only source of family IDs, versions, header sizes, operations, capability flags, multicast groups and errno values, so no expected value comes from candidate output. The text layout is the documented print contract of loadables/genl.c (bgenl_print_caps, bgenl_print_ops, bgenl_print_groups, bgenl_print_family_cb). The guest iproute2 genl is run on the same table as a gating control (name, id, version, header size and max attribs must agree with the raw oracle), so a disagreement is invalid evidence (a setup error), never a candidate result. ",
+      "comparison": "exact=yes and semantic=yes against the oracle record of the chosen family; same-as-name=yes for both id forms; status 0 and empty stderr. Every key is evaluated for every vector (no early exit). Retained in the case tree: the candidate's raw stdout, stderr and status for each vector (observations.jsonl), the raw oracle netlink transcripts (oracle-*transcript.jsonl), the iproute2 raw outputs (also in observations.jsonl); the setup control report is the stdout of the setup step. ",
+      "covers": [
+        "genl/ctrl-get-id",
+        "genl/ctrl-get-name"
+      ],
+      "requires": [
+        "python3",
+        "genl"
+      ],
+      "helpers_sha256": {
+        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup get-dynamic-family",
+      "setup_timeout": 45,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" get-dynamic-family",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "name-dynamic status=0 stderr=empty exact=yes semantic=yes\nid-dynamic-hex status=0 stderr=empty exact=yes semantic=yes same-as-name=yes\nid-dynamic-decimal status=0 stderr=empty exact=yes semantic=yes same-as-name=yes\n",
+      "stderr": ""
+    }
+  ]
+}

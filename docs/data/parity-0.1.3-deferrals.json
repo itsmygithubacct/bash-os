@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "7cd7357ebcc5de0665ca7322fde6b864b4677cc7bb584fc62521cc48c5afa39e",
+  "ledger_sha256": "2334993e3074c85ed11d528bac1ac02ba5cd7ef203a0e72b3b22f11faed277c0",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 94,
-    "none": 250,
-    "full": 256
+    "partial": 91,
+    "none": 247,
+    "full": 262
   },
   "migrations": {
-    "deferred": 344,
-    "replacement": 256
+    "deferred": 338,
+    "replacement": 262
   },
   "pending_full_topics": [],
   "builds": {
@@ -1965,6 +1965,84 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793188620.1323512
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "ssh-review-static-98",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 6,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "c06a7b105fc879d9b844e8539551b487c595e455cc7681a649f8313647b23825",
+            "provenance.json": "fa1e0fa878398264cfa815e5dbf49c00340cd4232e69e5778853825cbf8e7a98",
+            "payload.tar": "2891298cf860b5afa14770d7d6cb4e7d97642ee7ae1a9b8f48aa18cc57cee504",
+            "evidence.tar": "35a481eca328568eb387d8896cf2dd12decef4e4fb8a42c906920c598fe60ae0"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793190098.91221
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "cron-lifecycle-static-99",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 12,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "1754e33897db027e5dfd0376fc9f9c97c56e425854ff9a81903fd875aadd014d",
+            "provenance.json": "8b6f5a355f5c7b02d274553003d69acf8a50ce1c9198a96f6648b64973ed3388",
+            "payload.tar": "2891298cf860b5afa14770d7d6cb4e7d97642ee7ae1a9b8f48aa18cc57cee504",
+            "evidence.tar": "6e1df376871ff2ffe33727de9a5daae2715b69ed6732424d4bba47fdf3727274"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793190528.4921036
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "genl-review-static-100",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 13,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "313f7a5bc9aad5536ff8978642fd840473a06a55755948f5584e3f4b7d4ad1a9",
+            "provenance.json": "754f57a3a6d1c08e2e7416b06fb0ee793909b1d2f8705e0c98e417a3ce712708",
+            "payload.tar": "2891298cf860b5afa14770d7d6cb4e7d97642ee7ae1a9b8f48aa18cc57cee504",
+            "evidence.tar": "d6d9dcd4cf5987e44a13c0ab653754ee61e5dace52600f895564b6924509570f"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793190644.0663762
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -5426,16 +5504,16 @@
         },
         {
           "topic": "batch/cron-consumer-semantics",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A queued batch job is accepted and executed by `cron run` (consumer).",
-              "coverage": "partial",
-              "gap": "No case pipes a job through batch and then consumes it with cron; the producer/consumer format agreement is only implied.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -5448,51 +5526,100 @@
                   "id": "legacy/batch/queue-artifact",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-batch-cron-end-to-end-once",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-static-99"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-batch-immediate-run-at-boundary",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-static-99"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Jobs execute once (removed after run).",
-              "coverage": "partial",
-              "gap": "Not with batch-produced jobs; a second --once poll proving no re-execution is absent.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/cron/run-once-atjob-boundary",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-batch-cron-end-to-end-once",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-static-99"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-batch-immediate-run-at-boundary",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-static-99"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "FIFO order for multiple jobs queued in the same second.",
-              "coverage": "missing",
-              "gap": "Not executed. Source: ids <sec>.<pid>.<seq%06lu> sort lexicographically; FIFO holds within one shell, but jobs from different PIDs in the same second sort by PID text (e.g. 999 vs 1000), not submission order.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-batch-fifo-same-shell",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-static-99"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-batch-fifo-cross-process",
+                  "status": "FAIL",
+                  "run": "cron-lifecycle-static-99"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Immediate (low-load) policy: run_at is submission time; no load gating.",
-              "coverage": "partial",
-              "gap": "Execution timing relative to load is not observed; current documentation says 'currently immediate', so the obligation is run_at <= now at the next poll.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/batch/queue-artifact",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-batch-immediate-run-at-boundary",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-static-99"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-batch-no-load-source-read",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-static-99"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -9400,62 +9527,114 @@
         },
         {
           "topic": "cron/deferred-daemon-lifecycle",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "cron run polls repeatedly at --interval and dispatches due entries.",
-              "coverage": "missing",
-              "gap": "Only --once has executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cron-daemon-repeated-polls",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-static-99"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "@reboot entries run exactly once when daemon mode starts and never under --once.",
-              "coverage": "missing",
-              "gap": "Not executed (next-reboot-rejected covers only `cron next @reboot`).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cron-daemon-reboot-once",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-static-99"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cron-daemon-restart-catchup",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-static-99"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Clock catch-up across a forward poll gap replays up to BASHCRON_CATCHUP_MAX_MIN minutes; larger gaps collapse.",
-              "coverage": "missing",
-              "gap": "Not executed; BASHCRON_NOW_FILE supplies a deterministic clock per poll, so it is directly forceable.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cron-daemon-catchup-configured-limit",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-static-99"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cron-daemon-catchup-default-limit",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-static-99"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cron-catchup-once-boundary-matrix",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-static-99"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "SIGHUP reloads tables; SIGTERM shuts down cleanly.",
-              "coverage": "missing",
-              "gap": "Not executed; signals target only the case's own daemon child.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cron-daemon-sighup-sigterm",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-static-99"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "BASHCRON_STATE_FILE persistence across restarts drives restart catch-up.",
-              "coverage": "partial",
-              "gap": "Restart catch-up from an existing state file is not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/cron/run-once-state-file",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cron-daemon-restart-catchup",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-static-99"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -15592,109 +15771,190 @@
         },
         {
           "topic": "genl/ctrl-get-id",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "ctrl get id 0x10 (and decimal 16) returns the same nlctrl record as get name",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-get-id-record",
+                  "status": "PASS",
+                  "run": "genl-review-static-100"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-get-dynamic-family",
+                  "status": "PASS",
+                  "run": "genl-review-static-100"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Unknown numeric id fails like iproute2",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-get-id-unknown",
+                  "status": "PASS",
+                  "run": "genl-review-static-100"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-get-id-unknown-status",
+                  "status": "FAIL",
+                  "run": "genl-review-static-100"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Invalid id (non-numeric, >0xffff, trailing junk) -> \"invalid family id\" usage status before any netlink I/O",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-get-id-invalid",
+                  "status": "PASS",
+                  "run": "genl-review-static-100"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "genl/ctrl-get-name",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "ctrl get name nlctrl returns exactly the nlctrl record (ID 0x10, version, hdrsize, maxattr, ops with capability flags, groups notify)",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-get-name-record",
+                  "status": "PASS",
+                  "run": "genl-review-static-100"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Unknown family name prints \"RTNETLINK answers: No such file or directory\" / \"Error talking to the kernel\" and fails",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-get-name-unknown",
+                  "status": "PASS",
+                  "run": "genl-review-static-100"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Malformed get (missing value, extra args, unknown kind) -> usage status",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-get-name-malformed",
+                  "status": "PASS",
+                  "run": "genl-review-static-100"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "genl/ctrl-list",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "ctrl list issues a CTRL_CMD_GETFAMILY dump and prints one record per family: \"Name: X\", \"ID: 0x.. Version: 0x.. header size: N max attribs: N\"",
-              "coverage": "missing",
-              "gap": "No case invokes genl.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "the \"issues a CTRL_CMD_GETFAMILY dump\" term is evidenced only indirectly (multi-family answer; the kernel refuses a plain GETFAMILY with EINVAL); a direct request-byte assertion is in the mock suite (request-dump), pending",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-list-records",
+                  "status": "PASS",
+                  "run": "genl-review-static-100"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-list-exact",
+                  "status": "PASS",
+                  "run": "genl-review-static-100"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Per-family \"commands supported\" with #idx ID-0x.. and Capabilities (0x..) flag text (admin perm, doit, dumpit, has policy, none)",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "the \"none\" flag text is NOT exercised: the guest has 0 of 138 operations without a flag word, so the real controller cannot produce it; replacement is the mock caps-matrix case, pending",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-list-capabilities",
+                  "status": "PASS",
+                  "run": "genl-review-static-100"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "Per-family \"multicast groups\" with ID and name",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-list-groups",
+                  "status": "PASS",
+                  "run": "genl-review-static-100"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -15708,11 +15968,18 @@
             {
               "id": "r5",
               "behavior": "Extra argument -> \"wrong controller params\" usage status",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-list-extra-argument",
+                  "status": "PASS",
+                  "run": "genl-review-static-100"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -33869,11 +34136,18 @@
             {
               "id": "r5",
               "behavior": "Reload re-reads the configuration in a running server",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-review-session-reload",
+                  "status": "PASS",
+                  "run": "ssh-review-static-98"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -33936,13 +34210,19 @@
               "id": "r4",
               "behavior": "Cipher/MAC/KEX allow-list from config is enforced (disallowed algorithm refused)",
               "coverage": "partial",
-              "gap": "The Ciphers restriction is exercised against OpenSSH; MAC and KEX allow-list enforcement still need explicit probes.",
+              "gap": "MAC allowed-control handshake/command fails in revision98, so the MAC enforcement term remains unresolved; denied-offer output alone does not qualify policy.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sshd-cipher-allowlist",
                   "status": "PASS",
                   "run": "migration-sshd-b-static-28"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-review-kex-allowlist",
+                  "status": "PASS",
+                  "run": "ssh-review-static-98"
                 }
               ],
               "fully_exercised": false,
@@ -33952,10 +34232,10 @@
         },
         {
           "topic": "sshd/hostkey-lifecycle",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -33976,18 +34256,24 @@
             {
               "id": "r2",
               "behavior": "Native `sshd keygen -f PATH` writes the documented placeholder key and .pub with mode 0600",
-              "coverage": "partial",
-              "gap": "Native key creation, mode and public file are checked, but the documented placeholder bytes are not asserted.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sshd-keygen-native",
                   "status": "PASS",
                   "run": "migration-sshd-b-static-28"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-review-native-placeholder-contract",
+                  "status": "FAIL",
+                  "run": "ssh-review-static-98"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -34120,10 +34406,10 @@
         },
         {
           "topic": "sshd/session-management",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -34152,6 +34438,12 @@
                   "id": "migration-sshd-session-lifecycle",
                   "status": "PASS",
                   "run": "migration-sshd-b-static-28"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-review-session-disconnect",
+                  "status": "PASS",
+                  "run": "ssh-review-static-98"
                 }
               ],
               "fully_exercised": true,
@@ -34160,18 +34452,24 @@
             {
               "id": "r3",
               "behavior": "`sshd kick SESSION_ID` terminates exactly that session",
-              "coverage": "partial",
-              "gap": "Kick terminates the held target session. A second concurrent session is needed to prove unrelated sessions remain alive.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sshd-session-lifecycle",
                   "status": "PASS",
                   "run": "migration-sshd-b-static-28"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-review-session-kick",
+                  "status": "PASS",
+                  "run": "ssh-review-static-98"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -34198,18 +34496,24 @@
             {
               "id": "r5",
               "behavior": "`sshd reload` signals the server (SIGHUP) to re-read configuration without dropping it",
-              "coverage": "partial",
-              "gap": "Reload signals the server and it remains running; a changed configuration value has not been observed taking effect.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sshd-session-lifecycle",
                   "status": "PASS",
                   "run": "migration-sshd-b-static-28"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-review-session-reload",
+                  "status": "PASS",
+                  "run": "ssh-review-static-98"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -42653,9 +42957,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 344,
-        "FAIL": 140,
-        "PASS": 116
+        "UNRESOLVED": 338,
+        "FAIL": 143,
+        "PASS": 119
       },
       "migration_without_complete_evidence": []
     },
@@ -44610,6 +44914,84 @@
             "forced_stop": false,
             "poweroff_request": 255,
             "stopped_at": 1793189082.6631331
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "ssh-review-dynamic-98",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 6,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "3e9b8c77bfdec380b41f80ea09924f94acb263cfb98c76e9e13f490e6d07e051",
+            "provenance.json": "c689f348d8d16bc5e5346ce8f244a61494e7a2e6df25f16e98409ac45b220ced",
+            "payload.tar": "3e5075b816986c51eb05cdcb976689aa40c86767384e8aaddc0718b56158740c",
+            "evidence.tar": "05a5d57b61c2fa232620228ce5553069316c80e88eae899a1e168a10abf59cdf"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793190475.3149793
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "cron-lifecycle-dynamic-99",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 12,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "c898ba1105bc6a427f1d2f5124d1515beb425ceaaf74959fcbc8dd15886af3f0",
+            "provenance.json": "0d87ac93fbcaaf76732e54458b32311e44bc9e1d5044a564e34840b162f88570",
+            "payload.tar": "3e5075b816986c51eb05cdcb976689aa40c86767384e8aaddc0718b56158740c",
+            "evidence.tar": "52f73e74cb6f1d2fb06acd8cca8b2f078ce269b3346df7d53300b4c015ac4c95"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793190598.017183
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "genl-review-dynamic-100",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 13,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "c390cb3dab999698f095c78f0b9f7fef89cc48a9bfa6a0972ff4081cf1886f81",
+            "provenance.json": "258ecc86a229c7bbea1283e3557edc31deb87bdfccfd483bcc7c5d9e55b0970b",
+            "payload.tar": "3e5075b816986c51eb05cdcb976689aa40c86767384e8aaddc0718b56158740c",
+            "evidence.tar": "cacfa8328191ec9d0ae699a245c5396e2226e408d725ff9367c0f745da1e531d"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793191014.8477957
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -48071,16 +48453,16 @@
         },
         {
           "topic": "batch/cron-consumer-semantics",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A queued batch job is accepted and executed by `cron run` (consumer).",
-              "coverage": "partial",
-              "gap": "No case pipes a job through batch and then consumes it with cron; the producer/consumer format agreement is only implied.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -48093,51 +48475,100 @@
                   "id": "legacy/batch/queue-artifact",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-batch-cron-end-to-end-once",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-dynamic-99"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-batch-immediate-run-at-boundary",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-dynamic-99"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Jobs execute once (removed after run).",
-              "coverage": "partial",
-              "gap": "Not with batch-produced jobs; a second --once poll proving no re-execution is absent.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/cron/run-once-atjob-boundary",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-batch-cron-end-to-end-once",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-dynamic-99"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-batch-immediate-run-at-boundary",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-dynamic-99"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "FIFO order for multiple jobs queued in the same second.",
-              "coverage": "missing",
-              "gap": "Not executed. Source: ids <sec>.<pid>.<seq%06lu> sort lexicographically; FIFO holds within one shell, but jobs from different PIDs in the same second sort by PID text (e.g. 999 vs 1000), not submission order.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-batch-fifo-same-shell",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-dynamic-99"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-batch-fifo-cross-process",
+                  "status": "FAIL",
+                  "run": "cron-lifecycle-dynamic-99"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Immediate (low-load) policy: run_at is submission time; no load gating.",
-              "coverage": "partial",
-              "gap": "Execution timing relative to load is not observed; current documentation says 'currently immediate', so the obligation is run_at <= now at the next poll.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/batch/queue-artifact",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-batch-immediate-run-at-boundary",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-dynamic-99"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-batch-no-load-source-read",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-dynamic-99"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -52045,62 +52476,114 @@
         },
         {
           "topic": "cron/deferred-daemon-lifecycle",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "cron run polls repeatedly at --interval and dispatches due entries.",
-              "coverage": "missing",
-              "gap": "Only --once has executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cron-daemon-repeated-polls",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-dynamic-99"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "@reboot entries run exactly once when daemon mode starts and never under --once.",
-              "coverage": "missing",
-              "gap": "Not executed (next-reboot-rejected covers only `cron next @reboot`).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cron-daemon-reboot-once",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-dynamic-99"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cron-daemon-restart-catchup",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-dynamic-99"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Clock catch-up across a forward poll gap replays up to BASHCRON_CATCHUP_MAX_MIN minutes; larger gaps collapse.",
-              "coverage": "missing",
-              "gap": "Not executed; BASHCRON_NOW_FILE supplies a deterministic clock per poll, so it is directly forceable.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cron-daemon-catchup-configured-limit",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-dynamic-99"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cron-daemon-catchup-default-limit",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-dynamic-99"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cron-catchup-once-boundary-matrix",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-dynamic-99"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "SIGHUP reloads tables; SIGTERM shuts down cleanly.",
-              "coverage": "missing",
-              "gap": "Not executed; signals target only the case's own daemon child.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cron-daemon-sighup-sigterm",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-dynamic-99"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "BASHCRON_STATE_FILE persistence across restarts drives restart catch-up.",
-              "coverage": "partial",
-              "gap": "Restart catch-up from an existing state file is not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/cron/run-once-state-file",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cron-daemon-restart-catchup",
+                  "status": "PASS",
+                  "run": "cron-lifecycle-dynamic-99"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -58237,109 +58720,190 @@
         },
         {
           "topic": "genl/ctrl-get-id",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "ctrl get id 0x10 (and decimal 16) returns the same nlctrl record as get name",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-get-id-record",
+                  "status": "PASS",
+                  "run": "genl-review-dynamic-100"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-get-dynamic-family",
+                  "status": "PASS",
+                  "run": "genl-review-dynamic-100"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Unknown numeric id fails like iproute2",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-get-id-unknown",
+                  "status": "PASS",
+                  "run": "genl-review-dynamic-100"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-get-id-unknown-status",
+                  "status": "FAIL",
+                  "run": "genl-review-dynamic-100"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Invalid id (non-numeric, >0xffff, trailing junk) -> \"invalid family id\" usage status before any netlink I/O",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-get-id-invalid",
+                  "status": "PASS",
+                  "run": "genl-review-dynamic-100"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "genl/ctrl-get-name",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "ctrl get name nlctrl returns exactly the nlctrl record (ID 0x10, version, hdrsize, maxattr, ops with capability flags, groups notify)",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-get-name-record",
+                  "status": "PASS",
+                  "run": "genl-review-dynamic-100"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Unknown family name prints \"RTNETLINK answers: No such file or directory\" / \"Error talking to the kernel\" and fails",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-get-name-unknown",
+                  "status": "PASS",
+                  "run": "genl-review-dynamic-100"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Malformed get (missing value, extra args, unknown kind) -> usage status",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-get-name-malformed",
+                  "status": "PASS",
+                  "run": "genl-review-dynamic-100"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "genl/ctrl-list",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "ctrl list issues a CTRL_CMD_GETFAMILY dump and prints one record per family: \"Name: X\", \"ID: 0x.. Version: 0x.. header size: N max attribs: N\"",
-              "coverage": "missing",
-              "gap": "No case invokes genl.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "the \"issues a CTRL_CMD_GETFAMILY dump\" term is evidenced only indirectly (multi-family answer; the kernel refuses a plain GETFAMILY with EINVAL); a direct request-byte assertion is in the mock suite (request-dump), pending",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-list-records",
+                  "status": "PASS",
+                  "run": "genl-review-dynamic-100"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-genl-list-exact",
+                  "status": "PASS",
+                  "run": "genl-review-dynamic-100"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Per-family \"commands supported\" with #idx ID-0x.. and Capabilities (0x..) flag text (admin perm, doit, dumpit, has policy, none)",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "the \"none\" flag text is NOT exercised: the guest has 0 of 138 operations without a flag word, so the real controller cannot produce it; replacement is the mock caps-matrix case, pending",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-list-capabilities",
+                  "status": "PASS",
+                  "run": "genl-review-dynamic-100"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "Per-family \"multicast groups\" with ID and name",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-list-groups",
+                  "status": "PASS",
+                  "run": "genl-review-dynamic-100"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -58353,11 +58917,18 @@
             {
               "id": "r5",
               "behavior": "Extra argument -> \"wrong controller params\" usage status",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-genl-list-extra-argument",
+                  "status": "PASS",
+                  "run": "genl-review-dynamic-100"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -76514,11 +77085,18 @@
             {
               "id": "r5",
               "behavior": "Reload re-reads the configuration in a running server",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-review-session-reload",
+                  "status": "PASS",
+                  "run": "ssh-review-dynamic-98"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -76581,13 +77159,19 @@
               "id": "r4",
               "behavior": "Cipher/MAC/KEX allow-list from config is enforced (disallowed algorithm refused)",
               "coverage": "partial",
-              "gap": "The Ciphers restriction is exercised against OpenSSH; MAC and KEX allow-list enforcement still need explicit probes.",
+              "gap": "MAC allowed-control handshake/command fails in revision98, so the MAC enforcement term remains unresolved; denied-offer output alone does not qualify policy.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sshd-cipher-allowlist",
                   "status": "PASS",
                   "run": "migration-sshd-b-dynamic-28"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-review-kex-allowlist",
+                  "status": "PASS",
+                  "run": "ssh-review-dynamic-98"
                 }
               ],
               "fully_exercised": false,
@@ -76597,10 +77181,10 @@
         },
         {
           "topic": "sshd/hostkey-lifecycle",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -76621,18 +77205,24 @@
             {
               "id": "r2",
               "behavior": "Native `sshd keygen -f PATH` writes the documented placeholder key and .pub with mode 0600",
-              "coverage": "partial",
-              "gap": "Native key creation, mode and public file are checked, but the documented placeholder bytes are not asserted.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sshd-keygen-native",
                   "status": "PASS",
                   "run": "migration-sshd-b-dynamic-28"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-review-native-placeholder-contract",
+                  "status": "FAIL",
+                  "run": "ssh-review-dynamic-98"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -76765,10 +77355,10 @@
         },
         {
           "topic": "sshd/session-management",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -76797,6 +77387,12 @@
                   "id": "migration-sshd-session-lifecycle",
                   "status": "PASS",
                   "run": "migration-sshd-b-dynamic-28"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-review-session-disconnect",
+                  "status": "PASS",
+                  "run": "ssh-review-dynamic-98"
                 }
               ],
               "fully_exercised": true,
@@ -76805,18 +77401,24 @@
             {
               "id": "r3",
               "behavior": "`sshd kick SESSION_ID` terminates exactly that session",
-              "coverage": "partial",
-              "gap": "Kick terminates the held target session. A second concurrent session is needed to prove unrelated sessions remain alive.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sshd-session-lifecycle",
                   "status": "PASS",
                   "run": "migration-sshd-b-dynamic-28"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-review-session-kick",
+                  "status": "PASS",
+                  "run": "ssh-review-dynamic-98"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -76843,18 +77445,24 @@
             {
               "id": "r5",
               "behavior": "`sshd reload` signals the server (SIGHUP) to re-read configuration without dropping it",
-              "coverage": "partial",
-              "gap": "Reload signals the server and it remains running; a changed configuration value has not been observed taking effect.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-sshd-session-lifecycle",
                   "status": "PASS",
                   "run": "migration-sshd-b-dynamic-28"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sshd-review-session-reload",
+                  "status": "PASS",
+                  "run": "ssh-review-dynamic-98"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -85298,9 +85906,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 344,
-        "FAIL": 140,
-        "PASS": 116
+        "UNRESOLVED": 338,
+        "FAIL": 143,
+        "PASS": 119
       },
       "migration_without_complete_evidence": []
     }

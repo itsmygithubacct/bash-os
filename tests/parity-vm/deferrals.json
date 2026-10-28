@@ -3300,14 +3300,14 @@
         "purpose": "Check that a separate cron consumer accepts queued jobs, executes them once in FIFO order, and applies the intended immediate/low-load policy.",
         "reason": "Requires a disposable VM with a private cron/atd consumer or a reviewed scheduler mock, a controlled clock/load source, and an isolated output sink. No daemon or job was run by this suite."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "The producer and consumer are each covered separately; an end-to-end batch -> cron run --once case with a fixed clock is implementable now.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A queued batch job is accepted and executed by `cron run` (consumer).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -3320,47 +3320,96 @@
               "id": "legacy/batch/queue-artifact",
               "assertion": "batch writes 0600 job files with '# run_at=' headers into the private spool",
               "definition_sha256": "6a3c78120b442163203f55186cdc9552c7477e78f6941a1e27fcc8d0ced9bfc5"
+            },
+            {
+              "group": "shell",
+              "id": "migration-batch-cron-end-to-end-once",
+              "assertion": "Three jobs produced by batch in one shell are accepted and executed by separate cron run --once polls; producer ids, 0600 mode and exact bytes are asserted first.",
+              "definition_sha256": "9bf831f065ac99a49904f642004feda676748e58eec9477b680564b8f03c4ada"
+            },
+            {
+              "group": "shell",
+              "id": "migration-batch-immediate-run-at-boundary",
+              "assertion": "A batch-produced job is executed by a cron run --once poll at run_at and by the next real-clock poll.",
+              "definition_sha256": "b9baccfac55dad32067d3374179d9b555b9e7f96c5cd048417bd3da3bffe6668"
             }
           ],
-          "gap": "No case pipes a job through batch and then consumes it with cron; the producer/consumer format agreement is only implied."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Jobs execute once (removed after run).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/cron/run-once-atjob-boundary",
               "assertion": "consumed .job removed; future job retained",
               "definition_sha256": "03e4177de25445711d17eb00b6a01be3bcd9962e1223201362aacfa53cbe8775"
+            },
+            {
+              "group": "shell",
+              "id": "migration-batch-cron-end-to-end-once",
+              "assertion": "After poll 1 the atjobs directory is empty (no .job or .running leftover) and a second --once poll re-executes nothing.",
+              "definition_sha256": "9bf831f065ac99a49904f642004feda676748e58eec9477b680564b8f03c4ada"
+            },
+            {
+              "group": "shell",
+              "id": "migration-batch-immediate-run-at-boundary",
+              "assertion": "The consumed job file is removed at the poll at run_at; a poll one second earlier leaves it queued.",
+              "definition_sha256": "b9baccfac55dad32067d3374179d9b555b9e7f96c5cd048417bd3da3bffe6668"
             }
           ],
-          "gap": "Not with batch-produced jobs; a second --once poll proving no re-execution is absent."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "FIFO order for multiple jobs queued in the same second.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed. Source: ids <sec>.<pid>.<seq%06lu> sort lexicographically; FIFO holds within one shell, but jobs from different PIDs in the same second sort by PID text (e.g. 999 vs 1000), not submission order."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-batch-fifo-same-shell",
+              "assertion": "Six jobs from one shell sharing one second execute in submission order.",
+              "definition_sha256": "023fbe580052cfac8d595e24d37e64ce3aa79fba4b32b34e81edb9a575d5edd0"
+            },
+            {
+              "group": "shell",
+              "id": "migration-batch-fifo-cross-process",
+              "assertion": "Jobs from two shells in the same second execute in release order for both pid orders; the next-second control separates the pid-text ordering from the harness.",
+              "definition_sha256": "14e3e6e865b142002e4615c3841e68c96fb5ff7dc432962ad4e307b2f3870b0a"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Immediate (low-load) policy: run_at is submission time; no load gating.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/batch/queue-artifact",
               "assertion": "run_at header equals a decimal epoch shape",
               "definition_sha256": "6a3c78120b442163203f55186cdc9552c7477e78f6941a1e27fcc8d0ced9bfc5"
+            },
+            {
+              "group": "shell",
+              "id": "migration-batch-immediate-run-at-boundary",
+              "assertion": "run_at equals the submission second (bracketed by the observer clock); the job is due at run_at and executed at the next poll.",
+              "definition_sha256": "b9baccfac55dad32067d3374179d9b555b9e7f96c5cd048417bd3da3bffe6668"
+            },
+            {
+              "group": "shell",
+              "id": "migration-batch-no-load-source-read",
+              "assertion": "Neither batch nor the cron consumer opens /proc/loadavg or /proc/pressure/* while queueing and dispatching; detector controls pass.",
+              "definition_sha256": "71fae35aab316ccb2c7f1f337278884eca5f8966ffb827c2426142058689127e"
             }
           ],
-          "gap": "Execution timing relative to load is not observed; current documentation says 'currently immediate', so the obligation is run_at <= now at the next poll."
+          "gap": ""
         }
       ],
-      "notes": "batch.c:116-119 job id; cron.c:865-892 lexicographic sort."
+      "notes": "Accepted independent raw review, bound to exact frozen artifacts by the primary. Both unchanged builds, valid reference/setup controls and clean VM teardown. Original obligations and existing companion evidence retained; genuine FAIL remains FAIL."
     },
     {
       "topic": "bc/interactive_terminal_editing",
@@ -7115,54 +7164,106 @@
         "purpose": "Long-lived polling, @reboot execution, clock catch-up across polls, reload, and shutdown behavior.",
         "reason": "Requires a future disposable VM or purpose-built mock clock and child-process harness to keep cron run alive, advance time deterministically, inspect @reboot and catch-up dispatch, and deliver reload/shutdown signals only to that private process. This suite does not run a daemon or signal fixtures."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "cron provides deterministic clock hooks (BASHCRON_NOW_EPOCH, BASHCRON_NOW_FILE consumed one line per poll) and private spool/etc/cron.d/output/mail directories, so the daemon lifecycle is unprivileged and deterministic. No mock clock is needed.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "cron run polls repeatedly at --interval and dispatches due entries.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Only --once has executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cron-daemon-repeated-polls",
+              "assertion": "A daemon dispatches the due row at each of three successive polls, later polls add no duplicate, and consecutive executions are at least the interval apart.",
+              "definition_sha256": "36daf13f9be001095ddaaff0fc1725fcaa6d81d46bbb634754585ac1daba9096"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "@reboot entries run exactly once when daemon mode starts and never under --once.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed (next-reboot-rejected covers only `cron next @reboot`)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cron-daemon-reboot-once",
+              "assertion": "The @reboot row runs 0 times under --once and once at daemon start, not again after polls or a SIGHUP-forced poll.",
+              "definition_sha256": "28788643cce4f12a81a30109a0ea65600ed115c56558a3e36d0d40e0b5ab07c0"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cron-daemon-restart-catchup",
+              "assertion": "Each of four daemon starts runs the @reboot row once.",
+              "definition_sha256": "c108cdc8419abae15d1fdbb61f6dd2a67871e36686a9033d8022bcb722b30da2"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Clock catch-up across a forward poll gap replays up to BASHCRON_CATCHUP_MAX_MIN minutes; larger gaps collapse.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed; BASHCRON_NOW_FILE supplies a deterministic clock per poll, so it is directly forceable."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cron-daemon-catchup-configured-limit",
+              "assertion": "Limit 3: a gap of 3 replays minutes 1-3, a gap of 4 evaluates only the current minute.",
+              "definition_sha256": "8be867f63923eb2957bddfed49c0a874af873a917a24dfbdea3cfe190526c7a1"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cron-daemon-catchup-default-limit",
+              "assertion": "Default window 5: a gap of 5 replays, a gap of 6 collapses.",
+              "definition_sha256": "42d4a79e9f7e90cd8d7c33d6412b768c522c30510b9b71d35c110280e5f16775"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cron-catchup-once-boundary-matrix",
+              "assertion": "Supplementary: window boundaries for limits 1, 3, 1440, default and six invalid values through --once with a seeded state file.",
+              "definition_sha256": "07df5b3954c4520399a97934a4a506af666d35686f877d2128b08178f311ece4"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "SIGHUP reloads tables; SIGTERM shuts down cleanly.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed; signals target only the case's own daemon child."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cron-daemon-sighup-sigterm",
+              "assertion": "Two SIGHUPs each pick up a rewritten table and run only its row while the daemon stays alive; a rewrite without a signal is ignored; SIGTERM exits 0 within 3 s with no leftovers and an intact state file.",
+              "definition_sha256": "c3fc35543e71043bf696f150e2e6f5d47b98b4625442a5026dbfab6de9163ea5"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "BASHCRON_STATE_FILE persistence across restarts drives restart catch-up.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/cron/run-once-state-file",
               "assertion": "--once creates the state file with minute 28333333 (mode/dirs checked)",
               "definition_sha256": "1020886b34ac6fa1efb737a38cf4568289052609dce4c702d81703e7ba1bdf83"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cron-daemon-restart-catchup",
+              "assertion": "A restart inside the window replays the gap from the persisted minute, beyond it collapses, in the same minute replays nothing; state value and mode 0600 asserted.",
+              "definition_sha256": "c108cdc8419abae15d1fdbb61f6dd2a67871e36686a9033d8022bcb722b30da2"
             }
           ],
-          "gap": "Restart catch-up from an existing state file is not exercised."
+          "gap": ""
         }
       ],
-      "notes": "cron.c:1528 catch-up, :1649-1661 signal handling, doc BASHCRON_NOW_FILE."
+      "notes": "Accepted independent raw review, bound to exact frozen artifacts by the primary. Both unchanged builds, valid reference/setup controls and clean VM teardown. Original obligations and existing companion evidence retained; genuine FAIL remains FAIL."
     },
     {
       "topic": "cron/deferred-system-user-drop",
@@ -13124,33 +13225,66 @@
         "purpose": "Look up one known fixture family by numeric ID and check it formats the same family record as name lookup.",
         "reason": "Requires a disposable VM or reviewed generic-netlink mock with a known family ID and deterministic controller response. No real NETLINK_GENERIC request is run in this suite."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Unprivileged and implementable in the legacy runner. No fixture exists.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "ctrl get id 0x10 (and decimal 16) returns the same nlctrl record as get name",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-genl-get-id-record",
+              "assertion": "stdout of by-name, 0x10, 16 and octal 020 lookups equals the independently rendered nlctrl record and is byte-identical to iproute2 output",
+              "definition_sha256": "18b059902bf124925cff2a2a56f0ddbf2561318411a5b4a9270e66edc7bba3a0"
+            },
+            {
+              "group": "shell",
+              "id": "migration-genl-get-dynamic-family",
+              "assertion": "stdout of by-name, 0x10, 16 and octal 020 lookups equals the independently rendered nlctrl record and is byte-identical to iproute2 output",
+              "definition_sha256": "e6316b398eb16af9a202b634ec441bceed04aaa854a5a949df0fc9fa8cf45ba7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Unknown numeric id fails like iproute2",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-genl-get-id-unknown",
+              "assertion": "Unknown numeric family returns exact iproute2 ENOENT diagnostics but candidate status1 differs from iproute2 status255. Strict numeric status comparison is retained as a genuine FAIL under fails-like-iproute2.",
+              "definition_sha256": "ae967907df3adeca8b29da3c2683fd5055c9df00724b08e89d3cc2e62887640d"
+            },
+            {
+              "group": "shell",
+              "id": "migration-genl-get-id-unknown-status",
+              "assertion": "Unknown numeric family returns exact iproute2 ENOENT diagnostics but candidate status1 differs from iproute2 status255. Strict numeric status comparison is retained as a genuine FAIL under fails-like-iproute2.",
+              "definition_sha256": "0d85cbb8790cb186957e9135d1004dbf1e333c6ce524c159f456775285a17250"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Invalid id (non-numeric, >0xffff, trailing junk) -> \"invalid family id\" usage status before any netlink I/O",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-genl-get-id-invalid",
+              "assertion": "13 invalid ids: status 2, exact framed diagnostic, 0 AF_NETLINK sockets after the marker; controls: valid 16 and boundary 0xffff open exactly 1",
+              "definition_sha256": "22461f9fe39b53f473e1195101626694bc433ecbbf58a8ea87dabe6ee9ca790a"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "iproute2 6.15 /usr/sbin/genl is installed in the guest and its `genl ctrl list|get name|get id` CLI and output layout match the candidate (Capabilities (0x%x), 'commands supported', 'multicast groups', 'RTNETLINK answers' strings in loadables/genl.c:305,332-429,519), so the suite statement that no CLI oracle exists is stale. CTRL_CMD_GETFAMILY is unprivileged and AF_NETLINK is not seccomp-denied; in the legacy bwrap netns the dump lists only netnsok families, identical for both sides of one VM run. The nlctrl family (name nlctrl, id 0x10) is always registered, which gives a deterministic known family. bgenl_parse_family_id loadables/genl.c:526-536 accepts strtoul base 0 (octal \"020\" = 16), so the parity fixture should check iproute2 behavior for \"020\"."
+      "notes": "Accepted independent raw review, bound to exact frozen artifacts by the primary. Both unchanged builds, valid reference/setup controls and clean VM teardown. Original obligations and existing companion evidence retained; genuine FAIL remains FAIL."
     },
     {
       "topic": "genl/ctrl-get-name",
@@ -13160,33 +13294,54 @@
         "purpose": "Look up one known fixture family by name and check the returned family metadata and optional operation/group sections.",
         "reason": "Requires a disposable VM or reviewed generic-netlink mock that registers a known family name and returns deterministic CTRL_CMD_GETFAMILY attributes. No real NETLINK_GENERIC request is run in this suite."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Unprivileged and implementable in the legacy runner against iproute2 genl. No fixture exists.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "ctrl get name nlctrl returns exactly the nlctrl record (ID 0x10, version, hdrsize, maxattr, ops with capability flags, groups notify)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-genl-get-name-record",
+              "assertion": "exact contract bytes, one record, id 0x10, group notify",
+              "definition_sha256": "b81a97f68da02462cd62c0d6d4aa7180a64db0435196afe4c23918af3abee0e1"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Unknown family name prints \"RTNETLINK answers: No such file or directory\" / \"Error talking to the kernel\" and fails",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-genl-get-name-unknown",
+              "assertion": "stderr is exactly the two RTNETLINK lines, status 1, stdout empty",
+              "definition_sha256": "bf50ebb71de11a8ca024ac51a418c3480afe0aa30981e174dee245b584e90d7e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Malformed get (missing value, extra args, unknown kind) -> usage status",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-genl-get-name-malformed",
+              "assertion": "7 vectors, status 2, exact framed diagnostics",
+              "definition_sha256": "00103d0771ee01248620f2a8b712ab81a65a7e7b1801b515849aaf2972134d29"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "iproute2 6.15 /usr/sbin/genl is installed in the guest and its `genl ctrl list|get name|get id` CLI and output layout match the candidate (Capabilities (0x%x), 'commands supported', 'multicast groups', 'RTNETLINK answers' strings in loadables/genl.c:305,332-429,519), so the suite statement that no CLI oracle exists is stale. CTRL_CMD_GETFAMILY is unprivileged and AF_NETLINK is not seccomp-denied; in the legacy bwrap netns the dump lists only netnsok families, identical for both sides of one VM run. The nlctrl family (name nlctrl, id 0x10) is always registered, which gives a deterministic known family. Unknown names make the kernel call request_module(\"net-pf-16-proto-16-family-NAME\"); use a name with no module alias. The lookup runs the guest modprobe usermode helper but changes no state. loadables/genl.c:475-523 bgenl_ctrl_query."
+      "notes": "Accepted independent raw review, bound to exact frozen artifacts by the primary. Both unchanged builds, valid reference/setup controls and clean VM teardown. Original obligations and existing companion evidence retained; genuine FAIL remains FAIL."
     },
     {
       "topic": "genl/ctrl-list",
@@ -13196,30 +13351,57 @@
         "purpose": "Exercise CTRL_CMD_GETFAMILY dump formatting across registered families, their command capability flags, and multicast groups.",
         "reason": "Requires a disposable VM with isolated generic-netlink state or a reviewed NETLINK_GENERIC mock returning deterministic multipart controller responses. Running the query here would perform prohibited network activity and use environment-dependent kernel state."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Unprivileged and implementable in the legacy runner with an existing CLI oracle. No fixture exists. Kernel family state is environment-dependent but constant across the two sides of one run.",
+      "current_reason": "Remaining obligations: r1: the \"issues a CTRL_CMD_GETFAMILY dump\" term is evidenced only indirectly (multi-family answer; the kernel refuses a plain GETFAMILY with EINVAL); a direct request-byte assertion is in the mock suite (request-dump), pending; r2: the \"none\" flag text is NOT exercised: the guest has 0 of 138 operations without a flag word, so the real controller cannot produce it; replacement is the mock caps-matrix case, pending; r4: No case.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "ctrl list issues a CTRL_CMD_GETFAMILY dump and prints one record per family: \"Name: X\", \"ID: 0x.. Version: 0x.. header size: N max attribs: N\"",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case invokes genl."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-genl-list-records",
+              "assertion": "PASS static+dynamic",
+              "definition_sha256": "d53f926de99bed3f8bf3ab199064ff018f3d4956d9a4a26a56527a2cad9655c8"
+            },
+            {
+              "group": "shell",
+              "id": "migration-genl-list-exact",
+              "assertion": "PASS static+dynamic",
+              "definition_sha256": "ef6fc8da5e435d4628797f51b2a0e837002f0cde40e2b4b91e0f37f7bfb6ee33"
+            }
+          ],
+          "gap": "the \"issues a CTRL_CMD_GETFAMILY dump\" term is evidenced only indirectly (multi-family answer; the kernel refuses a plain GETFAMILY with EINVAL); a direct request-byte assertion is in the mock suite (request-dump), pending"
         },
         {
           "id": "r2",
           "behavior": "Per-family \"commands supported\" with #idx ID-0x.. and Capabilities (0x..) flag text (admin perm, doit, dumpit, has policy, none)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-genl-list-capabilities",
+              "assertion": "PARTIAL: PASS static+dynamic for #index/ID/Capabilities hex and the admin/doit/dumpit/has-policy words",
+              "definition_sha256": "6a1a07b9a4fab4ee88d2b8b280bf1d3699ec6f5dfdf3dfded8d3a55c1af9f936"
+            }
+          ],
+          "gap": "the \"none\" flag text is NOT exercised: the guest has 0 of 138 operations without a flag word, so the real controller cannot produce it; replacement is the mock caps-matrix case, pending"
         },
         {
           "id": "r3",
           "behavior": "Per-family \"multicast groups\" with ID and name",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-genl-list-groups",
+              "assertion": "10 groups across 7 families equal the kernel dump",
+              "definition_sha256": "5410e9fed9b05009046d8d80a0859671f1ed4739000ee405a0a485124abcc229"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
@@ -13231,12 +13413,19 @@
         {
           "id": "r5",
           "behavior": "Extra argument -> \"wrong controller params\" usage status",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-genl-list-extra-argument",
+              "assertion": "one word, empty word, two words: status 2, exact framed diagnostic",
+              "definition_sha256": "9a6be7b650e114b0970f53afcd85a4ac754220e8c090fcbfe22a689d1b83d393"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "iproute2 6.15 /usr/sbin/genl is installed in the guest and its `genl ctrl list|get name|get id` CLI and output layout match the candidate (Capabilities (0x%x), 'commands supported', 'multicast groups', 'RTNETLINK answers' strings in loadables/genl.c:305,332-429,519), so the suite statement that no CLI oracle exists is stale. CTRL_CMD_GETFAMILY is unprivileged and AF_NETLINK is not seccomp-denied; in the legacy bwrap netns the dump lists only netnsok families, identical for both sides of one VM run. The nlctrl family (name nlctrl, id 0x10) is always registered, which gives a deterministic known family. Caveat: a module autoload between sides could change the dump; the dump itself does not autoload."
+      "notes": "Accepted independent raw review, bound to exact frozen artifacts by the primary. Both unchanged builds, valid reference/setup controls and clean VM teardown. Original obligations and existing companion evidence retained; genuine FAIL remains FAIL."
     },
     {
       "topic": "git/remote_protocol_mock",
@@ -30765,7 +30954,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: The shared fixture exercises listen address/port, host key, authorized keys, password-disabled and forwarding policy. PubkeyAuthentication disable and a positive AllowAgentForwarding channel still need explicit assertions.; r2: Absolute Include glob expansion and exclusion of nonmatching files pass. Relative-to-parent expansion in the reviewed contract remains untested; OpenSSH resolves relative Includes differently.; r3: Matching/nonmatching Address blocks exercise PermitTTY. Match User/All and PermitRootLogin/forwarding overrides remain untested.; r5: Not executed.",
+      "current_reason": "Remaining obligations: r1: The shared fixture exercises listen address/port, host key, authorized keys, password-disabled and forwarding policy. PubkeyAuthentication disable and a positive AllowAgentForwarding channel still need explicit assertions.; r2: Absolute Include glob expansion and exclusion of nonmatching files pass. Relative-to-parent expansion in the reviewed contract remains untested; OpenSSH resolves relative Includes differently.; r3: Matching/nonmatching Address blocks exercise PermitTTY. Match User/All and PermitRootLogin/forwarding overrides remain untested.",
       "requirements": [
         {
           "id": "r1",
@@ -30856,12 +31045,19 @@
         {
           "id": "r5",
           "behavior": "Reload re-reads the configuration in a running server",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sshd-review-session-reload",
+              "assertion": "Changed AuthorizedKeysFile path is ineffective before reload and effective afterward on new independently authenticated connections; existing held session and master remain alive.",
+              "definition_sha256": "8635b05572eafc3ba7f27ffd378b960dd52ae19e87926a02f7869e8988777ebb"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Root reviewed original compound obligations, fixture definitions and both unchanged-build VM records. Only reached assertions are covered; early candidate rejection remains partial. Reference/fixture errors are excluded. PASS and FAIL retain their distinct meanings."
+      "notes": "Accepted independent raw review, bound to exact frozen artifacts by the primary. Both unchanged builds, valid reference/setup controls and clean VM teardown. Original obligations and existing companion evidence retained; genuine FAIL remains FAIL."
     },
     {
       "topic": "sshd/encrypted-ssh-interoperability",
@@ -30873,7 +31069,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r4: The Ciphers restriction is exercised against OpenSSH; MAC and KEX allow-list enforcement still need explicit probes.",
+      "current_reason": "Remaining obligations: r4: MAC allowed-control handshake/command fails in revision98, so the MAC enforcement term remains unresolved; denied-offer output alone does not qualify policy.",
       "requirements": [
         {
           "id": "r1",
@@ -30927,12 +31123,18 @@
               "id": "migration-sshd-cipher-allowlist",
               "assertion": "Ciphers allow-list enforced; offer list visible in client diagnostic",
               "definition_sha256": "1fdbefeea63765ec93bf57c0a78628a01008fc4990bb84e9babc9a752cd9148b"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sshd-review-kex-allowlist",
+              "assertion": "Allowed KEX handshake/command succeeds and disallowed KEX is refused on both builds; existing Cipher restriction evidence retained.",
+              "definition_sha256": "54a1ec55c46b7744b50a23e59422b30d70a6ff414d62ec1856d26e4f6eb21683"
             }
           ],
-          "gap": "The Ciphers restriction is exercised against OpenSSH; MAC and KEX allow-list enforcement still need explicit probes."
+          "gap": "MAC allowed-control handshake/command fails in revision98, so the MAC enforcement term remains unresolved; denied-offer output alone does not qualify policy."
         }
       ],
-      "notes": "Root reviewed original compound obligations, fixture definitions and both unchanged-build VM records. Only reached assertions are covered; early candidate rejection remains partial. Reference/fixture errors are excluded. PASS and FAIL retain their distinct meanings."
+      "notes": "Accepted independent raw review, bound to exact frozen artifacts by the primary. Both unchanged builds, valid reference/setup controls and clean VM teardown. Original obligations and existing companion evidence retained; genuine FAIL remains FAIL."
     },
     {
       "topic": "sshd/hostkey-lifecycle",
@@ -30942,9 +31144,9 @@
         "purpose": "Exercise sshd keygen, explicit missing-key refusal, and lazy native/encrypted host-key creation and permissions.",
         "reason": "Requires a future disposable writable VM fixture with fresh ephemeral key paths and an independent OpenSSH ssh-keygen/key parser to check key encodings and modes. The task forbids invoking sshd operations here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: Native key creation, mode and public file are checked, but the documented placeholder bytes are not asserted.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -30963,16 +31165,22 @@
         {
           "id": "r2",
           "behavior": "Native `sshd keygen -f PATH` writes the documented placeholder key and .pub with mode 0600",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-sshd-keygen-native",
               "assertion": "placeholder key mode 0600 and .pub present",
               "definition_sha256": "ece1d7beb991d698beb724334422a6d96ac63489e11fd6aea35198204dbd1e4d"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sshd-review-native-placeholder-contract",
+              "assertion": "Exact native private/public placeholder bytes and actual file modes measured. Private is0600 but public is0644 against the original both0600 contract: reached FAIL, permission term retained.",
+              "definition_sha256": "e78944198691ae788d4a0f21e49ffe1986efbf9c9bfb90b60e94279982ce27c3"
             }
           ],
-          "gap": "Native key creation, mode and public file are checked, but the documented placeholder bytes are not asserted."
+          "gap": ""
         },
         {
           "id": "r3",
@@ -31009,7 +31217,7 @@
           "gap": ""
         }
       ],
-      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
+      "notes": "Accepted independent raw review, bound to exact frozen artifacts by the primary. Both unchanged builds, valid reference/setup controls and clean VM teardown. Original obligations and existing companion evidence retained; genuine FAIL remains FAIL."
     },
     {
       "topic": "sshd/native-command-stream",
@@ -31104,9 +31312,9 @@
         "purpose": "Check status, sessions, stale-session cleanup, kick, stop, and reload against recorded runtime state.",
         "reason": "These commands probe or signal process IDs; validation needs a future disposable VM with a reviewed fake process/signal interface or dedicated isolated server process. No process-control operation is run here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: Kick terminates the held target session. A second concurrent session is needed to prove unrelated sessions remain alive.; r5: Reload signals the server and it remains running; a changed configuration value has not been observed taking effect.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -31132,6 +31340,12 @@
               "id": "migration-sshd-session-lifecycle",
               "assertion": "live session listed; stale dead-pid record not listed and removed",
               "definition_sha256": "3f873e6ac6a776597bd7846d3566099ebf100a01da08e89c06b91cd6d08cadbf"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sshd-review-session-disconnect",
+              "assertion": "Live session is enumerated; actual disconnect terminates its handler and removes its record. Existing independently planted stale-record evidence remains required and retained.",
+              "definition_sha256": "f3ae021a47d174b07bf64fd6ebaff363b8bbe8e03ec1b08f1135ee965c0b326b"
             }
           ],
           "gap": ""
@@ -31139,16 +31353,22 @@
         {
           "id": "r3",
           "behavior": "`sshd kick SESSION_ID` terminates exactly that session",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-sshd-session-lifecycle",
               "assertion": "kick closes exactly the held session before its command could finish",
               "definition_sha256": "3f873e6ac6a776597bd7846d3566099ebf100a01da08e89c06b91cd6d08cadbf"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sshd-review-session-kick",
+              "assertion": "Selective kick terminates the chosen active session; independently authenticated second session and unrelated owned child survive; enumeration and byte transfer prove the surviving connection.",
+              "definition_sha256": "3505aaaa6081a4c54894e8b0177e985b38bf7d9376120978c95033e1a208efc5"
             }
           ],
-          "gap": "Kick terminates the held target session. A second concurrent session is needed to prove unrelated sessions remain alive."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -31173,19 +31393,25 @@
         {
           "id": "r5",
           "behavior": "`sshd reload` signals the server (SIGHUP) to re-read configuration without dropping it",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-sshd-session-lifecycle",
               "assertion": "reload signals, server stays running",
               "definition_sha256": "3f873e6ac6a776597bd7846d3566099ebf100a01da08e89c06b91cd6d08cadbf"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sshd-review-session-reload",
+              "assertion": "Same running master and held session survive reload; changed AuthorizedKeysFile policy affects new clients only after reload, proving a reread rather than only signal delivery.",
+              "definition_sha256": "8635b05572eafc3ba7f27ffd378b960dd52ae19e87926a02f7869e8988777ebb"
             }
           ],
-          "gap": "Reload signals the server and it remains running; a changed configuration value has not been observed taking effect."
+          "gap": ""
         }
       ],
-      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
+      "notes": "Accepted independent raw review, bound to exact frozen artifacts by the primary. Both unchanged builds, valid reference/setup controls and clean VM teardown. Original obligations and existing companion evidence retained; genuine FAIL remains FAIL."
     },
     {
       "topic": "sshd/sftp-and-forwarding",

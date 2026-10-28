@@ -107,9 +107,42 @@
     },
     {
       "id": "deferred-daemon-lifecycle",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Long-lived polling, @reboot execution, clock catch-up across polls, reload, and shutdown behavior.",
-      "reason": "cron provides deterministic clock hooks (BASHCRON_NOW_EPOCH, BASHCRON_NOW_FILE consumed one line per poll) and private spool/etc/cron.d/output/mail directories, so the daemon lifecycle is unprivileged and deterministic. No mock clock is needed."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/cron/run-once-state-file"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cron-catchup-once-boundary-matrix"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cron-daemon-catchup-configured-limit"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cron-daemon-catchup-default-limit"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cron-daemon-reboot-once"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cron-daemon-repeated-polls"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cron-daemon-restart-catchup"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cron-daemon-sighup-sigterm"
+        }
+      ]
     },
     {
       "id": "deferred-system-user-drop",

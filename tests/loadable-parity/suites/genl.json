@@ -45,19 +45,53 @@
       "id": "ctrl-list",
       "kind": "deferred",
       "purpose": "Exercise CTRL_CMD_GETFAMILY dump formatting across registered families, their command capability flags, and multicast groups.",
-      "reason": "Unprivileged and implementable in the legacy runner with an existing CLI oracle. No fixture exists. Kernel family state is environment-dependent but constant across the two sides of one run."
+      "reason": "Remaining obligations: r1: the \"issues a CTRL_CMD_GETFAMILY dump\" term is evidenced only indirectly (multi-family answer; the kernel refuses a plain GETFAMILY with EINVAL); a direct request-byte assertion is in the mock suite (request-dump), pending; r2: the \"none\" flag text is NOT exercised: the guest has 0 of 138 operations without a flag word, so the real controller cannot produce it; replacement is the mock caps-matrix case, pending; r4: No case."
     },
     {
       "id": "ctrl-get-name",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Look up one known fixture family by name and check the returned family metadata and optional operation/group sections.",
-      "reason": "Unprivileged and implementable in the legacy runner against iproute2 genl. No fixture exists."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-genl-get-name-malformed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-genl-get-name-record"
+        },
+        {
+          "group": "shell",
+          "id": "migration-genl-get-name-unknown"
+        }
+      ]
     },
     {
       "id": "ctrl-get-id",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Look up one known fixture family by numeric ID and check it formats the same family record as name lookup.",
-      "reason": "Unprivileged and implementable in the legacy runner. No fixture exists."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-genl-get-dynamic-family"
+        },
+        {
+          "group": "shell",
+          "id": "migration-genl-get-id-invalid"
+        },
+        {
+          "group": "shell",
+          "id": "migration-genl-get-id-record"
+        },
+        {
+          "group": "shell",
+          "id": "migration-genl-get-id-unknown"
+        },
+        {
+          "group": "shell",
+          "id": "migration-genl-get-id-unknown-status"
+        }
+      ]
     }
   ]
 }
