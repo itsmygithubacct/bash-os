@@ -4719,40 +4719,68 @@
         "purpose": "Exercise +i/-i and +a/-a with and without CAP_LINUX_IMMUTABLE, including cleanup of set flags, and compare GNU status, diagnostics and resulting state.",
         "reason": "Requires a disposable VM with a supported filesystem and controlled capability transitions so immutable/append state can be safely set and cleared. The isolated runner does not declare that filesystem/capability fixture, and these mutating operations were not run."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "r1 and r2 are only missing fixtures and can be implemented in the legacy runner now. r3 and r4 need a capability that no driver grants: ext4 checks capable(CAP_LINUX_IMMUTABLE) when i or a changes.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Without CAP_LINUX_IMMUTABLE, `chattr +i f` and `chattr +a f` fail with a nonzero status and a diagnostic, and the flags stay unset. Compare with e2fsprogs.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted, although it is reachable now: the legacy uid 2000 lacks CAP_LINUX_IMMUTABLE, so ext4 returns EPERM."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-capability-flags-root",
+              "assertion": "On ext4, uid 2000 is refused +i and +a with status 1 and flags unchanged, as e2fsprogs; wording differs ('f: setting flags: Operation not permitted' vs 'Operation not permitted while setting flags on f'). Parity FAIL (wording).",
+              "definition_sha256": "0d4df8399a31b318ae38fecbb9bf5d7767973e81a1740f02a0b82d5be6f1e15e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Without the capability, `chattr -i f` / `-a f` on a file lacking those flags is a no-op success, as in e2fsprogs.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted, but reachable now."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-capability-flags-root",
+              "assertion": "-i and -a by uid 2000 on a file lacking them succeed with status 0, as e2fsprogs.",
+              "definition_sha256": "0d4df8399a31b318ae38fecbb9bf5d7767973e81a1740f02a0b82d5be6f1e15e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "With CAP_LINUX_IMMUTABLE, +i and +a succeed: an immutable file refuses writes and unlink, and an append-only file accepts only appends. Then -i and -a clear the flags.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs a side holding CAP_LINUX_IMMUTABLE in the initial user namespace. capable() is not satisfied by user-namespace capabilities, and the legacy and modern drivers drop all capabilities."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-capability-flags-root",
+              "assertion": "Root sets +i (append and unlink then fail, file kept) and clears it; +a refuses a truncating write, accepts an append (content a|more|) and is cleared; lsattr read-back equal to e2fsprogs.",
+              "definition_sha256": "0d4df8399a31b318ae38fecbb9bf5d7767973e81a1740f02a0b82d5be6f1e15e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Cleanup: no immutable or append-only flag survives a side, even after a failing script.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs driver-side teardown with CAP_LINUX_IMMUTABLE, `chattr -R -ia` run by the controller, before tree removal."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-capability-flags-root",
+              "assertion": "A failing inner script (exit 3) leaves i and a set; chattr -R -ia . clears both (lsattr), equal to e2fsprogs; the loop image and mount are destroyed with the side namespace (selfcheck-root-isolation).",
+              "definition_sha256": "0d4df8399a31b318ae38fecbb9bf5d7767973e81a1740f02a0b82d5be6f1e15e"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "The candidate documents i/a privilege (chattr.c:198). Teardown is the only hazard, since immutable files block rmtree of the results tree. Keep the capability cases out of the legacy runner."
+      "notes": "Root batch A on the rented VM host (root-a-76, privilege=root sides in per-side namespaces, root-isolation selfcheck PASS); both builds identical, raw records reviewed."
     },
     {
       "topic": "chattr/flag-set-algebra",
@@ -4762,47 +4790,82 @@
         "purpose": "Compare +, - and = behavior on two ordinary fixture files, verify add/remove composition and idempotent repeat operations, and read back the resulting flags.",
         "reason": "Requires a disposable ext4 VM or equivalent fixture filesystem supporting FS_IOC_GETFLAGS/FS_IOC_SETFLAGS and GNU e2fsprogs chattr/lsattr as the independent oracle. The current task explicitly restricts execution to metadata/help contracts for this loadable; no filesystem flag mutation was run."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No fixture exercises chattr operations. Present gap: missing fixture plus missing flag read-back in the snapshot. No privilege is needed: Saved evidence shows that the legacy fixture tree /work is ext4. legacy/lsattr/named_file stdout is '--------------e------- plain' on both builds, and legacy/df/df-output-filesystem-type reports ext4 mounted on /work. The fixture uid 2000 owns its files, so FS_IOC_SETFLAGS for the owner-modifiable, non-immutable flags (d, A, S, D, s, u, t, T) needs no capability, and the legacy seccomp list does not deny ioctl.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "+FLAGS adds flags to two ordinary files; the resulting flag words match e2fsprogs chattr. Example: chattr +dA f1 f2.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No chattr flag operation has run. Only builtin-type, bash-help-synopsis and documented-help-text (metadata) were executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-flag-algebra-root",
+              "assertion": "+dA on two files gives ------dA------e------- on both, equal to e2fsprogs.",
+              "definition_sha256": "b6aec75834120beafd0e2253fee690315b943133b5853c93bc53c171533f3c7e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "-FLAGS removes only the named flags and leaves other set flags, including the naturally present e (extents) bit.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-flag-algebra-root",
+              "assertion": "-A leaves d and e set, equal to e2fsprogs.",
+              "definition_sha256": "b6aec75834120beafd0e2253fee690315b943133b5853c93bc53c171533f3c7e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "=FLAGS sets the exact flag word, and its handling of the always-present ext4 e bit matches e2fsprogs status and diagnostics.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. The candidate's '=' assigns newflags = mask (loadables/chattr.c:89-91), so it would clear the e bit, which ext4 refuses. e2fsprogs behavior must be observed, not assumed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-flag-algebra-root",
+              "assertion": "=d and =de set the exact words (------d--------------- and ------d-------e-------) with status 0, and = with no letters clears all, equal to e2fsprogs.",
+              "definition_sha256": "b6aec75834120beafd0e2253fee690315b943133b5853c93bc53c171533f3c7e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Add/remove composition within one invocation (e.g. `chattr +d -A f`) and across successive invocations, plus idempotent repeats (`+d` twice) succeed with an unchanged final state.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Predicted mismatch: the candidate keeps one op character and ORs every token's letters into one mask (chattr.c:136-150), so `+d -A` applies '-' to d|A, whereas e2fsprogs keeps separate add and remove masks."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-flag-algebra-root",
+              "assertion": "Composition differs: after +d -A e2fsprogs shows ------d-------e------- but the candidate clears d too (--------------e-------); after -d +A e2fsprogs shows -------A------e------- and the candidate ------dA------e-------. Idempotent +d repeats and +s +S agree. Parity FAIL.",
+              "definition_sha256": "b6aec75834120beafd0e2253fee690315b943133b5853c93bc53c171533f3c7e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Read-back of the resulting flags with an independent oracle (e2fsprogs lsattr on the reference side, a driver-side ioctl snapshot for both).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The tree snapshot does not record inode flags, and no case reads flags after a change."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-flag-algebra-root",
+              "assertion": "Every step is read back with e2fsprogs lsattr -d, the same independent reader on both sides.",
+              "definition_sha256": "b6aec75834120beafd0e2253fee690315b943133b5853c93bc53c171533f3c7e"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Source: loadables/chattr.c:46-62 (flag table, which lacks E/I/N/P/V/F/x/m) and :78-101 (apply_one, which skips SETFLAGS when unchanged). e2fsprogs 1.47.2 (in the image) is the oracle. Expected statuses and diagnostics come from the reference run. A preflight `lsattr -d .` showing 'e' guards the ext4 precondition; if it is absent, report ERROR."
+      "notes": "Root batch A on the rented VM host (root-a-76, privilege=root sides in per-side namespaces, root-isolation selfcheck PASS); both builds identical, raw records reviewed."
     },
     {
       "topic": "chattr/operation-errors-and-links",
@@ -4812,47 +4875,82 @@
         "purpose": "Compare missing operands/paths, mixed valid and invalid path lists, unsupported ioctl behavior, and symlink target handling while retaining independent GNU exit-status and diagnostic evidence.",
         "reason": "A future disposable VM or reviewed closed ioctl mock is needed to control supported versus unsupported filesystem responses and safely assert partial effects and symlink behavior against GNU e2fsprogs. No chattr operation was executed in this suite."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Missing fixture only. All of these errors are reachable as uid 2000: Saved evidence shows that the legacy fixture tree /work is ext4. legacy/lsattr/named_file stdout is '--------------e------- plain' on both builds, and legacy/df/df-output-filesystem-type reports ext4 mounted on /work. The fixture uid 2000 owns its files, so FS_IOC_SETFLAGS for the owner-modifiable, non-immutable flags (d, A, S, D, s, u, t, T) needs no capability, and the legacy seccomp list does not deny ioctl. The private /tmp tmpfs supports only a subset of flags, so flags it lacks return EOPNOTSUPP.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "No flag spec, or a spec without files, gives a usage status and diagnostic matching e2fsprogs.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. The candidate returns EX_USAGE (chattr.c:155-164) where e2fsprogs exits 1, a predicted status difference."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-operand-errors-root",
+              "assertion": "No arguments and a spec without files: e2fsprogs prints its usage and exits 1; the candidate prints \"missing +-= attribute specification\" / \"no files specified\" plus its usage and exits 2. Parity FAIL.",
+              "definition_sha256": "27772521183f85e15243db51d1388fb6c39020ea6bad72c16a60a6c06628fa7b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "A missing path fails with a diagnostic. In a mixed list (valid, missing, valid), processing continues, the valid files change, and the status is nonzero.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-operand-errors-root",
+              "assertion": "valid/missing/valid: both valid files gain d and status is 1 on both sides; diagnostics differ in wording. Parity FAIL (wording).",
+              "definition_sha256": "27772521183f85e15243db51d1388fb6c39020ea6bad72c16a60a6c06628fa7b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Unsupported ioctl or flag responses: a flag the filesystem rejects (clearing e on ext4, or +S on a tmpfs file) and a non-regular, non-directory operand such as a FIFO give e2fsprogs-matching status, with partial effects on other operands preserved.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. The legacy private /tmp tmpfs and a relative FIFO make these reachable without privilege."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-operand-errors-root",
+              "assertion": "Clearing e on ext4 and +S on a tmpfs file (status 1) agree in status and effect; for a FIFO e2fsprogs reports 'Operation not supported while reading flags on p' and the candidate 'p: reading flags: Inappropriate ioctl for device'; the other operand still changes on both. Parity FAIL (wording).",
+              "definition_sha256": "27772521183f85e15243db51d1388fb6c39020ea6bad72c16a60a6c06628fa7b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Symlink operand handling matches e2fsprogs. e2fsprogs refuses symlink operands, as the executed lsattr symlink cases show for its reader. The target must keep its flags.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Predicted mismatch: the candidate open()s and follows the symlink and changes the target (chattr.c:79)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-operand-errors-root",
+              "assertion": "A symlink operand: e2fsprogs refuses it (status 1, target f1 unchanged) but the candidate follows it and sets s on the target (status 0, f1 s-----d---...). Parity FAIL.",
+              "definition_sha256": "27772521183f85e15243db51d1388fb6c39020ea6bad72c16a60a6c06628fa7b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "An unknown attribute letter is rejected before any change.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-operand-errors-root",
+              "assertion": "An unknown letter, alone or with a valid one, is rejected before any change on both sides (flags unchanged); e2fsprogs exits 1 with its usage, the candidate exits 2 with \"unknown attribute: Q\". Parity FAIL.",
+              "definition_sha256": "27772521183f85e15243db51d1388fb6c39020ea6bad72c16a60a6c06628fa7b"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "The /tmp path is the bwrap-private per-side tmpfs, not a host path. If the FORMAT relative-path rule forbids it, use the modern plain driver, whose cwd /tmp/parity-case is per-side tmpfs. Diagnostic wording differs by design, so compare statuses and effects."
+      "notes": "Root batch A on the rented VM host (root-a-76, privilege=root sides in per-side namespaces, root-isolation selfcheck PASS); both builds identical, raw records reviewed."
     },
     {
       "topic": "chattr/recursive-tree",
@@ -4862,40 +4960,68 @@
         "purpose": "Compare -R across a small relative-path directory tree, checking that the directory and nested regular files receive the requested change and that non-recursive behavior remains distinguishable.",
         "reason": "Requires a disposable ext4 VM or equivalent supported filesystem plus GNU e2fsprogs chattr/lsattr to compare each fixture entry. Recursive chattr operation execution is explicitly out of scope for this constrained run."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Missing fixture only. Saved evidence shows that the legacy fixture tree /work is ext4. legacy/lsattr/named_file stdout is '--------------e------- plain' on both builds, and legacy/df/df-output-filesystem-type reports ext4 mounted on /work. The fixture uid 2000 owns its files, so FS_IOC_SETFLAGS for the owner-modifiable, non-immutable flags (d, A, S, D, s, u, t, T) needs no capability, and the legacy seccomp list does not deny ioctl.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "chattr -R +FLAG dir changes the directory itself and every nested regular file and subdirectory in a small relative tree.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No recursive operation has run."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-recursive-tree-root",
+              "assertion": "chattr -R +d d sets d on the directory, nested file, subdirectory and nested file, equal to e2fsprogs.",
+              "definition_sha256": "85c5de90083f726b5de53cd0facb2ce63e960041ebc0b7431743cdda4313b5f3"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Without -R only the named operand changes; its children keep their flags.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-recursive-tree-root",
+              "assertion": "chattr +A d2 without -R changes only d2, children unchanged, equal to e2fsprogs.",
+              "definition_sha256": "85c5de90083f726b5de53cd0facb2ce63e960041ebc0b7431743cdda4313b5f3"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Symlink entries met during recursion are handled like e2fsprogs: not followed, so the target outside the walk is unchanged.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Predicted mismatch: the candidate recurses with lstat but calls open() on each child, which follows symlinks (chattr.c:79 and 104-117). A child symlink would therefore have its target's flags changed, or fail when dangling."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-recursive-tree-root",
+              "assertion": "e2fsprogs skips the symlink entries with 'Operation not supported while reading flags' and leaves the outside target unchanged; the candidate follows d/link and sets d on 'outside' (and clears it again with -R -d), and reports the dangling link as 'No such file or directory'. Parity FAIL.",
+              "definition_sha256": "85c5de90083f726b5de53cd0facb2ce63e960041ebc0b7431743cdda4313b5f3"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Per-entry read-back of every fixture entry with an independent oracle.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No flag snapshot exists."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chattr-recursive-tree-root",
+              "assertion": "Every entry and the outside target are read back with e2fsprogs lsattr -d after each step.",
+              "definition_sha256": "85c5de90083f726b5de53cd0facb2ce63e960041ebc0b7431743cdda4313b5f3"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "The directory iteration order of readdir is filesystem-native on both sides, as in the existing lsattr recursive cases. The candidate's 4096-byte child path buffer (chattr.c:116) is not a concern for small trees."
+      "notes": "Root batch A on the rented VM host (root-a-76, privilege=root sides in per-side namespaces, root-isolation selfcheck PASS); both builds identical, raw records reviewed."
     },
     {
       "topic": "chgrp/named-group-resolution",
@@ -4905,23 +5031,29 @@
         "purpose": "Compare a valid named group, an unknown group name, and a numeric group ID against GNU using a controlled group database; verify status and resulting metadata for successful calls.",
         "reason": "Requires a future disposable VM or resolver/chown syscall mock with synthetic group mappings and distinct permitted GIDs. Current cases only reapply the existing group of private fixture files; no account database is modified."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Numeric and unknown-name obligations executed and passed; named resolution through chgrp itself never ran, and distinct-gid resolution needs driver-provisioned identities.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A valid named group resolves through the controlled group database and is applied (GNU parity on status and resulting gid).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/chown/numeric_owner_named_group",
               "assertion": "GNU parity: 'chown $EUID:runner item' then /usr/bin/stat -c '%u:%g %a' bytes match GNU (named group resolution, but through chown, not chgrp)",
               "definition_sha256": "5bb454d0917fe0f21e39aac10b634a1475e799990c3e6f8e66d13c5abce0c99f"
+            },
+            {
+              "group": "shell",
+              "id": "migration-chgrp-named-distinct-gid-root",
+              "assertion": "As uid 2000 with supplementary gid 3050 and a bind-mounted group database, chgrp staff g/f1 resolves the name and sets st_gid 3050, and chgrp runner g/f4 applies 2000, equal to GNU 9.7.",
+              "definition_sha256": "2085237cd3bbeba5d19556d2bfb65719c0680f5d5f6431cb1724d3f157e706aa"
             }
           ],
-          "gap": "No chgrp case uses a group name; 'chgrp runner FILE' against GNU is reachable today in the legacy runner. A name that resolves to the file's existing gid cannot distinguish a resolver that ignores the name, so a second, distinct named gid is also required (r4).",
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
@@ -4955,13 +5087,20 @@
         {
           "id": "r4",
           "behavior": "Resolution and application with distinct permitted GIDs (a second named group the caller may use), verifying the resulting st_gid equals the named group's id.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires a controlled group database naming a second gid plus that gid as the side's supplementary group. Unprivileged fixtures cannot get it: the plain driver calls setgroups([]) and uid 2000 cannot call setgroups (EPERM without CAP_SETGID); an unprivileged user namespace maps a single gid (no newgidmap); chown(2) to a non-member gid returns EPERM without CAP_CHOWN.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chgrp-named-distinct-gid-root",
+              "assertion": "The distinct member group 3050 applies by name and by number; the named non-member group 'other' is refused with status 1 and gid unchanged, as GNU, but the candidate says 'chgrp: g/f2: Operation not permitted' (GNU: \"changing group of 'g/f2'\") and 'invalid group: nosuchgroup' without quotes. Parity FAIL (wording).",
+              "definition_sha256": "2085237cd3bbeba5d19556d2bfb65719c0680f5d5f6431cb1724d3f157e706aa"
+            }
+          ],
+          "gap": "",
           "next_step": "requires_capability"
         }
       ],
-      "notes": "Candidate: loadables/chgrp.c:30 getgrnam, :42-43 chown/lchown with uid -1. No observed mismatch in executed cases (all chgrp cases PASS static and dynamic). The guest already provisions uid 2000 'parity' and uses gid 2001 unnamed for the legacy identity (tests/parity-vm/vm.py:345, guest.py:391)."
+      "notes": "Root batch A on the rented VM host (root-a-76, privilege=root sides in per-side namespaces, root-isolation selfcheck PASS); both builds identical, raw records reviewed."
     },
     {
       "topic": "chmod/foreign-owner-and-group",
@@ -4971,36 +5110,57 @@
         "purpose": "Check chmod permission denial and set-ID clearing when operating on files not owned by the caller or belonging to an unrelated group.",
         "reason": "Requires a future disposable VM provisioned with at least two unprivileged UIDs and controlled group membership (or a separately reviewed ownership syscall mock). The current fixture namespace exposes one identity, and this suite must not create/change host accounts or ownership. No operation was run and this is not a pass."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "No foreign-ownership case executed. Root-owned guest files make the EPERM path reachable now; set-ID clearing and second-unprivileged-uid ownership need controller-run ownership setup.",
+      "current_reason": "Remaining obligations: r2: root-a-76 shows the directory result (2775 on a caller-owned directory in non-member group 3002 leaves 775, as GNU) but a later mixed chmod overwrote the files' modes before any stat, so the file S_ISGID drop is unobserved; a per-step stat case follows in root batch B.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "chmod on a file owned by another UID is denied (EPERM), reports failure status and diagnostic, and leaves the mode unchanged (GNU parity on status/effects).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case. Reachable unprivileged in the modern plain driver: the guest root filesystem contains root-owned files (e.g. a file under /usr) whose chmod by uid 2000 returns EPERM; in the legacy runner /usr is a read-only bind so EROFS, not EPERM, would be observed.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chmod-foreign-owner-root",
+              "assertion": "As uid 2000, chmod 0600 / u+x on a 2002:3002 file and 0600 on a root file fail with status 1, a diagnostic, and unchanged modes (644, stat and tree), matching GNU 9.7 in status and effect; the candidate says \"cannot change mode of 'own/other'\" where GNU says \"changing permissions of 'own/other'\". Parity FAIL (wording).",
+              "definition_sha256": "94f50bee1c1b09e71232f4276ae541ef31e7987aa64757447a20d0fc17c9f3ed"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r2",
           "behavior": "Set-ID clearing: when the caller owns the file but it belongs to a group the caller is not a member of, chmod g+s / an octal mode with 2000 silently drops S_ISGID (kernel behavior without CAP_FSETID); compare resulting mode with GNU.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs a file owned by uid 2000 with a non-member group; creating it requires chown(2) to a non-member gid (EPERM without CAP_CHOWN) and an unprivileged user namespace cannot map a second gid. Exact missing capability: SYNTH-IDENT controller setup hook (CAP_CHOWN on the controller) that chowns fixture files before the side runs; the side itself stays unprivileged.",
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chmod-foreign-owner-root",
+              "assertion": "Directory half only: chmod g+s and 2775 by the owner (uid 2000) on a directory in non-member group 3002 succeed with status 0 and leave 775 (S_ISGID dropped), equal to GNU 9.7. The file results were overwritten by a later mixed chmod before any stat.",
+              "definition_sha256": "94f50bee1c1b09e71232f4276ae541ef31e7987aa64757447a20d0fc17c9f3ed"
+            }
+          ],
+          "gap": "root-a-76 shows the directory result (2775 on a caller-owned directory in non-member group 3002 leaves 775, as GNU) but a later mixed chmod overwrote the files' modes before any stat, so the file S_ISGID drop is unobserved; a per-step stat case follows in root batch B.",
           "next_step": "requires_capability"
         },
         {
           "id": "r3",
           "behavior": "Permission-denied and set-ID outcomes for a file owned by another unprivileged UID (not root) in a controlled group membership, including directories.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same SYNTH-IDENT setup requirement: a second unprivileged uid (e.g. 2002) must own fixture files; only root provisioning can create that ownership.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chmod-foreign-owner-root",
+              "assertion": "Directories and files owned by another unprivileged uid (2002) refuse chmod 0700 and g+s with status 1 and unchanged 755/644; a mixed operand list changes the caller's files, reports the foreign one and exits 1, as GNU (wording differs as in r1). Parity FAIL (wording).",
+              "definition_sha256": "94f50bee1c1b09e71232f4276ae541ef31e7987aa64757447a20d0fc17c9f3ed"
+            }
+          ],
+          "gap": "",
           "next_step": "requires_capability"
         }
       ],
-      "notes": "Candidate chmod is Bash's examples/loadables/chmod.c patched by patches/chmod-umask.patch (build/bash-5.3/builtins/chmod.c:186-187 preserves existing S_ISUID|S_ISGID then calls chmod(2)); the S_ISGID clearing itself is a kernel effect, so parity depends on the candidate passing the same mode bits. All 19 executed chmod cases PASS on both builds; no observed mismatch."
+      "notes": "Root batch A on the rented VM host (root-a-76, privilege=root sides in per-side namespaces, root-isolation selfcheck PASS); both builds identical, raw records reviewed."
     },
     {
       "topic": "chown/distinct_identity_transfer",
@@ -5010,36 +5170,57 @@
         "purpose": "Successful change to ownership IDs distinct from the fixture identity, with a resulting UID/GID check.",
         "reason": "Requires a disposable VM with CAP_CHOWN and an isolated throwaway user/group database, or a reviewed syscall mock that can safely grant the operation. The mandatory fixture runner drops capabilities, so this transition cannot be honestly exercised there."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Identity-preserving chown paths are all executed (14 parity cases PASS); a transfer to distinct ids requires CAP_CHOWN and a second synthetic identity, which no current driver provides.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "chown to a UID distinct from the caller succeeds with CAP_CHOWN and the resulting st_uid equals the requested id (numeric and named).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "chown(2) to a different uid returns EPERM without CAP_CHOWN; the legacy runner and all modern drivers drop every capability, and an unprivileged user namespace maps only one uid, so no distinct target uid exists unprivileged.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chown-distinct-identity-root",
+              "assertion": "As root with a bind-mounted synthetic passwd/group: chown 3001 f1 and chown bob f2 give st_uid 3001/3002 (stat), equal to GNU 9.7.",
+              "definition_sha256": "784c365d7af1c80e0b124f30f3eaffec39ddcfd7de19c797f1ffa7823f3a6b4d"
+            }
+          ],
+          "gap": "",
           "next_step": "requires_capability"
         },
         {
           "id": "r2",
           "behavior": "chown to a GID distinct from the caller's (non-member) succeeds with CAP_CHOWN and st_gid equals the requested id.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same: non-member gid requires CAP_CHOWN; single-gid userns mapping.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chown-distinct-identity-root",
+              "assertion": "chown :3050, alice:staff and 3002:3060 give gids 3050/3050/3060 with the matching uids, equal to GNU; an unknown user fails status 1 but the candidate prints \"invalid user: nosuchuser\" without GNU's quotes. Parity FAIL (wording).",
+              "definition_sha256": "784c365d7af1c80e0b124f30f3eaffec39ddcfd7de19c797f1ffa7823f3a6b4d"
+            }
+          ],
+          "gap": "",
           "next_step": "requires_capability"
         },
         {
           "id": "r3",
           "behavior": "The same transfer on a symlink with -h changes the link, without -h the target (resulting ids checked on both).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same capability; existing -h cases only reapply the caller's own identity.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-chown-distinct-identity-root",
+              "assertion": "chown -h bob:staff l5 changes the link (3002:3050) and leaves f5 0:0; chown alice:other l6 changes the target f6 (3001:3060) and leaves the link 0:0, equal to GNU.",
+              "definition_sha256": "784c365d7af1c80e0b124f30f3eaffec39ddcfd7de19c797f1ffa7823f3a6b4d"
+            }
+          ],
+          "gap": "",
           "next_step": "requires_capability"
         }
       ],
-      "notes": "Candidate: loadables/chown.c:44 getpwnam, :59 getgrnam, :97-98 chown/lchown. No observed mismatch in executed identity-preserving cases."
+      "notes": "Root batch A on the rented VM host (root-a-76, privilege=root sides in per-side namespaces, root-isolation selfcheck PASS); both builds identical, raw records reviewed."
     },
     {
       "topic": "chrt/deferred-pid-deadline",
@@ -16972,40 +17153,68 @@
         "purpose": "Exercise hard-link permission checks across an ownership boundary.",
         "reason": "Requires a disposable VM or reviewed privilege-separated mock that can create two distinct UIDs, arrange a sticky writable directory containing a differently owned source, and set the protected-hardlinks policy. The provided fixtures use one unprivileged identity; do not alter host users, ownership, or kernel policy."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Cross-owner fixtures need driver-side ownership setup. A uid-2000 fixture cannot chown (CAP_CHOWN) or create another uid's file, and toggling the policy needs root plus restore.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "With fs.protected_hardlinks=1, a hard link by uid 2000 to a regular file owned by another uid, which the caller cannot read and write, fails with EPERM, a diagnostic and no destination. Match GNU link.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture file owned by another uid exists. Creating one needs CAP_CHOWN, and all fixture files are owned by 2000."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-link-protected-hardlinks-root",
+              "assertion": "With protected_hardlinks=1, uid 2000 linking a 0600 file of uid 2002 fails status 1 with the GNU diagnostic and no destination; a setuid source is refused likewise. Byte parity PASS.",
+              "definition_sha256": "cda0b2029c6541a90a87702707546c7724d624911adbae2556bc64cde05d16b3"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "The protected-hardlinks policy exception: linking a differently owned file the caller can read and write (mode 0666) succeeds.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs the same foreign-owned fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-link-protected-hardlinks-root",
+              "assertion": "With policy 1 a 0666 file of uid 2002 links successfully (link count 2), as GNU. PASS.",
+              "definition_sha256": "cda0b2029c6541a90a87702707546c7724d624911adbae2556bc64cde05d16b3"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "The source lives in a sticky world-writable directory, as stated in the scenario.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "A sticky directory owned by another uid needs root setup."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-link-protected-hardlinks-root",
+              "assertion": "Sources live in a 1777 directory owned by 2002:3002 (stat shows sticky 1777). PASS.",
+              "definition_sha256": "cda0b2029c6541a90a87702707546c7724d624911adbae2556bc64cde05d16b3"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "The policy is known and controlled: protected_hardlinks is read before each side, and the 0 setting (link allowed) is covered with a restore.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Reading /proc/sys/fs/protected_hardlinks is unprivileged, but writing it needs root plus restore."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-link-protected-hardlinks-root",
+              "assertion": "The policy is read before (1), set to 1 then 0 (both links allowed at 0), and restored to 1, also by an EXIT trap; each value is printed. PASS.",
+              "definition_sha256": "cda0b2029c6541a90a87702707546c7724d624911adbae2556bc64cde05d16b3"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "The modern tree() records mode but not owner, so either add the uid to the snapshot or assert ownership semantically. Only the policy-0 variant needs KSTATE; r1-r3 need SYNTH-IDENT alone. USERNS cannot substitute here: without newuidmap (uidmap is not installed), an unprivileged user namespace maps only uid 2000, so no file with a second real owner can exist."
+      "notes": "Root batch A on the rented VM host (root-a-76, privilege=root sides in per-side namespaces, root-isolation selfcheck PASS); both builds identical, raw records reviewed."
     },
     {
       "topic": "locale/child-libc-locale-integration",
@@ -34873,33 +35082,54 @@
         "kind": "deferred",
         "reason": "Requires a disposable VM or reviewed filesystem/syscall mock that can create and verify an immutable regular file (for example, a dedicated disposable filesystem with the required immutable-file capability). The fixture must stay relative and prove the entry and contents remain after unlink is denied. No immutable attribute operation is attempted in this suite."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Creating the protected file is the only privileged step. The unlink itself can run as unprivileged uid 2000 and still gets EPERM from the kernel. No existing driver can set i.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "unlink on a relative immutable regular file fails with nonzero status and a diagnostic, matching GNU unlink.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No immutable file can be created: FS_IOC_SETFLAGS with +i needs CAP_LINUX_IMMUTABLE in the initial user namespace, and every driver drops all capabilities."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-unlink-immutable-root",
+              "assertion": "unlink on an immutable file (lsattr shows i) by relative and absolute path fails with status 1 even as root, as GNU; the candidate says 'unlink: imm: cannot unlink: Operation not permitted' where GNU says \"cannot unlink 'imm'\". Parity FAIL (wording).",
+              "definition_sha256": "9b419d309f691008d39c4abece488576c6316c41f0dc4956198adef91300625c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "After the denial, the directory entry and its exact contents remain.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. The tree snapshot would verify it once the setup exists."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-unlink-immutable-root",
+              "assertion": "After the denial the entry remains with content 'kept', on both sides.",
+              "definition_sha256": "9b419d309f691008d39c4abece488576c6316c41f0dc4956198adef91300625c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "The immutable flag is removed by teardown, so the fixture tree stays removable.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No controller teardown hook with CAP_LINUX_IMMUTABLE exists."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-unlink-immutable-root",
+              "assertion": "Teardown chattr -i clears the flag (lsattr shows none) and unlink then succeeds; the scratch tmpfs is destroyed with the side namespace (selfcheck-root-isolation).",
+              "definition_sha256": "9b419d309f691008d39c4abece488576c6316c41f0dc4956198adef91300625c"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "The candidate is bash's stock unlink loadable (build/bash-5.3/examples/loadables/unlink.c), a plain unlink(2) call with no special handling. Related executed unprivileged denials: legacy/unlink/directory-rejected and missing-path (parity, status 1), which are different errno paths. USERNS cannot substitute: CAP_LINUX_IMMUTABLE is checked with capable() in the initial user namespace."
+      "notes": "Root batch A on the rented VM host (root-a-76, privilege=root sides in per-side namespaces, root-isolation selfcheck PASS); both builds identical, raw records reviewed."
     },
     {
       "topic": "uptime/default-format-deferred",

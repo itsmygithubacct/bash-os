@@ -128,9 +128,14 @@
     },
     {
       "id": "distinct_identity_transfer",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Successful change to ownership IDs distinct from the fixture identity, with a resulting UID/GID check.",
-      "reason": "Identity-preserving chown paths are all executed (14 parity cases PASS); a transfer to distinct ids requires CAP_CHOWN and a second synthetic identity, which no current driver provides."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-chown-distinct-identity-root"
+        }
+      ]
     },
     {
       "id": "invalid-identity-0",

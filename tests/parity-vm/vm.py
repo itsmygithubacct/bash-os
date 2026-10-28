@@ -30,6 +30,8 @@ import schema
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 GUEST_ROOT = "/opt/bashos-parity"
+ACCEL = "kvm"  # set from --accel
+BOOT_SCALE = 1
 REFERENCE_BASH = "/opt/bash-5.3.15"
 # Whole-VM limits on the host; the guest itself is 2 vCPU / 2 GiB.
 SCOPE_LIMITS = ["CPUQuota=150%", "MemoryMax=3G", "MemorySwapMax=0", "TasksMax=128"]
@@ -172,7 +174,8 @@ class VM:
         network = (f"user,id=n0,ipv6=off,restrict={'off' if self.provisioning else 'on'},"
                    f"hostfwd=tcp:127.0.0.1:{self.port}-:22")
         argv = ["qemu-system-x86_64", "-nodefaults", "-no-user-config", "-no-reboot",
-                "-machine", "q35,accel=kvm", "-cpu", "host", "-smp", "2", "-m", "2048",
+                "-machine", "q35,accel=" + ACCEL, "-cpu", "host" if ACCEL == "kvm" else "max",
+                "-smp", "2", "-m", "2048",
                 # Debian trixie's GRUB (gfxterm + serial) resets the guest when no
                 # display adapter exists (Debian bug 1111240). An emulated VGA card
                 # with no display backend avoids it without editing the image.
@@ -227,7 +230,7 @@ class VM:
             self.process = subprocess.Popen(["nice", "-n", "10"] + scope + argv, stdin=subprocess.DEVNULL,
                                             stdout=self.log, stderr=subprocess.STDOUT,
                                             start_new_session=True, preexec_fn=die_with_parent)
-            deadline = time.monotonic() + 240
+            deadline = time.monotonic() + 240 * BOOT_SCALE
             while time.monotonic() < deadline:
                 if self.process.poll() is not None:
                     raise RuntimeError(f"VM stopped during boot (status {self.process.returncode}); inspect console.log")
@@ -240,7 +243,7 @@ class VM:
                 time.sleep(1)
             else:
                 raise RuntimeError("VM boot timed out; inspect console.log")
-            result = self.ssh("cloud-init status --wait --long", capture_output=True, timeout=240)
+            result = self.ssh("cloud-init status --wait --long", capture_output=True, timeout=240 * BOOT_SCALE)
             (self.state / "cloud-init.log").write_bytes(result.stdout + result.stderr)
             if result.returncode:
                 raise RuntimeError(f"cloud-init did not finish cleanly (status {result.returncode})")
@@ -488,6 +491,8 @@ def evaluate(args, cache):
               "packages": info["packages"], "reference_bash": info.get("reference_bash"),
               "system_bash": info.get("system_bash"), "host_mounts": []}
     record["selected_case_ids"] = sorted(args.case_ids.split(",")) if not check and args.case_ids is not None else None
+    record["accelerator"] = ACCEL
+    record["root_fixtures_allowed"] = bool(getattr(args, "allow_root_fixtures", False))
     record["runtime_host"] = {"kernel": platform.release(), "architecture": platform.machine(),
                               "qemu": run(["qemu-system-x86_64", "--version"], capture_output=True,
                                           text=True).stdout.splitlines()[0],
@@ -539,6 +544,8 @@ def evaluate(args, cache):
                        "--groups", args.groups]
             if args.case_ids is not None:
                 command += ["--case-ids", args.case_ids]
+            if args.allow_root_fixtures:
+                command.append("--allow-root-fixtures")
             with (output / "run.log").open("wb") as log:
                 evaluation = vm.ssh(shlex.join(command), stdout=log, stderr=subprocess.STDOUT, timeout=1900)
             result_code = record["guest_exit_status"] = evaluation.returncode
@@ -587,7 +594,13 @@ def main():
     test.add_argument("--groups", default="terminal,network,reference,shell")
     test.add_argument("--case-ids", help="comma-separated modern fixture IDs for a bounded batch")
     test.add_argument("--keep-overlay", action="store_true", help="retain disposable disk for diagnosis")
+    test.add_argument("--allow-root-fixtures", action="store_true",
+                      help="run privilege=root fixtures as uid 0 in the guest; for rented hosts only")
+    parser.add_argument("--accel", choices=("kvm", "tcg"), default="kvm",
+                        help="tcg emulates the guest CPU where the host has no usable /dev/kvm")
     args = parser.parse_args()
+    global ACCEL, BOOT_SCALE
+    ACCEL, BOOT_SCALE = args.accel, 1 if args.accel == "kvm" else 6
     if args.operation == "check":
         args.groups, args.keep_overlay = "", False
     if args.operation == "run":
@@ -596,7 +609,9 @@ def main():
             parser.error("unknown groups: " + ",".join(sorted(groups - schema.GROUPS)))
         if args.case_ids is not None:
             cases, _ = schema.load(HERE / "suites")
-            schema.select(cases, groups, set(args.case_ids.split(",")))
+            selected = schema.select(cases, groups, set(args.case_ids.split(",")))
+            if any(case.get("privilege") == "root" for case in selected) and not args.allow_root_fixtures:
+                parser.error("root fixtures selected; pass --allow-root-fixtures (rented hosts only)")
     cache = args.cache.resolve()
     if cache == REPO or REPO in cache.parents:
         parser.error("VM images and ephemeral credentials must live outside the checkout")
@@ -604,8 +619,8 @@ def main():
     # QEMU's key=value parsers treat commas specially; reject ambiguous paths.
     if "," in str(cache) or (hasattr(args, "output") and "," in str(args.output.resolve())):
         parser.error("QEMU storage paths must not contain commas")
-    if not os.access("/dev/kvm", os.R_OK | os.W_OK):
-        parser.error("usable /dev/kvm is required; no host-execution fallback")
+    if args.accel == "kvm" and not os.access("/dev/kvm", os.R_OK | os.W_OK):
+        parser.error("usable /dev/kvm is required (or --accel tcg); no host-execution fallback")
     for tool in ("qemu-system-x86_64", "qemu-img", "xorriso", "ssh", "ssh-keygen", "systemd-run"):
         if not shutil.which(tool):
             parser.error("missing host tool: " + tool)

@@ -104,9 +104,14 @@
     },
     {
       "id": "cross-owner-hardlink-permission",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise hard-link permission checks across an ownership boundary.",
-      "reason": "Cross-owner fixtures need driver-side ownership setup. A uid-2000 fixture cannot chown (CAP_CHOWN) or create another uid's file, and toggling the policy needs root plus restore."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-link-protected-hardlinks-root"
+        }
+      ]
     },
     {
       "id": "cross-filesystem-link-rejection",

@@ -85,6 +85,19 @@ Scratch filesystem capacities and the 16 MiB captured-file total remain bounded,
 so large-image fixtures must retain compact observations and remove their images
 before evidence collection. The guest selfcheck verifies both the default and a
 72 MiB allowance, including rejection of a write beyond each limit.
+A plain or PTY fixture may set `"privilege": "root"` when its obligation needs
+real kernel privilege (block devices, mounts, swap, foreign ownership, clocks).
+Each side then runs as uid 0 with full capabilities, in a forked evaluator child
+that has fresh mount, network, UTS and IPC namespaces, so its mounts, links and
+hostname vanish with it. Kernel objects those namespaces do not cover are
+snapshotted before the side and undone afterwards: swap areas, device-mapper
+devices, loop devices and a moved realtime clock. Anything still present after
+that cleanup makes the side a harness ERROR. The guest runs root fixtures, and
+a `root-isolation` selfcheck that proves this containment, only when the
+controller is started with `--allow-root-fixtures`; this flag is used on
+rented disposable hosts, never on a workstation. Where such a host has no
+usable `/dev/kvm`, `--accel tcg` emulates the guest CPU instead, with longer
+boot allowances; provenance records the accelerator and the flag.
 The historical runner sets its guest audit login ID to 2000 and adds a
 supplementary group absent from its synthetic group database. This makes its
 `logname` and unmapped-group fixtures independent of the host's login session;

@@ -3,6 +3,7 @@
 """VM-only evaluator for terminal, network, shell and normative-data checks."""
 import argparse
 import base64
+import fcntl
 import hashlib
 import importlib.util
 import json
@@ -26,6 +27,9 @@ REFERENCE_SHELL = Path("/opt/bash-5.3.15/bin/bash")
 SCRATCH = (("/tmp", "128M", "1777"), ("/var/tmp", "64M", "1777"),
            ("/dev/shm", "64M", "1777"), ("/home/parity", "16M", "0755"))
 scratch_mounted = False
+# Set by --allow-root-fixtures; the controller passes it only for rental runs.
+allow_root = False
+LOOP_CLR_FD = 0x4C01
 
 
 def require_guest(token):
@@ -169,7 +173,8 @@ def plain(argv, env, root, case):
     proc = subprocess.Popen(argv, cwd=root, env=env, stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             start_new_session=True,
-                            preexec_fn=lambda: terminal.child_limits(file_size_limit))
+                            preexec_fn=lambda: terminal.child_limits(file_size_limit,
+                                                                     case.get("privilege") == "root"))
     error = None
     captured = {"stdout": bytearray(), "stderr": bytearray()}
     total = 0
@@ -239,7 +244,117 @@ def plain(argv, env, root, case):
             "configured_file_size_limit": file_size_limit}
 
 
+def kernel_state():
+    """Global kernel objects a privileged fixture can leave behind, plus the clock offset."""
+    loops = {}
+    for path in Path("/sys/block").glob("loop*/loop/backing_file"):
+        loops["/dev/" + path.parent.parent.name] = path.read_text().strip()
+    swaps = Path("/proc/swaps").read_text().splitlines()[1:]
+    return {"loop": loops, "device_mapper": sorted(p.name for p in Path("/sys/block").glob("dm-*")),
+            "swap": sorted(line.split()[0] for line in swaps if line.split()),
+            "modules": sorted(line.split()[0] for line in Path("/proc/modules").read_text().splitlines()),
+            "clock_offset": time.clock_gettime(time.CLOCK_REALTIME) - time.clock_gettime(time.CLOCK_BOOTTIME)}
+
+
+def leftovers(before, after):
+    found = {"swap": sorted(set(after["swap"]) - set(before["swap"])),
+             "device_mapper": sorted(set(after["device_mapper"]) - set(before["device_mapper"])),
+             "loop": sorted(set(after["loop"]) - set(before["loop"]))}
+    if abs(after["clock_offset"] - before["clock_offset"]) > 1:
+        found["realtime_clock"] = ["moved %.3f s" % (after["clock_offset"] - before["clock_offset"])]
+    return {name: items for name, items in found.items() if items}
+
+
+def clean_kernel_state(before):
+    """Undo a privileged side's swap, device-mapper, loop and clock changes, newest layer first."""
+    found = leftovers(before, kernel_state())
+    tools = environment("reference")["PATH"]
+    # Release this namespace's mounts of block devices first, deepest first.
+    for line in reversed(Path("/proc/self/mountinfo").read_text().splitlines()):
+        fields = line.split()
+        source = fields[fields.index("-") + 2]
+        if source.startswith(("/dev/loop", "/dev/mapper/", "/dev/dm-")):
+            subprocess.run(["umount", "-l", fields[4]], capture_output=True, timeout=10)
+    for name in found.get("swap", []):
+        subprocess.run([shutil.which("swapoff", path=tools) or "swapoff", name], capture_output=True, timeout=10)
+    if found.get("device_mapper") and shutil.which("dmsetup", path=tools):
+        subprocess.run([shutil.which("dmsetup", path=tools), "remove_all", "--force"], capture_output=True, timeout=10)
+    for name in found.get("loop", []):
+        try:
+            fd = os.open(name, os.O_RDONLY | os.O_CLOEXEC)
+            try:
+                fcntl.ioctl(fd, LOOP_CLR_FD)
+            finally:
+                os.close(fd)
+        except OSError:
+            pass
+    if "realtime_clock" in found:
+        time.clock_settime(time.CLOCK_REALTIME, time.clock_gettime(time.CLOCK_BOOTTIME) + before["clock_offset"])
+    return found
+
+
+def privileged(run):
+    """Run one side of a root fixture as uid 0 in fresh mount, network, UTS and IPC namespaces.
+
+    Kernel objects outside those namespaces (loop, device-mapper, swap, the realtime
+    clock) are restored afterwards; anything still present makes the side ERROR."""
+    read, write = os.pipe()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    pid = os.fork()
+    if pid == 0:
+        os.close(read)
+        code = 0
+        try:
+            os.unshare(os.CLONE_NEWNS | os.CLONE_NEWNET | os.CLONE_NEWUTS | os.CLONE_NEWIPC)
+            subprocess.run(["mount", "--make-rprivate", "/"], check=True, capture_output=True)
+            subprocess.run(["ip", "link", "set", "lo", "up"], check=True, capture_output=True)
+            before = kernel_state()
+            try:
+                result = run()
+            finally:
+                cleaned = clean_kernel_state(before)
+            result["root_isolation"] = {"before": before, "cleaned": cleaned,
+                                        "namespaces": {n: os.readlink("/proc/self/ns/" + n)
+                                                       for n in ("mnt", "net", "uts", "ipc")}}
+        except BaseException as exc:
+            message = "privileged side failed: " + str(exc)
+            result = {"status": None, "stdout_base64": "", "stderr_base64": "", "screen_base64": "",
+                      "error": message, "harness_error": message, "tree": {}, "captured_bytes": 0,
+                      "stray_processes": []}
+            code = 2
+        with os.fdopen(write, "wb") as stream:
+            stream.write(json.dumps(result).encode())
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(code)
+    os.close(write)
+    with os.fdopen(read, "rb") as stream:
+        data = stream.read()
+    os.waitpid(pid, 0)
+    terminal.cleanup(-1)
+    result = json.loads(data)
+    isolation = result.get("root_isolation")
+    if isolation:
+        # The side's mount namespace is released asynchronously after its last process exits.
+        for _ in range(50):
+            remaining = leftovers(isolation["before"], kernel_state())
+            if not remaining:
+                break
+            time.sleep(.1)
+        isolation["remaining"] = remaining
+        if remaining and not result.get("harness_error"):
+            result["harness_error"] = "privileged fixture left kernel state: " + json.dumps(remaining)
+    return result
+
+
 def side(case, mode):
+    if case.get("privilege") == "root":
+        return privileged(lambda: unprivileged_side(case, mode))
+    return unprivileged_side(case, mode)
+
+
+def unprivileged_side(case, mode):
     root = workspace(case)
     setup = None
     if case.get("setup_script"):
@@ -247,7 +362,8 @@ def side(case, mode):
                        "set -e; set -o pipefail\n" + case["setup_script"]],
                       environment("reference"), root,
                       {"timeout": case.get("setup_timeout", 30),
-                       "file_size_limit": schema.file_size_limit(case)})
+                       "file_size_limit": schema.file_size_limit(case),
+                       "privilege": case.get("privilege")})
         if setup["status"] != 0 or setup.get("error"):
             return {**setup, "tree": tree(root), "screen_base64": "", "setup": setup,
                     "diagnostics": diagnostics(case),
@@ -322,6 +438,9 @@ def evaluate(case, output):
             return {**metadata, "status": "ERROR", "reason": "optional availability probe failed"}
         if available["status"] != 0 or available["stdout_base64"] != b64(b"builtin\n"):
             return {**metadata, "status": "SKIP", "reason": "optional loadable is absent from this build"}
+    if case.get("privilege") == "root" and not allow_root:
+        return {**metadata, "status": "ERROR",
+                "reason": "root fixture selected without --allow-root-fixtures (rental runs only)"}
     missing = [name for name in case.get("requires", [])
                if not shutil.which(name, path=environment("reference")["PATH"])]
     if missing:
@@ -548,7 +667,11 @@ def main():
     parser.add_argument("--vm-token", required=True)
     parser.add_argument("--groups", required=True)
     parser.add_argument("--case-ids", help="comma-separated modern fixture IDs; selected groups still apply")
+    parser.add_argument("--allow-root-fixtures", action="store_true",
+                        help="run privilege=root fixtures (and their selfcheck) as uid 0")
     args = parser.parse_args()
+    global allow_root
+    allow_root = args.allow_root_fixtures
     isolation = require_guest(args.vm_token)
     output = ROOT / "results"
     output.mkdir(exist_ok=False)
@@ -596,6 +719,7 @@ def main():
               "fixture_sha256": fixture_hashes, "summary": counts, "cases": records,
               "groups": sorted(groups), "selected_case_ids": sorted(selected_ids) if selected_ids is not None else None,
               "vm_uuid": args.vm_token,
+              "root_fixtures_allowed": allow_root,
               "isolation": isolation,
               "summary_by_group": {g: {s: sum(r["status"] == s and r["group"] == g for r in records)
                                        for s in counts} for g in sorted(groups)},

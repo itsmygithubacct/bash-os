@@ -4,6 +4,7 @@
 import base64
 import copy
 import json
+import os
 from pathlib import Path
 import socket
 import tarfile
@@ -587,6 +588,31 @@ print('sequence-exhaustion bounded-memory invalid-inputs-ok')
                 "bounded_binary_memory_read": True, "unreadable_pointer_observed": True,
                 "synthetic_success_does_not_write": True, "invalid_options_do_not_spawn": True}
 
+    def root_isolation():
+        """A root side keeps uid 0, and its mounts, links, hostname and loop devices do not outlive it."""
+        evaluator = {n: os.readlink("/proc/self/ns/" + n) for n in ("mnt", "net", "uts", "ipc")}
+        hostname = Path("/proc/sys/kernel/hostname").read_text()
+        script = ("set -e; id -u; grep '^CapEff' /proc/self/status; "
+                  "mount -t tmpfs root-selfcheck /mnt; hostname root-selfcheck; "
+                  "ip link add rsc0 type dummy; truncate -s 1M backing; losetup -f --show backing")
+        case = {"id": "root-isolation", "loadable": "bash", "group": "shell", "driver": "plain",
+                "kind": "contract", "oracle": "harness", "privilege": "root", "script": script,
+                "expected_status": 0}
+        result = guest.side(case, "reference")
+        lines = base64.b64decode(result["stdout_base64"]).decode().splitlines()
+        assert result["status"] == 0 and lines[0] == "0", result
+        assert lines[1].split()[1] == "000001ffffffffff", lines
+        assert lines[2].startswith("/dev/loop"), lines
+        isolation = result["root_isolation"]
+        assert all(isolation["namespaces"][n] != evaluator[n] for n in evaluator), isolation
+        assert lines[2] in isolation["cleaned"].get("loop", []), isolation
+        assert not isolation["remaining"] and not result.get("harness_error"), result
+        assert not any(" /mnt " in line for line in Path("/proc/self/mountinfo").read_text().splitlines()), "mount leaked"
+        assert Path("/proc/sys/kernel/hostname").read_text() == hostname, "hostname leaked"
+        assert not Path("/sys/class/net/rsc0").exists(), "link leaked"
+        assert not Path("/sys/block/" + lines[2].rsplit("/", 1)[1] + "/loop/backing_file").exists(), "loop leaked"
+        return {"capabilities": lines[1], "loop_cleaned": lines[2], "namespaces": isolation["namespaces"]}
+
     run("bounded-output", bounded_output)
     run("bounded-time", bounded_time)
     run("invalid-oracle-is-error", lambda: classification("ERROR"))
@@ -600,6 +626,8 @@ print('sequence-exhaustion bounded-memory invalid-inputs-ok')
     run("diagnostic-capture", diagnostic_capture)
     run("file-size-allowance", file_size_allowance)
     run("syscall-sequence-observer", syscall_sequence_observer)
+    if guest.allow_root:
+        run("root-isolation", root_isolation)
     return records
 
 

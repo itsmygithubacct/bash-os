@@ -74,6 +74,9 @@ def validate(case):
         check(isinstance(case["features"], list) and
               all(name in {"userns", "seccomp-notify"} for name in case["features"]),
               "unknown guest feature prerequisite")
+    if "privilege" in case:
+        check(case["privilege"] == "root" and case["driver"] in ("plain", "pty"),
+              "privilege must be \"root\", for the plain or pty driver")
     if "setup_script" in case:
         check(isinstance(case["setup_script"], str) and case["setup_script"].strip()
               and "\0" not in case["setup_script"], "invalid fixture setup script")

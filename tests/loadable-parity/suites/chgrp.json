@@ -39,9 +39,26 @@
     },
     {
       "id": "named-group-resolution",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare a valid named group, an unknown group name, and a numeric group ID against GNU using a controlled group database; verify status and resulting metadata for successful calls.",
-      "reason": "Numeric and unknown-name obligations executed and passed; named resolution through chgrp itself never ran, and distinct-gid resolution needs driver-provisioned identities."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/chgrp/numeric-group-effects"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/chgrp/unknown-group"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/chown/numeric_owner_named_group"
+        },
+        {
+          "group": "shell",
+          "id": "migration-chgrp-named-distinct-gid-root"
+        }
+      ]
     },
     {
       "id": "numeric-group-effects",

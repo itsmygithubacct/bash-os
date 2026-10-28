@@ -1,0 +1,260 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-chmod-foreign-owner-root",
+      "loadable": "chmod",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "chmod/foreign-owner-and-group"
+      ],
+      "purpose": "Root prepares files and directories owned by another unprivileged uid (2002:3002), by root, and by uid 2000 with a non-member group 3002; a nested shell of the same side then runs chmod as uid/gid 2000 with no supplementary groups: denial on foreign-owned files and directories (status, diagnostic, unchanged mode), silent S_ISGID dropping by the kernel for g+s and 2755/2775 on the caller's own files and directories in a non-member group, a member-group control, and a mixed operand list.",
+      "oracle": "GNU coreutils 9.7 chmod run by the same uid in the same layout",
+      "comparison": "Byte parity of status, stdout and stderr: one line per chmod with status and the diagnostic minus any \"NAME: line N: \" shell-location prefix, then /usr/bin/stat %n %a %u:%g of every fixture; file modes are also compared in the tree snapshot.",
+      "requires": [
+        "setpriv",
+        "stat",
+        "chown",
+        "chmod",
+        "sed",
+        "tr",
+        "touch",
+        "mkdir"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\n/usr/bin/mkdir -m 0755 own\n/usr/bin/touch own/other own/rootf own/mine-fg own/mine\n/usr/bin/mkdir own/otherdir own/mydir-fg\n/usr/bin/chown 2002:3002 own/other own/otherdir; /usr/bin/chown 0:0 own/rootf\n/usr/bin/chown 2000:3002 own/mine-fg own/mydir-fg; /usr/bin/chown 2000:2000 own/mine\n/usr/bin/chmod 0644 own/other own/rootf own/mine-fg own/mine; /usr/bin/chmod 0755 own/otherdir own/mydir-fg\nu other-0600 'chmod 0600 own/other'\nu other-u+x 'chmod u+x own/other'\nu rootf-0600 'chmod 0600 own/rootf'\nu otherdir-0700 'chmod 0700 own/otherdir'\nu otherdir-g+s 'chmod g+s own/otherdir'\nu mine-fg-g+s 'chmod g+s own/mine-fg'\nu mine-fg-2755 'chmod 2755 own/mine-fg'\nu mydir-fg-g+s 'chmod g+s own/mydir-fg'\nu mydir-fg-2775 'chmod 2775 own/mydir-fg'\nu mine-2755 'chmod 2755 own/mine'\nu mixed 'chmod 0640 own/mine own/other own/mine-fg'\n/usr/bin/stat -c '%n %a %u:%g' own/other own/otherdir own/rootf own/mine-fg own/mydir-fg own/mine\n",
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "migration-chown-distinct-identity-root",
+      "loadable": "chown",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "chown/distinct_identity_transfer"
+      ],
+      "purpose": "chown with CAP_CHOWN to uids and gids distinct from the caller, numeric and named through a synthetic passwd/group database bind-mounted in the side's mount namespace: user only, group only, user:group, and a symlink with -h (link changes, target unchanged) and without -h (target changes); resulting ids read with /usr/bin/stat.",
+      "oracle": "GNU coreutils 9.7 chown as root with the same database",
+      "comparison": "Byte parity of status, stdout and stderr: one line per chown (status, diagnostic minus the shell-location prefix), then /usr/bin/stat %n %u:%g of every file and link (lstat for links).",
+      "requires": [
+        "stat",
+        "mount",
+        "sed",
+        "tr",
+        "touch",
+        "ln"
+      ],
+      "files": {
+        "passwd.fixture": "root:x:0:0:root:/root:/bin/sh\nrunner:x:2000:2000::/tmp/parity-home:/bin/sh\nalice:x:3001:3001::/nonexistent:/bin/sh\nbob:x:3002:3002::/nonexistent:/bin/sh\n",
+        "group.fixture": "root:x:0:\nrunner:x:2000:\nalice:x:3001:\nbob:x:3002:\nstaff:x:3050:runner\nother:x:3060:\n"
+      },
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\n/usr/bin/mount --bind passwd.fixture /etc/passwd && /usr/bin/mount --bind group.fixture /etc/group || { echo SETUP-FAILED; exit 99; }\n/usr/bin/touch f1 f2 f3 f4 f5 f6 f7; /usr/bin/ln -s f5 l5; /usr/bin/ln -s f6 l6\nr numeric-uid chown 3001 f1\nr named-uid chown bob f2\nr group-only chown :3050 f3\nr named-both chown alice:staff f4\nr numeric-both chown 3002:3060 f7\nr link-h chown -h bob:staff l5\nr link-follow chown alice:other l6\nr unknown-user chown nosuchuser f1\n/usr/bin/stat -c '%n %u:%g' f1 f2 f3 f4 f5 l5 f6 l6 f7\n",
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "migration-chgrp-named-distinct-gid-root",
+      "loadable": "chgrp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "chgrp/named-group-resolution"
+      ],
+      "purpose": "A synthetic group database (bind-mounted in the side) names staff=3050 with runner as a member and other=3060; a nested shell runs chgrp as uid/gid 2000 with supplementary group 3050: a distinct named member group is resolved and applied, a named non-member group is refused, a numeric member gid and the caller's own primary group by name apply, and an unknown name fails; resulting gids read with /usr/bin/stat.",
+      "oracle": "GNU coreutils 9.7 chgrp run by the same identity and database",
+      "comparison": "Byte parity of status, stdout and stderr: one line per chgrp (status, diagnostic minus the shell-location prefix), then /usr/bin/stat %n %u:%g.",
+      "requires": [
+        "setpriv",
+        "stat",
+        "mount",
+        "chown",
+        "sed",
+        "tr",
+        "touch",
+        "mkdir"
+      ],
+      "files": {
+        "passwd.fixture": "root:x:0:0:root:/root:/bin/sh\nrunner:x:2000:2000::/tmp/parity-home:/bin/sh\nalice:x:3001:3001::/nonexistent:/bin/sh\nbob:x:3002:3002::/nonexistent:/bin/sh\n",
+        "group.fixture": "root:x:0:\nrunner:x:2000:\nalice:x:3001:\nbob:x:3002:\nstaff:x:3050:runner\nother:x:3060:\n"
+      },
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\n/usr/bin/mount --bind passwd.fixture /etc/passwd && /usr/bin/mount --bind group.fixture /etc/group || { echo SETUP-FAILED; exit 99; }\n/usr/bin/mkdir -m 0777 g; /usr/bin/touch g/f1 g/f2 g/f3 g/f4 g/f5; /usr/bin/chown 2000:2000 g/f1 g/f2 g/f3 g/f4 g/f5\nu named-member 'chgrp staff g/f1' 3050\nu named-nonmember 'chgrp other g/f2' 3050\nu numeric-member 'chgrp 3050 g/f3' 3050\nu own-primary 'chgrp runner g/f4' 3050\nu unknown-name 'chgrp nosuchgroup g/f5' 3050\n/usr/bin/stat -c '%n %u:%g' g/f1 g/f2 g/f3 g/f4 g/f5\n",
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "migration-link-protected-hardlinks-root",
+      "loadable": "link",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "link/cross-owner-hardlink-permission"
+      ],
+      "purpose": "Root creates a sticky world-writable directory owned by uid 2002 holding a 0600 file, a 0666 file and a setuid file of that uid, reads fs.protected_hardlinks, sets it to 1 and then 0, and restores it (also on exit); a nested shell runs link as uid 2000: with policy 1 the unreadable and setuid sources are refused with EPERM and no destination while the read-write source is allowed, and with policy 0 both are allowed.",
+      "oracle": "GNU coreutils 9.7 link run by the same uid with the same policy",
+      "comparison": "Byte parity of status, stdout and stderr: the policy before, at each step and after restore, one line per link (status, diagnostic minus the shell-location prefix), /usr/bin/stat link counts and ownership, and the destination listing; the tree snapshot compares the resulting files.",
+      "requires": [
+        "setpriv",
+        "stat",
+        "install",
+        "ls",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\norig=$(< /proc/sys/fs/protected_hardlinks)\ntrap 'echo \"$orig\" > /proc/sys/fs/protected_hardlinks' EXIT\necho \"protected_hardlinks before=$orig\"\n/usr/bin/install -d -m 1777 -o 2002 -g 3002 sticky\n/usr/bin/install -m 0600 -o 2002 -g 3002 /dev/null sticky/secret\n/usr/bin/install -m 0666 -o 2002 -g 3002 /dev/null sticky/open\n/usr/bin/install -m 4755 -o 2002 -g 3002 /dev/null sticky/setuid\n/usr/bin/install -d -m 0777 dest\necho 1 > /proc/sys/fs/protected_hardlinks; echo \"policy=$(< /proc/sys/fs/protected_hardlinks)\"\nu p1-unreadable 'link sticky/secret dest/l1'\nu p1-readwrite 'link sticky/open dest/l2'\nu p1-setuid 'link sticky/setuid dest/l3'\necho 0 > /proc/sys/fs/protected_hardlinks; echo \"policy=$(< /proc/sys/fs/protected_hardlinks)\"\nu p0-unreadable 'link sticky/secret dest/l4'\nu p0-setuid 'link sticky/setuid dest/l5'\necho \"$orig\" > /proc/sys/fs/protected_hardlinks; trap - EXIT\necho \"restored=$(< /proc/sys/fs/protected_hardlinks)\"\n/usr/bin/stat -c '%n %h %u:%g %a' sticky sticky/secret sticky/open sticky/setuid\n/usr/bin/ls dest\n",
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "migration-unlink-immutable-root",
+      "loadable": "unlink",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "unlink/immutable-file-denial"
+      ],
+      "purpose": "Root (CAP_LINUX_IMMUTABLE) marks a regular file on the side's scratch tmpfs immutable; unlink by relative and absolute path is refused even for root, the entry and its contents remain, teardown clears the flag (read back with lsattr) and the file can then be unlinked.",
+      "oracle": "GNU coreutils 9.7 unlink",
+      "comparison": "Byte parity of status, stdout and stderr: flags via /usr/bin/lsattr, one line per unlink (status, diagnostic minus the shell-location prefix), the directory listing and content after the denial, and the final listing.",
+      "requires": [
+        "chattr",
+        "lsattr",
+        "ls",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nprintf 'kept\\n' > imm; /usr/bin/chattr +i imm || echo SETUP-FAILED\necho \"flags=$(/usr/bin/lsattr imm)\"\nr unlink-immutable unlink imm\nr unlink-immutable-abs unlink \"$PWD/imm\"\necho \"after: $(/usr/bin/ls) content=$(< imm)\"\n/usr/bin/chattr -i imm; echo \"teardown flags=$(/usr/bin/lsattr imm)\"\nr unlink-cleared unlink imm\necho \"final: $(/usr/bin/ls)\"\n",
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "migration-chattr-capability-flags-root",
+      "loadable": "chattr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "chattr/capability-flags"
+      ],
+      "purpose": "On a loop-mounted ext4 image: uid 2000 without CAP_LINUX_IMMUTABLE is refused +i and +a and succeeds with -i/-a no-ops; root sets +i (append and unlink then fail) and clears it, sets +a (truncating write fails, append succeeds) and clears it; a failing inner script leaves +i/+a set and a chattr -R -ia cleanup clears them. Nothing outlives the side: the image and mount live in its private namespaces.",
+      "oracle": "e2fsprogs 1.47.2 chattr, flags read with e2fsprogs lsattr",
+      "comparison": "Byte parity of status, stdout and stderr. Each line reports one invocation: its status, stdout and its diagnostic with any \"NAME: line N: \" shell-location prefix removed. Flags are read back with /usr/bin/lsattr -d (e2fsprogs, the same independent reader on both sides) on a fresh 4 MiB ext4 image (no journal) loop-mounted in the side's private mount namespace, outside the compared tree; the image and mount are destroyed with the side.",
+      "requires": [
+        "setpriv",
+        "chattr",
+        "lsattr",
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "chown",
+        "chmod",
+        "sed",
+        "tr",
+        "rm"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nI=/tmp/root-fixture.img M=/tmp/root-fixture-mnt\n/usr/bin/truncate -s 4M $I && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal $I && /usr/bin/mkdir $M && /usr/bin/mount -o loop $I $M || { echo SETUP-FAILED; exit 99; }\ncd $M\nlsa() { for f in \"$@\"; do /usr/bin/lsattr -d \"$f\" 2>&1 | /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //'; done | /usr/bin/tr '\\n' '|'; echo; }\nprintf 'a\\n' > f; printf 'a\\n' > g; /usr/bin/chown 2000:2000 f g; /usr/bin/chmod 0777 .\nu nocap+i 'chattr +i f'\nu nocap+a 'chattr +a f'\nu nocap-i 'chattr -i f'\nu nocap-a 'chattr -a f'\necho \"nocap flags: $(lsa f)\"\nr cap+i chattr +i f\necho \"flags: $(lsa f)\"\n( echo more >> f ) 2>/dev/null; echo \"append-to-immutable status=$?\"\n/usr/bin/rm -f f 2>/dev/null; echo \"unlink-immutable status=$? exists=$([[ -e f ]] && echo y)\"\nr cap-i chattr -i f\nr cap+a chattr +a g\necho \"flags: $(lsa g)\"\n( echo over > g ) 2>/dev/null; echo \"truncate-append-only status=$?\"\n( echo more >> g ) 2>/dev/null; echo \"append status=$? content=$(/usr/bin/tr '\\n' '|' < g)\"\nr cap-a chattr -a g\n\"$BASH\" --noprofile --norc -c 'chattr +i f; chattr +a g; exit 3'; echo \"failing inner script status=$?\"\necho \"left by failing script: $(lsa f g)\"\nr cleanup chattr -R -ia .\necho \"after cleanup: $(lsa f g)\"\ncd /tmp/parity-case && /usr/bin/umount $M && /usr/bin/rm -f $I && echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "migration-chattr-flag-algebra-root",
+      "loadable": "chattr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "chattr/flag-set-algebra"
+      ],
+      "purpose": "On two ordinary files of a loop-mounted ext4 image: +dA on both, -A on one (d and the natural e bit stay), =d and =de (handling of the always-present extents bit), mixed add/remove in one invocation (+d -A, -d +A), idempotent repeats, two add tokens, and = with no letters, each read back with e2fsprogs lsattr.",
+      "oracle": "e2fsprogs 1.47.2 chattr, flags read with e2fsprogs lsattr",
+      "comparison": "Byte parity of status, stdout and stderr. Each line reports one invocation: its status, stdout and its diagnostic with any \"NAME: line N: \" shell-location prefix removed. Flags are read back with /usr/bin/lsattr -d (e2fsprogs, the same independent reader on both sides) on a fresh 4 MiB ext4 image (no journal) loop-mounted in the side's private mount namespace, outside the compared tree; the image and mount are destroyed with the side.",
+      "requires": [
+        "chattr",
+        "lsattr",
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "sed",
+        "tr",
+        "rm"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nI=/tmp/root-fixture.img M=/tmp/root-fixture-mnt\n/usr/bin/truncate -s 4M $I && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal $I && /usr/bin/mkdir $M && /usr/bin/mount -o loop $I $M || { echo SETUP-FAILED; exit 99; }\ncd $M\nlsa() { for f in \"$@\"; do /usr/bin/lsattr -d \"$f\" 2>&1 | /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //'; done | /usr/bin/tr '\\n' '|'; echo; }\nprintf 'a\\n' > f1; printf 'b\\n' > f2\necho \"initial: $(lsa f1 f2)\"\nr add-two chattr +dA f1 f2;  echo \"  $(lsa f1 f2)\"\nr remove-one chattr -A f1;   echo \"  $(lsa f1 f2)\"\nr assign chattr =d f2;       echo \"  $(lsa f1 f2)\"\nr assign-with-e chattr =de f2; echo \"  $(lsa f2)\"\nr compose chattr +d -A f1;   echo \"  $(lsa f1)\"\nr compose2 chattr -d +A f1;  echo \"  $(lsa f1)\"\nr repeat-1 chattr +d f1;     echo \"  $(lsa f1)\"\nr repeat-2 chattr +d f1;     echo \"  $(lsa f1)\"\nr multi-op chattr +s +S f2;  echo \"  $(lsa f2)\"\nr assign-empty chattr = f1;  echo \"  $(lsa f1)\"\ncd /tmp/parity-case && /usr/bin/umount $M && /usr/bin/rm -f $I && echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "migration-chattr-operand-errors-root",
+      "loadable": "chattr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "chattr/operation-errors-and-links"
+      ],
+      "purpose": "chattr usage and operand errors on a loop-mounted ext4 image: no arguments and a spec with no files; a valid/missing/valid operand list (the valid files change, status nonzero); clearing the extents flag, a FIFO operand beside a regular file, a symlink operand (target flags checked), an unknown letter alone and combined with a valid one; and +S/+d on a tmpfs file of the side's scratch.",
+      "oracle": "e2fsprogs 1.47.2 chattr, flags read with e2fsprogs lsattr",
+      "comparison": "Byte parity of status, stdout and stderr. Each line reports one invocation: its status, stdout and its diagnostic with any \"NAME: line N: \" shell-location prefix removed. Flags are read back with /usr/bin/lsattr -d (e2fsprogs, the same independent reader on both sides) on a fresh 4 MiB ext4 image (no journal) loop-mounted in the side's private mount namespace, outside the compared tree; the image and mount are destroyed with the side.",
+      "requires": [
+        "chattr",
+        "lsattr",
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "mkfifo",
+        "ln",
+        "sed",
+        "tr",
+        "rm"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nI=/tmp/root-fixture.img M=/tmp/root-fixture-mnt\n/usr/bin/truncate -s 4M $I && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal $I && /usr/bin/mkdir $M && /usr/bin/mount -o loop $I $M || { echo SETUP-FAILED; exit 99; }\ncd $M\nlsa() { for f in \"$@\"; do /usr/bin/lsattr -d \"$f\" 2>&1 | /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //'; done | /usr/bin/tr '\\n' '|'; echo; }\nprintf 'a\\n' > f1; printf 'b\\n' > f2; /usr/bin/mkfifo p; /usr/bin/ln -s f1 l\nr no-args chattr\nr spec-only chattr +d\nr mixed-missing chattr +d f1 missing f2; echo \"  $(lsa f1 f2)\"\nr clear-extents chattr -e f1;  echo \"  $(lsa f1)\"\nr fifo chattr +A p f2;         echo \"  $(lsa f2)\"\nr symlink chattr +s l;         echo \"  $(lsa f1)\"\nr unknown-letter chattr +Q f2; echo \"  $(lsa f2)\"\nr unknown-then-valid chattr +AQ f1; echo \"  $(lsa f1)\"\ncd /tmp/parity-case; printf 'c\\n' > t\nr tmpfs-sync chattr +S t; echo \"  $(/usr/bin/lsattr t 2>&1 | /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //')\"\nr tmpfs-nodump chattr +d t; echo \"  $(/usr/bin/lsattr t 2>&1 | /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //')\"\ncd $M\ncd /tmp/parity-case && /usr/bin/umount $M && /usr/bin/rm -f $I && echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "migration-chattr-recursive-tree-root",
+      "loadable": "chattr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "chattr/recursive-tree"
+      ],
+      "purpose": "chattr -R +d on a small relative tree of a loop-mounted ext4 image (directory, nested file, subdirectory, a symlink to a file outside the walk and a dangling symlink), chattr +A without -R on a second tree (children unchanged), and chattr -R -d; every entry and the outside target are read back with e2fsprogs lsattr.",
+      "oracle": "e2fsprogs 1.47.2 chattr, flags read with e2fsprogs lsattr",
+      "comparison": "Byte parity of status, stdout and stderr. Each line reports one invocation: its status, stdout and its diagnostic with any \"NAME: line N: \" shell-location prefix removed. Flags are read back with /usr/bin/lsattr -d (e2fsprogs, the same independent reader on both sides) on a fresh 4 MiB ext4 image (no journal) loop-mounted in the side's private mount namespace, outside the compared tree; the image and mount are destroyed with the side.",
+      "requires": [
+        "chattr",
+        "lsattr",
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "ln",
+        "mkdir",
+        "sed",
+        "tr",
+        "rm"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nI=/tmp/root-fixture.img M=/tmp/root-fixture-mnt\n/usr/bin/truncate -s 4M $I && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal $I && /usr/bin/mkdir $M && /usr/bin/mount -o loop $I $M || { echo SETUP-FAILED; exit 99; }\ncd $M\nlsa() { for f in \"$@\"; do /usr/bin/lsattr -d \"$f\" 2>&1 | /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //'; done | /usr/bin/tr '\\n' '|'; echo; }\n/usr/bin/mkdir -p d/sub d2/sub; printf 'a\\n' > d/a; printf 'b\\n' > d/sub/b; printf 'o\\n' > outside\nprintf 'a\\n' > d2/a; printf 'b\\n' > d2/sub/b; /usr/bin/ln -s ../outside d/link; /usr/bin/ln -s ../nowhere d/sub/dangling\nr recursive chattr -R +d d\necho \"  $(lsa d d/a d/sub d/sub/b outside)\"\nr non-recursive chattr +A d2\necho \"  $(lsa d2 d2/a d2/sub d2/sub/b)\"\nr recursive-remove chattr -R -d d\necho \"  $(lsa d d/a d/sub d/sub/b outside)\"\ncd /tmp/parity-case && /usr/bin/umount $M && /usr/bin/rm -f $I && echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 40
+    }
+  ]
+}

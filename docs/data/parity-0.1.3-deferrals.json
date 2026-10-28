@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "12ab66e626db7d412419a77359b34fb8e6f784d35f8c2eecb951cfba9ee05056",
+  "ledger_sha256": "89e5ec5ab942ef985a458bb18cd420a573596c0a550e375c2585623686f971a7",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
     "partial": 104,
-    "none": 307,
-    "full": 189
+    "none": 299,
+    "full": 197
   },
   "migrations": {
-    "deferred": 411,
-    "replacement": 189
+    "deferred": 403,
+    "replacement": 197
   },
   "pending_full_topics": [],
   "builds": {
@@ -1731,6 +1731,32 @@
             "forced_stop": false,
             "poweroff_request": 255,
             "stopped_at": 1793145200.6293797
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "root-a-static-76",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 9,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "8659e7bcad63664a5dd59a82cd8d8577a8b172339824ba03cde96ae225f1e93d",
+            "provenance.json": "3748462399405d13a84f27739660016eb0383ac60514342948fdd348ed829cff",
+            "payload.tar": "b7e8b129624bbfbd5a97d94511e1002f350848799b63370f4366ef1edbe3a2b3",
+            "evidence.tar": "7690597b27e30a5b1211aad10e758fc2508a51c2667e3c3a7ca78ae61c6660d4"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793149581.2497232
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -6675,224 +6701,356 @@
         },
         {
           "topic": "chattr/capability-flags",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Without CAP_LINUX_IMMUTABLE, `chattr +i f` and `chattr +a f` fail with a nonzero status and a diagnostic, and the flags stay unset. Compare with e2fsprogs.",
-              "coverage": "missing",
-              "gap": "Unexecuted, although it is reachable now: the legacy uid 2000 lacks CAP_LINUX_IMMUTABLE, so ext4 returns EPERM.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-capability-flags-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Without the capability, `chattr -i f` / `-a f` on a file lacking those flags is a no-op success, as in e2fsprogs.",
-              "coverage": "missing",
-              "gap": "Unexecuted, but reachable now.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-capability-flags-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "With CAP_LINUX_IMMUTABLE, +i and +a succeed: an immutable file refuses writes and unlink, and an append-only file accepts only appends. Then -i and -a clear the flags.",
-              "coverage": "missing",
-              "gap": "Needs a side holding CAP_LINUX_IMMUTABLE in the initial user namespace. capable() is not satisfied by user-namespace capabilities, and the legacy and modern drivers drop all capabilities.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-capability-flags-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Cleanup: no immutable or append-only flag survives a side, even after a failing script.",
-              "coverage": "missing",
-              "gap": "Needs driver-side teardown with CAP_LINUX_IMMUTABLE, `chattr -R -ia` run by the controller, before tree removal.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-capability-flags-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "chattr/flag-set-algebra",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "+FLAGS adds flags to two ordinary files; the resulting flag words match e2fsprogs chattr. Example: chattr +dA f1 f2.",
-              "coverage": "missing",
-              "gap": "No chattr flag operation has run. Only builtin-type, bash-help-synopsis and documented-help-text (metadata) were executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-flag-algebra-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "-FLAGS removes only the named flags and leaves other set flags, including the naturally present e (extents) bit.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-flag-algebra-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "=FLAGS sets the exact flag word, and its handling of the always-present ext4 e bit matches e2fsprogs status and diagnostics.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The candidate's '=' assigns newflags = mask (loadables/chattr.c:89-91), so it would clear the e bit, which ext4 refuses. e2fsprogs behavior must be observed, not assumed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-flag-algebra-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Add/remove composition within one invocation (e.g. `chattr +d -A f`) and across successive invocations, plus idempotent repeats (`+d` twice) succeed with an unchanged final state.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Predicted mismatch: the candidate keeps one op character and ORs every token's letters into one mask (chattr.c:136-150), so `+d -A` applies '-' to d|A, whereas e2fsprogs keeps separate add and remove masks.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-flag-algebra-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "Read-back of the resulting flags with an independent oracle (e2fsprogs lsattr on the reference side, a driver-side ioctl snapshot for both).",
-              "coverage": "missing",
-              "gap": "The tree snapshot does not record inode flags, and no case reads flags after a change.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-flag-algebra-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "chattr/operation-errors-and-links",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "No flag spec, or a spec without files, gives a usage status and diagnostic matching e2fsprogs.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The candidate returns EX_USAGE (chattr.c:155-164) where e2fsprogs exits 1, a predicted status difference.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-operand-errors-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "A missing path fails with a diagnostic. In a mixed list (valid, missing, valid), processing continues, the valid files change, and the status is nonzero.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-operand-errors-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Unsupported ioctl or flag responses: a flag the filesystem rejects (clearing e on ext4, or +S on a tmpfs file) and a non-regular, non-directory operand such as a FIFO give e2fsprogs-matching status, with partial effects on other operands preserved.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The legacy private /tmp tmpfs and a relative FIFO make these reachable without privilege.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-operand-errors-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Symlink operand handling matches e2fsprogs. e2fsprogs refuses symlink operands, as the executed lsattr symlink cases show for its reader. The target must keep its flags.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Predicted mismatch: the candidate open()s and follows the symlink and changes the target (chattr.c:79).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-operand-errors-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "An unknown attribute letter is rejected before any change.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-operand-errors-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "chattr/recursive-tree",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "chattr -R +FLAG dir changes the directory itself and every nested regular file and subdirectory in a small relative tree.",
-              "coverage": "missing",
-              "gap": "No recursive operation has run.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-recursive-tree-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Without -R only the named operand changes; its children keep their flags.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-recursive-tree-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Symlink entries met during recursion are handled like e2fsprogs: not followed, so the target outside the walk is unchanged.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Predicted mismatch: the candidate recurses with lstat but calls open() on each child, which follows symlinks (chattr.c:79 and 104-117). A child symlink would therefore have its target's flags changed, or fail when dangling.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-recursive-tree-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Per-entry read-back of every fixture entry with an independent oracle.",
-              "coverage": "missing",
-              "gap": "No flag snapshot exists.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-recursive-tree-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "chgrp/named-group-resolution",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A valid named group resolves through the controlled group database and is applied (GNU parity on status and resulting gid).",
-              "coverage": "partial",
-              "gap": "No chgrp case uses a group name; 'chgrp runner FILE' against GNU is reachable today in the legacy runner. A name that resolves to the file's existing gid cannot distinguish a resolver that ignores the name, so a second, distinct named gid is also required (r4).",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/chown/numeric_owner_named_group",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-chgrp-named-distinct-gid-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -6929,83 +7087,132 @@
             {
               "id": "r4",
               "behavior": "Resolution and application with distinct permitted GIDs (a second named group the caller may use), verifying the resulting st_gid equals the named group's id.",
-              "coverage": "missing",
-              "gap": "Requires a controlled group database naming a second gid plus that gid as the side's supplementary group. Unprivileged fixtures cannot get it: the plain driver calls setgroups([]) and uid 2000 cannot call setgroups (EPERM without CAP_SETGID); an unprivileged user namespace maps a single gid (no newgidmap); chown(2) to a non-member gid returns EPERM without CAP_CHOWN.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chgrp-named-distinct-gid-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "chmod/foreign-owner-and-group",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "chmod on a file owned by another UID is denied (EPERM), reports failure status and diagnostic, and leaves the mode unchanged (GNU parity on status/effects).",
-              "coverage": "missing",
-              "gap": "No case. Reachable unprivileged in the modern plain driver: the guest root filesystem contains root-owned files (e.g. a file under /usr) whose chmod by uid 2000 returns EPERM; in the legacy runner /usr is a read-only bind so EROFS, not EPERM, would be observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chmod-foreign-owner-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Set-ID clearing: when the caller owns the file but it belongs to a group the caller is not a member of, chmod g+s / an octal mode with 2000 silently drops S_ISGID (kernel behavior without CAP_FSETID); compare resulting mode with GNU.",
-              "coverage": "missing",
-              "gap": "Needs a file owned by uid 2000 with a non-member group; creating it requires chown(2) to a non-member gid (EPERM without CAP_CHOWN) and an unprivileged user namespace cannot map a second gid. Exact missing capability: SYNTH-IDENT controller setup hook (CAP_CHOWN on the controller) that chowns fixture files before the side runs; the side itself stays unprivileged.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "root-a-76 shows the directory result (2775 on a caller-owned directory in non-member group 3002 leaves 775, as GNU) but a later mixed chmod overwrote the files' modes before any stat, so the file S_ISGID drop is unobserved; a per-step stat case follows in root batch B.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chmod-foreign-owner-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "Permission-denied and set-ID outcomes for a file owned by another unprivileged UID (not root) in a controlled group membership, including directories.",
-              "coverage": "missing",
-              "gap": "Same SYNTH-IDENT setup requirement: a second unprivileged uid (e.g. 2002) must own fixture files; only root provisioning can create that ownership.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chmod-foreign-owner-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "chown/distinct_identity_transfer",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "chown to a UID distinct from the caller succeeds with CAP_CHOWN and the resulting st_uid equals the requested id (numeric and named).",
-              "coverage": "missing",
-              "gap": "chown(2) to a different uid returns EPERM without CAP_CHOWN; the legacy runner and all modern drivers drop every capability, and an unprivileged user namespace maps only one uid, so no distinct target uid exists unprivileged.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chown-distinct-identity-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "chown to a GID distinct from the caller's (non-member) succeeds with CAP_CHOWN and st_gid equals the requested id.",
-              "coverage": "missing",
-              "gap": "Same: non-member gid requires CAP_CHOWN; single-gid userns mapping.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chown-distinct-identity-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "The same transfer on a symlink with -h changes the link, without -h the target (resulting ids checked on both).",
-              "coverage": "missing",
-              "gap": "Same capability; existing -h cases only reapply the caller's own identity.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chown-distinct-identity-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -19360,46 +19567,74 @@
         },
         {
           "topic": "link/cross-owner-hardlink-permission",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "With fs.protected_hardlinks=1, a hard link by uid 2000 to a regular file owned by another uid, which the caller cannot read and write, fails with EPERM, a diagnostic and no destination. Match GNU link.",
-              "coverage": "missing",
-              "gap": "No fixture file owned by another uid exists. Creating one needs CAP_CHOWN, and all fixture files are owned by 2000.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-link-protected-hardlinks-root",
+                  "status": "PASS",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "The protected-hardlinks policy exception: linking a differently owned file the caller can read and write (mode 0666) succeeds.",
-              "coverage": "missing",
-              "gap": "Needs the same foreign-owned fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-link-protected-hardlinks-root",
+                  "status": "PASS",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "The source lives in a sticky world-writable directory, as stated in the scenario.",
-              "coverage": "missing",
-              "gap": "A sticky directory owned by another uid needs root setup.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-link-protected-hardlinks-root",
+                  "status": "PASS",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "The policy is known and controlled: protected_hardlinks is read before each side, and the 0 setting (link allowed) is covered with a restore.",
-              "coverage": "missing",
-              "gap": "Reading /proc/sys/fs/protected_hardlinks is unprivileged, but writing it needs root plus restore.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-link-protected-hardlinks-root",
+                  "status": "PASS",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -37848,37 +38083,58 @@
         },
         {
           "topic": "unlink/immutable-file-denial",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "unlink on a relative immutable regular file fails with nonzero status and a diagnostic, matching GNU unlink.",
-              "coverage": "missing",
-              "gap": "No immutable file can be created: FS_IOC_SETFLAGS with +i needs CAP_LINUX_IMMUTABLE in the initial user namespace, and every driver drops all capabilities.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-unlink-immutable-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "After the denial, the directory entry and its exact contents remain.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The tree snapshot would verify it once the setup exists.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-unlink-immutable-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "The immutable flag is removed by teardown, so the fixture tree stays removable.",
-              "coverage": "missing",
-              "gap": "No controller teardown hook with CAP_LINUX_IMMUTABLE exists.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-unlink-immutable-root",
+                  "status": "FAIL",
+                  "run": "root-a-static-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -40366,9 +40622,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 411,
-        "FAIL": 86,
-        "PASS": 103
+        "UNRESOLVED": 403,
+        "FAIL": 93,
+        "PASS": 104
       },
       "migration_without_complete_evidence": []
     },
@@ -42089,6 +42345,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793145197.3767352
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "root-a-dynamic-76",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 9,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "e0b7fc8355846c7826c84b56192fbee5627b268b950701cf2b75021c1326e975",
+            "provenance.json": "479a07daa4a6fb9a9cfdcfba2e33d09d82631b46b82bcc04d4dbf42c1acefa17",
+            "payload.tar": "d72f0d29ef627906a1ad915a03a8eb9853d5ee0ee2b95bed90a672636cb1c471",
+            "evidence.tar": "335b58df05bb2df57fbee2c162c987a97f16991a45123238d915f42fec090d33"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793149581.1032119
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -47033,224 +47315,356 @@
         },
         {
           "topic": "chattr/capability-flags",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Without CAP_LINUX_IMMUTABLE, `chattr +i f` and `chattr +a f` fail with a nonzero status and a diagnostic, and the flags stay unset. Compare with e2fsprogs.",
-              "coverage": "missing",
-              "gap": "Unexecuted, although it is reachable now: the legacy uid 2000 lacks CAP_LINUX_IMMUTABLE, so ext4 returns EPERM.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-capability-flags-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Without the capability, `chattr -i f` / `-a f` on a file lacking those flags is a no-op success, as in e2fsprogs.",
-              "coverage": "missing",
-              "gap": "Unexecuted, but reachable now.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-capability-flags-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "With CAP_LINUX_IMMUTABLE, +i and +a succeed: an immutable file refuses writes and unlink, and an append-only file accepts only appends. Then -i and -a clear the flags.",
-              "coverage": "missing",
-              "gap": "Needs a side holding CAP_LINUX_IMMUTABLE in the initial user namespace. capable() is not satisfied by user-namespace capabilities, and the legacy and modern drivers drop all capabilities.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-capability-flags-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Cleanup: no immutable or append-only flag survives a side, even after a failing script.",
-              "coverage": "missing",
-              "gap": "Needs driver-side teardown with CAP_LINUX_IMMUTABLE, `chattr -R -ia` run by the controller, before tree removal.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-capability-flags-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "chattr/flag-set-algebra",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "+FLAGS adds flags to two ordinary files; the resulting flag words match e2fsprogs chattr. Example: chattr +dA f1 f2.",
-              "coverage": "missing",
-              "gap": "No chattr flag operation has run. Only builtin-type, bash-help-synopsis and documented-help-text (metadata) were executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-flag-algebra-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "-FLAGS removes only the named flags and leaves other set flags, including the naturally present e (extents) bit.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-flag-algebra-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "=FLAGS sets the exact flag word, and its handling of the always-present ext4 e bit matches e2fsprogs status and diagnostics.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The candidate's '=' assigns newflags = mask (loadables/chattr.c:89-91), so it would clear the e bit, which ext4 refuses. e2fsprogs behavior must be observed, not assumed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-flag-algebra-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Add/remove composition within one invocation (e.g. `chattr +d -A f`) and across successive invocations, plus idempotent repeats (`+d` twice) succeed with an unchanged final state.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Predicted mismatch: the candidate keeps one op character and ORs every token's letters into one mask (chattr.c:136-150), so `+d -A` applies '-' to d|A, whereas e2fsprogs keeps separate add and remove masks.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-flag-algebra-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "Read-back of the resulting flags with an independent oracle (e2fsprogs lsattr on the reference side, a driver-side ioctl snapshot for both).",
-              "coverage": "missing",
-              "gap": "The tree snapshot does not record inode flags, and no case reads flags after a change.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-flag-algebra-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "chattr/operation-errors-and-links",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "No flag spec, or a spec without files, gives a usage status and diagnostic matching e2fsprogs.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The candidate returns EX_USAGE (chattr.c:155-164) where e2fsprogs exits 1, a predicted status difference.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-operand-errors-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "A missing path fails with a diagnostic. In a mixed list (valid, missing, valid), processing continues, the valid files change, and the status is nonzero.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-operand-errors-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Unsupported ioctl or flag responses: a flag the filesystem rejects (clearing e on ext4, or +S on a tmpfs file) and a non-regular, non-directory operand such as a FIFO give e2fsprogs-matching status, with partial effects on other operands preserved.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The legacy private /tmp tmpfs and a relative FIFO make these reachable without privilege.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-operand-errors-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Symlink operand handling matches e2fsprogs. e2fsprogs refuses symlink operands, as the executed lsattr symlink cases show for its reader. The target must keep its flags.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Predicted mismatch: the candidate open()s and follows the symlink and changes the target (chattr.c:79).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-operand-errors-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "An unknown attribute letter is rejected before any change.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-operand-errors-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "chattr/recursive-tree",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "chattr -R +FLAG dir changes the directory itself and every nested regular file and subdirectory in a small relative tree.",
-              "coverage": "missing",
-              "gap": "No recursive operation has run.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-recursive-tree-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Without -R only the named operand changes; its children keep their flags.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-recursive-tree-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Symlink entries met during recursion are handled like e2fsprogs: not followed, so the target outside the walk is unchanged.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Predicted mismatch: the candidate recurses with lstat but calls open() on each child, which follows symlinks (chattr.c:79 and 104-117). A child symlink would therefore have its target's flags changed, or fail when dangling.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-recursive-tree-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Per-entry read-back of every fixture entry with an independent oracle.",
-              "coverage": "missing",
-              "gap": "No flag snapshot exists.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chattr-recursive-tree-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "chgrp/named-group-resolution",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A valid named group resolves through the controlled group database and is applied (GNU parity on status and resulting gid).",
-              "coverage": "partial",
-              "gap": "No chgrp case uses a group name; 'chgrp runner FILE' against GNU is reachable today in the legacy runner. A name that resolves to the file's existing gid cannot distinguish a resolver that ignores the name, so a second, distinct named gid is also required (r4).",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/chown/numeric_owner_named_group",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-chgrp-named-distinct-gid-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -47287,83 +47701,132 @@
             {
               "id": "r4",
               "behavior": "Resolution and application with distinct permitted GIDs (a second named group the caller may use), verifying the resulting st_gid equals the named group's id.",
-              "coverage": "missing",
-              "gap": "Requires a controlled group database naming a second gid plus that gid as the side's supplementary group. Unprivileged fixtures cannot get it: the plain driver calls setgroups([]) and uid 2000 cannot call setgroups (EPERM without CAP_SETGID); an unprivileged user namespace maps a single gid (no newgidmap); chown(2) to a non-member gid returns EPERM without CAP_CHOWN.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chgrp-named-distinct-gid-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "chmod/foreign-owner-and-group",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "chmod on a file owned by another UID is denied (EPERM), reports failure status and diagnostic, and leaves the mode unchanged (GNU parity on status/effects).",
-              "coverage": "missing",
-              "gap": "No case. Reachable unprivileged in the modern plain driver: the guest root filesystem contains root-owned files (e.g. a file under /usr) whose chmod by uid 2000 returns EPERM; in the legacy runner /usr is a read-only bind so EROFS, not EPERM, would be observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chmod-foreign-owner-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Set-ID clearing: when the caller owns the file but it belongs to a group the caller is not a member of, chmod g+s / an octal mode with 2000 silently drops S_ISGID (kernel behavior without CAP_FSETID); compare resulting mode with GNU.",
-              "coverage": "missing",
-              "gap": "Needs a file owned by uid 2000 with a non-member group; creating it requires chown(2) to a non-member gid (EPERM without CAP_CHOWN) and an unprivileged user namespace cannot map a second gid. Exact missing capability: SYNTH-IDENT controller setup hook (CAP_CHOWN on the controller) that chowns fixture files before the side runs; the side itself stays unprivileged.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "root-a-76 shows the directory result (2775 on a caller-owned directory in non-member group 3002 leaves 775, as GNU) but a later mixed chmod overwrote the files' modes before any stat, so the file S_ISGID drop is unobserved; a per-step stat case follows in root batch B.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chmod-foreign-owner-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "Permission-denied and set-ID outcomes for a file owned by another unprivileged UID (not root) in a controlled group membership, including directories.",
-              "coverage": "missing",
-              "gap": "Same SYNTH-IDENT setup requirement: a second unprivileged uid (e.g. 2002) must own fixture files; only root provisioning can create that ownership.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chmod-foreign-owner-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "chown/distinct_identity_transfer",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "chown to a UID distinct from the caller succeeds with CAP_CHOWN and the resulting st_uid equals the requested id (numeric and named).",
-              "coverage": "missing",
-              "gap": "chown(2) to a different uid returns EPERM without CAP_CHOWN; the legacy runner and all modern drivers drop every capability, and an unprivileged user namespace maps only one uid, so no distinct target uid exists unprivileged.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chown-distinct-identity-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "chown to a GID distinct from the caller's (non-member) succeeds with CAP_CHOWN and st_gid equals the requested id.",
-              "coverage": "missing",
-              "gap": "Same: non-member gid requires CAP_CHOWN; single-gid userns mapping.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chown-distinct-identity-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "The same transfer on a symlink with -h changes the link, without -h the target (resulting ids checked on both).",
-              "coverage": "missing",
-              "gap": "Same capability; existing -h cases only reapply the caller's own identity.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-chown-distinct-identity-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -59718,46 +60181,74 @@
         },
         {
           "topic": "link/cross-owner-hardlink-permission",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "With fs.protected_hardlinks=1, a hard link by uid 2000 to a regular file owned by another uid, which the caller cannot read and write, fails with EPERM, a diagnostic and no destination. Match GNU link.",
-              "coverage": "missing",
-              "gap": "No fixture file owned by another uid exists. Creating one needs CAP_CHOWN, and all fixture files are owned by 2000.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-link-protected-hardlinks-root",
+                  "status": "PASS",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "The protected-hardlinks policy exception: linking a differently owned file the caller can read and write (mode 0666) succeeds.",
-              "coverage": "missing",
-              "gap": "Needs the same foreign-owned fixture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-link-protected-hardlinks-root",
+                  "status": "PASS",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "The source lives in a sticky world-writable directory, as stated in the scenario.",
-              "coverage": "missing",
-              "gap": "A sticky directory owned by another uid needs root setup.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-link-protected-hardlinks-root",
+                  "status": "PASS",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "The policy is known and controlled: protected_hardlinks is read before each side, and the 0 setting (link allowed) is covered with a restore.",
-              "coverage": "missing",
-              "gap": "Reading /proc/sys/fs/protected_hardlinks is unprivileged, but writing it needs root plus restore.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-link-protected-hardlinks-root",
+                  "status": "PASS",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -78206,37 +78697,58 @@
         },
         {
           "topic": "unlink/immutable-file-denial",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "unlink on a relative immutable regular file fails with nonzero status and a diagnostic, matching GNU unlink.",
-              "coverage": "missing",
-              "gap": "No immutable file can be created: FS_IOC_SETFLAGS with +i needs CAP_LINUX_IMMUTABLE in the initial user namespace, and every driver drops all capabilities.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-unlink-immutable-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "After the denial, the directory entry and its exact contents remain.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The tree snapshot would verify it once the setup exists.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-unlink-immutable-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "The immutable flag is removed by teardown, so the fixture tree stays removable.",
-              "coverage": "missing",
-              "gap": "No controller teardown hook with CAP_LINUX_IMMUTABLE exists.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-unlink-immutable-root",
+                  "status": "FAIL",
+                  "run": "root-a-dynamic-76"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -80724,9 +81236,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 411,
-        "FAIL": 86,
-        "PASS": 103
+        "UNRESOLVED": 403,
+        "FAIL": 93,
+        "PASS": 104
       },
       "migration_without_complete_evidence": []
     }

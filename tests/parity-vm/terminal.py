@@ -181,12 +181,16 @@ def validate_case(case):
     return case
 
 
-def child_limits(file_size_limit=8 * 1024**2):
+def child_limits(file_size_limit=8 * 1024**2, root=False):
     resource.setrlimit(resource.RLIMIT_CPU, (15, 15))
     resource.setrlimit(resource.RLIMIT_AS, (512 * 1024**2, 512 * 1024**2))
     resource.setrlimit(resource.RLIMIT_FSIZE, (file_size_limit, file_size_limit))
     resource.setrlimit(resource.RLIMIT_NOFILE, (128, 128))
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    if root:
+        # Privileged fixtures keep uid 0, confined to the per-side namespaces
+        # that guest.privileged() creates.
+        return
     os.setgroups([])
     os.setgid(2000)
     os.setuid(2000)
@@ -502,7 +506,8 @@ def execute(argv, env, cwd, case):
         tty_gid = grp.getgrnam("tty").gr_gid
     except KeyError:
         tty_gid = 5
-    os.fchown(slave, 2000, tty_gid)
+    root = case.get("privilege") == "root"
+    os.fchown(slave, 0 if root else 2000, tty_gid)
     os.fchmod(slave, 0o620)
     initial_modes(slave)
     before = modes(termios.tcgetattr(slave))
@@ -522,7 +527,7 @@ def execute(argv, env, cwd, case):
     def child():
         os.setsid()
         fcntl.ioctl(0, termios.TIOCSCTTY, 0)
-        child_limits()
+        child_limits(root=root)
 
     def event(index, action, **detail):
         events.append(dict(step=index, action=action, t_ms=round((time.monotonic() - started) * 1000),
