@@ -1,0 +1,392 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-swapon-list-root",
+      "loadable": "swapon",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "swapon/list-reporting"
+      ],
+      "purpose": "swapon with no arguments, -s, --show and --summary on the empty swap table and with two active fixture areas (priorities 5 and 3, activated by util-linux), each compared with /proc/swaps read independently; then /proc/swaps unreadable (a mode 000 file bind-mounted over it in the side's mount namespace, read without CAP_DAC_OVERRIDE).",
+      "oracle": "util-linux 2.41 swapon",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; the table from /proc/swaps is printed before each listing. Swap areas are 1 MiB files on a per-side 6 MiB ext4 image (or a per-side loop device), all deactivated before the side ends; the harness verifies /proc/swaps is unchanged after each side.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "mkswap",
+        "swapon",
+        "swapoff",
+        "dd",
+        "awk",
+        "tail",
+        "wc",
+        "sed",
+        "tr",
+        "chmod",
+        "setpriv"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nI=$RT/sw.img M=$RT/mnt\n/usr/bin/truncate -s 6M $I && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal $I && /usr/bin/mkdir -p $M && /usr/bin/mount -o loop $I $M || { echo SETUP-FAILED; exit 99; }\nn=0; mkfile() { n=$((n+1)); /usr/bin/dd if=/dev/zero of=\"$M/$1\" bs=64k count=16 status=none && /usr/bin/chmod 0600 \"$M/$1\" &&\n  { [[ $2 == raw ]] || /usr/sbin/mkswap -q -U 00000000-0000-4000-8000-00000000000$n -L \"sw$n\" \"$M/$1\" >/dev/null; } || echo SETUP-FAILED; }\nswaps() { /usr/bin/tail -n +2 /proc/swaps | /usr/bin/awk '{print \"  swap\", $1, $2, $3, $5}'; echo \"  swaps=$(( $(/usr/bin/wc -l < /proc/swaps) - 1 ))\"; }\nendswap() { /usr/bin/tail -n +2 /proc/swaps | while read -r p _; do /usr/sbin/swapoff \"$p\"; done; cd /tmp/parity-case; /usr/bin/umount $M && echo teardown=ok; }\nmkfile s1; mkfile s2\nswaps\nfor a in \"\" -s --show --summary; do r \"empty[$a]\" swapon $a; done\n/usr/sbin/swapon -p 5 $M/s1 && /usr/sbin/swapon -p 3 $M/s2 || echo SETUP-FAILED\nswaps\nfor a in \"\" -s --show --summary; do r \"two[$a]\" swapon $a; done\n: > $RT/noread; /usr/bin/chmod 000 $RT/noread; /usr/bin/mount --bind $RT/noread /proc/swaps || echo SETUP-FAILED\n/usr/bin/setpriv --bounding-set=-dac_override,-dac_read_search -- \"$BASH\" --noprofile --norc -c 'swapon --show' >/tmp/rf.out 2>/tmp/rf.err; show unreadable $?\n/usr/bin/umount /proc/swaps\nendswap\n",
+      "expected_status": 0,
+      "timeout": 45
+    },
+    {
+      "id": "migration-swapon-activation-root",
+      "loadable": "swapon",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "swapon/real-swapfile-activation"
+      ],
+      "purpose": "swapon activates fixture swapfiles on ext4: without -p (kernel default priority) and with -p 7; /proc/swaps shows type file, the size and the priority; the areas are removed and the table restored, and a second default activation gets the default priority again.",
+      "oracle": "util-linux 2.41 swapon",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; /proc/swaps rows (name, type, size, priority) after each step and a restored-table check. Swap areas are 1 MiB files on a per-side 6 MiB ext4 image (or a per-side loop device), all deactivated before the side ends; the harness verifies /proc/swaps is unchanged after each side.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "mkswap",
+        "swapon",
+        "swapoff",
+        "dd",
+        "awk",
+        "tail",
+        "wc",
+        "sed",
+        "tr",
+        "chmod"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nI=$RT/sw.img M=$RT/mnt\n/usr/bin/truncate -s 6M $I && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal $I && /usr/bin/mkdir -p $M && /usr/bin/mount -o loop $I $M || { echo SETUP-FAILED; exit 99; }\nn=0; mkfile() { n=$((n+1)); /usr/bin/dd if=/dev/zero of=\"$M/$1\" bs=64k count=16 status=none && /usr/bin/chmod 0600 \"$M/$1\" &&\n  { [[ $2 == raw ]] || /usr/sbin/mkswap -q -U 00000000-0000-4000-8000-00000000000$n -L \"sw$n\" \"$M/$1\" >/dev/null; } || echo SETUP-FAILED; }\nswaps() { /usr/bin/tail -n +2 /proc/swaps | /usr/bin/awk '{print \"  swap\", $1, $2, $3, $5}'; echo \"  swaps=$(( $(/usr/bin/wc -l < /proc/swaps) - 1 ))\"; }\nendswap() { /usr/bin/tail -n +2 /proc/swaps | while read -r p _; do /usr/sbin/swapoff \"$p\"; done; cd /tmp/parity-case; /usr/bin/umount $M && echo teardown=ok; }\nmkfile s1; mkfile s2; before=$(< /proc/swaps)\nr default swapon $M/s1; swaps\nr prio-7 swapon -p 7 $M/s2; swaps\n/usr/sbin/swapoff $M/s1 $M/s2; echo \"restored: $([[ \"$(< /proc/swaps)\" == \"$before\" ]] && echo yes || echo no)\"\nr default-again swapon $M/s2; swaps\nendswap\n",
+      "expected_status": 0,
+      "timeout": 45
+    },
+    {
+      "id": "migration-swapon-errors-root",
+      "loadable": "swapon",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "swapon/request-error-diagnostics"
+      ],
+      "purpose": "swapon failures with path-specific diagnostics: a valid area owned by uid 2000 activated by uid 2000 (EPERM), a missing path (ENOENT), a zero-filled file without a swap signature (EINVAL or the reference's own signature check), and an already active area (EBUSY).",
+      "oracle": "util-linux 2.41 swapon",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; /proc/swaps after each step. Swap areas are 1 MiB files on a per-side 6 MiB ext4 image (or a per-side loop device), all deactivated before the side ends; the harness verifies /proc/swaps is unchanged after each side.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "mkswap",
+        "swapon",
+        "swapoff",
+        "dd",
+        "awk",
+        "tail",
+        "wc",
+        "sed",
+        "tr",
+        "chmod",
+        "setpriv",
+        "chown"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nI=$RT/sw.img M=$RT/mnt\n/usr/bin/truncate -s 6M $I && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal $I && /usr/bin/mkdir -p $M && /usr/bin/mount -o loop $I $M || { echo SETUP-FAILED; exit 99; }\nn=0; mkfile() { n=$((n+1)); /usr/bin/dd if=/dev/zero of=\"$M/$1\" bs=64k count=16 status=none && /usr/bin/chmod 0600 \"$M/$1\" &&\n  { [[ $2 == raw ]] || /usr/sbin/mkswap -q -U 00000000-0000-4000-8000-00000000000$n -L \"sw$n\" \"$M/$1\" >/dev/null; } || echo SETUP-FAILED; }\nswaps() { /usr/bin/tail -n +2 /proc/swaps | /usr/bin/awk '{print \"  swap\", $1, $2, $3, $5}'; echo \"  swaps=$(( $(/usr/bin/wc -l < /proc/swaps) - 1 ))\"; }\nendswap() { /usr/bin/tail -n +2 /proc/swaps | while read -r p _; do /usr/sbin/swapoff \"$p\"; done; cd /tmp/parity-case; /usr/bin/umount $M && echo teardown=ok; }\nmkfile s1; mkfile nonswap raw; /usr/bin/chown 2000:2000 $M/s1\nu eperm \"swapon $M/s1\"; swaps\nr enoent swapon $M/missing\nr no-signature swapon $M/nonswap; swaps\n/usr/sbin/swapon $M/s1 || echo SETUP-FAILED\nr ebusy swapon $M/s1; swaps\nendswap\n",
+      "expected_status": 0,
+      "timeout": 45
+    },
+    {
+      "id": "migration-swapon-multiple-root",
+      "loadable": "swapon",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "swapon/multiple-request-failures"
+      ],
+      "purpose": "One swapon invocation with a non-swap file, a valid area, a missing path and a second valid area: every operand is attempted in order after failures, the valid areas activate, the status is 1, and the swapon requests made are recorded in order by a notify filter that lets the kernel run them.",
+      "oracle": "util-linux 2.41 swapon",
+      "comparison": "Byte parity of status, stdout, stderr and the recorded request sequence: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; /proc/swaps afterwards. Swap areas are 1 MiB files on a per-side 6 MiB ext4 image (or a per-side loop device), all deactivated before the side ends; the harness verifies /proc/swaps is unchanged after each side. Requests are recorded by helpers/system-seccomp.py notifying the swapon/swapoff syscall in the nested shell, with the path string and flags argument logged.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "mkswap",
+        "swapon",
+        "swapoff",
+        "dd",
+        "awk",
+        "tail",
+        "wc",
+        "sed",
+        "tr",
+        "chmod",
+        "python3"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nI=$RT/sw.img M=$RT/mnt\n/usr/bin/truncate -s 6M $I && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal $I && /usr/bin/mkdir -p $M && /usr/bin/mount -o loop $I $M || { echo SETUP-FAILED; exit 99; }\nn=0; mkfile() { n=$((n+1)); /usr/bin/dd if=/dev/zero of=\"$M/$1\" bs=64k count=16 status=none && /usr/bin/chmod 0600 \"$M/$1\" &&\n  { [[ $2 == raw ]] || /usr/sbin/mkswap -q -U 00000000-0000-4000-8000-00000000000$n -L \"sw$n\" \"$M/$1\" >/dev/null; } || echo SETUP-FAILED; }\nswaps() { /usr/bin/tail -n +2 /proc/swaps | /usr/bin/awk '{print \"  swap\", $1, $2, $3, $5}'; echo \"  swaps=$(( $(/usr/bin/wc -l < /proc/swaps) - 1 ))\"; }\nendswap() { /usr/bin/tail -n +2 /proc/swaps | while read -r p _; do /usr/sbin/swapoff \"$p\"; done; cd /tmp/parity-case; /usr/bin/umount $M && echo teardown=ok; }\nH=/opt/bashos-parity/harness/helpers/system-seccomp.py\no() { local l=$1 sc=$2 rep=$3 log=$RT/o.jsonl; : > $log; /usr/bin/chmod 0666 $log\n  PYTHONDONTWRITEBYTECODE=1 $PRIV /usr/bin/python3 $H --notify $sc --reply $sc=$rep --log-string $sc=0 --log-args $sc=1 --log $log -- \"$BASH\" --noprofile --norc -c \"$4\" >/tmp/rf.out 2>/tmp/rf.err\n  show \"$l\" $?\n  /usr/bin/python3 -c 'import json,sys\nfor line in open(sys.argv[1]):\n    r=json.loads(line); print(\"  request\", r[\"syscall\"], repr(r.get(\"string0\")), (\"flags=%#x\" % r[\"arg1\"]) if r[\"syscall\"]==\"swapon\" else \"\")' $log; }\nmkfile s1; mkfile s2; mkfile nonswap raw\no mixed swapon continue \"swapon $M/nonswap $M/s1 $M/missing $M/s2\"; swaps\nendswap\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      }
+    },
+    {
+      "id": "migration-swapon-flags-root",
+      "loadable": "swapon",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "swapon/operand-and-flag-forwarding"
+      ],
+      "purpose": "swapon requests answered by a notify filter with success, so no area is enabled: the flags passed to swapon(2) without options, with -p 0, 1 and 32767 (SWAP_FLAG_PREFER|N), with -d and with -d -p 5, and the literal order of relative operands including a dash-leading name after --.",
+      "oracle": "util-linux 2.41 swapon under the same filter",
+      "comparison": "Byte parity of status, stdout, stderr and the recorded requests (path string and flags): one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; /proc/swaps is shown empty at the end. Swap areas are 1 MiB files on a per-side 6 MiB ext4 image (or a per-side loop device), all deactivated before the side ends; the harness verifies /proc/swaps is unchanged after each side. Requests are recorded by helpers/system-seccomp.py notifying the swapon/swapoff syscall in the nested shell, with the path string and flags argument logged.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "mkswap",
+        "swapon",
+        "swapoff",
+        "dd",
+        "awk",
+        "tail",
+        "wc",
+        "sed",
+        "tr",
+        "chmod",
+        "python3"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nI=$RT/sw.img M=$RT/mnt\n/usr/bin/truncate -s 6M $I && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal $I && /usr/bin/mkdir -p $M && /usr/bin/mount -o loop $I $M || { echo SETUP-FAILED; exit 99; }\nn=0; mkfile() { n=$((n+1)); /usr/bin/dd if=/dev/zero of=\"$M/$1\" bs=64k count=16 status=none && /usr/bin/chmod 0600 \"$M/$1\" &&\n  { [[ $2 == raw ]] || /usr/sbin/mkswap -q -U 00000000-0000-4000-8000-00000000000$n -L \"sw$n\" \"$M/$1\" >/dev/null; } || echo SETUP-FAILED; }\nswaps() { /usr/bin/tail -n +2 /proc/swaps | /usr/bin/awk '{print \"  swap\", $1, $2, $3, $5}'; echo \"  swaps=$(( $(/usr/bin/wc -l < /proc/swaps) - 1 ))\"; }\nendswap() { /usr/bin/tail -n +2 /proc/swaps | while read -r p _; do /usr/sbin/swapoff \"$p\"; done; cd /tmp/parity-case; /usr/bin/umount $M && echo teardown=ok; }\nH=/opt/bashos-parity/harness/helpers/system-seccomp.py\no() { local l=$1 sc=$2 rep=$3 log=$RT/o.jsonl; : > $log; /usr/bin/chmod 0666 $log\n  PYTHONDONTWRITEBYTECODE=1 $PRIV /usr/bin/python3 $H --notify $sc --reply $sc=$rep --log-string $sc=0 --log-args $sc=1 --log $log -- \"$BASH\" --noprofile --norc -c \"$4\" >/tmp/rf.out 2>/tmp/rf.err\n  show \"$l\" $?\n  /usr/bin/python3 -c 'import json,sys\nfor line in open(sys.argv[1]):\n    r=json.loads(line); print(\"  request\", r[\"syscall\"], repr(r.get(\"string0\")), (\"flags=%#x\" % r[\"arg1\"]) if r[\"syscall\"]==\"swapon\" else \"\")' $log; }\nmkfile s1; mkfile -name\no none swapon 0 \"swapon $M/s1\"\nfor p in 0 1 32767; do o \"prio-$p\" swapon 0 \"swapon -p $p $M/s1\"; done\no discard swapon 0 \"swapon -d $M/s1\"\no discard-prio swapon 0 \"swapon -d -p 5 $M/s1\"\no order swapon 0 \"cd $M && swapon -- -name s1\"\nswaps\nendswap\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      }
+    },
+    {
+      "id": "migration-swapon-option-validation-root",
+      "loadable": "swapon",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "swapon/option-validation"
+      ],
+      "purpose": "swapon option validation as uid 2000 on areas it owns, with every swapon(2) request recorded: -p 0 and -p 32767 reach the kernel (EPERM); -p -1, 32768, abc, 5x, an empty value and a missing value are rejected without a request; -d and --discard reach the kernel; -- makes -name a path; an unknown option is rejected without a request.",
+      "oracle": "util-linux 2.41 swapon with the same identity and filter",
+      "comparison": "Byte parity of status, stdout, stderr and the recorded request list: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix. Swap areas are 1 MiB files on a per-side 6 MiB ext4 image (or a per-side loop device), all deactivated before the side ends; the harness verifies /proc/swaps is unchanged after each side. Requests are recorded by helpers/system-seccomp.py notifying the swapon/swapoff syscall in the nested shell, with the path string and flags argument logged.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "mkswap",
+        "swapon",
+        "swapoff",
+        "dd",
+        "awk",
+        "tail",
+        "wc",
+        "sed",
+        "tr",
+        "chmod",
+        "python3",
+        "setpriv",
+        "chown"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nI=$RT/sw.img M=$RT/mnt\n/usr/bin/truncate -s 6M $I && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal $I && /usr/bin/mkdir -p $M && /usr/bin/mount -o loop $I $M || { echo SETUP-FAILED; exit 99; }\nn=0; mkfile() { n=$((n+1)); /usr/bin/dd if=/dev/zero of=\"$M/$1\" bs=64k count=16 status=none && /usr/bin/chmod 0600 \"$M/$1\" &&\n  { [[ $2 == raw ]] || /usr/sbin/mkswap -q -U 00000000-0000-4000-8000-00000000000$n -L \"sw$n\" \"$M/$1\" >/dev/null; } || echo SETUP-FAILED; }\nswaps() { /usr/bin/tail -n +2 /proc/swaps | /usr/bin/awk '{print \"  swap\", $1, $2, $3, $5}'; echo \"  swaps=$(( $(/usr/bin/wc -l < /proc/swaps) - 1 ))\"; }\nendswap() { /usr/bin/tail -n +2 /proc/swaps | while read -r p _; do /usr/sbin/swapoff \"$p\"; done; cd /tmp/parity-case; /usr/bin/umount $M && echo teardown=ok; }\nH=/opt/bashos-parity/harness/helpers/system-seccomp.py\no() { local l=$1 sc=$2 rep=$3 log=$RT/o.jsonl; : > $log; /usr/bin/chmod 0666 $log\n  PYTHONDONTWRITEBYTECODE=1 $PRIV /usr/bin/python3 $H --notify $sc --reply $sc=$rep --log-string $sc=0 --log-args $sc=1 --log $log -- \"$BASH\" --noprofile --norc -c \"$4\" >/tmp/rf.out 2>/tmp/rf.err\n  show \"$l\" $?\n  /usr/bin/python3 -c 'import json,sys\nfor line in open(sys.argv[1]):\n    r=json.loads(line); print(\"  request\", r[\"syscall\"], repr(r.get(\"string0\")), (\"flags=%#x\" % r[\"arg1\"]) if r[\"syscall\"]==\"swapon\" else \"\")' $log; }\nmkfile s1; mkfile -name; /usr/bin/chown 2000:2000 \"$M/s1\" \"$M/-name\"\nPRIV=\"/usr/bin/setpriv --reuid=2000 --regid=2000 --clear-groups --\"\nfor p in 0 32767 -1 32768 abc 5x \"\"; do o \"prio[$p]\" swapon continue \"swapon -p '$p' $M/s1\"; done\no prio-missing swapon continue \"swapon -p\"\no discard swapon continue \"swapon -d $M/s1\"\no discard-long swapon continue \"swapon --discard $M/s1\"\no dashdash swapon continue \"cd $M && swapon -- -name\"\no unknown swapon continue \"swapon -Z $M/s1\"\nPRIV=\nswaps\nendswap\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      }
+    },
+    {
+      "id": "migration-swapoff-removal-root",
+      "loadable": "swapoff",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "swapoff/deferred-kernel-removal"
+      ],
+      "purpose": "swapoff on one of two active fixture swapfiles succeeds; it disappears from /proc/swaps while the other keeps its size and priority; the table is restored afterwards.",
+      "oracle": "util-linux 2.41 swapoff",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; /proc/swaps before and after and a restored-table check. Swap areas are 1 MiB files on a per-side 6 MiB ext4 image (or a per-side loop device), all deactivated before the side ends; the harness verifies /proc/swaps is unchanged after each side.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "mkswap",
+        "swapon",
+        "swapoff",
+        "dd",
+        "awk",
+        "tail",
+        "wc",
+        "sed",
+        "tr",
+        "chmod"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nI=$RT/sw.img M=$RT/mnt\n/usr/bin/truncate -s 6M $I && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal $I && /usr/bin/mkdir -p $M && /usr/bin/mount -o loop $I $M || { echo SETUP-FAILED; exit 99; }\nn=0; mkfile() { n=$((n+1)); /usr/bin/dd if=/dev/zero of=\"$M/$1\" bs=64k count=16 status=none && /usr/bin/chmod 0600 \"$M/$1\" &&\n  { [[ $2 == raw ]] || /usr/sbin/mkswap -q -U 00000000-0000-4000-8000-00000000000$n -L \"sw$n\" \"$M/$1\" >/dev/null; } || echo SETUP-FAILED; }\nswaps() { /usr/bin/tail -n +2 /proc/swaps | /usr/bin/awk '{print \"  swap\", $1, $2, $3, $5}'; echo \"  swaps=$(( $(/usr/bin/wc -l < /proc/swaps) - 1 ))\"; }\nendswap() { /usr/bin/tail -n +2 /proc/swaps | while read -r p _; do /usr/sbin/swapoff \"$p\"; done; cd /tmp/parity-case; /usr/bin/umount $M && echo teardown=ok; }\nmkfile s1; mkfile s2; before=$(< /proc/swaps)\n/usr/sbin/swapon -p 4 $M/s1 && /usr/sbin/swapon -p 2 $M/s2 || echo SETUP-FAILED\nswaps\nr remove swapoff $M/s1; swaps\n/usr/sbin/swapoff $M/s2; echo \"restored: $([[ \"$(< /proc/swaps)\" == \"$before\" ]] && echo yes || echo no)\"\nendswap\n",
+      "expected_status": 0,
+      "timeout": 45
+    },
+    {
+      "id": "migration-swapoff-named-root",
+      "loadable": "swapoff",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "swapoff/deferred-named-operands"
+      ],
+      "purpose": "swapoff with named operands, each request recorded and run by the kernel: a missing path, a non-swap file and an active area in one call (ENOENT, EINVAL, success; processing continues, status 1); -- before a dash-leading active area; a repeated operand; an empty operand; no operand, -a with an operand, and an unknown option.",
+      "oracle": "util-linux 2.41 swapoff",
+      "comparison": "Byte parity of status, stdout, stderr and the recorded request list: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; /proc/swaps after the state-changing calls. Swap areas are 1 MiB files on a per-side 6 MiB ext4 image (or a per-side loop device), all deactivated before the side ends; the harness verifies /proc/swaps is unchanged after each side. Requests are recorded by helpers/system-seccomp.py notifying the swapon/swapoff syscall in the nested shell, with the path string and flags argument logged.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "mkswap",
+        "swapon",
+        "swapoff",
+        "dd",
+        "awk",
+        "tail",
+        "wc",
+        "sed",
+        "tr",
+        "chmod",
+        "python3"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nI=$RT/sw.img M=$RT/mnt\n/usr/bin/truncate -s 6M $I && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal $I && /usr/bin/mkdir -p $M && /usr/bin/mount -o loop $I $M || { echo SETUP-FAILED; exit 99; }\nn=0; mkfile() { n=$((n+1)); /usr/bin/dd if=/dev/zero of=\"$M/$1\" bs=64k count=16 status=none && /usr/bin/chmod 0600 \"$M/$1\" &&\n  { [[ $2 == raw ]] || /usr/sbin/mkswap -q -U 00000000-0000-4000-8000-00000000000$n -L \"sw$n\" \"$M/$1\" >/dev/null; } || echo SETUP-FAILED; }\nswaps() { /usr/bin/tail -n +2 /proc/swaps | /usr/bin/awk '{print \"  swap\", $1, $2, $3, $5}'; echo \"  swaps=$(( $(/usr/bin/wc -l < /proc/swaps) - 1 ))\"; }\nendswap() { /usr/bin/tail -n +2 /proc/swaps | while read -r p _; do /usr/sbin/swapoff \"$p\"; done; cd /tmp/parity-case; /usr/bin/umount $M && echo teardown=ok; }\nH=/opt/bashos-parity/harness/helpers/system-seccomp.py\no() { local l=$1 sc=$2 rep=$3 log=$RT/o.jsonl; : > $log; /usr/bin/chmod 0666 $log\n  PYTHONDONTWRITEBYTECODE=1 $PRIV /usr/bin/python3 $H --notify $sc --reply $sc=$rep --log-string $sc=0 --log-args $sc=1 --log $log -- \"$BASH\" --noprofile --norc -c \"$4\" >/tmp/rf.out 2>/tmp/rf.err\n  show \"$l\" $?\n  /usr/bin/python3 -c 'import json,sys\nfor line in open(sys.argv[1]):\n    r=json.loads(line); print(\"  request\", r[\"syscall\"], repr(r.get(\"string0\")), (\"flags=%#x\" % r[\"arg1\"]) if r[\"syscall\"]==\"swapon\" else \"\")' $log; }\nmkfile s1; mkfile -name; mkfile nonswap raw\n/usr/sbin/swapon $M/s1 || echo SETUP-FAILED\no mixed swapoff continue \"swapoff $M/missing $M/nonswap $M/s1\"; swaps\n/usr/sbin/swapon $M/-name || echo SETUP-FAILED\no dashdash swapoff continue \"cd $M && swapoff -- -name\"; swaps\no repeated swapoff continue \"swapoff $M/missing $M/missing\"\no empty swapoff continue \"swapoff ''\"\no no-operand swapoff continue \"swapoff\"\no all-with-operand swapoff continue \"swapoff -a $M/s1\"\no unknown swapoff continue \"swapoff -Z\"\nendswap\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      }
+    },
+    {
+      "id": "migration-swapoff-all-table-root",
+      "loadable": "swapoff",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "swapoff/deferred-all-table"
+      ],
+      "purpose": "swapoff -a against synthetic /proc/swaps tables bind-mounted in the side's mount namespace, with every swapoff(2) answered EINVAL by a notify filter so nothing is changed: header only, an empty file, an invalid header, octal escapes (\\040 \\011 \\012 \\134 and an unknown \\777), a duplicated row, and malformed rows (short row, bad type, non-numeric size, used > size) beside a valid one.",
+      "oracle": "util-linux 2.41 swapoff under the same filter",
+      "comparison": "Byte parity of status, stdout, stderr and the recorded request list (decoded path strings): one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix. Requests are recorded by helpers/system-seccomp.py notifying the swapon/swapoff syscall in the nested shell, with the path string and flags argument logged.",
+      "requires": [
+        "swapoff",
+        "mount",
+        "umount",
+        "python3",
+        "sed",
+        "tr",
+        "chmod"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nH=/opt/bashos-parity/harness/helpers/system-seccomp.py\no() { local l=$1 sc=$2 rep=$3 log=$RT/o.jsonl; : > $log; /usr/bin/chmod 0666 $log\n  PYTHONDONTWRITEBYTECODE=1 $PRIV /usr/bin/python3 $H --notify $sc --reply $sc=$rep --log-string $sc=0 --log-args $sc=1 --log $log -- \"$BASH\" --noprofile --norc -c \"$4\" >/tmp/rf.out 2>/tmp/rf.err\n  show \"$l\" $?\n  /usr/bin/python3 -c 'import json,sys\nfor line in open(sys.argv[1]):\n    r=json.loads(line); print(\"  request\", r[\"syscall\"], repr(r.get(\"string0\")), (\"flags=%#x\" % r[\"arg1\"]) if r[\"syscall\"]==\"swapon\" else \"\")' $log; }\nFS=$RT/fakeswaps\nt() { printf \"$2\" > $FS; /usr/bin/mount --bind $FS /proc/swaps || echo SETUP-FAILED; o \"$1\" swapoff EINVAL \"swapoff -a\"; /usr/bin/umount /proc/swaps; }\nHD='Filename\\t\\t\\t\\tType\\t\\tSize\\t\\tUsed\\t\\tPriority\\n'\nt header-only \"$HD\"\nt empty-file ''\nt invalid-header 'Bogus header\\n/tmp/x partition 100 0 -2\\n'\nt escapes \"$HD\"'/tmp/a\\\\040b file 100 0 -2\\n/tmp/t\\\\011ab file 100 0 -3\\n/tmp/n\\\\012l file 100 0 -4\\n/tmp/bs\\\\134x file 100 0 -5\\n/tmp/u\\\\777k file 100 0 -6\\n'\nt duplicates \"$HD\"'/tmp/d1 file 100 0 -2\\n/tmp/d2 file 100 0 -3\\n/tmp/d1 file 100 0 -4\\n'\nt malformed \"$HD\"'/tmp/m1 file 100\\n/tmp/m2 bogus 100 0 -2\\n/tmp/m3 file x 0 -2\\n/tmp/m4 file 100 200 -2\\n/tmp/ok file 100 0 -2\\n'\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      }
+    },
+    {
+      "id": "migration-mkswap-device-root",
+      "loadable": "mkswap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "mkswap/raw-device-and-activation"
+      ],
+      "purpose": "mkswap with a fixed UUID and label on a 1 MiB loop device over a seeded per-side image: output and the written v1 header (read back from the device by an independent reader, with a whole-device digest); an explicit size larger than the device without -f and with -f; kernel acceptance of the written area by util-linux swapon, with its size in /proc/swaps.",
+      "oracle": "util-linux 2.41 mkswap on an identical device",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; header fields and device digest after each write; /proc/swaps during activation. Swap areas are 1 MiB files on a per-side 6 MiB ext4 image (or a per-side loop device), all deactivated before the side ends; the harness verifies /proc/swaps is unchanged after each side.",
+      "requires": [
+        "mkswap",
+        "swapon",
+        "swapoff",
+        "losetup",
+        "python3",
+        "awk",
+        "tail",
+        "wc",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\ncd $RT; seed dev.img 1048576; d=$(att -f --show dev.img)\nswaps() { /usr/bin/tail -n +2 /proc/swaps | /usr/bin/awk '{print \"  swap\", $1, $2, $3, $5}'; }\nU=11111111-2222-4333-8444-555555555555\nr format mkswap -U $U -L rootc $d; /usr/bin/python3 /tmp/parity-case/swaphdr.py $d\n/usr/sbin/swapon $d && { swaps; /usr/sbin/swapoff $d; } || echo \"kernel refused the area\"\nr too-big mkswap -U $U -L rootc $d 4096; /usr/bin/python3 /tmp/parity-case/swaphdr.py $d\nr too-big-force mkswap -f -U $U -L rootc $d 4096; /usr/bin/python3 /tmp/parity-case/swaphdr.py $d\n/usr/sbin/swapon $d && { swaps; /usr/sbin/swapoff $d; } || echo \"kernel refused the area\"\nr smaller mkswap -U $U -L rootc $d 512; /usr/bin/python3 /tmp/parity-case/swaphdr.py $d\ndetach $d\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "files": {
+        "swaphdr.py": "# SPDX-License-Identifier: MIT\n# Independent swap header reader for a block device: version, last_page,\n# nr_badpages, UUID, label, signature, and a digest of the whole device.\nimport hashlib, struct, sys, uuid\ndata = open(sys.argv[1], 'rb').read()\npage = 4096\nversion, last_page, bad = struct.unpack_from('<III', data, 1024)\nprint('  version=%d last_page=%d nr_badpages=%d uuid=%s label=%r sig=%r bootbits_zero=%s sha=%s' % (\n    version, last_page, bad, uuid.UUID(bytes=data[1036:1052]), data[1052:1068].rstrip(b'\\0').decode(errors='replace'),\n    data[page - 10:page], data[:1024] == bytes(1024), hashlib.sha256(data).hexdigest()[:16]))\n"
+      }
+    },
+    {
+      "id": "migration-wipefs-device-root",
+      "loadable": "wipefs",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "wipefs/signature-erasure-deferred"
+      ],
+      "purpose": "wipefs on a 4 MiB loop device carrying an ext4 signature made with a fixed UUID and label: listing, -a erasure through the device node, listing and blkid -p after erasure, and a repeated -a on the clean device.",
+      "oracle": "util-linux 2.41 wipefs, results probed with util-linux blkid",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; blkid -p status and output after erasure. Loop devices are attached to per-side images under /tmp/rt and detached by the fixture.",
+      "requires": [
+        "wipefs",
+        "blkid",
+        "mkfs.ext4",
+        "losetup",
+        "truncate",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\ncd $RT; /usr/bin/truncate -s 4M img; d=$(att -f --show img)\n/usr/sbin/mkfs.ext4 -q -F -U 0b0e0e0e-1111-4222-8333-444444444444 -L wipeme $d || echo SETUP-FAILED\nr list wipefs $d\nr erase wipefs -a $d\nr list-after wipefs $d\nr blkid /usr/sbin/blkid -p $d\nr erase-again wipefs -a $d\ndetach $d\n",
+      "expected_status": 0,
+      "timeout": 45
+    }
+  ]
+}

@@ -18884,33 +18884,54 @@
         "purpose": "Block-size ioctl and swap activation require separate controlled qualification.",
         "reason": "Requires a future disposable VM with a provisioned disposable block device, or a reviewed fail-closed ioctl/swapon mock. Raw device access and swap activation are not authorized here."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "r1/r2 need a writable block-device node (uid 2000 with setgroups([]) cannot open /dev/loop-control or /dev/loopN (root:disk 0660), cannot mknod block nodes (CAP_MKNOD; device nodes are refused inside user namespaces), and the real virtio disk nodes are root:disk 0660, so no block device with known contents is visible to an unprivileged fixture); r3 needs swapon(2), which requires CAP_SYS_ADMIN and is in the legacy seccomp denylist, and changes global swap state (needs KSTATE restore). Swap files on tmpfs are not supported by the kernel, so a loop device or ext4 image is needed.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "On a block device, mkswap sizes the area from BLKGETSIZE64 (no size operand) and writes the same v1 header as util-linux mkswap on an identical device (byte parity of output and device bytes).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Executed mkswap parity/contract cases (e.g. legacy/mkswap/regular_file_v1_header-util-linux, explicit_size_page_math-util-linux) use regular files only; S_ISBLK sizing (mkswap.c:150-152) is never reached."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-mkswap-device-root",
+              "assertion": "On a 1 MiB loop device with no size operand both sides print 'size = 1020 KiB (1044480 bytes)' and write identical headers (version 1, last_page 255, UUID, label, identical whole-device digest); PASS for this step.",
+              "definition_sha256": "b5c820ff9beafe7289a8a5c517036fc52325fe78c9c20169325840d63a1d0575"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "An explicit size larger than the device without -f is rejected; with -f behaves as util-linux on a device.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case on a device (oversize cases use regular files)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-mkswap-device-root",
+              "assertion": "Size 4096 without -f: both exit 1 and leave the header unchanged, but util-linux says 'size 4096 KiB is larger than device size 1024 KiB' and the candidate 'requested size exceeds available file or device size'. With -f, and for a smaller rewrite, headers and digests match but the candidate omits util-linux's 'warning: wiping old swap signature.'. Parity FAIL.",
+              "definition_sha256": "b5c820ff9beafe7289a8a5c517036fc52325fe78c9c20169325840d63a1d0575"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Kernel acceptance: the area written by the candidate is accepted by swapon (independent kernel oracle) with the expected size in /proc/swaps, then removed.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case; swapon is seccomp-denied in the legacy runner and needs CAP_SYS_ADMIN."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-mkswap-device-root",
+              "assertion": "util-linux swapon accepts the candidate's area: /proc/swaps shows the loop device, type partition, size 1020; the forced 4 MiB header is refused by the kernel on both sides. Equal.",
+              "definition_sha256": "b5c820ff9beafe7289a8a5c517036fc52325fe78c9c20169325840d63a1d0575"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: loadables/mkswap.c:142 open O_RDWR (no O_EXCL; util-linux opens block devices O_EXCL and refuses in-use devices \u2014 a busy-device variant would document this), :150-152 BLKGETSIZE64, :177 /dev/urandom UUID."
+      "notes": "Root batch C on the rented VM host (root-c-79). privilege=root sides on ext4 loop mounts and loop devices, swap areas snapshotted and removed by the evaluator, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "mlock/all-operation",
@@ -31476,47 +31497,82 @@
         "purpose": "Exercise -a/--all against controlled /proc/swaps data, including header validation, escaped path decoding, duplicate suppression, malformed rows, and valid-row continuation.",
         "reason": "Requires a disposable VM or private /proc/swaps reader mock plus a libc swapoff mock with an independently specified ordered pathname oracle; both must prevent real swapoff requests, with seccomp denying the syscall. Validate empty, valid, duplicate, malformed, and invalid-header tables. No operation is run in this suite."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Missing fixtures only. The empty table is reachable now. Synthetic tables come from a USERNS plus RUNNER-BINDS bind mount over /proc/swaps, and the resulting requests fail deterministically with EPERM, which exposes the decoded paths, order and deduplication. Real kernel removal is the separate topic swapoff/deferred-kernel-removal.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-a with a header-only /proc/swaps makes no requests and returns status 0 with no output.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Reachable now: the VM has no swap, so /proc/swaps is header-only."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapoff-all-table-root",
+              "assertion": "Header-only table: no requests, status 0, no output on both sides; equal.",
+              "definition_sha256": "e5c33310b0d766d580f340ddc0d2edb7c14b1765dfdaa5d7d4c5c6cf1da01860"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Header validation: an invalid or missing header gives '/proc/swaps: invalid header' (or 'missing header'), status 1 and no requests.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs a synthetic /proc/swaps view, because the kernel always emits a valid header. Provided by USERNS plus RUNNER-BINDS: a bind mount over /proc/swaps in the side's user plus mount namespace (modern plain driver, preflight required). The subsequent swapoff requests still fail with EPERM, because USERNS gives no initial-namespace CAP_SYS_ADMIN, so each attempted decoded path appears in a diagnostic."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapoff-all-table-root",
+              "assertion": "Empty file: util-linux status 0 silently, candidate 'missing header' status 1. Invalid header: util-linux warns 'parse error at line 1 -- ignored', still requests /tmp/x and exits 32; candidate 'invalid header', status 1, no request. Parity FAIL.",
+              "definition_sha256": "e5c33310b0d766d580f340ddc0d2edb7c14b1765dfdaa5d7d4c5c6cf1da01860"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Escaped path decoding (\\040, \\011, \\012, \\134) yields the decoded literal path in the request, with unknown escapes treated as malformed.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs a synthetic table view. As uid 2000, each attempted path then reports '<decoded>: Operation not permitted', which exposes the decoding. Provided by USERNS plus RUNNER-BINDS: a bind mount over /proc/swaps in the side's user plus mount namespace (modern plain driver, preflight required). The subsequent swapoff requests still fail with EPERM, because USERNS gives no initial-namespace CAP_SYS_ADMIN, so each attempted decoded path appears in a diagnostic."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapoff-all-table-root",
+              "assertion": "Escapes: util-linux decodes \\040 \\011 \\012 \\134 and also \\777 (as byte 0xff) and issues the requests in reverse table order, silently, status 32; the candidate decodes the four, reports the \\777 row as malformed, requests in table order and prints each EINVAL, status 1. Parity FAIL.",
+              "definition_sha256": "e5c33310b0d766d580f340ddc0d2edb7c14b1765dfdaa5d7d4c5c6cf1da01860"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Duplicate rows are suppressed, so each path is attempted once in first-seen order.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs a synthetic table view. Provided by USERNS plus RUNNER-BINDS: a bind mount over /proc/swaps in the side's user plus mount namespace (modern plain driver, preflight required). The subsequent swapoff requests still fail with EPERM, because USERNS gives no initial-namespace CAP_SYS_ADMIN, so each attempted decoded path appears in a diagnostic."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapoff-all-table-root",
+              "assertion": "Duplicates: util-linux requests d1, d2, d1 (no suppression); the candidate requests d1, d2. Parity FAIL.",
+              "definition_sha256": "e5c33310b0d766d580f340ddc0d2edb7c14b1765dfdaa5d7d4c5c6cf1da01860"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Malformed rows (wrong field count, a bad type, non-numeric or used>size values) report 'malformed row N', and valid rows are still attempted, with final status 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs a synthetic table view. Provided by USERNS plus RUNNER-BINDS: a bind mount over /proc/swaps in the side's user plus mount namespace (modern plain driver, preflight required). The subsequent swapoff requests still fail with EPERM, because USERNS gives no initial-namespace CAP_SYS_ADMIN, so each attempted decoded path appears in a diagnostic."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapoff-all-table-root",
+              "assertion": "Malformed rows: util-linux warns only for the short row and the non-numeric size, still requests m4 (used > size) and m2 (bad type) with ok, status 32; the candidate reports rows 2-5 as malformed and requests only ok, status 1. Parity FAIL.",
+              "definition_sha256": "e5c33310b0d766d580f340ddc0d2edb7c14b1765dfdaa5d7d4c5c6cf1da01860"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Source: loadables/swapoff.c (swapoff_row decoding, swapoff_all header, duplicate and malformed handling; the snapshot is closed before requests). The expected strings derive from the documented help (legacy/swapoff/help-contract-details asserts the help text only, metadata)."
+      "notes": "Root batch C on the rented VM host (root-c-79). privilege=root sides on ext4 loop mounts and loop devices, swap areas snapshotted and removed by the evaluator, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "swapoff/deferred-kernel-removal",
@@ -31526,33 +31582,54 @@
         "purpose": "Establish end-to-end behavior when the kernel actually disables swap and removes that area from the active table.",
         "reason": "Requires a disposable VM with sufficient privilege and a swapfile or device created solely for this test, plus before/after verification that only that owned area changed. It must never target host swap or any shared machine. No operation is run in this suite."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "The kernel effect needs CAP_SYS_ADMIN and swap-state snapshot and restore, which no driver provides.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "swapoff on an active, test-owned swapfile succeeds with status 0.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs CAP_SYS_ADMIN (PRIV-ROOT). Legacy seccomp also denies swapoff."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapoff-removal-root",
+              "assertion": "swapoff on one of two active areas succeeds with status 0 on both sides; byte parity PASS.",
+              "definition_sha256": "b6e29059067db44674c7c2c6ca1a329875688c97e838623394407acd56243530"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "The area disappears from /proc/swaps while other areas are unchanged.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs a KSTATE snapshot comparison."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapoff-removal-root",
+              "assertion": "The removed area disappears from /proc/swaps while the other keeps size 1016 and priority 2; PASS.",
+              "definition_sha256": "b6e29059067db44674c7c2c6ca1a329875688c97e838623394407acd56243530"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "The VM state is restored, and no host or shared machine is targeted.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs controller teardown."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapoff-removal-root",
+              "assertion": "The table is restored ('restored: yes') and the evaluator found no leftover swap areas; everything ran inside the disposable guest on the rented host. PASS.",
+              "definition_sha256": "b6e29059067db44674c7c2c6ca1a329875688c97e838623394407acd56243530"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Pairs with swapon/real-swapfile-activation, so one PRIV-ROOT swap fixture serves both."
+      "notes": "Root batch C on the rented VM host (root-c-79). privilege=root sides on ext4 loop mounts and loop devices, swap areas snapshotted and removed by the evaluator, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "swapoff/deferred-named-operands",
@@ -31562,54 +31639,96 @@
         "purpose": "Exercise literal named operands, -- for a leading dash, repeated explicit operands, and continuation/status behavior when a request fails.",
         "reason": "Requires a disposable VM with owned swap areas or an independently reviewed libc swapoff mock that records operand order, injects selected errno results, and never forwards requests; add a seccomp denial for raw swapoff as a backstop. No operation is run in this suite."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Missing fixtures only. As uid 2000 with no capabilities (and, in legacy, the seccomp EPERM entry for swapon/swapoff), the kernel's first check in swapon(2)/swapoff(2) is capable(CAP_SYS_ADMIN). Every request therefore fails with EPERM before any path lookup, and the candidate prints '<operand>: Operation not permitted'. The order, names, continuation and status of attempts are observable now without privilege. Success, specific errno values and kernel table changes are not. Selected errno results come from SECCOMP-FILTER or SECCOMP-NOTIFY.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Literal named operands are attempted in order, each failure prints '<operand>: <strerror>', processing continues, and the final status is 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Reachable now: as uid 2000, every swapoff(2) returns EPERM, and so does the legacy seccomp."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapoff-named-root",
+              "assertion": "missing, nonswap and an active area in one call: both sides attempt all three in order and remove the active one; util-linux says '<path>: swapoff failed: <strerror>' with status 4, the candidate '<path>: <strerror>' with status 1. Parity FAIL.",
+              "definition_sha256": "16911e58c77e2a0813a6ad66355736eedcd9db5812202b21fc8cf927f7d0766b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "-- before a dash-leading name passes '-name' literally.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapoff-named-root",
+              "assertion": "-- -name with cwd in the mount removes that area on both sides; util-linux requests the absolute path, the candidate '-name'. Parity FAIL.",
+              "definition_sha256": "16911e58c77e2a0813a6ad66355736eedcd9db5812202b21fc8cf927f7d0766b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "A repeated explicit operand is attempted twice; there is no deduplication for named operands.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapoff-named-root",
+              "assertion": "A repeated missing operand is attempted twice on both sides (no deduplication); status 4 versus 1. Parity FAIL.",
+              "definition_sha256": "16911e58c77e2a0813a6ad66355736eedcd9db5812202b21fc8cf927f7d0766b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "An empty operand is diagnosed as 'empty device name' without a request.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapoff-named-root",
+              "assertion": "Empty operand, no request on either side: util-linux 'cannot find the device for ' status 255, candidate 'empty device name' status 1. Parity FAIL.",
+              "definition_sha256": "16911e58c77e2a0813a6ad66355736eedcd9db5812202b21fc8cf927f7d0766b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Usage errors: no operand, -a combined with operands, and an unknown option give status 2.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapoff-named-root",
+              "assertion": "No operand: util-linux 'bad usage' status 16, candidate status 2. -a with an operand: util-linux accepts it and attempts the operand (status 4), the candidate rejects it with status 2 and no request. -Z: 16 versus 2. Parity FAIL.",
+              "definition_sha256": "16911e58c77e2a0813a6ad66355736eedcd9db5812202b21fc8cf927f7d0766b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "Selected errno results (ENOENT, EINVAL for a non-swap file, success for an active area) produce their diagnostics and status.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs controlled per-operand replies. A SECCOMP-NOTIFY scripted reply (0 for one operand, ENOENT and EINVAL for others), or a single-errno SECCOMP-FILTER ERRNO in legacy, gives these without a real swap area, as the reason's no-forward mock specifies."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapoff-named-root",
+              "assertion": "Real kernel replies ENOENT, EINVAL and success produce the diagnostics and statuses recorded in r1.",
+              "definition_sha256": "16911e58c77e2a0813a6ad66355736eedcd9db5812202b21fc8cf927f7d0766b"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Source: loadables/swapoff.c, swapoff_builtin (option loop, empty-name check, per-operand loop)."
+      "notes": "Root batch C on the rented VM host (root-c-79). privilege=root sides on ext4 loop mounts and loop devices, swap areas snapshotted and removed by the evaluator, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "swapon/list-reporting",
@@ -31619,40 +31738,68 @@
         "purpose": "Check that no-argument listing and -s, --show, and --summary report the active-swap table consistently, including a header-only empty table and multiple fixture rows.",
         "reason": "Requires a disposable fixture environment that maps only the candidate's /proc/swaps read to a private synthetic table, through an approved libc fopen mock or an isolated VM with a controlled proc view. The harness cannot inject that absolute-path dependency, and this suite must not inspect the host table. Compare exact bytes, status, and alias consistency only after the mock or VM is independently reviewed."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Missing fixtures only. The empty table and alias consistency are reachable now against the VM-local /proc/swaps. Multiple rows and the open-failure case use a USERNS plus RUNNER-BINDS bind mount over /proc/swaps, subject to a preflight. No capability is needed for listing.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "No-argument `swapon`, `swapon -s`, `--show` and `--summary` print the same bytes, equal to the active table read independently from /proc/swaps.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Reachable now in the VM, where reading /proc/swaps is unprivileged and VM-local."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-list-root",
+              "assertion": "With two active areas, util-linux -s/--summary print the raw /proc/swaps table (equal to the candidate) but no-argument swapon and --show print a NAME/TYPE/SIZE/USED/PRIO table; the candidate prints the raw table for all four. Parity FAIL.",
+              "definition_sha256": "4860c08f06ecb9dfdd10f1560f0da0f217bdb7e327d41d669d357a3f1f3adcbd"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "A header-only empty table, the VM's normal state with no swap configured, is reported exactly.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Reachable now; the script first asserts the table is header-only with a pure-Bash read."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-list-root",
+              "assertion": "On the header-only table util-linux prints nothing for all four aliases; the candidate prints the header line. Parity FAIL.",
+              "definition_sha256": "4860c08f06ecb9dfdd10f1560f0da0f217bdb7e327d41d669d357a3f1f3adcbd"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Multiple fixture rows (two active areas) are reported consistently by all four aliases.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs a /proc/swaps view the fixture controls. USERNS plus RUNNER-BINDS (modern plain driver): bind-mount a synthetic table file (two rows), or a mode-000 file for r4, over /proc/swaps inside the side's user plus mount namespace. Preflight that overmounting a procfs file is permitted in a userns-owned mount namespace; if it is not, fall back to a controller bind mount."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-list-root",
+              "assertion": "Two areas (priorities 5 and 3) activated by util-linux: rows match /proc/swaps for -s/--summary on both sides; no-argument and --show differ as in r1. Parity FAIL.",
+              "definition_sha256": "4860c08f06ecb9dfdd10f1560f0da0f217bdb7e327d41d669d357a3f1f3adcbd"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Exit status is 0 for listing, and the /proc/swaps open-failure diagnostic is checked.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs a /proc/swaps view the fixture controls. USERNS plus RUNNER-BINDS (modern plain driver): bind-mount a synthetic table file (two rows), or a mode-000 file for r4, over /proc/swaps inside the side's user plus mount namespace. Preflight that overmounting a procfs file is permitted in a userns-owned mount namespace; if it is not, fall back to a controller bind mount."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-list-root",
+              "assertion": "Listing status is 0 on both sides. With a mode-000 file bind-mounted over /proc/swaps and DAC override dropped, util-linux exits 255 silently while the candidate exits 1 with 'swapon: /proc/swaps: Permission denied'. Parity FAIL.",
+              "definition_sha256": "4860c08f06ecb9dfdd10f1560f0da0f217bdb7e327d41d669d357a3f1f3adcbd"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Source: loadables/swapon.c:37-46 (show_swaps copies /proc/swaps verbatim) and :53-54. GNU (util-linux) swapon with no arguments prints its --show table, which is not byte-comparable. Keep this a contract and record the deliberate interface difference."
+      "notes": "Root batch C on the rented VM host (root-c-79). privilege=root sides on ext4 loop mounts and loop devices, swap areas snapshotted and removed by the evaluator, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "swapon/multiple-request-failures",
@@ -31662,33 +31809,54 @@
         "purpose": "Check ordered attempts across multiple operands, continuation after an injected request failure, and aggregate failure status while keeping every request mocked.",
         "reason": "Needs the same reviewed no-forward swapon mock as the flag-forwarding case, with deterministic success/failure responses per fixture operand and an independently specified expected request sequence. The current runner cannot inject the libc boundary, and no real kernel requests are permitted."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Missing fixtures only. Ordered failure continuation is observable now with EPERM. Mixed per-operand outcomes come from SECCOMP-NOTIFY scripted replies; no real activation is needed, as the reason specifies.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Requests are attempted in operand order, every operand is attempted after a failure, and the aggregate status is 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Observable now with all-EPERM failures as uid 2000 (ordered diagnostics)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-multiple-root",
+              "assertion": "Operands nonswap, s1, missing, s2: both sides continue after failures and diagnose nonswap and missing in order; status util-linux 255, candidate 1. Parity FAIL.",
+              "definition_sha256": "b570e80a6efb1cb312b58a277cf5af41d95d3aad1cd7f95030363bab8db59c67"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "A mix of per-operand success and failure: the valid swapfile activates while a non-swap file (EINVAL) and a missing path (ENOENT) fail, with status 1 and only the valid area in /proc/swaps.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs per-operand outcomes. SECCOMP-NOTIFY (modern plain driver) can script the replies 0, EINVAL and ENOENT for the three operands without reaching the kernel."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-multiple-root",
+              "assertion": "Both valid areas activate on both sides (/proc/swaps shows s1 and s2, priorities -2 and -3); only the valid areas are present afterwards.",
+              "definition_sha256": "b570e80a6efb1cb312b58a277cf5af41d95d3aad1cd7f95030363bab8db59c67"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "The expected request sequence is specified independently of the candidate.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "A documented operand-order contract exists. The fixture must still be written."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-multiple-root",
+              "assertion": "The notify filter records the requests made: util-linux issues swapon(2) only for s1 and s2 (it rejects the non-swap and missing paths itself), the candidate also requests nonswap and missing. Parity FAIL.",
+              "definition_sha256": "b570e80a6efb1cb312b58a277cf5af41d95d3aad1cd7f95030363bab8db59c67"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Source: loadables/swapon.c:76-81 (loop continues; rc becomes failure)."
+      "notes": "Root batch C on the rented VM host (root-c-79). privilege=root sides on ext4 loop mounts and loop devices, swap areas snapshotted and removed by the evaluator, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "swapon/operand-and-flag-forwarding",
@@ -31698,47 +31866,82 @@
         "purpose": "Check that named operands, including an operand beginning with a dash after --, and documented priority/discard options reach the syscall wrapper with the intended path and Linux ABI flags.",
         "reason": "Requires a future no-forward libc swapon interposer in an isolated disposable VM or reviewed syscall-mock harness, with a seccomp denial of raw swapon(2) as a backstop. Validate captured paths and flags against the documented option contract and Linux SWAP_FLAG_PREFER, priority, and SWAP_FLAG_DISCARD constants; do not enable an actual swap area."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Missing fixtures only. The reason asks for a no-forward interposer, which SECCOMP-NOTIFY provides unprivileged for a static binary in the modern plain driver. Path order is also visible now through EPERM diagnostics.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Named operands, including '-name' after --, reach the swapon(2) wrapper literally and in order.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Observable now through the per-operand EPERM diagnostics as uid 2000, and exactly through SECCOMP-NOTIFY path capture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-flags-root",
+              "assertion": "With cwd in the mount, 'swapon -- -name s1': the candidate passes '-name' and 's1' literally in order; util-linux canonicalizes them to absolute paths. Parity FAIL (order equal).",
+              "definition_sha256": "80eddeea70facf4491e870570407b99445258dedfbcef81e18f52538b6dedbe6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "-p N passes flags SWAP_FLAG_PREFER (0x8000) | N, for N = 0, 1 and 32767.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. The flags argument is recordable only by a syscall supervisor (SECCOMP-NOTIFY)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-flags-root",
+              "assertion": "-p 0, 1 and 32767 pass flags 0x8000, 0x8001 and 0xffff on both sides; equal.",
+              "definition_sha256": "80eddeea70facf4491e870570407b99445258dedfbcef81e18f52538b6dedbe6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "With no options the flags are 0, with no PREFER bit.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Needs SECCOMP-NOTIFY."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-flags-root",
+              "assertion": "No options: flags 0x0 on both sides; equal.",
+              "definition_sha256": "80eddeea70facf4491e870570407b99445258dedfbcef81e18f52538b6dedbe6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "-d passes SWAP_FLAG_DISCARD (0x10000), and -d combined with -p N passes 0x10000|0x8000|N.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Needs SECCOMP-NOTIFY."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-flags-root",
+              "assertion": "-d passes 0x10000 and -d -p 5 passes 0x18005 on both sides; equal.",
+              "definition_sha256": "80eddeea70facf4491e870570407b99445258dedfbcef81e18f52538b6dedbe6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "No actual swap area is enabled; every request is answered by the supervisor.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. The supervisor never uses CONTINUE for swapon."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-flags-root",
+              "assertion": "Every swapon(2) was answered with success by the supervisor and /proc/swaps is empty at the end on both sides.",
+              "definition_sha256": "80eddeea70facf4491e870570407b99445258dedfbcef81e18f52538b6dedbe6"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Source: loadables/swapon.c:68-80. The priority is masked with 0x7fff after the bounds check. Real activation and kernel-reported priority belong to swapon/real-swapfile-activation (requires_capability)."
+      "notes": "Root batch C on the rented VM host (root-c-79). privilege=root sides on ext4 loop mounts and loop devices, swap areas snapshotted and removed by the evaluator, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "swapon/option-validation",
@@ -31748,54 +31951,96 @@
         "purpose": "Check documented -p/--priority bounds, missing priority values, malformed priorities, --discard, --, and unknown-option handling, and ensure rejected requests never reach the syscall boundary.",
         "reason": "The authorized fixture runner provides no syscall-interposition hook. A future isolated mock must intercept libc swapon without forwarding, independently record call counts, and verify rejection statuses/diagnostics and zero requests for invalid forms. Expected accepted priority bounds are the documented 0 through 32767 range."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Missing fixtures only. As uid 2000 with no capabilities (and, in legacy, the seccomp EPERM entry for swapon/swapoff), the kernel's first check in swapon(2)/swapoff(2) is capable(CAP_SYS_ADMIN). Every request therefore fails with EPERM before any path lookup, and the candidate prints '<operand>: Operation not permitted'. The order, names, continuation and status of attempts are observable now without privilege. Success, specific errno values and kernel table changes are not. SECCOMP-FILTER proves that the rejected forms make zero calls.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-p/--priority accepts the documented bounds 0 and 32767: the request reaches the syscall wrapper, which yields '<path>: Operation not permitted' as uid 2000, with status 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Reachable now."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-option-validation-root",
+              "assertion": "-p 0 and -p 32767 reach the kernel (EPERM as uid 2000) on both sides; diagnostics and status differ as in request-error-diagnostics (255 with an owner warning versus 1). Parity FAIL.",
+              "definition_sha256": "a05462b0e51b2a0b640f753cfcc07c5a2497abbd3f94624b7ef696a83a9caa6e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Out-of-range (-1, 32768), malformed (abc, 5x, empty) and missing priority values are rejected with usage status 2 and an 'invalid priority' or 'requires an argument' diagnostic, and no request is made (no path diagnostic appears).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Reachable now."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-option-validation-root",
+              "assertion": "util-linux accepts -p -1 (request with flags 0x0) and rejects 32768, abc, 5x and an empty value with 'failed to parse priority' status 1; a missing value is a getopt error status 1. The candidate rejects -1, 32768, abc and 5x with 'invalid priority' status 2, but accepts an empty value as priority 0 (request flags 0x8000), and says '-p requires an argument' status 2. Parity FAIL, including a candidate defect for -p ''.",
+              "definition_sha256": "a05462b0e51b2a0b640f753cfcc07c5a2497abbd3f94624b7ef696a83a9caa6e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "-d/--discard is accepted and the request reaches the wrapper.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-option-validation-root",
+              "assertion": "-d and --discard reach the kernel on both sides (EPERM); wording and status differ. Parity FAIL.",
+              "definition_sha256": "a05462b0e51b2a0b640f753cfcc07c5a2497abbd3f94624b7ef696a83a9caa6e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "-- ends options, so a following '-name' is a path operand.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-option-validation-root",
+              "assertion": "-- makes -name a path on both sides; util-linux requests '/tmp/rt/mnt/-name', the candidate '-name'. Parity FAIL.",
+              "definition_sha256": "a05462b0e51b2a0b640f753cfcc07c5a2497abbd3f94624b7ef696a83a9caa6e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "An unknown option is rejected with status 2, a usage diagnostic and no request.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-option-validation-root",
+              "assertion": "-Z: util-linux \"invalid option -- 'Z'\" with its help hint, status 1; candidate 'unknown option: -Z' with a usage line, status 2; neither makes a request. Parity FAIL.",
+              "definition_sha256": "a05462b0e51b2a0b640f753cfcc07c5a2497abbd3f94624b7ef696a83a9caa6e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "Rejected forms make zero syscall requests, checked independently.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "SECCOMP-FILTER (legacy runner): run each rejected form under a KILL filter on swapon. A usage status (2) without SIGSYS proves that no call was made."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-option-validation-root",
+              "assertion": "The recorded request list shows no swapon(2) for the rejected forms on either side, except the candidate's request for -p '' (r2).",
+              "definition_sha256": "a05462b0e51b2a0b640f753cfcc07c5a2497abbd3f94624b7ef696a83a9caa6e"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Source: loadables/swapon.c:51-66. The candidate accepts 'p' only as a separate word, so -p5 is an unknown option; util-linux accepts -p5. This is a documented-interface difference, and the contract should record it."
+      "notes": "Root batch C on the rented VM host (root-c-79). privilege=root sides on ext4 loop mounts and loop devices, swap areas snapshotted and removed by the evaluator, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "swapon/real-swapfile-activation",
@@ -31805,33 +32050,54 @@
         "purpose": "Qualify successful activation and kernel-reported priority for a swap file owned by the test environment.",
         "reason": "Requires a disposable VM with a purpose-built, owned swap file, explicit authorization for a real swapon(2) call, and post-operation inspection of that VM's swap table. The namespace runner denies the syscall, and neither host swap configuration nor any device may be changed by this suite."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Real activation needs CAP_SYS_ADMIN in the initial user namespace, and no driver grants it. Restoring swap state requires a controller hook.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A swapfile created for the test is activated successfully (status 0) and appears in /proc/swaps with type file, its size and priority.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs CAP_SYS_ADMIN (PRIV-ROOT). Legacy seccomp also denies swapon."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-activation-root",
+              "assertion": "Default activation of an ext4-hosted swapfile succeeds with status 0 and /proc/swaps shows type file, size 1016 and priority; byte parity with util-linux PASS.",
+              "definition_sha256": "bec0ca527751a6078288655ea86206672b3d2f3df64dbd59ff9e089b5db4ed7f"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "The kernel-reported priority matches -p N, and the default priority applies without -p.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-activation-root",
+              "assertion": "-p 7 gives priority 7, the default gives the kernel's next negative priority, and a second default activation after removal gets the default again; PASS.",
+              "definition_sha256": "bec0ca527751a6078288655ea86206672b3d2f3df64dbd59ff9e089b5db4ed7f"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Only the owned area changed, and the VM's swap table is restored afterward.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs a KSTATE snapshot and restore of /proc/swaps."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-activation-root",
+              "assertion": "/proc/swaps is restored to its pre-case content after removal ('restored: yes'), and the evaluator found no leftover swap areas; PASS.",
+              "definition_sha256": "bec0ca527751a6078288655ea86206672b3d2f3df64dbd59ff9e089b5db4ed7f"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "The guest has no swap by default. A swapfile on ext4 needs a contiguous allocation, which fallocate plus mkswap from util-linux handles. Swapfiles on tmpfs are rejected by the kernel."
+      "notes": "Root batch C on the rented VM host (root-c-79). privilege=root sides on ext4 loop mounts and loop devices, swap areas snapshotted and removed by the evaluator, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "swapon/request-error-diagnostics",
@@ -31841,40 +32107,68 @@
         "purpose": "Check path-specific diagnostics and final status for mocked missing-path, permission, and injected kernel-error responses without changing host state.",
         "reason": "Requires a reviewed no-forward libc swapon mock that returns controlled errno values for relative fixture operands, plus independently specified errno-to-diagnostic expectations. Running the operation against a real path or kernel is prohibited; the current runner has no interposition interface."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Missing fixtures only. EPERM is reachable directly; ENOENT, EINVAL and EBUSY are injected with SECCOMP-FILTER ERRNO or SECCOMP-NOTIFY, as the reason's no-forward mock requires.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Permission failure: as an unprivileged caller, `swapon path` reports '<path>: Operation not permitted' with status 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Reachable now as uid 2000."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-errors-root",
+              "assertion": "uid 2000 activating its own area: util-linux warns 'insecure file owner 2000, 0 (root) suggested.' then 'swapon failed: Operation not permitted', status 255; the candidate prints '<path>: Operation not permitted' with status 1. Parity FAIL.",
+              "definition_sha256": "9a0a11ab02a1bd9d027f084e9c5c2f5a3b7ff4b4cd38a9b96fa5bdad0055b7da"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Missing path (ENOENT): '<path>: No such file or directory' with status 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The kernel checks CAP_SYS_ADMIN before resolving the path. A SECCOMP-FILTER ERRNO(ENOENT) on swapon (legacy runner) or a SECCOMP-NOTIFY scripted reply (modern plain driver) injects the errno deterministically, without privilege."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-errors-root",
+              "assertion": "Missing path as root: util-linux 'cannot open <path>: No such file or directory' status 255; candidate '<path>: No such file or directory' status 1. Parity FAIL.",
+              "definition_sha256": "9a0a11ab02a1bd9d027f084e9c5c2f5a3b7ff4b4cd38a9b96fa5bdad0055b7da"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "A kernel error for an invalid area, such as a file without a swap signature (EINVAL) or an area that is already active (EBUSY), gives a path-specific diagnostic and status 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The kernel checks CAP_SYS_ADMIN before resolving the path. A SECCOMP-FILTER ERRNO(EINVAL/EBUSY) on swapon (legacy runner) or a SECCOMP-NOTIFY scripted reply (modern plain driver) injects the errno deterministically, without privilege."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-errors-root",
+              "assertion": "Zero-filled file: util-linux checks the header itself ('read swap header failed', 255) while the candidate relays the kernel's EINVAL; an already active area gives 'swapon failed: Device or resource busy' (255) versus '<path>: Device or resource busy' (1). Parity FAIL.",
+              "definition_sha256": "9a0a11ab02a1bd9d027f084e9c5c2f5a3b7ff4b4cd38a9b96fa5bdad0055b7da"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "The errno-to-diagnostic mapping is specified independently, using Linux strerror text.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "A contract fixture needs to be written."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-swapon-errors-root",
+              "assertion": "The independent oracle is util-linux 2.41 under the same kernel; the candidate's texts are Linux strerror strings, and the comparison above records each mismatch. No separate written contract was added.",
+              "definition_sha256": "9a0a11ab02a1bd9d027f084e9c5c2f5a3b7ff4b4cd38a9b96fa5bdad0055b7da"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Source: loadables/swapon.c:77-79 (builtin_error '%s: %s', path, strerror)."
+      "notes": "Root batch C on the rented VM host (root-c-79). privilege=root sides on ext4 loop mounts and loop devices, swap areas snapshotted and removed by the evaluator, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "sync/global-sync-call",
@@ -37504,9 +37798,9 @@
         "purpose": "Qualify -a byte changes, including multiple signatures and preservation of unrelated fixture data.",
         "reason": "Requires a disposable VM or reviewed private-image mock that confines all writes to throwaway regular-file images, plus independently encoded signature vectors and an independent util-linux/reference-byte oracle. Verify -a clears only specified magic bytes, preserves neighboring data, and compare repeated/no-match behavior; separately verify -n preserves the image. The destructive operation is not run here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r5: unchanged: needs a block device node",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -37585,12 +37879,19 @@
         {
           "id": "r5",
           "behavior": "-a on a raw block device erases signatures through the device node.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "unchanged: needs a block device node"
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-wipefs-device-root",
+              "assertion": "-a on a 4 MiB loop device with an ext4 signature erases it through the device node on both sides: a following listing is empty, blkid -p exits 2 and a repeated -a is silent. Listing and erase report formats differ (util-linux table and 'bytes were erased' line versus the candidate's offset/type/device line). Parity FAIL.",
+              "definition_sha256": "0a8ec6f28fbe3804e071b26870b52cd5c0e075f46ea33e2a15bf6b63ac103e04"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Root independently reconciled saved records and original compound obligations. Covered requirements may have PASS or FAIL; a separate passing step in a failing case still qualifies. Early failure, unchanged mock output buffers, and unselected table rows do not prove later obligations. Source/fixture errors excluded."
+      "notes": "Root batch C on the rented VM host (root-c-79). privilege=root sides on ext4 loop mounts and loop devices, swap areas snapshotted and removed by the evaluator, root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed."
     },
     {
       "topic": "write/pty-banner-eof-and-faults",

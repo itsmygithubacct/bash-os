@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "a12824af8cd5b64ec2e5a6ecaebb0a82336d4f95e07a66b6ff3bde8386d59b42",
+  "ledger_sha256": "0826a74513e5cd6da2a14c781676d33b13b6778ec1ec5994ce7e620de84b225d",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 105,
-    "none": 286,
-    "full": 209
+    "partial": 104,
+    "none": 276,
+    "full": 220
   },
   "migrations": {
-    "deferred": 391,
-    "replacement": 209
+    "deferred": 380,
+    "replacement": 220
   },
   "pending_full_topics": [],
   "builds": {
@@ -1783,6 +1783,32 @@
             "forced_stop": false,
             "poweroff_request": 255,
             "stopped_at": 1793150352.1443875
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "root-c-static-79",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 11,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "abf0ec759224b723efb9a07a4e39dace75f7cef01cd0d215dc6dd56335b1d997",
+            "provenance.json": "9dc1726381b28bca49f1750f9c0edfdcf43eb9a86cf7cf8398d834177dff7052",
+            "payload.tar": "adc9ad330406d044221ec211869bc6782ceb2e64d9e14e5d48b59395a323e379",
+            "evidence.tar": "be6f75782002cda927cce78741204ad74ff0977b5364a3c0be6ce89e9d0d7c8c"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793150936.20961
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -21362,37 +21388,58 @@
         },
         {
           "topic": "mkswap/raw-device-and-activation",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "On a block device, mkswap sizes the area from BLKGETSIZE64 (no size operand) and writes the same v1 header as util-linux mkswap on an identical device (byte parity of output and device bytes).",
-              "coverage": "missing",
-              "gap": "Executed mkswap parity/contract cases (e.g. legacy/mkswap/regular_file_v1_header-util-linux, explicit_size_page_math-util-linux) use regular files only; S_ISBLK sizing (mkswap.c:150-152) is never reached.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-mkswap-device-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "An explicit size larger than the device without -f is rejected; with -f behaves as util-linux on a device.",
-              "coverage": "missing",
-              "gap": "No executed case on a device (oversize cases use regular files).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-mkswap-device-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Kernel acceptance: the area written by the candidate is accepted by swapon (independent kernel oracle) with the expected size in /proc/swaps, then removed.",
-              "coverage": "missing",
-              "gap": "No executed case; swapon is seccomp-denied in the legacy runner and needs CAP_SYS_ADMIN.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-mkswap-device-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -34359,433 +34406,706 @@
         },
         {
           "topic": "swapoff/deferred-all-table",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-a with a header-only /proc/swaps makes no requests and returns status 0 with no output.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Reachable now: the VM has no swap, so /proc/swaps is header-only.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-all-table-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Header validation: an invalid or missing header gives '/proc/swaps: invalid header' (or 'missing header'), status 1 and no requests.",
-              "coverage": "missing",
-              "gap": "Needs a synthetic /proc/swaps view, because the kernel always emits a valid header. Provided by USERNS plus RUNNER-BINDS: a bind mount over /proc/swaps in the side's user plus mount namespace (modern plain driver, preflight required). The subsequent swapoff requests still fail with EPERM, because USERNS gives no initial-namespace CAP_SYS_ADMIN, so each attempted decoded path appears in a diagnostic.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-all-table-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Escaped path decoding (\\040, \\011, \\012, \\134) yields the decoded literal path in the request, with unknown escapes treated as malformed.",
-              "coverage": "missing",
-              "gap": "Needs a synthetic table view. As uid 2000, each attempted path then reports '<decoded>: Operation not permitted', which exposes the decoding. Provided by USERNS plus RUNNER-BINDS: a bind mount over /proc/swaps in the side's user plus mount namespace (modern plain driver, preflight required). The subsequent swapoff requests still fail with EPERM, because USERNS gives no initial-namespace CAP_SYS_ADMIN, so each attempted decoded path appears in a diagnostic.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-all-table-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Duplicate rows are suppressed, so each path is attempted once in first-seen order.",
-              "coverage": "missing",
-              "gap": "Needs a synthetic table view. Provided by USERNS plus RUNNER-BINDS: a bind mount over /proc/swaps in the side's user plus mount namespace (modern plain driver, preflight required). The subsequent swapoff requests still fail with EPERM, because USERNS gives no initial-namespace CAP_SYS_ADMIN, so each attempted decoded path appears in a diagnostic.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-all-table-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "Malformed rows (wrong field count, a bad type, non-numeric or used>size values) report 'malformed row N', and valid rows are still attempted, with final status 1.",
-              "coverage": "missing",
-              "gap": "Needs a synthetic table view. Provided by USERNS plus RUNNER-BINDS: a bind mount over /proc/swaps in the side's user plus mount namespace (modern plain driver, preflight required). The subsequent swapoff requests still fail with EPERM, because USERNS gives no initial-namespace CAP_SYS_ADMIN, so each attempted decoded path appears in a diagnostic.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-all-table-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "swapoff/deferred-kernel-removal",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "swapoff on an active, test-owned swapfile succeeds with status 0.",
-              "coverage": "missing",
-              "gap": "Needs CAP_SYS_ADMIN (PRIV-ROOT). Legacy seccomp also denies swapoff.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-removal-root",
+                  "status": "PASS",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "The area disappears from /proc/swaps while other areas are unchanged.",
-              "coverage": "missing",
-              "gap": "Needs a KSTATE snapshot comparison.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-removal-root",
+                  "status": "PASS",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "The VM state is restored, and no host or shared machine is targeted.",
-              "coverage": "missing",
-              "gap": "Needs controller teardown.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-removal-root",
+                  "status": "PASS",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "swapoff/deferred-named-operands",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Literal named operands are attempted in order, each failure prints '<operand>: <strerror>', processing continues, and the final status is 1.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Reachable now: as uid 2000, every swapoff(2) returns EPERM, and so does the legacy seccomp.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-named-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "-- before a dash-leading name passes '-name' literally.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-named-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "A repeated explicit operand is attempted twice; there is no deduplication for named operands.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-named-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "An empty operand is diagnosed as 'empty device name' without a request.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-named-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "Usage errors: no operand, -a combined with operands, and an unknown option give status 2.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-named-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r6",
               "behavior": "Selected errno results (ENOENT, EINVAL for a non-swap file, success for an active area) produce their diagnostics and status.",
-              "coverage": "missing",
-              "gap": "Needs controlled per-operand replies. A SECCOMP-NOTIFY scripted reply (0 for one operand, ENOENT and EINVAL for others), or a single-errno SECCOMP-FILTER ERRNO in legacy, gives these without a real swap area, as the reason's no-forward mock specifies.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-named-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "swapon/list-reporting",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "No-argument `swapon`, `swapon -s`, `--show` and `--summary` print the same bytes, equal to the active table read independently from /proc/swaps.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Reachable now in the VM, where reading /proc/swaps is unprivileged and VM-local.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-list-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "A header-only empty table, the VM's normal state with no swap configured, is reported exactly.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Reachable now; the script first asserts the table is header-only with a pure-Bash read.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-list-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Multiple fixture rows (two active areas) are reported consistently by all four aliases.",
-              "coverage": "missing",
-              "gap": "Needs a /proc/swaps view the fixture controls. USERNS plus RUNNER-BINDS (modern plain driver): bind-mount a synthetic table file (two rows), or a mode-000 file for r4, over /proc/swaps inside the side's user plus mount namespace. Preflight that overmounting a procfs file is permitted in a userns-owned mount namespace; if it is not, fall back to a controller bind mount.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-list-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Exit status is 0 for listing, and the /proc/swaps open-failure diagnostic is checked.",
-              "coverage": "missing",
-              "gap": "Needs a /proc/swaps view the fixture controls. USERNS plus RUNNER-BINDS (modern plain driver): bind-mount a synthetic table file (two rows), or a mode-000 file for r4, over /proc/swaps inside the side's user plus mount namespace. Preflight that overmounting a procfs file is permitted in a userns-owned mount namespace; if it is not, fall back to a controller bind mount.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-list-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "swapon/multiple-request-failures",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Requests are attempted in operand order, every operand is attempted after a failure, and the aggregate status is 1.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Observable now with all-EPERM failures as uid 2000 (ordered diagnostics).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-multiple-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "A mix of per-operand success and failure: the valid swapfile activates while a non-swap file (EINVAL) and a missing path (ENOENT) fail, with status 1 and only the valid area in /proc/swaps.",
-              "coverage": "missing",
-              "gap": "Needs per-operand outcomes. SECCOMP-NOTIFY (modern plain driver) can script the replies 0, EINVAL and ENOENT for the three operands without reaching the kernel.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-multiple-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "The expected request sequence is specified independently of the candidate.",
-              "coverage": "missing",
-              "gap": "A documented operand-order contract exists. The fixture must still be written.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-multiple-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "swapon/operand-and-flag-forwarding",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Named operands, including '-name' after --, reach the swapon(2) wrapper literally and in order.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Observable now through the per-operand EPERM diagnostics as uid 2000, and exactly through SECCOMP-NOTIFY path capture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-flags-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "-p N passes flags SWAP_FLAG_PREFER (0x8000) | N, for N = 0, 1 and 32767.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The flags argument is recordable only by a syscall supervisor (SECCOMP-NOTIFY).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-flags-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "With no options the flags are 0, with no PREFER bit.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Needs SECCOMP-NOTIFY.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-flags-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "-d passes SWAP_FLAG_DISCARD (0x10000), and -d combined with -p N passes 0x10000|0x8000|N.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Needs SECCOMP-NOTIFY.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-flags-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "No actual swap area is enabled; every request is answered by the supervisor.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The supervisor never uses CONTINUE for swapon.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-flags-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "swapon/option-validation",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-p/--priority accepts the documented bounds 0 and 32767: the request reaches the syscall wrapper, which yields '<path>: Operation not permitted' as uid 2000, with status 1.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Reachable now.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-option-validation-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Out-of-range (-1, 32768), malformed (abc, 5x, empty) and missing priority values are rejected with usage status 2 and an 'invalid priority' or 'requires an argument' diagnostic, and no request is made (no path diagnostic appears).",
-              "coverage": "missing",
-              "gap": "Unexecuted. Reachable now.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-option-validation-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "-d/--discard is accepted and the request reaches the wrapper.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-option-validation-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "-- ends options, so a following '-name' is a path operand.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-option-validation-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "An unknown option is rejected with status 2, a usage diagnostic and no request.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-option-validation-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r6",
               "behavior": "Rejected forms make zero syscall requests, checked independently.",
-              "coverage": "missing",
-              "gap": "SECCOMP-FILTER (legacy runner): run each rejected form under a KILL filter on swapon. A usage status (2) without SIGSYS proves that no call was made.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-option-validation-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "swapon/real-swapfile-activation",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A swapfile created for the test is activated successfully (status 0) and appears in /proc/swaps with type file, its size and priority.",
-              "coverage": "missing",
-              "gap": "Needs CAP_SYS_ADMIN (PRIV-ROOT). Legacy seccomp also denies swapon.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-activation-root",
+                  "status": "PASS",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "The kernel-reported priority matches -p N, and the default priority applies without -p.",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-activation-root",
+                  "status": "PASS",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Only the owned area changed, and the VM's swap table is restored afterward.",
-              "coverage": "missing",
-              "gap": "Needs a KSTATE snapshot and restore of /proc/swaps.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-activation-root",
+                  "status": "PASS",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "swapon/request-error-diagnostics",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Permission failure: as an unprivileged caller, `swapon path` reports '<path>: Operation not permitted' with status 1.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Reachable now as uid 2000.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-errors-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Missing path (ENOENT): '<path>: No such file or directory' with status 1.",
-              "coverage": "missing",
-              "gap": "The kernel checks CAP_SYS_ADMIN before resolving the path. A SECCOMP-FILTER ERRNO(ENOENT) on swapon (legacy runner) or a SECCOMP-NOTIFY scripted reply (modern plain driver) injects the errno deterministically, without privilege.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-errors-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "A kernel error for an invalid area, such as a file without a swap signature (EINVAL) or an area that is already active (EBUSY), gives a path-specific diagnostic and status 1.",
-              "coverage": "missing",
-              "gap": "The kernel checks CAP_SYS_ADMIN before resolving the path. A SECCOMP-FILTER ERRNO(EINVAL/EBUSY) on swapon (legacy runner) or a SECCOMP-NOTIFY scripted reply (modern plain driver) injects the errno deterministically, without privilege.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-errors-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "The errno-to-diagnostic mapping is specified independently, using Linux strerror text.",
-              "coverage": "missing",
-              "gap": "A contract fixture needs to be written.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-errors-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -40533,10 +40853,10 @@
         },
         {
           "topic": "wipefs/signature-erasure-deferred",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -40623,11 +40943,18 @@
             {
               "id": "r5",
               "behavior": "-a on a raw block device erases signatures through the device node.",
-              "coverage": "missing",
-              "gap": "unchanged: needs a block device node",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-wipefs-device-root",
+                  "status": "FAIL",
+                  "run": "root-c-static-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -40962,9 +41289,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 391,
-        "FAIL": 104,
-        "PASS": 105
+        "UNRESOLVED": 380,
+        "FAIL": 113,
+        "PASS": 107
       },
       "migration_without_complete_evidence": []
     },
@@ -42737,6 +43064,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793150354.001629
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "root-c-dynamic-79",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 11,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "234b14fc5b877540ed6c80f8caab5fd9f9476e2ff9d40936ab7f929987d01b17",
+            "provenance.json": "6c4a060b4f2b69447c864a785a07d843dce66c28a9bc6333515fa5ebabc66846",
+            "payload.tar": "528ba6db509ab581e74bf15686e49fe588489fdab8b1679fb27a0fae0790a9a9",
+            "evidence.tar": "e724222fc3dd7ee4f1a3b0205cabdbadfcfc37ef24c94bff1a2db518727fca93"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793150935.9951596
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -62316,37 +62669,58 @@
         },
         {
           "topic": "mkswap/raw-device-and-activation",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "On a block device, mkswap sizes the area from BLKGETSIZE64 (no size operand) and writes the same v1 header as util-linux mkswap on an identical device (byte parity of output and device bytes).",
-              "coverage": "missing",
-              "gap": "Executed mkswap parity/contract cases (e.g. legacy/mkswap/regular_file_v1_header-util-linux, explicit_size_page_math-util-linux) use regular files only; S_ISBLK sizing (mkswap.c:150-152) is never reached.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-mkswap-device-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "An explicit size larger than the device without -f is rejected; with -f behaves as util-linux on a device.",
-              "coverage": "missing",
-              "gap": "No executed case on a device (oversize cases use regular files).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-mkswap-device-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Kernel acceptance: the area written by the candidate is accepted by swapon (independent kernel oracle) with the expected size in /proc/swaps, then removed.",
-              "coverage": "missing",
-              "gap": "No executed case; swapon is seccomp-denied in the legacy runner and needs CAP_SYS_ADMIN.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-mkswap-device-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -75313,433 +75687,706 @@
         },
         {
           "topic": "swapoff/deferred-all-table",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-a with a header-only /proc/swaps makes no requests and returns status 0 with no output.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Reachable now: the VM has no swap, so /proc/swaps is header-only.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-all-table-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Header validation: an invalid or missing header gives '/proc/swaps: invalid header' (or 'missing header'), status 1 and no requests.",
-              "coverage": "missing",
-              "gap": "Needs a synthetic /proc/swaps view, because the kernel always emits a valid header. Provided by USERNS plus RUNNER-BINDS: a bind mount over /proc/swaps in the side's user plus mount namespace (modern plain driver, preflight required). The subsequent swapoff requests still fail with EPERM, because USERNS gives no initial-namespace CAP_SYS_ADMIN, so each attempted decoded path appears in a diagnostic.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-all-table-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Escaped path decoding (\\040, \\011, \\012, \\134) yields the decoded literal path in the request, with unknown escapes treated as malformed.",
-              "coverage": "missing",
-              "gap": "Needs a synthetic table view. As uid 2000, each attempted path then reports '<decoded>: Operation not permitted', which exposes the decoding. Provided by USERNS plus RUNNER-BINDS: a bind mount over /proc/swaps in the side's user plus mount namespace (modern plain driver, preflight required). The subsequent swapoff requests still fail with EPERM, because USERNS gives no initial-namespace CAP_SYS_ADMIN, so each attempted decoded path appears in a diagnostic.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-all-table-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Duplicate rows are suppressed, so each path is attempted once in first-seen order.",
-              "coverage": "missing",
-              "gap": "Needs a synthetic table view. Provided by USERNS plus RUNNER-BINDS: a bind mount over /proc/swaps in the side's user plus mount namespace (modern plain driver, preflight required). The subsequent swapoff requests still fail with EPERM, because USERNS gives no initial-namespace CAP_SYS_ADMIN, so each attempted decoded path appears in a diagnostic.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-all-table-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "Malformed rows (wrong field count, a bad type, non-numeric or used>size values) report 'malformed row N', and valid rows are still attempted, with final status 1.",
-              "coverage": "missing",
-              "gap": "Needs a synthetic table view. Provided by USERNS plus RUNNER-BINDS: a bind mount over /proc/swaps in the side's user plus mount namespace (modern plain driver, preflight required). The subsequent swapoff requests still fail with EPERM, because USERNS gives no initial-namespace CAP_SYS_ADMIN, so each attempted decoded path appears in a diagnostic.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-all-table-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "swapoff/deferred-kernel-removal",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "swapoff on an active, test-owned swapfile succeeds with status 0.",
-              "coverage": "missing",
-              "gap": "Needs CAP_SYS_ADMIN (PRIV-ROOT). Legacy seccomp also denies swapoff.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-removal-root",
+                  "status": "PASS",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "The area disappears from /proc/swaps while other areas are unchanged.",
-              "coverage": "missing",
-              "gap": "Needs a KSTATE snapshot comparison.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-removal-root",
+                  "status": "PASS",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "The VM state is restored, and no host or shared machine is targeted.",
-              "coverage": "missing",
-              "gap": "Needs controller teardown.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-removal-root",
+                  "status": "PASS",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "swapoff/deferred-named-operands",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Literal named operands are attempted in order, each failure prints '<operand>: <strerror>', processing continues, and the final status is 1.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Reachable now: as uid 2000, every swapoff(2) returns EPERM, and so does the legacy seccomp.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-named-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "-- before a dash-leading name passes '-name' literally.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-named-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "A repeated explicit operand is attempted twice; there is no deduplication for named operands.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-named-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "An empty operand is diagnosed as 'empty device name' without a request.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-named-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "Usage errors: no operand, -a combined with operands, and an unknown option give status 2.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-named-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r6",
               "behavior": "Selected errno results (ENOENT, EINVAL for a non-swap file, success for an active area) produce their diagnostics and status.",
-              "coverage": "missing",
-              "gap": "Needs controlled per-operand replies. A SECCOMP-NOTIFY scripted reply (0 for one operand, ENOENT and EINVAL for others), or a single-errno SECCOMP-FILTER ERRNO in legacy, gives these without a real swap area, as the reason's no-forward mock specifies.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapoff-named-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "swapon/list-reporting",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "No-argument `swapon`, `swapon -s`, `--show` and `--summary` print the same bytes, equal to the active table read independently from /proc/swaps.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Reachable now in the VM, where reading /proc/swaps is unprivileged and VM-local.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-list-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "A header-only empty table, the VM's normal state with no swap configured, is reported exactly.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Reachable now; the script first asserts the table is header-only with a pure-Bash read.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-list-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Multiple fixture rows (two active areas) are reported consistently by all four aliases.",
-              "coverage": "missing",
-              "gap": "Needs a /proc/swaps view the fixture controls. USERNS plus RUNNER-BINDS (modern plain driver): bind-mount a synthetic table file (two rows), or a mode-000 file for r4, over /proc/swaps inside the side's user plus mount namespace. Preflight that overmounting a procfs file is permitted in a userns-owned mount namespace; if it is not, fall back to a controller bind mount.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-list-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Exit status is 0 for listing, and the /proc/swaps open-failure diagnostic is checked.",
-              "coverage": "missing",
-              "gap": "Needs a /proc/swaps view the fixture controls. USERNS plus RUNNER-BINDS (modern plain driver): bind-mount a synthetic table file (two rows), or a mode-000 file for r4, over /proc/swaps inside the side's user plus mount namespace. Preflight that overmounting a procfs file is permitted in a userns-owned mount namespace; if it is not, fall back to a controller bind mount.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-list-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "swapon/multiple-request-failures",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Requests are attempted in operand order, every operand is attempted after a failure, and the aggregate status is 1.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Observable now with all-EPERM failures as uid 2000 (ordered diagnostics).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-multiple-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "A mix of per-operand success and failure: the valid swapfile activates while a non-swap file (EINVAL) and a missing path (ENOENT) fail, with status 1 and only the valid area in /proc/swaps.",
-              "coverage": "missing",
-              "gap": "Needs per-operand outcomes. SECCOMP-NOTIFY (modern plain driver) can script the replies 0, EINVAL and ENOENT for the three operands without reaching the kernel.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-multiple-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "The expected request sequence is specified independently of the candidate.",
-              "coverage": "missing",
-              "gap": "A documented operand-order contract exists. The fixture must still be written.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-multiple-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "swapon/operand-and-flag-forwarding",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Named operands, including '-name' after --, reach the swapon(2) wrapper literally and in order.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Observable now through the per-operand EPERM diagnostics as uid 2000, and exactly through SECCOMP-NOTIFY path capture.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-flags-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "-p N passes flags SWAP_FLAG_PREFER (0x8000) | N, for N = 0, 1 and 32767.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The flags argument is recordable only by a syscall supervisor (SECCOMP-NOTIFY).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-flags-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "With no options the flags are 0, with no PREFER bit.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Needs SECCOMP-NOTIFY.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-flags-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "-d passes SWAP_FLAG_DISCARD (0x10000), and -d combined with -p N passes 0x10000|0x8000|N.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Needs SECCOMP-NOTIFY.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-flags-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "No actual swap area is enabled; every request is answered by the supervisor.",
-              "coverage": "missing",
-              "gap": "Unexecuted. The supervisor never uses CONTINUE for swapon.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-flags-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "swapon/option-validation",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-p/--priority accepts the documented bounds 0 and 32767: the request reaches the syscall wrapper, which yields '<path>: Operation not permitted' as uid 2000, with status 1.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Reachable now.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-option-validation-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Out-of-range (-1, 32768), malformed (abc, 5x, empty) and missing priority values are rejected with usage status 2 and an 'invalid priority' or 'requires an argument' diagnostic, and no request is made (no path diagnostic appears).",
-              "coverage": "missing",
-              "gap": "Unexecuted. Reachable now.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-option-validation-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "-d/--discard is accepted and the request reaches the wrapper.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-option-validation-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "-- ends options, so a following '-name' is a path operand.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-option-validation-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "An unknown option is rejected with status 2, a usage diagnostic and no request.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-option-validation-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r6",
               "behavior": "Rejected forms make zero syscall requests, checked independently.",
-              "coverage": "missing",
-              "gap": "SECCOMP-FILTER (legacy runner): run each rejected form under a KILL filter on swapon. A usage status (2) without SIGSYS proves that no call was made.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-option-validation-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "swapon/real-swapfile-activation",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A swapfile created for the test is activated successfully (status 0) and appears in /proc/swaps with type file, its size and priority.",
-              "coverage": "missing",
-              "gap": "Needs CAP_SYS_ADMIN (PRIV-ROOT). Legacy seccomp also denies swapon.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-activation-root",
+                  "status": "PASS",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "The kernel-reported priority matches -p N, and the default priority applies without -p.",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-activation-root",
+                  "status": "PASS",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Only the owned area changed, and the VM's swap table is restored afterward.",
-              "coverage": "missing",
-              "gap": "Needs a KSTATE snapshot and restore of /proc/swaps.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-activation-root",
+                  "status": "PASS",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "swapon/request-error-diagnostics",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Permission failure: as an unprivileged caller, `swapon path` reports '<path>: Operation not permitted' with status 1.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Reachable now as uid 2000.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-errors-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Missing path (ENOENT): '<path>: No such file or directory' with status 1.",
-              "coverage": "missing",
-              "gap": "The kernel checks CAP_SYS_ADMIN before resolving the path. A SECCOMP-FILTER ERRNO(ENOENT) on swapon (legacy runner) or a SECCOMP-NOTIFY scripted reply (modern plain driver) injects the errno deterministically, without privilege.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-errors-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "A kernel error for an invalid area, such as a file without a swap signature (EINVAL) or an area that is already active (EBUSY), gives a path-specific diagnostic and status 1.",
-              "coverage": "missing",
-              "gap": "The kernel checks CAP_SYS_ADMIN before resolving the path. A SECCOMP-FILTER ERRNO(EINVAL/EBUSY) on swapon (legacy runner) or a SECCOMP-NOTIFY scripted reply (modern plain driver) injects the errno deterministically, without privilege.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-errors-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "The errno-to-diagnostic mapping is specified independently, using Linux strerror text.",
-              "coverage": "missing",
-              "gap": "A contract fixture needs to be written.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-swapon-errors-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -81487,10 +82134,10 @@
         },
         {
           "topic": "wipefs/signature-erasure-deferred",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -81577,11 +82224,18 @@
             {
               "id": "r5",
               "behavior": "-a on a raw block device erases signatures through the device node.",
-              "coverage": "missing",
-              "gap": "unchanged: needs a block device node",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-wipefs-device-root",
+                  "status": "FAIL",
+                  "run": "root-c-dynamic-79"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -81916,9 +82570,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 391,
-        "FAIL": 104,
-        "PASS": 105
+        "UNRESOLVED": 380,
+        "FAIL": 113,
+        "PASS": 107
       },
       "migration_without_complete_evidence": []
     }

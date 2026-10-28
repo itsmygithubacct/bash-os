@@ -50,21 +50,36 @@
     },
     {
       "id": "deferred-named-operands",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise literal named operands, -- for a leading dash, repeated explicit operands, and continuation/status behavior when a request fails.",
-      "reason": "Missing fixtures only. As uid 2000 with no capabilities (and, in legacy, the seccomp EPERM entry for swapon/swapoff), the kernel's first check in swapon(2)/swapoff(2) is capable(CAP_SYS_ADMIN). Every request therefore fails with EPERM before any path lookup, and the candidate prints '<operand>: Operation not permitted'. The order, names, continuation and status of attempts are observable now without privilege. Success, specific errno values and kernel table changes are not. Selected errno results come from SECCOMP-FILTER or SECCOMP-NOTIFY."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-swapoff-named-root"
+        }
+      ]
     },
     {
       "id": "deferred-all-table",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise -a/--all against controlled /proc/swaps data, including header validation, escaped path decoding, duplicate suppression, malformed rows, and valid-row continuation.",
-      "reason": "Missing fixtures only. The empty table is reachable now. Synthetic tables come from a USERNS plus RUNNER-BINDS bind mount over /proc/swaps, and the resulting requests fail deterministically with EPERM, which exposes the decoded paths, order and deduplication. Real kernel removal is the separate topic swapoff/deferred-kernel-removal."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-swapoff-all-table-root"
+        }
+      ]
     },
     {
       "id": "deferred-kernel-removal",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Establish end-to-end behavior when the kernel actually disables swap and removes that area from the active table.",
-      "reason": "The kernel effect needs CAP_SYS_ADMIN and swap-state snapshot and restore, which no driver provides."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-swapoff-removal-root"
+        }
+      ]
     }
   ]
 }

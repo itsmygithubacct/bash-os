@@ -62,9 +62,34 @@
     },
     {
       "id": "signature-erasure-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify -a byte changes, including multiple signatures and preservation of unrelated fixture data.",
-      "reason": "Remaining obligations: r5: unchanged: needs a block device node"
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/wipefs/multiple-signature-offsets"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/wipefs/signature-inspection-deferred"
+        },
+        {
+          "group": "shell",
+          "id": "migration-wipefs-device-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-wipefs-erase-exact-bytes"
+        },
+        {
+          "group": "shell",
+          "id": "migration-wipefs-no-act-preserves"
+        },
+        {
+          "group": "shell",
+          "id": "migration-wipefs-tool-images-parity"
+        }
+      ]
     },
     {
       "id": "no-signature-files",

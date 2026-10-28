@@ -192,9 +192,14 @@
     },
     {
       "id": "raw-device-and-activation",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Block-size ioctl and swap activation require separate controlled qualification.",
-      "reason": "r1/r2 need a writable block-device node (uid 2000 with setgroups([]) cannot open /dev/loop-control or /dev/loopN (root:disk 0660), cannot mknod block nodes (CAP_MKNOD; device nodes are refused inside user namespaces), and the real virtio disk nodes are root:disk 0660, so no block device with known contents is visible to an unprivileged fixture); r3 needs swapon(2), which requires CAP_SYS_ADMIN and is in the legacy seccomp denylist, and changes global swap state (needs KSTATE restore). Swap files on tmpfs are not supported by the kernel, so a loop device or ext4 image is needed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-mkswap-device-root"
+        }
+      ]
     },
     {
       "id": "uuid-invalid-contract",
