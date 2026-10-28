@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "af7b9ff417c5a6e1331414713f73dd2356ab5481d34bf211f7ecbe1048532cb5",
+  "ledger_sha256": "052a5b214c49c77730110b5641ae97ea477a5da2587f186e353cc708ccb4885d",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 99,
+    "partial": 97,
     "none": 251,
-    "full": 250
+    "full": 252
   },
   "migrations": {
-    "deferred": 350,
-    "replacement": 250
+    "deferred": 348,
+    "replacement": 252
   },
   "pending_full_topics": [],
   "builds": {
@@ -1913,6 +1913,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793184877.6568217
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "io-retention-static-92",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "eeb25418ca4002ae4587d256b578ff15f33f1fef762197ee85328fabdbe9f332",
+            "provenance.json": "7d8273be93137d0b02a59467571efc8df7694cbecd9360d88fb599d23de90d86",
+            "payload.tar": "31bd2b6ec2675e8b6cbe2be91c8a72fddc6dcdf129617917cb95f55dabb65bea",
+            "evidence.tar": "1909fb5e477f32af84966db4cc4cc6c437729bc903e2d75fb651e96c5db7626e"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793186242.526736
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -6020,16 +6046,16 @@
         },
         {
           "topic": "buf/save-faults-deferred",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Data-write failure during save rolls back: destination unchanged, temp removed, buffer stays dirty; preserve the original filename of the same failed buffer.",
-              "coverage": "partial",
-              "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -6042,58 +6068,82 @@
                   "id": "migration-buf-save-fault-short-write-efbig",
                   "status": "PASS",
                   "run": "data-static-38"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-buf-retained-name-after-efbig",
+                  "status": "PASS",
+                  "run": "io-retention-static-92"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "fdatasync failure rolls back; preserve the original filename of the same failed buffer.",
-              "coverage": "partial",
-              "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-buf-save-fault-fdatasync-eio",
                   "status": "PASS",
                   "run": "data-static-38"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-buf-retained-name-after-fdatasync",
+                  "status": "PASS",
+                  "run": "io-retention-static-92"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "close failure rolls back; preserve the original filename of the same failed buffer.",
-              "coverage": "partial",
-              "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-buf-save-fault-close-eio",
                   "status": "PASS",
                   "run": "data-static-38"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-buf-retained-name-after-close",
+                  "status": "PASS",
+                  "run": "io-retention-static-92"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "rename failure rolls back (destination and temp handling, retained filename); preserve the original filename of the same failed buffer.",
-              "coverage": "partial",
-              "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-buf-save-fault-rename-eio",
                   "status": "PASS",
                   "run": "data-static-38"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-buf-retained-name-after-rename",
+                  "status": "PASS",
+                  "run": "io-retention-static-92"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -37244,10 +37294,10 @@
         },
         {
           "topic": "tee/write-error-recovery-deferred",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -37284,18 +37334,24 @@
             {
               "id": "r3",
               "behavior": "EIO specifically (errno-specific diagnostic).",
-              "coverage": "partial",
-              "gap": "The independent control establishes EIO and raw diagnostics contain it, but the fixture only asserts diagnostic nonemptiness; an explicit errno-specific diagnostic assertion remains required.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-tee-eio-stdout-continues",
                   "status": "PASS",
                   "run": "data-static-38"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-tee-eio-diagnostic-and-healthy-sinks",
+                  "status": "PASS",
+                  "run": "io-retention-static-92"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -42476,9 +42532,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 350,
+        "UNRESOLVED": 348,
         "FAIL": 137,
-        "PASS": 113
+        "PASS": 115
       },
       "migration_without_complete_evidence": []
     },
@@ -44381,6 +44437,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793184995.0582983
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "io-retention-dynamic-92",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "cddd50bc54e43eb0f18b84deecbac25f282db2a22cac3e0b472ba4e0afbf3cb7",
+            "provenance.json": "d106b4d11e93f5524b6fa53fa0223d922405c95bd2106e83163bb6885ac00c57",
+            "payload.tar": "d6607d3ca4fb906971f006bd65c923b2841a217d11e1f1bfb94887ad9600e66c",
+            "evidence.tar": "3e85e4890a39c882263b75168c15cca65e2060d258804212e3dcce5f54c0b71f"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793186394.3418825
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -48488,16 +48570,16 @@
         },
         {
           "topic": "buf/save-faults-deferred",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Data-write failure during save rolls back: destination unchanged, temp removed, buffer stays dirty; preserve the original filename of the same failed buffer.",
-              "coverage": "partial",
-              "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -48510,58 +48592,82 @@
                   "id": "migration-buf-save-fault-short-write-efbig",
                   "status": "PASS",
                   "run": "data-dynamic-38"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-buf-retained-name-after-efbig",
+                  "status": "PASS",
+                  "run": "io-retention-dynamic-92"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "fdatasync failure rolls back; preserve the original filename of the same failed buffer.",
-              "coverage": "partial",
-              "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-buf-save-fault-fdatasync-eio",
                   "status": "PASS",
                   "run": "data-dynamic-38"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-buf-retained-name-after-fdatasync",
+                  "status": "PASS",
+                  "run": "io-retention-dynamic-92"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "close failure rolls back; preserve the original filename of the same failed buffer.",
-              "coverage": "partial",
-              "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-buf-save-fault-close-eio",
                   "status": "PASS",
                   "run": "data-dynamic-38"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-buf-retained-name-after-close",
+                  "status": "PASS",
+                  "run": "io-retention-dynamic-92"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "rename failure rolls back (destination and temp handling, retained filename); preserve the original filename of the same failed buffer.",
-              "coverage": "partial",
-              "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-buf-save-fault-rename-eio",
                   "status": "PASS",
                   "run": "data-dynamic-38"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-buf-retained-name-after-rename",
+                  "status": "PASS",
+                  "run": "io-retention-dynamic-92"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -79712,10 +79818,10 @@
         },
         {
           "topic": "tee/write-error-recovery-deferred",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -79752,18 +79858,24 @@
             {
               "id": "r3",
               "behavior": "EIO specifically (errno-specific diagnostic).",
-              "coverage": "partial",
-              "gap": "The independent control establishes EIO and raw diagnostics contain it, but the fixture only asserts diagnostic nonemptiness; an explicit errno-specific diagnostic assertion remains required.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-tee-eio-stdout-continues",
                   "status": "PASS",
                   "run": "data-dynamic-38"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-tee-eio-diagnostic-and-healthy-sinks",
+                  "status": "PASS",
+                  "run": "io-retention-dynamic-92"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -84944,9 +85056,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 350,
+        "UNRESOLVED": 348,
         "FAIL": 137,
-        "PASS": 113
+        "PASS": 115
       },
       "migration_without_complete_evidence": []
     }

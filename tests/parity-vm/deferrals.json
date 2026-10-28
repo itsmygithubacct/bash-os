@@ -3924,14 +3924,14 @@
         "purpose": "Qualify rollback when save encounters data-write, data-sync, close, or rename failures.",
         "reason": "Requires an independently reviewed syscall fault-injection mock or a disposable VM that can deterministically fail write, fdatasync, close, and rename while checking the destination, temporary files, retained filename, and dirty state. The supplied runner provides no syscall shim, so ordinary save success must not be counted as coverage of these failure paths."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.; r2: The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.; r3: The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.; r4: The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Data-write failure during save rolls back: destination unchanged, temp removed, buffer stays dirty; preserve the original filename of the same failed buffer.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -3944,54 +3944,78 @@
               "id": "migration-buf-save-fault-short-write-efbig",
               "assertion": "The failed child/subshell observes error status, original destination, temporary-file cleanup and dirty state. The later retained-save output comes from a newly constructed parent buffer and is not evidence of the failed buffer's retained filename.",
               "definition_sha256": "d367ebe08e91f3892a52ffb3abd29c81d887402b7701571fdab11f8ea3799bf9"
+            },
+            {
+              "group": "shell",
+              "id": "migration-buf-retained-name-after-efbig",
+              "assertion": "Same failed buffer after short write/EFBIG: rollback, dirty state, restored soft-only limit, retained-name recovery and complete original bytes; existing ENOSPC retained-name case preserved.",
+              "definition_sha256": "29d1f2d828031b78bbfec38df4293e2176ad25feab5917821c6f0eadbc23e9fc"
             }
           ],
-          "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "fdatasync failure rolls back; preserve the original filename of the same failed buffer.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-buf-save-fault-fdatasync-eio",
               "assertion": "The failed child/subshell observes error status, original destination, temporary-file cleanup and dirty state. The later retained-save output comes from a newly constructed parent buffer and is not evidence of the failed buffer's retained filename.",
               "definition_sha256": "88a77e17b9583216ee09c65f1d909356cb5db0ac57752cad101ca471e990b6eb"
+            },
+            {
+              "group": "shell",
+              "id": "migration-buf-retained-name-after-fdatasync",
+              "assertion": "One-shot fdatasync EIO on the actual temp fd; same buffer and original filename recover after the next fdatasync continues.",
+              "definition_sha256": "7ce791748a1382110d04559c14998e46771e102c753b517a305c940a60d16d63"
             }
           ],
-          "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "close failure rolls back; preserve the original filename of the same failed buffer.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-buf-save-fault-close-eio",
               "assertion": "The failed child/subshell observes error status, original destination, temporary-file cleanup and dirty state. The later retained-save output comes from a newly constructed parent buffer and is not evidence of the failed buffer's retained filename.",
               "definition_sha256": "47486bb43308ef044385ec0f846b3b0cc12182ee342a3a33a2237fc51a2af29b"
+            },
+            {
+              "group": "shell",
+              "id": "migration-buf-retained-name-after-close",
+              "assertion": "Witness identifies fd11 temp/payload/fdatasync/close; one-shot close EIO rollback and same-buffer recovery, actual lingering mock descriptor documented through recovery before fixture cleanup.",
+              "definition_sha256": "5393e288f4b0f24a3adc88372c85485cd81769b9c1e2cd573e3ec57b36e3f7c3"
             }
           ],
-          "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "rename failure rolls back (destination and temp handling, retained filename); preserve the original filename of the same failed buffer.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-buf-save-fault-rename-eio",
               "assertion": "The failed child/subshell observes error status, original destination, temporary-file cleanup and dirty state. The later retained-save output comes from a newly constructed parent buffer and is not evidence of the failed buffer's retained filename.",
               "definition_sha256": "ef1967dabfc4ec11d08c331d38bb311e256fe01458a51751fbb8173bc5324099"
+            },
+            {
+              "group": "shell",
+              "id": "migration-buf-retained-name-after-rename",
+              "assertion": "Actual temp-source rename EIO, rollback and dirty state; same buffer saves without PATH to the unchanged original filename once the syscall continues.",
+              "definition_sha256": "57d28fad3e655c0b44f0a2776e6b51755b93f048a03a5a88abfc5be1e006a546"
             }
           ],
-          "gap": "The failed buffer's retained filename is not observed after this failure in the same child. A fresh parent buffer saving successfully does not establish rollback of the failed child; same-buffer recovery remains required."
+          "gap": ""
         }
       ],
-      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
+      "notes": "Primary independently recomputed both unchanged builds from io-retention-92 raw archives. All five behavioral fixtures and 13 selfchecks pass per build; setup controls succeed, logs are complete, same-child same-handle recovery and exact files are asserted. Existing companion evidence remains selected. Synthetic close EIO leaves a real descriptor open; its deleted temporary referent is recorded through recovery and fixture cleanup follows both snapshots, so kernel close is not falsely credited."
     },
     {
       "topic": "caps/caps-clear-bounding",
@@ -34181,9 +34205,9 @@
         "purpose": "Exercise recovery when one already-open output fails during write while other output descriptors remain healthy.",
         "reason": "Requires a disposable VM with a reviewed deterministic write-fault mock that returns EIO for one private output after open, without relying on /dev/full. A future fixture should compare GNU and candidate status, stderr policy, prompt termination, stdout bytes and the complete contents of healthy sinks for a small bounded input."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: The independent control establishes EIO and raw diagnostics contain it, but the fixture only asserts diagnostic nonemptiness; an explicit errno-specific diagnostic assertion remains required.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -34216,19 +34240,25 @@
         {
           "id": "r3",
           "behavior": "EIO specifically (errno-specific diagnostic).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-tee-eio-stdout-continues",
               "assertion": "An independent hung-PTY control proves EIO; the behavioral fixture currently checks nonzero status, healthy named output bytes and diagnostic presence only. It does not assert errno-specific diagnostic content.",
               "definition_sha256": "c880f4317f896b4b7088e2cc1dfd0d5663d2aa08bb201f247e9f30f0c3bbd71c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-tee-eio-diagnostic-and-healthy-sinks",
+              "assertion": "Independent EIO control, explicit strerror(EIO) diagnostic predicate, nonzero status, exact complete bytes in both healthy sinks; existing healthy-stdout companion evidence remains required for r2.",
+              "definition_sha256": "e045a72b484e69c955189f4fbe47dc3acf85ddeacceae529cae05cbb52a1eac2"
             }
           ],
-          "gap": "The independent control establishes EIO and raw diagnostics contain it, but the fixture only asserts diagnostic nonemptiness; an explicit errno-specific diagnostic assertion remains required."
+          "gap": ""
         }
       ],
-      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit."
+      "notes": "Primary independently recomputed both unchanged builds from io-retention-92 raw archives. All five behavioral fixtures and 13 selfchecks pass per build; setup controls succeed, logs are complete, same-child same-handle recovery and exact files are asserted. Existing companion evidence remains selected. Synthetic close EIO leaves a real descriptor open; its deleted temporary referent is recorded through recovery and fixture cleanup follows both snapshots, so kernel close is not falsely credited."
     },
     {
       "topic": "termpixel/termpixel-pty-input",

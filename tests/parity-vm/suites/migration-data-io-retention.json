@@ -1,0 +1,241 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-buf-retained-name-after-efbig",
+      "loadable": "buf",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "After efbig save failure, the same live failed buffer recovers with save HANDLE and no PATH, retaining its original filename and exact edits.",
+      "oracle": "Preserved atomic-save obligations and documented buf save/load/dirty contract: a failed save keeps destination bytes, removes its temporary file, preserves dirty edits and the original filename. Recovering in that same shell with the same handle and no PATH must write exactly zero\\n plus the original bytes to original.txt, leave w/target unchanged, and become clean. Independent direct-syscall controls prove the injected error and subsequent real success; EFBIG uses the kernel soft file limit, never lowers its inherited hard limit. Trace data identifies the intended temp file and fd11 payload. A synthetic close EIO leaves its real descriptor open; the fixture records this state before/after recovery and cleans up only afterward, without crediting the candidate with closure.",
+      "comparison": "Exact normalized observations plus final original.txt/w/target bytes. Owner PID and handle must match across failure/recovery. Snapshots retain both file byte strings, temp residue and actual fd11 state while the child remains alive. All EIO replies are one-shot; later syscalls continue in the kernel. Close additionally has a no-injection fd11 identity witness. No buffer replacement or set-name occurs after the failed save.",
+      "covers": [
+        "buf/save-faults-deferred"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/io-retention-observer.py": "45b73e7456ff11ef8ce7699a3fbb0871271e62183d60bc505d1562962b7a759a",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "files": {
+        "failed-buffer.sh": "# SPDX-License-Identifier: MIT\n# All buffer operations below stay in this process and use the same handle.\nmode=$1\nattempt=$2\nH=/opt/bashos-parity/harness/helpers/io-retention-observer.py\nowner=$BASHPID\nexport PYTHONDONTWRITEBYTECODE=1\n[[ $(type -t buf) == builtin ]] || exit 99\nexec 3</dev/null 4</dev/null 5</dev/null 6</dev/null 7</dev/null 8</dev/null 9</dev/null\nbuf new -h h\nbuf load \"$h\" original.txt\nbuf insert-line \"$h\" 0 zero\n# Loading used and closed fd10. Pin it only after loading, leaving fd11 free\n# for mkstemp. No per-save stderr redirection consumes a saved descriptor.\nexec 10</dev/null\n[[ -e /proc/$owner/fd/11 ]] && exit 96\nif [[ $attempt == witness ]]; then\n  buf save \"$h\" w/witness\n  exit \"$?\"\nfi\nprintf 'owner-before=%s\\nhandle-before=%s\\n' \"$owner\" \"$h\"\nif [[ $mode == efbig ]]; then\n  soft_before=$(ulimit -S -f)\n  hard_before=$(ulimit -H -f)\n  trap '' XFSZ\n  ulimit -S -f 1 || exit 95\n  limit_data=$(/usr/bin/python3 \"$H\" limits \"$owner\")\n  limited_bytes=${limit_data%% *}\n  limited_hard=${limit_data#* }\n  hard_during=$(ulimit -H -f)\nfi\nbuf save \"$h\" w/target\nfault_status=$?\nbuf dirty \"$h\"\ndirty_status=$?\nif [[ $mode == efbig ]]; then\n  # Restore only the soft limit, in the same shell which holds this buffer.\n  ulimit -S -f \"$soft_before\" || exit 94\n  printf 'soft-before=%s\\nsoft-after=%s\\nhard-before=%s\\nhard-during=%s\\nhard-after=%s\\nlimited-bytes=%s\\nlimited-hard-bytes=%s\\n' \\\n    \"$soft_before\" \"$(ulimit -S -f)\" \"$hard_before\" \"$hard_during\" \"$(ulimit -H -f)\" \"$limited_bytes\" \"$limited_hard\"\nfi\nprintf 'fault-status=%s\\ndirty-status=%s\\n' \"$fault_status\" \"$dirty_status\"\n/usr/bin/python3 \"$H\" snapshot fault \"$mode\" \"$owner\" || exit 93\n# No buf new/load/set-name occurs between the failed save and recovery.\nbuf save \"$h\"\nrecovery_status=$?\nbuf dirty \"$h\"\nclean_status=$?\nprintf 'recovery-status=%s\\nclean-status=%s\\nowner-after=%s\\nhandle-after=%s\\n' \\\n  \"$recovery_status\" \"$clean_status\" \"$BASHPID\" \"$h\"\n/usr/bin/python3 \"$H\" snapshot recovered \"$mode\" \"$owner\" || exit 92\nif [[ $mode == close ]]; then\n  # Refused close(11) did not close its kernel fd. Preserve its actual state\n  # through both snapshots; only now perform explicit fixture cleanup.\n  if [[ -e /proc/$owner/fd/11 ]]; then exec 11>&-; fi\n  printf 'cleanup-after-snapshot=yes\\n'\nfi\nexit 0\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/io-retention-observer.py setup efbig",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/io-retention-observer.py buffer \"$BASH\" efbig",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "fault=efbig child-status=0 save-status=1 diagnostic=yes\nsame-child=yes same-handle=yes dirty-before-recovery=yes\nrollback original-unchanged=yes target-unchanged=yes temp-residue=0\nrecovery save-without-path=0 clean=yes original-exact=yes failed-target-unchanged=yes temp-residue=0\nfault-control intended-temp=yes fd11-bytes=yes intended-fault=yes\nsoft-limit-restored=yes inherited-hard-limit-unchanged=yes limited-bytes=1024\n",
+      "stderr": "",
+      "expected_files": {
+        "original.txt": "zero\n000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\n",
+        "w/target": "old target\n"
+      },
+      "diagnostic_files": [
+        "control.stdout",
+        "control.stderr",
+        "control.jsonl",
+        "child.stdout",
+        "child.stderr",
+        "fault.jsonl",
+        "snapshot-fault.json",
+        "snapshot-recovered.json",
+        "observations.json"
+      ]
+    },
+    {
+      "id": "migration-buf-retained-name-after-fdatasync",
+      "loadable": "buf",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "After fdatasync save failure, the same live failed buffer recovers with save HANDLE and no PATH, retaining its original filename and exact edits.",
+      "oracle": "Preserved atomic-save obligations and documented buf save/load/dirty contract: a failed save keeps destination bytes, removes its temporary file, preserves dirty edits and the original filename. Recovering in that same shell with the same handle and no PATH must write exactly zero\\n plus the original bytes to original.txt, leave w/target unchanged, and become clean. Independent direct-syscall controls prove the injected error and subsequent real success; EFBIG uses the kernel soft file limit, never lowers its inherited hard limit. Trace data identifies the intended temp file and fd11 payload. A synthetic close EIO leaves its real descriptor open; the fixture records this state before/after recovery and cleans up only afterward, without crediting the candidate with closure.",
+      "comparison": "Exact normalized observations plus final original.txt/w/target bytes. Owner PID and handle must match across failure/recovery. Snapshots retain both file byte strings, temp residue and actual fd11 state while the child remains alive. All EIO replies are one-shot; later syscalls continue in the kernel. Close additionally has a no-injection fd11 identity witness. No buffer replacement or set-name occurs after the failed save.",
+      "covers": [
+        "buf/save-faults-deferred"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/io-retention-observer.py": "45b73e7456ff11ef8ce7699a3fbb0871271e62183d60bc505d1562962b7a759a",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "files": {
+        "failed-buffer.sh": "# SPDX-License-Identifier: MIT\n# All buffer operations below stay in this process and use the same handle.\nmode=$1\nattempt=$2\nH=/opt/bashos-parity/harness/helpers/io-retention-observer.py\nowner=$BASHPID\nexport PYTHONDONTWRITEBYTECODE=1\n[[ $(type -t buf) == builtin ]] || exit 99\nexec 3</dev/null 4</dev/null 5</dev/null 6</dev/null 7</dev/null 8</dev/null 9</dev/null\nbuf new -h h\nbuf load \"$h\" original.txt\nbuf insert-line \"$h\" 0 zero\n# Loading used and closed fd10. Pin it only after loading, leaving fd11 free\n# for mkstemp. No per-save stderr redirection consumes a saved descriptor.\nexec 10</dev/null\n[[ -e /proc/$owner/fd/11 ]] && exit 96\nif [[ $attempt == witness ]]; then\n  buf save \"$h\" w/witness\n  exit \"$?\"\nfi\nprintf 'owner-before=%s\\nhandle-before=%s\\n' \"$owner\" \"$h\"\nif [[ $mode == efbig ]]; then\n  soft_before=$(ulimit -S -f)\n  hard_before=$(ulimit -H -f)\n  trap '' XFSZ\n  ulimit -S -f 1 || exit 95\n  limit_data=$(/usr/bin/python3 \"$H\" limits \"$owner\")\n  limited_bytes=${limit_data%% *}\n  limited_hard=${limit_data#* }\n  hard_during=$(ulimit -H -f)\nfi\nbuf save \"$h\" w/target\nfault_status=$?\nbuf dirty \"$h\"\ndirty_status=$?\nif [[ $mode == efbig ]]; then\n  # Restore only the soft limit, in the same shell which holds this buffer.\n  ulimit -S -f \"$soft_before\" || exit 94\n  printf 'soft-before=%s\\nsoft-after=%s\\nhard-before=%s\\nhard-during=%s\\nhard-after=%s\\nlimited-bytes=%s\\nlimited-hard-bytes=%s\\n' \\\n    \"$soft_before\" \"$(ulimit -S -f)\" \"$hard_before\" \"$hard_during\" \"$(ulimit -H -f)\" \"$limited_bytes\" \"$limited_hard\"\nfi\nprintf 'fault-status=%s\\ndirty-status=%s\\n' \"$fault_status\" \"$dirty_status\"\n/usr/bin/python3 \"$H\" snapshot fault \"$mode\" \"$owner\" || exit 93\n# No buf new/load/set-name occurs between the failed save and recovery.\nbuf save \"$h\"\nrecovery_status=$?\nbuf dirty \"$h\"\nclean_status=$?\nprintf 'recovery-status=%s\\nclean-status=%s\\nowner-after=%s\\nhandle-after=%s\\n' \\\n  \"$recovery_status\" \"$clean_status\" \"$BASHPID\" \"$h\"\n/usr/bin/python3 \"$H\" snapshot recovered \"$mode\" \"$owner\" || exit 92\nif [[ $mode == close ]]; then\n  # Refused close(11) did not close its kernel fd. Preserve its actual state\n  # through both snapshots; only now perform explicit fixture cleanup.\n  if [[ -e /proc/$owner/fd/11 ]]; then exec 11>&-; fi\n  printf 'cleanup-after-snapshot=yes\\n'\nfi\nexit 0\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/io-retention-observer.py setup fdatasync",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/io-retention-observer.py buffer \"$BASH\" fdatasync",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "fault=fdatasync child-status=0 save-status=1 diagnostic=yes\nsame-child=yes same-handle=yes dirty-before-recovery=yes\nrollback original-unchanged=yes target-unchanged=yes temp-residue=0\nrecovery save-without-path=0 clean=yes original-exact=yes failed-target-unchanged=yes temp-residue=0\nfault-control intended-temp=yes fd11-bytes=yes intended-fault=yes\n",
+      "stderr": "",
+      "expected_files": {
+        "original.txt": "zero\none\ntwo\n",
+        "w/target": "old target\n"
+      },
+      "diagnostic_files": [
+        "control.stdout",
+        "control.stderr",
+        "control.jsonl",
+        "child.stdout",
+        "child.stderr",
+        "fault.jsonl",
+        "snapshot-fault.json",
+        "snapshot-recovered.json",
+        "observations.json"
+      ]
+    },
+    {
+      "id": "migration-buf-retained-name-after-close",
+      "loadable": "buf",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "After close save failure, the same live failed buffer recovers with save HANDLE and no PATH, retaining its original filename and exact edits.",
+      "oracle": "Preserved atomic-save obligations and documented buf save/load/dirty contract: a failed save keeps destination bytes, removes its temporary file, preserves dirty edits and the original filename. Recovering in that same shell with the same handle and no PATH must write exactly zero\\n plus the original bytes to original.txt, leave w/target unchanged, and become clean. Independent direct-syscall controls prove the injected error and subsequent real success; EFBIG uses the kernel soft file limit, never lowers its inherited hard limit. Trace data identifies the intended temp file and fd11 payload. A synthetic close EIO leaves its real descriptor open; the fixture records this state before/after recovery and cleans up only afterward, without crediting the candidate with closure.",
+      "comparison": "Exact normalized observations plus final original.txt/w/target bytes. Owner PID and handle must match across failure/recovery. Snapshots retain both file byte strings, temp residue and actual fd11 state while the child remains alive. All EIO replies are one-shot; later syscalls continue in the kernel. Close additionally has a no-injection fd11 identity witness. No buffer replacement or set-name occurs after the failed save.",
+      "covers": [
+        "buf/save-faults-deferred"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/io-retention-observer.py": "45b73e7456ff11ef8ce7699a3fbb0871271e62183d60bc505d1562962b7a759a",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "files": {
+        "failed-buffer.sh": "# SPDX-License-Identifier: MIT\n# All buffer operations below stay in this process and use the same handle.\nmode=$1\nattempt=$2\nH=/opt/bashos-parity/harness/helpers/io-retention-observer.py\nowner=$BASHPID\nexport PYTHONDONTWRITEBYTECODE=1\n[[ $(type -t buf) == builtin ]] || exit 99\nexec 3</dev/null 4</dev/null 5</dev/null 6</dev/null 7</dev/null 8</dev/null 9</dev/null\nbuf new -h h\nbuf load \"$h\" original.txt\nbuf insert-line \"$h\" 0 zero\n# Loading used and closed fd10. Pin it only after loading, leaving fd11 free\n# for mkstemp. No per-save stderr redirection consumes a saved descriptor.\nexec 10</dev/null\n[[ -e /proc/$owner/fd/11 ]] && exit 96\nif [[ $attempt == witness ]]; then\n  buf save \"$h\" w/witness\n  exit \"$?\"\nfi\nprintf 'owner-before=%s\\nhandle-before=%s\\n' \"$owner\" \"$h\"\nif [[ $mode == efbig ]]; then\n  soft_before=$(ulimit -S -f)\n  hard_before=$(ulimit -H -f)\n  trap '' XFSZ\n  ulimit -S -f 1 || exit 95\n  limit_data=$(/usr/bin/python3 \"$H\" limits \"$owner\")\n  limited_bytes=${limit_data%% *}\n  limited_hard=${limit_data#* }\n  hard_during=$(ulimit -H -f)\nfi\nbuf save \"$h\" w/target\nfault_status=$?\nbuf dirty \"$h\"\ndirty_status=$?\nif [[ $mode == efbig ]]; then\n  # Restore only the soft limit, in the same shell which holds this buffer.\n  ulimit -S -f \"$soft_before\" || exit 94\n  printf 'soft-before=%s\\nsoft-after=%s\\nhard-before=%s\\nhard-during=%s\\nhard-after=%s\\nlimited-bytes=%s\\nlimited-hard-bytes=%s\\n' \\\n    \"$soft_before\" \"$(ulimit -S -f)\" \"$hard_before\" \"$hard_during\" \"$(ulimit -H -f)\" \"$limited_bytes\" \"$limited_hard\"\nfi\nprintf 'fault-status=%s\\ndirty-status=%s\\n' \"$fault_status\" \"$dirty_status\"\n/usr/bin/python3 \"$H\" snapshot fault \"$mode\" \"$owner\" || exit 93\n# No buf new/load/set-name occurs between the failed save and recovery.\nbuf save \"$h\"\nrecovery_status=$?\nbuf dirty \"$h\"\nclean_status=$?\nprintf 'recovery-status=%s\\nclean-status=%s\\nowner-after=%s\\nhandle-after=%s\\n' \\\n  \"$recovery_status\" \"$clean_status\" \"$BASHPID\" \"$h\"\n/usr/bin/python3 \"$H\" snapshot recovered \"$mode\" \"$owner\" || exit 92\nif [[ $mode == close ]]; then\n  # Refused close(11) did not close its kernel fd. Preserve its actual state\n  # through both snapshots; only now perform explicit fixture cleanup.\n  if [[ -e /proc/$owner/fd/11 ]]; then exec 11>&-; fi\n  printf 'cleanup-after-snapshot=yes\\n'\nfi\nexit 0\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/io-retention-observer.py setup close",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/io-retention-observer.py buffer \"$BASH\" close",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "fault=close child-status=0 save-status=1 diagnostic=yes\nsame-child=yes same-handle=yes dirty-before-recovery=yes\nrollback original-unchanged=yes target-unchanged=yes temp-residue=0\nrecovery save-without-path=0 clean=yes original-exact=yes failed-target-unchanged=yes temp-residue=0\nfault-control intended-temp=yes fd11-bytes=yes intended-fault=yes\nclose-witness=yes mock-close-fd-state=recorded fixture-cleanup-after-recovery=yes\n",
+      "stderr": "",
+      "expected_files": {
+        "original.txt": "zero\none\ntwo\n",
+        "w/target": "old target\n"
+      },
+      "diagnostic_files": [
+        "control.stdout",
+        "control.stderr",
+        "control.jsonl",
+        "child.stdout",
+        "child.stderr",
+        "fault.jsonl",
+        "snapshot-fault.json",
+        "snapshot-recovered.json",
+        "observations.json",
+        "witness.stdout",
+        "witness.stderr",
+        "witness.jsonl",
+        "witness-observations.json"
+      ]
+    },
+    {
+      "id": "migration-buf-retained-name-after-rename",
+      "loadable": "buf",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "After rename save failure, the same live failed buffer recovers with save HANDLE and no PATH, retaining its original filename and exact edits.",
+      "oracle": "Preserved atomic-save obligations and documented buf save/load/dirty contract: a failed save keeps destination bytes, removes its temporary file, preserves dirty edits and the original filename. Recovering in that same shell with the same handle and no PATH must write exactly zero\\n plus the original bytes to original.txt, leave w/target unchanged, and become clean. Independent direct-syscall controls prove the injected error and subsequent real success; EFBIG uses the kernel soft file limit, never lowers its inherited hard limit. Trace data identifies the intended temp file and fd11 payload. A synthetic close EIO leaves its real descriptor open; the fixture records this state before/after recovery and cleans up only afterward, without crediting the candidate with closure.",
+      "comparison": "Exact normalized observations plus final original.txt/w/target bytes. Owner PID and handle must match across failure/recovery. Snapshots retain both file byte strings, temp residue and actual fd11 state while the child remains alive. All EIO replies are one-shot; later syscalls continue in the kernel. Close additionally has a no-injection fd11 identity witness. No buffer replacement or set-name occurs after the failed save.",
+      "covers": [
+        "buf/save-faults-deferred"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/io-retention-observer.py": "45b73e7456ff11ef8ce7699a3fbb0871271e62183d60bc505d1562962b7a759a",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "files": {
+        "failed-buffer.sh": "# SPDX-License-Identifier: MIT\n# All buffer operations below stay in this process and use the same handle.\nmode=$1\nattempt=$2\nH=/opt/bashos-parity/harness/helpers/io-retention-observer.py\nowner=$BASHPID\nexport PYTHONDONTWRITEBYTECODE=1\n[[ $(type -t buf) == builtin ]] || exit 99\nexec 3</dev/null 4</dev/null 5</dev/null 6</dev/null 7</dev/null 8</dev/null 9</dev/null\nbuf new -h h\nbuf load \"$h\" original.txt\nbuf insert-line \"$h\" 0 zero\n# Loading used and closed fd10. Pin it only after loading, leaving fd11 free\n# for mkstemp. No per-save stderr redirection consumes a saved descriptor.\nexec 10</dev/null\n[[ -e /proc/$owner/fd/11 ]] && exit 96\nif [[ $attempt == witness ]]; then\n  buf save \"$h\" w/witness\n  exit \"$?\"\nfi\nprintf 'owner-before=%s\\nhandle-before=%s\\n' \"$owner\" \"$h\"\nif [[ $mode == efbig ]]; then\n  soft_before=$(ulimit -S -f)\n  hard_before=$(ulimit -H -f)\n  trap '' XFSZ\n  ulimit -S -f 1 || exit 95\n  limit_data=$(/usr/bin/python3 \"$H\" limits \"$owner\")\n  limited_bytes=${limit_data%% *}\n  limited_hard=${limit_data#* }\n  hard_during=$(ulimit -H -f)\nfi\nbuf save \"$h\" w/target\nfault_status=$?\nbuf dirty \"$h\"\ndirty_status=$?\nif [[ $mode == efbig ]]; then\n  # Restore only the soft limit, in the same shell which holds this buffer.\n  ulimit -S -f \"$soft_before\" || exit 94\n  printf 'soft-before=%s\\nsoft-after=%s\\nhard-before=%s\\nhard-during=%s\\nhard-after=%s\\nlimited-bytes=%s\\nlimited-hard-bytes=%s\\n' \\\n    \"$soft_before\" \"$(ulimit -S -f)\" \"$hard_before\" \"$hard_during\" \"$(ulimit -H -f)\" \"$limited_bytes\" \"$limited_hard\"\nfi\nprintf 'fault-status=%s\\ndirty-status=%s\\n' \"$fault_status\" \"$dirty_status\"\n/usr/bin/python3 \"$H\" snapshot fault \"$mode\" \"$owner\" || exit 93\n# No buf new/load/set-name occurs between the failed save and recovery.\nbuf save \"$h\"\nrecovery_status=$?\nbuf dirty \"$h\"\nclean_status=$?\nprintf 'recovery-status=%s\\nclean-status=%s\\nowner-after=%s\\nhandle-after=%s\\n' \\\n  \"$recovery_status\" \"$clean_status\" \"$BASHPID\" \"$h\"\n/usr/bin/python3 \"$H\" snapshot recovered \"$mode\" \"$owner\" || exit 92\nif [[ $mode == close ]]; then\n  # Refused close(11) did not close its kernel fd. Preserve its actual state\n  # through both snapshots; only now perform explicit fixture cleanup.\n  if [[ -e /proc/$owner/fd/11 ]]; then exec 11>&-; fi\n  printf 'cleanup-after-snapshot=yes\\n'\nfi\nexit 0\n"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/io-retention-observer.py setup rename",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/io-retention-observer.py buffer \"$BASH\" rename",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "fault=rename child-status=0 save-status=1 diagnostic=yes\nsame-child=yes same-handle=yes dirty-before-recovery=yes\nrollback original-unchanged=yes target-unchanged=yes temp-residue=0\nrecovery save-without-path=0 clean=yes original-exact=yes failed-target-unchanged=yes temp-residue=0\nfault-control intended-temp=yes fd11-bytes=yes intended-fault=yes\n",
+      "stderr": "",
+      "expected_files": {
+        "original.txt": "zero\none\ntwo\n",
+        "w/target": "old target\n"
+      },
+      "diagnostic_files": [
+        "control.stdout",
+        "control.stderr",
+        "control.jsonl",
+        "child.stdout",
+        "child.stderr",
+        "fault.jsonl",
+        "snapshot-fault.json",
+        "snapshot-recovered.json",
+        "observations.json"
+      ]
+    },
+    {
+      "id": "migration-tee-eio-diagnostic-and-healthy-sinks",
+      "loadable": "tee",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Hung-up PTY stdout fails EIO; exact nonzero status, errno-specific diagnostic and continued complete healthy-file bytes agree with GNU tee.",
+      "oracle": "GNU coreutils tee under the same independently controlled hung-PTY stdout, plus Python os.strerror(errno.EIO) under the fixed guest locale. The original wrapper independently requires write on its already-open PTY slave to fail EIO before exec; setup repeats this with a direct Python write. Error text must contain the independent strerror(EIO) value, not merely be nonempty.",
+      "comparison": "Existing bounded two-chunk input and wrapper/status/healthy-sink assertions are retained; add explicit errno-eio=yes and exact good1/good2 file expectations. Both raw diagnostics and the independent PTY control are retained.",
+      "covers": [
+        "tee/write-error-recovery-deferred"
+      ],
+      "requires": [
+        "python3",
+        "sleep"
+      ],
+      "helpers_sha256": {
+        "helpers/io-retention-observer.py": "45b73e7456ff11ef8ce7699a3fbb0871271e62183d60bc505d1562962b7a759a"
+      },
+      "files": {
+        "hung-pty.py": "# SPDX-License-Identifier: MIT\n# Per-side fixture wrapper: run PROGRAM with a hung-up pty slave as stdout\n# (\"out\"), or with a pty master as stdin whose slave already wrote DATAFILE\n# and closed (\"in\"). Kernel behaviour only; no injection.\nimport errno, os, sys, tty\nmode = sys.argv[1]\nrest = sys.argv[2:]\nmaster, slave = os.openpty()\nif mode == \"out\":\n    os.close(master)\n    try:\n        os.write(slave, b\"x\")\n    except OSError as exc:\n        if exc.errno != errno.EIO:\n            sys.exit(98)\n    else:\n        sys.exit(99)\n    os.dup2(slave, 1)\n    os.close(slave)\nelif mode == \"in\":\n    data = open(rest[0], \"rb\").read()\n    rest = rest[1:]\n    tty.setraw(slave)\n    view = memoryview(data)\n    while view:\n        view = view[os.write(slave, view):]\n    os.close(slave)\n    os.dup2(master, 0)\n    os.close(master)\nelse:\n    sys.exit(97)\nassert rest[0] == \"--\"\nos.execv(rest[1], rest[1:])\n",
+        "fault-control.py": "# SPDX-License-Identifier: MIT\n# Trusted fault-mechanism controls for setup_script. Independent of every\n# builtin under test: each mode proves one kernel or filter behaviour with\n# direct system calls and exits 1 (failing setup, so the case is ERROR) when\n# the behaviour is absent. pty modes report on fd 3; others on stdout.\nimport ctypes, errno, os, resource, sys\nmode, args = sys.argv[1], sys.argv[2:]\nout = os.fdopen(3, \"w\") if mode.startswith(\"pty-\") else sys.stdout\nNAME = errno.errorcode\n\n\ndef say(text):\n    out.write(mode + \": \" + text + \"\\n\")\n    out.flush()\n\n\ndef die(text):\n    say(\"CONTROL FAILED: \" + text)\n    sys.exit(1)\n\n\ndef expect(label, code, fn):\n    try:\n        got = fn()\n    except OSError as exc:\n        if exc.errno != code:\n            die(\"%s gave %s, expected %s\" % (label, NAME.get(exc.errno, exc.errno), NAME[code]))\n        say(\"%s -> %s\" % (label, NAME[code]))\n        return\n    die(\"%s returned %r, expected %s\" % (label, got, NAME[code]))\n\n\ndef scratch(directory):\n    path = os.path.join(directory, \".control.%d\" % os.getpid())\n    return path, os.open(path, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o600)\n\n\nif mode == \"devfull\":\n    fd = os.open(\"/dev/full\", os.O_WRONLY)\n    expect(\"write(/dev/full)\", errno.ENOSPC, lambda: os.write(fd, b\"x\"))\nelif mode == \"fsize\":\n    lim = resource.getrlimit(resource.RLIMIT_FSIZE)[0]\n    if lim == resource.RLIM_INFINITY or lim < 2:\n        die(\"RLIMIT_FSIZE not limited: %r\" % lim)\n    path, fd = scratch(args[0])\n    n = os.write(fd, b\"a\" * (lim + 100))\n    if n != lim:\n        die(\"first write returned %d, expected short write of %d\" % (n, lim))\n    say(\"write(%d bytes) at offset 0 -> short %d (limit %d)\" % (lim + 100, n, lim))\n    expect(\"write at the limit\", errno.EFBIG, lambda: os.write(fd, b\"a\"))\n    os.ftruncate(fd, 0)\n    os.lseek(fd, 0, os.SEEK_SET)\n    os.write(fd, b\"a\" * (lim - 1))\n    n = os.write(fd, b\"41\\n\")\n    if n != 1:\n        die(\"3-byte write one byte below the limit returned %d, expected 1\" % n)\n    say(\"3-byte write one byte below the limit -> short 1\")\n    expect(\"next write\", errno.EFBIG, lambda: os.write(fd, b\"\\n\"))\n    os.close(fd)\n    os.unlink(path)\nelif mode == \"full\":\n    st = os.statvfs(args[0])\n    say(\"statvfs %s: f_bavail=%d f_bsize=%d\" % (args[0], st.f_bavail, st.f_bsize))\n    path, fd = scratch(args[0])\n    expect(\"1-byte write on full tmpfs\", errno.ENOSPC, lambda: os.write(fd, b\"x\"))\n    expect(\"4096-byte write on full tmpfs\", errno.ENOSPC, lambda: os.write(fd, b\"x\" * 4096))\n    os.close(fd)\n    os.unlink(path)\nelif mode == \"pty-out\":\n    expect(\"write(stdout = hung-up pty slave)\", errno.EIO, lambda: os.write(1, b\"x\"))\nelif mode == \"pty-in\":\n    want, total = int(args[0]), 0\n    while True:\n        try:\n            data = os.read(0, 4096)\n        except OSError as exc:\n            if exc.errno != errno.EIO:\n                die(\"read gave %s after %d bytes, expected EIO\" % (NAME.get(exc.errno), total))\n            break\n        if not data:\n            die(\"read returned EOF after %d bytes, expected EIO\" % total)\n        total += len(data)\n    if total != want:\n        die(\"read %d bytes before EIO, expected %d\" % (total, want))\n    say(\"read(stdin = pty master) -> %d bytes, then EIO\" % total)\nelif mode == \"status-bit\":\n    bit = int(args[1])\n    for line in open(args[0]):\n        if line.startswith(\"SigIgn:\"):\n            if not (int(line.split()[1], 16) >> (bit - 1)) & 1:\n                die(\"signal %d not ignored in an inheriting child\" % bit)\n            say(\"signal %d ignored in an inheriting child\" % bit)\n            break\n    else:\n        die(\"no SigIgn line\")\nelif mode == \"epipe\":\n    r, w = os.pipe()\n    os.close(r)\n    expect(\"write to a pipe without readers\", errno.EPIPE, lambda: os.write(w, b\"x\"))\nelif mode == \"fdatasync\":\n    path, fd = scratch(args[0])\n    os.write(fd, b\"data\")\n    expect(\"fdatasync(fd %d)\" % fd, errno.EIO, lambda: os.fdatasync(fd))\n    os.close(fd)\n    os.unlink(path)\nelif mode == \"rename\":\n    libc = ctypes.CDLL(None, use_errno=True)\n    a = os.path.join(args[0], \".control-a\").encode()\n    b = os.path.join(args[0], \".control-b\").encode()\n    open(a, \"wb\").close()\n    AT_FDCWD = -100\n    calls = ((\"rename\", lambda: libc.rename(a, b)),\n             (\"renameat\", lambda: libc.renameat(AT_FDCWD, a, AT_FDCWD, b)),\n             (\"renameat2\", lambda: libc.syscall(316, AT_FDCWD, a, AT_FDCWD, b, 0)))\n    for label, call in calls:\n        ctypes.set_errno(0)\n        rc = call()\n        if rc != -1 or ctypes.get_errno() != errno.EIO:\n            die(\"%s returned %d errno %s, expected -1 EIO\" % (label, rc, NAME.get(ctypes.get_errno())))\n        if not os.path.exists(a) or os.path.exists(b):\n            die(\"%s moved the file despite EIO\" % label)\n        say(\"%s -> EIO, source kept\" % label)\n    os.unlink(a)\nelif mode == \"close\":\n    target = int(args[0])\n    path, fd = scratch(args[1])\n    os.dup2(fd, target)\n    os.close(fd)\n    os.write(target, b\"data\")\n    expect(\"close(%d)\" % target, errno.EIO, lambda: os.close(target))\n    os.fstat(target)\n    say(\"fd %d still open after the refused close\" % target)\n    other = os.dup(target)\n    if other == target:\n        die(\"dup returned the filtered descriptor\")\n    os.close(other)\n    say(\"close(%d) of another descriptor succeeds\" % other)\n    os.unlink(path)\nelse:\n    die(\"unknown mode\")\n"
+      },
+      "setup_script": ": > \"$HOME/control.txt\"\n/usr/bin/python3 -I hung-pty.py out -- /usr/bin/python3 -I \"$PWD/fault-control.py\" pty-out 3>> \"$HOME/control.txt\"\n",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 hung-pty.py out -- \"$BASH\" --noprofile --norc -c '{ printf \"one\\n\"; /usr/bin/sleep 0.2; printf \"two\\n\"; } | tee good1 good2; printf \"rc=%d\\n\" \"${PIPESTATUS[1]}\" >&3' 3> \"$HOME/rc.tee\" 2> \"$HOME/err.tee\"\nwrapper=$?\nprintf 'wrapper=%s\\n' \"$( (( wrapper == 0 || wrapper == 1 )) && echo ok || echo \"$wrapper\")\"\n[[ -s $HOME/err.tee ]] && d=yes || d=no\nprintf '%s diag=%s\\n' \"$(< \"$HOME/rc.tee\")\" \"$d\"\nprintf 'good1=[%s] good2=[%s]\\n' \"$(< good1)\" \"$(< good2)\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/io-retention-observer.py diagnostic \"$HOME/err.tee\"\n",
+      "expected_status": 0,
+      "timeout": 30,
+      "stdout": "wrapper=ok\nrc=1 diag=yes\ngood1=[one\ntwo] good2=[one\ntwo]\nerrno-eio=yes\n",
+      "stderr": "",
+      "expected_files": {
+        "good1": "one\ntwo\n",
+        "good2": "one\ntwo\n"
+      },
+      "diagnostic_files": [
+        "control.txt",
+        "err.tee",
+        "rc.tee"
+      ]
+    }
+  ]
+}
