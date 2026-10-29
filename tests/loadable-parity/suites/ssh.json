@@ -195,7 +195,7 @@
       "id": "ssh-pty-multiplex-deferred",
       "kind": "deferred",
       "purpose": "Exercise interactive shell/PTY resizing, ControlMaster persistence and cleanup, and multiplexed session behavior.",
-      "reason": "Needs an SSH-2 server and the PTY driver together; the PTY driver already supports resize steps (terminal.py:15,539) and the script can start sshd."
+      "reason": "Remaining obligations: r1: Not executed.; r2: Not executed.; r5: Not executed."
     },
     {
       "id": "known-hosts-alias-case-and-whitespace",

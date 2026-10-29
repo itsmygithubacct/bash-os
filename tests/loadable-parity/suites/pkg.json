@@ -166,7 +166,7 @@
       "id": "pkg-install-rollback-remove",
       "kind": "deferred",
       "purpose": "Check signed package installation, data-tree replacement, failed-install rollback, explicit rollback, and removal effects.",
-      "reason": "Remaining obligations: r4: Package removal is exercised and unrelated content is retained. Explicit pkg rollback TXN has no selected evidence and remains unresolved."
+      "reason": "Remaining obligations: r4: Explicit rollback was exercised through a pinned mock only; real image-installer rollback remains unproved. The mock control did not archive its intermediate snapshots, although the candidate-root snapshots and final control tree were retained. Preserve the earlier separate removal and failed-install evidence."
     },
     {
       "id": "pkg-repository-io",

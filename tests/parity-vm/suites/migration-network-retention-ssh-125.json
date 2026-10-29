@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "timeout": 60,
+      "expected_status": 0,
+      "stderr": "",
+      "setup_timeout": 60,
+      "helpers_sha256": {
+        "helpers/network-retention-ssh-125.py": "e2e38ccbc9b1814823586811837ad2207e95b76c4d7c89efe7af2da65b8afe9c"
+      },
+      "id": "migration-ssh-retention-master-persist-125",
+      "loadable": "ssh",
+      "purpose": "ControlMaster persist3 with a clock-aligned final owned control request; retain autonomous exit, exact duration bounds and socket/check cleanup.",
+      "covers": [
+        "ssh/ssh-pty-multiplex-deferred"
+      ],
+      "requires": [
+        "python3",
+        "ssh",
+        "ssh-keygen",
+        "sshd"
+      ],
+      "oracle": "Fresh OpenSSH server at a private loopback port with VERBOSE auth logging and strict generated known_hosts. Candidate uses documented ssh master/-O/exec/shell/sftp-S APIs; reference uses OpenSSH ControlMaster/ControlPersist/ControlPath. Each detached master is independently identified by live control check, uid/starttime and adoption under the observer subreaper before any cleanup signal. Exactly one server-side ESTABLISHED TCP row and one accepted-publickey log line are required; repeated channel operations may not open another authenticated connection. Socket directory is private0700. No global PID search or group signal is used. Request persist3, perform one successful -O check, then issue no more control requests during timing. Measure from that completed check with monotonic time: require initially live process/socket, autonomous exit after2.75 to5.5seconds (0.25second early tolerance and bounded scheduling slack), removed socket and failed subsequent check. Record exact elapsed duration; an early exit is retained as a reached FAIL, never rounded to pass. Separate revision for SSH105 setup defect: arbitrary fractional-second timing rejected a valid OpenSSH reference expiry2.3987s. OpenSSH10.0p2 clientloop.c uses an integral monotime deadline and misc.c chooses CLOCK_BOOTTIME first on Linux; BashOS ssh.c uses integral time(NULL). Immediately before measuring, align a successful final check of the same owned master to the .02..20 fraction of the appropriate clock second, with at most3 bounded attempts. Preserve persist3 and the original monotonic2.75..5.5s bounds. Preserve initial live process/socket, autonomous unsignaled expiry, removed socket, failed later check, normal server teardown and no forced cleanup. A failed timing anchor cannot qualify persistence. No root case is included.",
+      "comparison": "Exact ordered semantic observations. Setup independently runs the same protocol/PTY/agent substrate against OpenSSH before candidate behavior. Every actual command/client/configuration/status, agent request/reply frame, owned PID identity, PTY transcript, TCP/authentication count and any cleanup signal is retained. Missing early readiness never proves later operations. Partial maps survive exceptions. Unexpected forced cleanup cannot pass. Independent retained evidence includes pidfd-pinned master birth identity, raw proc stat and lstat errno, nonreaping pidfd waitid, socket lstat and clock windows before and after the final wait and refused check. Missing or capped diagnostics and unsupported pidfd controls cannot qualify the outcome.",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/network-retention-ssh-125.py setup /bin/bash master-persist",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/network-retention-ssh-125.py run \"$BASH\" master-persist",
+      "stdout": "server-ready=yes\nmaster-start-and-check-owned-process=yes\none-authenticated-tcp-transport=yes\ntiming-anchor-owned-control=yes\npersist-three-seconds-then-exit=yes\nexpired-master-socket-removed=yes\nexpired-master-check-refused=yes\nserver-stopped=yes\nunforced-cleanup=yes\n",
+      "diagnostic_files": [
+        "control-results.json",
+        "control-transcripts.json",
+        "control-server.log",
+        "behavior-results.json",
+        "behavior-transcripts.json",
+        "behavior-server.log",
+        "control-master.log",
+        "behavior-master.log"
+      ]
+    },
+    {
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "timeout": 60,
+      "expected_status": 0,
+      "stderr": "",
+      "setup_timeout": 60,
+      "helpers_sha256": {
+        "helpers/network-retention-ssh-125.py": "e2e38ccbc9b1814823586811837ad2207e95b76c4d7c89efe7af2da65b8afe9c"
+      },
+      "id": "migration-ssh-retention-master-routing-125",
+      "loadable": "ssh",
+      "purpose": "exec, interactive shell and SFTP route through one live master; -O exit terminates that owned master and removes the socket.",
+      "covers": [
+        "ssh/ssh-pty-multiplex-deferred"
+      ],
+      "requires": [
+        "python3",
+        "ssh",
+        "ssh-keygen",
+        "sshd",
+        "sftp",
+        "stty"
+      ],
+      "oracle": "Fresh OpenSSH server at a private loopback port with VERBOSE auth logging and strict generated known_hosts. Candidate uses documented ssh master/-O/exec/shell/sftp-S APIs; reference uses OpenSSH ControlMaster/ControlPersist/ControlPath. Each detached master is independently identified by live control check, uid/starttime and adoption under the observer subreaper before any cleanup signal. Exactly one server-side ESTABLISHED TCP row and one accepted-publickey log line are required; repeated channel operations may not open another authenticated connection. Socket directory is private0700. No global PID search or group signal is used. Use indefinite persistence for routing. Separate slave invocations must execute exact command bytes, allocate a real interactive PTY and run its command, and SFTP put/get exact binary bytes with actual0640 mode. Check one TCP/authentication at each checkpoint. Final check still reports live owned process; -O exit succeeds, that process exits, socket disappears and a later check refuses. No unavailable-SFTP claim is made.",
+      "comparison": "Exact ordered semantic observations. Setup independently runs the same protocol/PTY/agent substrate against OpenSSH before candidate behavior. Every actual command/client/configuration/status, agent request/reply frame, owned PID identity, PTY transcript, TCP/authentication count and any cleanup signal is retained. Missing early readiness never proves later operations. Partial maps survive exceptions. Unexpected forced cleanup cannot pass. Independent retained evidence includes pidfd-pinned master birth identity, raw proc stat and lstat errno, nonreaping pidfd waitid, socket lstat and clock windows before and after the final wait and refused check. Missing or capped diagnostics and unsupported pidfd controls cannot qualify the outcome.",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/network-retention-ssh-125.py setup /bin/bash master-routing",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/network-retention-ssh-125.py run \"$BASH\" master-routing",
+      "stdout": "server-ready=yes\nmaster-start-and-check-owned-process=yes\none-authenticated-tcp-transport=yes\nexec-through-master-exact-bytes=yes\nsame-transport-after-exec=yes\nshell-through-master-real-pty-command=yes\nsame-transport-after-shell=yes\nsftp-through-master-bytes-and-mode=yes\nsame-transport-after-sftp=yes\nmaster-check-still-owned=yes\nmaster-exit-request-succeeds=yes\nmaster-exits-and-removes-socket=yes\nexited-master-check-refused=yes\nserver-stopped=yes\nunforced-cleanup=yes\n",
+      "diagnostic_files": [
+        "control-results.json",
+        "control-transcripts.json",
+        "control-server.log",
+        "behavior-results.json",
+        "behavior-transcripts.json",
+        "behavior-server.log",
+        "control-master.log",
+        "behavior-master.log"
+      ]
+    }
+  ]
+}

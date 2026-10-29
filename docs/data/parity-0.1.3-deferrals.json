@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "925407b5221990fcec9985901dc24663bd3e9e9b5f211c873f8b85c4d8cd1bd9",
+  "ledger_sha256": "dc7d8d70ec2e4861fdc33823536cd57215245a8f16b9cd42226ccbb829d0bd6d",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 133,
-    "none": 135,
-    "full": 332
+    "partial": 122,
+    "none": 132,
+    "full": 346
   },
   "migrations": {
-    "deferred": 268,
-    "replacement": 332
+    "deferred": 254,
+    "replacement": 346
   },
   "pending_full_topics": [],
   "builds": {
@@ -3472,6 +3472,397 @@
               "selfcheck-syscall-sequence-observer"
             ]
           }
+        },
+        {
+          "name": "cluster-followup-static-113-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "bc668db4097949a4234a8044ed4516e2b47fd1f1b04f38ad4016bdf858c004ee",
+            "provenance.json": "3da394831d8414c2e463c82136fe0e0bc8bb56f26e3eb7c23981d15babd407e4",
+            "payload.tar": "9260858599217ea86f076b1240575fefb77120cdede51852c53a2f6a5caef719",
+            "evidence.tar": "77f3d9ea839bb16467d2010d9e88313c5f3dab776c59ce4ae4e56f4f84b00842"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793197586.2906432
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "cluster-retention-static-119-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "8e5d81af9f0df937b02d38a78a5e2409af34d30bd1b5730bd7a322fceaedca1d",
+            "provenance.json": "420e0c92a29ea876e7f1d4a812a2baca3292bd836826da063656f9c205b96574",
+            "payload.tar": "c93f0a10add510a24b6eb1b0701b7064ff5f3ffff68a643722a6f37ec1a5f503",
+            "evidence.tar": "6da1b5b86a2cf3f61474bf873d5e3f585db988911d72c4dc5ef67178edd1075f"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793223080.4958127
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-retention125-cluster-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "0154cdc2dc6b326e7c8c8321eb2f03ea022bd51557b36e64d5bdd7fd7f9cf3f8",
+            "provenance.json": "dc7dacc8212c458ff913352c0707c888fe31a9c7f5ca496a1b7c3e150762aa22",
+            "payload.tar": "fc6d34d80f72551f7164535a6161a749ffea496982b1815c212b73fc8be780e1",
+            "evidence.tar": "dc2b47a750c9008645735deb6f837d15d2eae03adaf81b0489c75bd9c6897149"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793228880.0670323
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-retention125-ssh-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "c509808673c6190b4ca27196d5eaeaadb2fab7815c9d9984feb6a20226983a5b",
+            "provenance.json": "ae6b361de914057a1542dc557e0505e32529bb3be35a6fb8873b279892062941",
+            "payload.tar": "fc6d34d80f72551f7164535a6161a749ffea496982b1815c212b73fc8be780e1",
+            "evidence.tar": "83210b754fc0f04193254890291a2f2b710186cee28811d861938c475ead2f8e"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793228720.2698905
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-rtsp134r5-batch01-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "4b5b929adf9364bb17b8a7891aecf631e5707cf1211574beb8636ea0cc7b754e",
+            "provenance.json": "08cb780f859fe74393d0d80566107086d07477eeb724c10e0b4095cab4c8e0e4",
+            "payload.tar": "af145c61e0f33068263e7f04479430dbad8495208175f7042fe7afeab085e781",
+            "evidence.tar": "d12d2e874929147f7bcf68f065306c793c219d7895a224c0f749ce850b8957bb"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793227414.8772511
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-rtsp134r5-batch02-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "49fd3b87c707382a2d58928aa4b87e6b592a410ba35f3d371118833f80983845",
+            "provenance.json": "76e0bdb24ee53af5566854657541c6557273c6fae37a5cb916be98a3593e1abc",
+            "payload.tar": "af145c61e0f33068263e7f04479430dbad8495208175f7042fe7afeab085e781",
+            "evidence.tar": "4d4de9c05441b90f65d33b48003b769dfa9a51b74217b55263a568ccb41ee8ad"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793227596.9111073
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-rtsp134r5-batch03-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "f06e66b57e4dd4d952c5f14cec1619f25e59216c8f0fa0f1c9903f3c20e3ccef",
+            "provenance.json": "c4ef0cc54fb9b80184e052ca0de36c04b1f063427aa8faecb3110d5d022dbd3e",
+            "payload.tar": "af145c61e0f33068263e7f04479430dbad8495208175f7042fe7afeab085e781",
+            "evidence.tar": "2052f74ba297cfe49195532caac86e1b62228159adcc46d5514aa3d2615e2746"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793227754.9891524
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-rtsp134r5-batch04-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "722e5ca56ee222de6846dd331bf1d15530b04e77036e8bea8d81aa05efb77945",
+            "provenance.json": "5e26493a5b4389d856ed83fa0c691a195b7bb420bb64b2f0adad69b9a41c5956",
+            "payload.tar": "af145c61e0f33068263e7f04479430dbad8495208175f7042fe7afeab085e781",
+            "evidence.tar": "c623b9861a93e758c205cc20ce065126a9756683c3e0af467b3dba5de2241a73"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793227914.0816333
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-rtsp134r5-batch05-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "75d36053051f9fdf66d3797b4f9790d492bb11f42fccc113115f2979c74abc9b",
+            "provenance.json": "43ea3c1b63ca68c005b82845db58b702bc825560b3e40275d3d2af89fe99f804",
+            "payload.tar": "af145c61e0f33068263e7f04479430dbad8495208175f7042fe7afeab085e781",
+            "evidence.tar": "bca6597ec1a81c08c0dab24bb20b95b5550191078127371fe389038d9f5113bf"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793228064.8629818
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-rtsp134r5-batch06-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "0de36e1c578e64d797f8f21306d983e45b8939565b165da81d419b2aa82a49c3",
+            "provenance.json": "36fefa953a313b1d7eb9513ddca1956f4791ad3d3a37b39aa5d479c201d31bbd",
+            "payload.tar": "af145c61e0f33068263e7f04479430dbad8495208175f7042fe7afeab085e781",
+            "evidence.tar": "2cd7faa5c6241891e639410bc9e6c743ff2d59efbf6a2a160c3b93b13ce46b03"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793228228.1907218
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-rtsp134r6-signal-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "c424abd03c0997e79f7f3a7df3847c5091b052413bc05bb7a76c6969afc87749",
+            "provenance.json": "b96ebda6c72c36d3d6ba1356b9f093a983d760199eb4ceba95670c6617596bd7",
+            "payload.tar": "9a876943614b8403219c78747f978b0b4985108c3dadabd3dd17d2650380412b",
+            "evidence.tar": "58aea751848031883bc73f5364ad5a3239e0cf7ab87cb95b2d7b6dc0c6e111c0"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793228452.1361983
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "protocol-repair-dkim-r4-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "bfd44e0aa409a29c0a7bf259b81c6af2347fe97a365026fe9c8129c8214c66a2",
+            "provenance.json": "0c10af4e6784481ae05bac372313dc7bc50411dd470cc6207818fe836b2cbb20",
+            "payload.tar": "e7abec377fbceb1490ba182463d201693e6179825c8e8f493c240a1ebb28fb3c",
+            "evidence.tar": "518c90e65f7959ca83b0cbc0cd37135d1d4a5dc66e490db29752bfacf3a71ddb"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793226001.440915
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "protocol-repair-ldap-r3-178-candidate",
+          "groups": [
+            "shell",
+            "terminal"
+          ],
+          "selected_records": 17,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "883b3e9e8386082fbecea1f74e70740d9d26156185320405d568c216085b01fd",
+            "provenance.json": "7fc51e54bc45967a8887d7bce17e992054dc8ad14c29b5be3c407627aa1fea83",
+            "payload.tar": "5aa95d126022c11851a1654877607b4ad227d2f421ab678538e04c3fe4cf7f68",
+            "evidence.tar": "07ad880d3b9bee1779d3f573137d98f0b3c27a4b0d2da2f685a9f11b24d3df21"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793226093.5744965
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "protocol-repair-mail-r4-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 9,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "9dedb7f909d41f06c5be2984e10255b21b63f0f2654973976375a2535e8ca372",
+            "provenance.json": "8d65afd27d0fdd7509d7fbbe8fd092e17cd8c081845624bad5a5c707da213e4d",
+            "payload.tar": "0335d5a3beffda27f32a5d411d59845b5fb79ca8530b0b46e7d0cbc58f5f3e4d",
+            "evidence.tar": "c0e675e546c8f0e29a5294aece9ec3c205a81568cf6e9d44ffb3cc57468449bf"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793225878.169989
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "protocol-repair-rollback-r3-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "9d8332a37f4d4602bbc4feae100b884206f8806df4328fe7a5b72e6a0e6f395e",
+            "provenance.json": "f51267d3cf5c2fd0cf545e51b04caa9d3f62a6ac84de85738fa99a1a0aa40279",
+            "payload.tar": "1598f5a5eacaee5cf616b56a9975d92b9b831cf471703428b9f5178bdc5e7079",
+            "evidence.tar": "f39f29fd3a23f3da25222d4fd2e11d1d53cf91d3d0661b48ac11e3a24c6cf8cd"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793226208.336518
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
         }
       ],
       "entries": [
@@ -10899,16 +11290,35 @@
         {
           "topic": "cluster/packet-rejection",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Malformed, truncated and oversized datagrams do not change the roster.",
-              "coverage": "missing",
-              "gap": "No injector.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The 125 oversized attempt bytes are retained, but candidate receipt of each datagram is not proved; original 113/119 oversized payload bytes are missing.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-retention-packet-rejection-125",
+                  "status": "PASS",
+                  "run": "probe-composite-retention125-cluster-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-packet-rejection",
+                  "status": "PASS",
+                  "run": "cluster-followup-static-113-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-packet-rejection-r2",
+                  "status": "PASS",
+                  "run": "cluster-retention-static-119-178-candidate"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -10933,9 +11343,28 @@
             {
               "id": "r4",
               "behavior": "After rejected packets a valid ping still succeeds.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The later 125 response is captured, but candidate receipt of each preceding attempted packet is not proved; older combined oversized payload bytes are missing.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-retention-packet-rejection-125",
+                  "status": "PASS",
+                  "run": "probe-composite-retention125-cluster-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-packet-rejection",
+                  "status": "PASS",
+                  "run": "cluster-followup-static-113-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-packet-rejection-r2",
+                  "status": "PASS",
+                  "run": "cluster-retention-static-119-178-candidate"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -11089,7 +11518,7 @@
         {
           "topic": "cluster/roster-heartbeats",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -11114,11 +11543,30 @@
             {
               "id": "r3",
               "behavior": "Heartbeats refresh membership; a silent peer expires after the documented timeout.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-retention-roster-heartbeats-125",
+                  "status": "PASS",
+                  "run": "probe-composite-retention125-cluster-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats",
+                  "status": "PASS",
+                  "run": "cluster-followup-static-113-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats-r2",
+                  "status": "FAIL",
+                  "run": "cluster-retention-static-119-178-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -23658,10 +24106,10 @@
         },
         {
           "topic": "ldap/deferred-bind-whoami",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -23692,6 +24140,24 @@
                   "id": "migration-transfer-ldap-whoami-password-prompt-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-file-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "terminal",
+                  "id": "transfer-ldap-whoami-password-prompt-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -23700,8 +24166,8 @@
             {
               "id": "r2",
               "behavior": "BindResponse resultCode 0 continues; a non-zero resultCode (49 invalidCredentials) fails with a diagnostic and status.",
-              "coverage": "partial",
-              "gap": "The valid session continues and the invalid session returns status 1 with no diagnostic, a reached candidate FAIL. The peer does not retain the actual BindResponse BER or result code sent, so the nonzero-result input is not independently demonstrated.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -23714,10 +24180,22 @@
                   "id": "migration-transfer-ldap-bind-invalid-r2",
                   "status": "FAIL",
                   "run": "qual-remote-canon-ldap-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-bind-invalid-r3",
+                  "status": "FAIL",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -23730,6 +24208,12 @@
                   "id": "migration-transfer-ldap-whoami-password-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -23738,18 +24222,24 @@
             {
               "id": "r4",
               "behavior": "The ExtendedResponse authzId (e.g. `dn:cn=alice,dc=example`) is printed and status is 0.",
-              "coverage": "partial",
-              "gap": "The client prints the expected authorization ID and status 0, but the peer does not retain the sent ExtendedResponse BER needed to compare the decoded value to its input.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-transfer-ldap-whoami-password-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -23774,6 +24264,24 @@
                   "id": "migration-transfer-ldap-whoami-password-prompt-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-file-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "terminal",
+                  "id": "transfer-ldap-whoami-password-prompt-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -23802,6 +24310,24 @@
                   "id": "migration-transfer-ldap-whoami-password-prompt-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-file-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "terminal",
+                  "id": "transfer-ldap-whoami-password-prompt-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -23811,10 +24337,10 @@
         },
         {
           "topic": "ldap/deferred-plain-search",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -23869,6 +24395,24 @@
                   "id": "migration-transfer-ldap-search-base-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-base-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-one-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-sub-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -23877,8 +24421,8 @@
             {
               "id": "r2",
               "behavior": "SearchResultEntry messages received from the peer are printed as dn/attribute lines.",
-              "coverage": "partial",
-              "gap": "The expected entry lines are captured, but sent SearchResultEntry BER and segmentation are not retained; comparing output with actual input requires those raw bytes.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -23903,16 +24447,34 @@
                   "id": "migration-transfer-ldap-search-base-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-base-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-one-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-sub-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "SearchResultDone resultCode 0 gives status 0; a non-zero code (e.g. 32 noSuchObject) gives failure.",
-              "coverage": "partial",
-              "gap": "The candidate outputs resultCode 0 or 32 and corresponding statuses, but the peer does not retain the actual SearchResultDone BER it sent.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -23925,10 +24487,22 @@
                   "id": "migration-transfer-ldap-search-no-such-object-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-no-such-object-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-sub-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -23947,6 +24521,12 @@
                   "id": "migration-transfer-ldap-search-invalid-filter-before-connect-r2",
                   "status": "FAIL",
                   "run": "qual-remote-canon-ldap-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-invalid-filter-before-connect-r3",
+                  "status": "FAIL",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -23956,10 +24536,10 @@
         },
         {
           "topic": "ldap/deferred-tls-starttls",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -23972,6 +24552,12 @@
                   "id": "migration-transfer-ldap-tls-trusted-default-sni-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-tls-trusted-default-sni-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -24000,6 +24586,24 @@
                   "id": "migration-transfer-ldap-tls-insecure-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-tls-insecure-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-tls-untrusted-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-tls-wrong-name-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -24008,24 +24612,30 @@
             {
               "id": "r3",
               "behavior": "-Z sends StartTLS (OID 1.3.6.1.4.1.1466.20037) before bind, and continues in plaintext if the server refuses.",
-              "coverage": "partial",
-              "gap": "The StartTLS request, subsequent plaintext bind and WhoAmI are captured, but the peer does not retain the refusal response BER; the refusal-to-fallback transition remains unproved.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-transfer-ldap-starttls-optional-refusal-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-starttls-optional-refusal-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "-ZZ fails closed when StartTLS is refused or the handshake fails, sending no bind.",
-              "coverage": "partial",
-              "gap": "The required cases return failure with diagnostics and no bind, but the server response BER for refusal or handshake initiation is not retained; retain those input gaps.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -24038,10 +24648,22 @@
                   "id": "migration-transfer-ldap-starttls-required-handshake-failure-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-starttls-required-handshake-failure-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-starttls-required-refusal-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -24060,6 +24682,18 @@
                   "id": "migration-transfer-ldap-tls-explicit-sni-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-tls-explicit-sni-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-tls-trusted-default-sni-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -25821,10 +26455,10 @@
         },
         {
           "topic": "mail/dkim_contract_vectors",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -25837,6 +26471,12 @@
                   "id": "protocol-wire-dkim-ed-valid-r2",
                   "status": "FAIL",
                   "run": "qual-remote-canon-dkim-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-dkim-published-discrimination-r4",
+                  "status": "FAIL",
+                  "run": "protocol-repair-dkim-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -25861,8 +26501,8 @@
             {
               "id": "r3",
               "behavior": "A tampered body or signed header gives invalid (exit 1).",
-              "coverage": "partial",
-              "gap": "The generated-message cases accepted independently verified generated originals and rejected the body and header alterations. In the older private diagnostic runs, both published-vector altered inputs were actually invoked and returned status 1, but the corresponding valid original also returned status 1, so these results do not demonstrate discrimination. Those historical case IDs are not selected canonical evidence, and the two canonical r2 tamper definitions were excluded and not executed in the canonical runs. Preserve the published-vector obligation and do not relabel the old results.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -25875,10 +26515,16 @@
                   "id": "protocol-wire-dkim-sign-tamper-header-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-dkim-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-dkim-published-discrimination-r4",
+                  "status": "FAIL",
+                  "run": "protocol-repair-dkim-r4-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -25989,10 +26635,10 @@
         },
         {
           "topic": "mail/smtp_inbound_server",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -26005,6 +26651,12 @@
                   "id": "protocol-wire-mail-smtp-inbound-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-inbound-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -26013,59 +26665,77 @@
             {
               "id": "r2",
               "behavior": "EHLO/MAIL FROM/RCPT TO/DATA/QUIT get RFC 5321 reply codes (250/250/250/354/250/221); DATA with no RCPT gets 554; an unknown command 500; RSET/NOOP 250.",
-              "coverage": "partial",
-              "gap": "The candidate reply lines and codes are captured, but the peer does not retain the corresponding inbound command bytes; command-to-reply sequencing needs a raw sent-byte transcript.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-mail-smtp-inbound-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-inbound-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "An accepted message is enqueued under <queue>/incoming/<qid>/ with dot-unstuffed, LF-normalised body and meta client_ip/helo/mail_from.",
-              "coverage": "partial",
-              "gap": "The incoming queue body, headers, envelope and metadata are captured, but the raw SMTP message sent to the server is not retained, so dot-unstuffing and LF normalization cannot be independently compared to its wire input.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-mail-smtp-inbound-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-inbound-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "The server exits cleanly on SIGTERM from the owning fixture.",
-              "coverage": "partial",
-              "gap": "The owned daemon exit status 0 is captured; actual SIGTERM delivery and target are specified in source but not independently retained in the raw trace.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-mail-smtp-inbound-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-inbound-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "mail/smtp_outbound_delivery",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -26078,6 +26748,12 @@
                   "id": "protocol-wire-mail-smtp-success-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-success-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -26106,6 +26782,24 @@
                   "id": "protocol-wire-mail-smtp-mixed-perm-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-mixed-perm-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-mixed-temp-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-success-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -26114,8 +26808,8 @@
             {
               "id": "r3",
               "behavior": "Per-recipient 250/4xx/5xx replies map to `delivered <rcpt>` lines and exit 0 / 75 (any temp) / 69 (only perm).",
-              "coverage": "partial",
-              "gap": "Client commands, delivered lines and statuses are captured, but the peer does not retain the 250/4xx/5xx reply bytes. Capture replies to prove the recipient-code-to-result mapping.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -26146,10 +26840,40 @@
                   "id": "protocol-wire-mail-smtp-all-perm-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-all-perm-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-all-temp-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-mixed-perm-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-mixed-temp-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-success-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -26186,6 +26910,36 @@
                   "id": "protocol-wire-mail-smtp-all-perm-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-all-perm-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-all-temp-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-mixed-perm-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-mixed-temp-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-success-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -26195,10 +26949,10 @@
         },
         {
           "topic": "mail/unix_submission_protocol",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -26211,6 +26965,12 @@
                   "id": "protocol-wire-mail-unix-server-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-unix-server-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -26227,6 +26987,12 @@
                   "id": "protocol-wire-mail-unix-client-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-unix-client-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -26243,6 +27009,12 @@
                   "id": "protocol-wire-mail-unix-server-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-unix-server-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -26259,6 +27031,12 @@
                   "id": "protocol-wire-mail-unix-server-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-unix-server-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -26267,8 +27045,8 @@
             {
               "id": "r5",
               "behavior": "submit to an absent socket returns 75; serve exits on SIGTERM and unlinks its socket.",
-              "coverage": "partial",
-              "gap": "The absent-socket status, daemon exit 0 and post-run socket absence are captured; actual SIGTERM delivery and target are not independently retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -26281,10 +27059,22 @@
                   "id": "protocol-wire-mail-unix-server-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-unix-absent-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-unix-server-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -32916,13 +33706,19 @@
               "id": "r4",
               "behavior": "Explicit 'pkg rollback TXN' and 'pkg remove NAME' restore/remove exactly the package's files and state, preserving unrelated entries.",
               "coverage": "partial",
-              "gap": "Package removal is exercised and unrelated content is retained. Explicit pkg rollback TXN has no selected evidence and remains unresolved.",
+              "gap": "Explicit rollback was exercised through a pinned mock only; real image-installer rollback remains unproved. The mock control did not archive its intermediate snapshots, although the candidate-root snapshots and final control tree were retained. Preserve the earlier separate removal and failed-install evidence.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-transfer-pkg-remove-installed-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-pkg-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-pkg-explicit-rollback-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-rollback-r3-178-candidate"
                 }
               ],
               "fully_exercised": false,
@@ -36028,10 +36824,10 @@
         },
         {
           "topic": "rsync/native-protocol-requires-server",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -36052,8 +36848,8 @@
             {
               "id": "r2",
               "behavior": "--native pull from a stock 'rsync --server --sender' reproduces the remote tree.",
-              "coverage": "partial",
-              "gap": "The destination tree matches, but the candidate-side stock sender exits 12 while the candidate reports success; a clean native peer completion is not established.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -36062,14 +36858,14 @@
                   "run": "qual-remote-canon-probe-composite-transfers-rest-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Delta transfer against an existing basis file yields byte-identical results.",
-              "coverage": "partial",
-              "gap": "Both fresh candidate transfers were literal-only despite an existing basis: no basis-block reference was observed on either build, so a successful candidate delta transfer is not established. Both clients also logged a remote-nonzero message although the proxy reported stock receiver status 0; the transport wait status was not separately captured.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -36078,8 +36874,8 @@
                   "run": "transfer-delta-qualification-155-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -36170,48 +36966,60 @@
         },
         {
           "topic": "rtspcat/deferred-auth-session-keepalive",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "On 401 with WWW-Authenticate: Basic, the retried request carries 'Authorization: Basic base64(user:pass)'.",
-              "coverage": "partial",
-              "gap": "The retried Basic header decodes to the fixture user and password; the actual 401 challenge bytes were not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-basic-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-basic-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "On 401 with Digest realm/nonce (and qop), the retried request carries an RFC 2617/7616 MD5 response computed over the method and URI.",
-              "coverage": "partial",
-              "gap": "Digest request headers were captured, but the actual challenge bytes were not retained and this review did not perform digest arithmetic under the no-crypto constraint.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-digest-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-digest-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "CSeq increases by one per request and the Session header from SETUP is sent on PLAY, GET_PARAMETER and TEARDOWN.",
-              "coverage": "partial",
-              "gap": "CSeq and Session request headers were captured; the SETUP response that assigned the session was not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -36230,41 +37038,65 @@
                   "id": "protocol-wire-rtsp-keepalive-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-basic-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-digest-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-keepalive-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "-k SECS sends GET_PARAMETER keepalives at the interval during streaming.",
-              "coverage": "partial",
-              "gap": "One keepalive interval is timed; repeated intervals, the SETUP response and candidate-side media receipt remain unverified.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-keepalive-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-keepalive-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "rtspcat/deferred-error-and-timeout-paths",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Malformed RTSP status line, header or Content-Length is rejected with nonzero status.",
-              "coverage": "partial",
-              "gap": "Bad-header advanced to DESCRIBE before status 1, a reached FAIL; the actual malformed status, header and length response bytes were not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -36283,16 +37115,34 @@
                   "id": "protocol-wire-rtsp-bad-length-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-bad-status-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-bad-header-evidence-r5",
+                  "status": "FAIL",
+                  "run": "probe-composite-rtsp134r5-batch02-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-bad-length-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch02-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Malformed RTP (bad version, padding/extension beyond payload, invalid STAP-A sizes, FU-A without start) is rejected and the incomplete unit is not emitted.",
-              "coverage": "partial",
-              "gap": "Locally accepted malformed and recovery packets and the recovery output were decoded; candidate-side receipt is not captured, and nonzero status follows server EOF rather than a separately retained malformed-packet error.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -36323,26 +37173,62 @@
                   "id": "protocol-wire-rtsp-rtp-fu-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-version-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch02-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-extension-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch02-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-padding-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch02-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-stap-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch03-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-fu-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch03-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Server EOF mid-unit returns nonzero without writing the partial unit.",
-              "coverage": "partial",
-              "gap": "A partial RTP unit was locally accepted and the candidate ended nonzero with empty output, but the candidate-side receipt and EOF stimulus were not independently captured.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-eof-partial-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-eof-partial-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch03-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -36355,6 +37241,12 @@
                   "id": "protocol-wire-rtsp-timeout-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-timeout-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch03-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -36363,8 +37255,8 @@
             {
               "id": "r5",
               "behavior": "Invalid arguments (bad URL, non-numeric -n/-o/-k/-t) fail with usage status before connecting.",
-              "coverage": "partial",
-              "gap": "The statuses and usage diagnostics are recorded, and the listener reported no connection; a separately retained accept event, timing and positive listener control are absent. The invalid-URL status 1 is a reached usage-status FAIL.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -36395,19 +37287,49 @@
                   "id": "protocol-wire-rtsp-invalid-t-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-url-evidence-r5",
+                  "status": "FAIL",
+                  "run": "probe-composite-rtsp134r5-batch03-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-n-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch04-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-o-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch04-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-k-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch04-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-t-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch04-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "rtspcat/deferred-output-fd-lifecycle",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -36420,6 +37342,12 @@
                   "id": "protocol-wire-rtsp-output-fd-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-fd-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch04-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -36442,6 +37370,18 @@
                   "id": "protocol-wire-rtsp-output-closed-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-full-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch05-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-closed-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch05-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -36450,18 +37390,30 @@
             {
               "id": "r3",
               "behavior": "A closed-pipe reader yields nonzero status without killing the shell (SIGPIPE ignored during the call and restored after).",
-              "coverage": "partial",
-              "gap": "Broken-pipe diagnostic, shell survival and matching signal snapshots were retained, but the builtin return status was not separately recorded.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-output-pipe-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-pipe-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch05-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-pipe-evidence-r6",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r6-signal-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -36474,6 +37426,18 @@
                   "id": "protocol-wire-rtsp-repeat-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-repeat-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch05-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-repeat-evidence-r6",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r6-signal-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -36483,96 +37447,126 @@
         },
         {
           "topic": "rtspcat/deferred-rtp-assembly-boundaries",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Single-NAL packets are emitted as Annex-B NALs within the current access unit.",
-              "coverage": "partial",
-              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-single-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-single-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch05-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "STAP-A aggregates are split into their component NALs.",
-              "coverage": "partial",
-              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-stap-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-stap-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch06-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "FU-A fragments are reassembled into one NAL with the reconstructed header.",
-              "coverage": "partial",
-              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-fu-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-fu-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch06-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Access units end on the RTP marker bit and on a timestamp change when the marker is absent.",
-              "coverage": "partial",
-              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-marker-timestamp-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-marker-timestamp-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch06-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "SPS/PPS from SDP sprop-parameter-sets are inserted before every IDR.",
-              "coverage": "partial",
-              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-sps-repeat-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-sps-repeat-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch06-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "-n COUNT stops after exactly COUNT units.",
-              "coverage": "partial",
-              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -36585,83 +37579,119 @@
                   "id": "protocol-wire-rtsp-sps-repeat-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-marker-timestamp-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch06-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-sps-repeat-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch06-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "rtspcat/deferred-rtsp-h264-happy-path",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Client handshake order OPTIONS, DESCRIBE, SETUP (track from SDP a=control), PLAY with correct URIs.",
-              "coverage": "partial",
-              "gap": "The request sequence and track URI were captured, but the sent SDP containing the control attribute was not recorded.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-happy-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-happy-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "SETUP requests 'RTP/AVP/TCP;unicast;interleaved=0-1' and the client uses the server-assigned channel.",
-              "coverage": "partial",
-              "gap": "The requested transport, locally accepted channel-4 media and output were recorded, but the SETUP response assigning the channel and the candidate-side received bytes were not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-happy-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-happy-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "One complete IDR access unit is written as a 4-byte big-endian length followed by Annex-B bytes.",
-              "coverage": "partial",
-              "gap": "The locally accepted RTP and framed output were retained, but candidate-side receive bytes and the SDP response containing the parameter sets were not captured.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-happy-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-happy-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "TEARDOWN with the session id is sent after -n is satisfied; status 0.",
-              "coverage": "partial",
-              "gap": "One output unit and TEARDOWN with the session header were captured; the SETUP session response and candidate-side input stream were not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-happy-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-happy-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -40298,7 +41328,7 @@
         {
           "topic": "ssh/ssh-pty-multiplex-deferred",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -40323,20 +41353,34 @@
             {
               "id": "r3",
               "behavior": "ControlMaster: `ssh master -S CTLPATH --persist N` starts, persists for N seconds, then exits and removes the socket",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ssh-retention-master-persist-125",
+                  "status": "PASS",
+                  "run": "probe-composite-retention125-ssh-178-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "-O check / -O exit probe and terminate a live master",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ssh-retention-master-routing-125",
+                  "status": "PASS",
+                  "run": "probe-composite-retention125-ssh-178-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -40786,10 +41830,10 @@
         },
         {
           "topic": "sshd/encrypted-ssh-interoperability",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -40842,8 +41886,8 @@
             {
               "id": "r4",
               "behavior": "Cipher/MAC/KEX allow-list from config is enforced (disallowed algorithm refused)",
-              "coverage": "partial",
-              "gap": "Both MAC variants advertise the configured restrictions and refuse an offer with no shared MAC, but allowed and permissive-other candidate encrypted commands fail after NEWKEYS before public-key authentication on both builds. A working allowed/other baseline is missing, so complete MAC enforcement remains unresolved.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -40870,8 +41914,8 @@
                   "run": "ssh-mac-packets-static-118"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -50625,9 +51669,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 268,
-        "FAIL": 163,
-        "PASS": 169
+        "UNRESOLVED": 254,
+        "FAIL": 169,
+        "PASS": 177
       },
       "migration_without_complete_evidence": []
     },
@@ -54089,6 +55133,397 @@
               "selfcheck-syscall-sequence-observer"
             ]
           }
+        },
+        {
+          "name": "cluster-followup-dynamic-113-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "bd2de01c6d5b5607e89265f10bc5ae6ae779a795c84b73af0420a2994a81552c",
+            "provenance.json": "b6c0e0e0e94933441b1c286be33d4ba2222f85d37e1d36e5a5297f90ffe0cf18",
+            "payload.tar": "8097a4416f4e54f065be56603708b692ffcc2a49530c021756bba6e5ac07582b",
+            "evidence.tar": "cced9fe71550484df104aeb8964ca9cdf3ead1c88bcb08b07d37f162d9fae51d"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793197746.862737
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "cluster-retention-dynamic-119-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "071076de2f534184c36bc37853227364ac509252f7580ba309e267eef185dc72",
+            "provenance.json": "3459766418b0a8f1f12527bec95169ba10b67f07be2d31f67e4b6aea7fee98eb",
+            "payload.tar": "529f40b4a587aeba2679745c7c80d051a5160e24b943b431d08cb373b9933774",
+            "evidence.tar": "512995b9a90033af4d35d146f3456ed289e812e452e7d47039519dc8c84b8e5f"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793223170.1442418
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-retention125-cluster-paired-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "db014a8878fcb906cc7ae9675b7eb56341c726ed2343880ca7245c1ebd4b7616",
+            "provenance.json": "77ecf3c5cafcba8e94c1d7ba82b5441d55233a591b807e6110f2f47c9ef9c41d",
+            "payload.tar": "09fed22249ca05d5ef144c3fbc2b71f73dfb7e87e2a68de814496466aa06522d",
+            "evidence.tar": "c96a0ce7ad46669614cceada382bb9034b0c05b6022ba53cd0527c899603fecd"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793229033.7800066
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-retention125-ssh-paired-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "96cfedf1684897a620e6e16f72000581f107db9593fce4c73b2bf2980d866ab1",
+            "provenance.json": "9b6614f37015644aec8bd09838e534bc859443152849c41a861f9787f2632521",
+            "payload.tar": "09fed22249ca05d5ef144c3fbc2b71f73dfb7e87e2a68de814496466aa06522d",
+            "evidence.tar": "ddd52d53a9f029d1b5fe9ad59120fb90d42f70759947a84dfc7a3e068ade181d"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793228819.996255
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-rtsp134r5-batch01-paired-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "eb4899843ffe156fb3467cfc65c1813e141a6449d6a9a23fdf7e0e56fd7c6886",
+            "provenance.json": "7d0520d758206bca04c5680440587e72bf9eea2f692bcc7c5bcaa0dffc304b96",
+            "payload.tar": "d1e4eb4832116a90e94c2fc235593616382f65a1fea2e018131c1c50072aafc6",
+            "evidence.tar": "553faca0bda8670620e2c4da68fb513b7060c593a6363ddc2c04896b358928bf"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793227495.2901363
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-rtsp134r5-batch02-paired-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "cc9281671d80f62dc20ea6f96e1b6557c16296b726386f3674452a50c7d1b4a4",
+            "provenance.json": "f9944c45b5653b5690c793d451a44daeaa2228b0db44e7b529ff91da2c8c2633",
+            "payload.tar": "d1e4eb4832116a90e94c2fc235593616382f65a1fea2e018131c1c50072aafc6",
+            "evidence.tar": "2208daedd2cf35d54dac2185c41358d7a708514f65690f1094bffaead4c0c7a5"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793227669.6607323
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-rtsp134r5-batch03-paired-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "d8a28072d0edf16e72cd3b01522a0ee58e9e85d1e54d442d214e955560ed46f2",
+            "provenance.json": "f91e59e2d0846ccb912b31cbdd054d514cdbdf6aaa4b9a1f7b778247f9353dd1",
+            "payload.tar": "d1e4eb4832116a90e94c2fc235593616382f65a1fea2e018131c1c50072aafc6",
+            "evidence.tar": "6e51520d837f77380d4a19609fcd290e0835a8e84a0ca7c01afb5fcc436e7bd6"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793227830.2209926
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-rtsp134r5-batch04-paired-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "1cac7988680b57b070b9a6c40336c2c4be47e595087f3e8500ae585bb669821b",
+            "provenance.json": "1b135a42184b33f0301197d94c9763749db5b0153ba6070d01edab66bb5f62da",
+            "payload.tar": "d1e4eb4832116a90e94c2fc235593616382f65a1fea2e018131c1c50072aafc6",
+            "evidence.tar": "cdcab16f10d90cd8e430759262ba64293aedd00fcc7244e01063197af111a253"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793227988.2697732
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-rtsp134r5-batch05-paired-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "2ee0bcb20be9d988c3be2d0a9140b875e6094fb22b210c147d326bc5e15ec84d",
+            "provenance.json": "1dbc1d26f6d2c2acfd4b6b559b466e4d8d0021c96e4e6eb6c9b3a5c8f894a6b6",
+            "payload.tar": "d1e4eb4832116a90e94c2fc235593616382f65a1fea2e018131c1c50072aafc6",
+            "evidence.tar": "49a2cb7667dc6e065378ed86fad77da5f48a70be1e2e74c4c12d707d7cef998b"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793228138.9152715
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-rtsp134r5-batch06-paired-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "ae4c6913ecdb5265baad80de7210a4d1261c65859a6bc03cbd670dcfd43c98e7",
+            "provenance.json": "55dcaf36540aa5858ac5a1207bc8c806cb02b8e89c1bfd063b083a4c4bdedbc0",
+            "payload.tar": "d1e4eb4832116a90e94c2fc235593616382f65a1fea2e018131c1c50072aafc6",
+            "evidence.tar": "b0375eba71a666f113a2e26b6b1119c9036da6f3f421e51eb886e1466ba748ed"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793228299.4127548
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "probe-composite-rtsp134r6-signal-paired-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "b394e0e4acc970de6b02cf45f4930a2fd30176b9918328d1ae6412d4e2c0f50c",
+            "provenance.json": "e1ba8111191931008cfef6b261cf45a3f5624fe805b9d7f6559440723ade3e72",
+            "payload.tar": "cae6740c149309f90b0f01d0834e1360f7ad9e576627d4db53c0b9023cab07d9",
+            "evidence.tar": "aed3c203be64ae0ad4a0ee78a917123b9e88c160819423cb6fed88097981d744"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793228504.8905187
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "protocol-repair-dkim-r4-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "82400a23dbb4185b8beb857ea00890b035076e70ce243770d0643df698a68139",
+            "provenance.json": "333cc1ecfe5d0610288f6255281a739d113d8c6c35eb45d3e9455bc69c510bf0",
+            "payload.tar": "ea2c747b131eadc680c631806f483e88e16b6e44a49eddf2190cebeb72535979",
+            "evidence.tar": "bcc0efda486b41849c17852b96ff0ab7247c6789bc4f13d1b099297122e2d10d"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793226045.9164681
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "protocol-repair-ldap-r3-178-candidate",
+          "groups": [
+            "shell",
+            "terminal"
+          ],
+          "selected_records": 17,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "7a3e5a82c756d4cb8b3b4dda1c5c187a66187463d032a2205a83be0a02ce5272",
+            "provenance.json": "f4996b2836a213fbb9bb694a383bd98a3e6244859d9b1e32d4fc8f3174aa72cd",
+            "payload.tar": "36f147cc9973838f51f8b1db1da1fe9f221c9952e6c8c6c4b0f60795fb1ac764",
+            "evidence.tar": "a74a138e3edd1abbdcfab655f181b1dcaa1a970d65f854da6cc6c4e744a7baaf"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793226177.5307374
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "protocol-repair-mail-r4-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 9,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "9ef0adaa8ecc78d11b705da29b3150e1279ecaf7471190043e9cab71477f1d95",
+            "provenance.json": "639b8421fa764bfef71cb878b3c5b0e80f66e4aba4c802e729f70d2ed9ae4c40",
+            "payload.tar": "584e3dbca054a4280fc92c67184427694e884b9ba926e1e86dcf98c1e4c86f47",
+            "evidence.tar": "1c7ecf5e39ae488f6fe4b90d7961471e4c5433c32f790da7f82cc64a149ad68a"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793225956.5349054
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "protocol-repair-rollback-r3-178-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "5010430890a7048972737a0a7a4950ae3cbc1cb882f0a6f010ea3be3e58d84ea",
+            "provenance.json": "c3eb3ce34a4c18f42d9ad7ae7006f0e76178bec26e9773b7f7a73ae0198d320b",
+            "payload.tar": "2cb7843281917c411fff209435902fd55b5b4512f053381135cb29b6903aacce",
+            "evidence.tar": "32bd2871dfe447f6129a8a9f1a6de5989d065b17a805fb1df5c55cb555f277a1"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793226300.5035522
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
         }
       ],
       "entries": [
@@ -61516,16 +62951,35 @@
         {
           "topic": "cluster/packet-rejection",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Malformed, truncated and oversized datagrams do not change the roster.",
-              "coverage": "missing",
-              "gap": "No injector.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The 125 oversized attempt bytes are retained, but candidate receipt of each datagram is not proved; original 113/119 oversized payload bytes are missing.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-retention-packet-rejection-125",
+                  "status": "PASS",
+                  "run": "probe-composite-retention125-cluster-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-packet-rejection",
+                  "status": "PASS",
+                  "run": "cluster-followup-dynamic-113-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-packet-rejection-r2",
+                  "status": "PASS",
+                  "run": "cluster-retention-dynamic-119-178-candidate"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -61550,9 +63004,28 @@
             {
               "id": "r4",
               "behavior": "After rejected packets a valid ping still succeeds.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The later 125 response is captured, but candidate receipt of each preceding attempted packet is not proved; older combined oversized payload bytes are missing.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-retention-packet-rejection-125",
+                  "status": "PASS",
+                  "run": "probe-composite-retention125-cluster-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-packet-rejection",
+                  "status": "PASS",
+                  "run": "cluster-followup-dynamic-113-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-packet-rejection-r2",
+                  "status": "PASS",
+                  "run": "cluster-retention-dynamic-119-178-candidate"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -61706,7 +63179,7 @@
         {
           "topic": "cluster/roster-heartbeats",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -61731,11 +63204,30 @@
             {
               "id": "r3",
               "behavior": "Heartbeats refresh membership; a silent peer expires after the documented timeout.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-retention-roster-heartbeats-125",
+                  "status": "PASS",
+                  "run": "probe-composite-retention125-cluster-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats",
+                  "status": "PASS",
+                  "run": "cluster-followup-dynamic-113-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats-r2",
+                  "status": "PASS",
+                  "run": "cluster-retention-dynamic-119-178-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -74275,10 +75767,10 @@
         },
         {
           "topic": "ldap/deferred-bind-whoami",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -74309,6 +75801,24 @@
                   "id": "migration-transfer-ldap-whoami-password-prompt-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-file-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "terminal",
+                  "id": "transfer-ldap-whoami-password-prompt-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -74317,8 +75827,8 @@
             {
               "id": "r2",
               "behavior": "BindResponse resultCode 0 continues; a non-zero resultCode (49 invalidCredentials) fails with a diagnostic and status.",
-              "coverage": "partial",
-              "gap": "The valid session continues and the invalid session returns status 1 with no diagnostic, a reached candidate FAIL. The peer does not retain the actual BindResponse BER or result code sent, so the nonzero-result input is not independently demonstrated.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -74331,10 +75841,22 @@
                   "id": "migration-transfer-ldap-bind-invalid-r2",
                   "status": "FAIL",
                   "run": "qual-remote-canon-ldap-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-bind-invalid-r3",
+                  "status": "FAIL",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -74347,6 +75869,12 @@
                   "id": "migration-transfer-ldap-whoami-password-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -74355,18 +75883,24 @@
             {
               "id": "r4",
               "behavior": "The ExtendedResponse authzId (e.g. `dn:cn=alice,dc=example`) is printed and status is 0.",
-              "coverage": "partial",
-              "gap": "The client prints the expected authorization ID and status 0, but the peer does not retain the sent ExtendedResponse BER needed to compare the decoded value to its input.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-transfer-ldap-whoami-password-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -74391,6 +75925,24 @@
                   "id": "migration-transfer-ldap-whoami-password-prompt-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-file-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "terminal",
+                  "id": "transfer-ldap-whoami-password-prompt-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -74419,6 +75971,24 @@
                   "id": "migration-transfer-ldap-whoami-password-prompt-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-file-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "terminal",
+                  "id": "transfer-ldap-whoami-password-prompt-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-whoami-password-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -74428,10 +75998,10 @@
         },
         {
           "topic": "ldap/deferred-plain-search",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -74486,6 +76056,24 @@
                   "id": "migration-transfer-ldap-search-base-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-base-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-one-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-sub-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -74494,8 +76082,8 @@
             {
               "id": "r2",
               "behavior": "SearchResultEntry messages received from the peer are printed as dn/attribute lines.",
-              "coverage": "partial",
-              "gap": "The expected entry lines are captured, but sent SearchResultEntry BER and segmentation are not retained; comparing output with actual input requires those raw bytes.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -74520,16 +76108,34 @@
                   "id": "migration-transfer-ldap-search-base-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-base-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-one-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-sub-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "SearchResultDone resultCode 0 gives status 0; a non-zero code (e.g. 32 noSuchObject) gives failure.",
-              "coverage": "partial",
-              "gap": "The candidate outputs resultCode 0 or 32 and corresponding statuses, but the peer does not retain the actual SearchResultDone BER it sent.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -74542,10 +76148,22 @@
                   "id": "migration-transfer-ldap-search-no-such-object-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-no-such-object-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-sub-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -74564,6 +76182,12 @@
                   "id": "migration-transfer-ldap-search-invalid-filter-before-connect-r2",
                   "status": "FAIL",
                   "run": "qual-remote-canon-ldap-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-search-invalid-filter-before-connect-r3",
+                  "status": "FAIL",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -74573,10 +76197,10 @@
         },
         {
           "topic": "ldap/deferred-tls-starttls",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -74589,6 +76213,12 @@
                   "id": "migration-transfer-ldap-tls-trusted-default-sni-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-tls-trusted-default-sni-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -74617,6 +76247,24 @@
                   "id": "migration-transfer-ldap-tls-insecure-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-tls-insecure-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-tls-untrusted-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-tls-wrong-name-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -74625,24 +76273,30 @@
             {
               "id": "r3",
               "behavior": "-Z sends StartTLS (OID 1.3.6.1.4.1.1466.20037) before bind, and continues in plaintext if the server refuses.",
-              "coverage": "partial",
-              "gap": "The StartTLS request, subsequent plaintext bind and WhoAmI are captured, but the peer does not retain the refusal response BER; the refusal-to-fallback transition remains unproved.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-transfer-ldap-starttls-optional-refusal-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-starttls-optional-refusal-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "-ZZ fails closed when StartTLS is refused or the handshake fails, sending no bind.",
-              "coverage": "partial",
-              "gap": "The required cases return failure with diagnostics and no bind, but the server response BER for refusal or handshake initiation is not retained; retain those input gaps.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -74655,10 +76309,22 @@
                   "id": "migration-transfer-ldap-starttls-required-handshake-failure-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-starttls-required-handshake-failure-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-starttls-required-refusal-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -74677,6 +76343,18 @@
                   "id": "migration-transfer-ldap-tls-explicit-sni-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-ldap-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-tls-explicit-sni-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-ldap-tls-trusted-default-sni-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-ldap-r3-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -76438,10 +78116,10 @@
         },
         {
           "topic": "mail/dkim_contract_vectors",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -76454,6 +78132,12 @@
                   "id": "protocol-wire-dkim-ed-valid-r2",
                   "status": "FAIL",
                   "run": "qual-remote-canon-dkim-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-dkim-published-discrimination-r4",
+                  "status": "FAIL",
+                  "run": "protocol-repair-dkim-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -76478,8 +78162,8 @@
             {
               "id": "r3",
               "behavior": "A tampered body or signed header gives invalid (exit 1).",
-              "coverage": "partial",
-              "gap": "The generated-message cases accepted independently verified generated originals and rejected the body and header alterations. In the older private diagnostic runs, both published-vector altered inputs were actually invoked and returned status 1, but the corresponding valid original also returned status 1, so these results do not demonstrate discrimination. Those historical case IDs are not selected canonical evidence, and the two canonical r2 tamper definitions were excluded and not executed in the canonical runs. Preserve the published-vector obligation and do not relabel the old results.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -76492,10 +78176,16 @@
                   "id": "protocol-wire-dkim-sign-tamper-header-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-dkim-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-dkim-published-discrimination-r4",
+                  "status": "FAIL",
+                  "run": "protocol-repair-dkim-r4-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -76606,10 +78296,10 @@
         },
         {
           "topic": "mail/smtp_inbound_server",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -76622,6 +78312,12 @@
                   "id": "protocol-wire-mail-smtp-inbound-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-inbound-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -76630,59 +78326,77 @@
             {
               "id": "r2",
               "behavior": "EHLO/MAIL FROM/RCPT TO/DATA/QUIT get RFC 5321 reply codes (250/250/250/354/250/221); DATA with no RCPT gets 554; an unknown command 500; RSET/NOOP 250.",
-              "coverage": "partial",
-              "gap": "The candidate reply lines and codes are captured, but the peer does not retain the corresponding inbound command bytes; command-to-reply sequencing needs a raw sent-byte transcript.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-mail-smtp-inbound-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-inbound-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "An accepted message is enqueued under <queue>/incoming/<qid>/ with dot-unstuffed, LF-normalised body and meta client_ip/helo/mail_from.",
-              "coverage": "partial",
-              "gap": "The incoming queue body, headers, envelope and metadata are captured, but the raw SMTP message sent to the server is not retained, so dot-unstuffing and LF normalization cannot be independently compared to its wire input.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-mail-smtp-inbound-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-inbound-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "The server exits cleanly on SIGTERM from the owning fixture.",
-              "coverage": "partial",
-              "gap": "The owned daemon exit status 0 is captured; actual SIGTERM delivery and target are specified in source but not independently retained in the raw trace.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-mail-smtp-inbound-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-inbound-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "mail/smtp_outbound_delivery",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -76695,6 +78409,12 @@
                   "id": "protocol-wire-mail-smtp-success-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-success-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -76723,6 +78443,24 @@
                   "id": "protocol-wire-mail-smtp-mixed-perm-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-mixed-perm-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-mixed-temp-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-success-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -76731,8 +78469,8 @@
             {
               "id": "r3",
               "behavior": "Per-recipient 250/4xx/5xx replies map to `delivered <rcpt>` lines and exit 0 / 75 (any temp) / 69 (only perm).",
-              "coverage": "partial",
-              "gap": "Client commands, delivered lines and statuses are captured, but the peer does not retain the 250/4xx/5xx reply bytes. Capture replies to prove the recipient-code-to-result mapping.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -76763,10 +78501,40 @@
                   "id": "protocol-wire-mail-smtp-all-perm-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-all-perm-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-all-temp-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-mixed-perm-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-mixed-temp-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-success-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -76803,6 +78571,36 @@
                   "id": "protocol-wire-mail-smtp-all-perm-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-all-perm-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-all-temp-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-mixed-perm-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-mixed-temp-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-smtp-success-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -76812,10 +78610,10 @@
         },
         {
           "topic": "mail/unix_submission_protocol",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -76828,6 +78626,12 @@
                   "id": "protocol-wire-mail-unix-server-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-unix-server-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -76844,6 +78648,12 @@
                   "id": "protocol-wire-mail-unix-client-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-unix-client-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -76860,6 +78670,12 @@
                   "id": "protocol-wire-mail-unix-server-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-unix-server-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -76876,6 +78692,12 @@
                   "id": "protocol-wire-mail-unix-server-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-unix-server-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -76884,8 +78706,8 @@
             {
               "id": "r5",
               "behavior": "submit to an absent socket returns 75; serve exits on SIGTERM and unlinks its socket.",
-              "coverage": "partial",
-              "gap": "The absent-socket status, daemon exit 0 and post-run socket absence are captured; actual SIGTERM delivery and target are not independently retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -76898,10 +78720,22 @@
                   "id": "protocol-wire-mail-unix-server-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-mail-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-unix-absent-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-mail-unix-server-r4",
+                  "status": "PASS",
+                  "run": "protocol-repair-mail-r4-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -83533,13 +85367,19 @@
               "id": "r4",
               "behavior": "Explicit 'pkg rollback TXN' and 'pkg remove NAME' restore/remove exactly the package's files and state, preserving unrelated entries.",
               "coverage": "partial",
-              "gap": "Package removal is exercised and unrelated content is retained. Explicit pkg rollback TXN has no selected evidence and remains unresolved.",
+              "gap": "Explicit rollback was exercised through a pinned mock only; real image-installer rollback remains unproved. The mock control did not archive its intermediate snapshots, although the candidate-root snapshots and final control tree were retained. Preserve the earlier separate removal and failed-install evidence.",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-transfer-pkg-remove-installed-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-pkg-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "transfer-pkg-explicit-rollback-r3",
+                  "status": "PASS",
+                  "run": "protocol-repair-rollback-r3-178-candidate"
                 }
               ],
               "fully_exercised": false,
@@ -86645,10 +88485,10 @@
         },
         {
           "topic": "rsync/native-protocol-requires-server",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -86669,8 +88509,8 @@
             {
               "id": "r2",
               "behavior": "--native pull from a stock 'rsync --server --sender' reproduces the remote tree.",
-              "coverage": "partial",
-              "gap": "The destination tree matches, but the candidate-side stock sender exits 12 while the candidate reports success; a clean native peer completion is not established.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -86679,14 +88519,14 @@
                   "run": "qual-remote-canon-probe-composite-transfers-rest-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Delta transfer against an existing basis file yields byte-identical results.",
-              "coverage": "partial",
-              "gap": "Both fresh candidate transfers were literal-only despite an existing basis: no basis-block reference was observed on either build, so a successful candidate delta transfer is not established. Both clients also logged a remote-nonzero message although the proxy reported stock receiver status 0; the transport wait status was not separately captured.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -86695,8 +88535,8 @@
                   "run": "transfer-delta-qualification-155-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -86787,48 +88627,60 @@
         },
         {
           "topic": "rtspcat/deferred-auth-session-keepalive",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "On 401 with WWW-Authenticate: Basic, the retried request carries 'Authorization: Basic base64(user:pass)'.",
-              "coverage": "partial",
-              "gap": "The retried Basic header decodes to the fixture user and password; the actual 401 challenge bytes were not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-basic-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-basic-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "On 401 with Digest realm/nonce (and qop), the retried request carries an RFC 2617/7616 MD5 response computed over the method and URI.",
-              "coverage": "partial",
-              "gap": "Digest request headers were captured, but the actual challenge bytes were not retained and this review did not perform digest arithmetic under the no-crypto constraint.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-digest-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-digest-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "CSeq increases by one per request and the Session header from SETUP is sent on PLAY, GET_PARAMETER and TEARDOWN.",
-              "coverage": "partial",
-              "gap": "CSeq and Session request headers were captured; the SETUP response that assigned the session was not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -86847,41 +88699,65 @@
                   "id": "protocol-wire-rtsp-keepalive-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-basic-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-digest-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-keepalive-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "-k SECS sends GET_PARAMETER keepalives at the interval during streaming.",
-              "coverage": "partial",
-              "gap": "One keepalive interval is timed; repeated intervals, the SETUP response and candidate-side media receipt remain unverified.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-keepalive-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-keepalive-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "rtspcat/deferred-error-and-timeout-paths",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Malformed RTSP status line, header or Content-Length is rejected with nonzero status.",
-              "coverage": "partial",
-              "gap": "Bad-header advanced to DESCRIBE before status 1, a reached FAIL; the actual malformed status, header and length response bytes were not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -86900,16 +88776,34 @@
                   "id": "protocol-wire-rtsp-bad-length-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-bad-status-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-bad-header-evidence-r5",
+                  "status": "FAIL",
+                  "run": "probe-composite-rtsp134r5-batch02-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-bad-length-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch02-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Malformed RTP (bad version, padding/extension beyond payload, invalid STAP-A sizes, FU-A without start) is rejected and the incomplete unit is not emitted.",
-              "coverage": "partial",
-              "gap": "Locally accepted malformed and recovery packets and the recovery output were decoded; candidate-side receipt is not captured, and nonzero status follows server EOF rather than a separately retained malformed-packet error.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -86940,26 +88834,62 @@
                   "id": "protocol-wire-rtsp-rtp-fu-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-version-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch02-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-extension-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch02-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-padding-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch02-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-stap-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch03-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-rtp-fu-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch03-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Server EOF mid-unit returns nonzero without writing the partial unit.",
-              "coverage": "partial",
-              "gap": "A partial RTP unit was locally accepted and the candidate ended nonzero with empty output, but the candidate-side receipt and EOF stimulus were not independently captured.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-eof-partial-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-eof-partial-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch03-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -86972,6 +88902,12 @@
                   "id": "protocol-wire-rtsp-timeout-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-timeout-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch03-paired-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -86980,8 +88916,8 @@
             {
               "id": "r5",
               "behavior": "Invalid arguments (bad URL, non-numeric -n/-o/-k/-t) fail with usage status before connecting.",
-              "coverage": "partial",
-              "gap": "The statuses and usage diagnostics are recorded, and the listener reported no connection; a separately retained accept event, timing and positive listener control are absent. The invalid-URL status 1 is a reached usage-status FAIL.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -87012,19 +88948,49 @@
                   "id": "protocol-wire-rtsp-invalid-t-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-url-evidence-r5",
+                  "status": "FAIL",
+                  "run": "probe-composite-rtsp134r5-batch03-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-n-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch04-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-o-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch04-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-k-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch04-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-invalid-t-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch04-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "rtspcat/deferred-output-fd-lifecycle",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -87037,6 +89003,12 @@
                   "id": "protocol-wire-rtsp-output-fd-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-fd-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch04-paired-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -87059,6 +89031,18 @@
                   "id": "protocol-wire-rtsp-output-closed-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-full-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch05-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-closed-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch05-paired-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -87067,18 +89051,30 @@
             {
               "id": "r3",
               "behavior": "A closed-pipe reader yields nonzero status without killing the shell (SIGPIPE ignored during the call and restored after).",
-              "coverage": "partial",
-              "gap": "Broken-pipe diagnostic, shell survival and matching signal snapshots were retained, but the builtin return status was not separately recorded.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-output-pipe-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-pipe-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch05-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-output-pipe-evidence-r6",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r6-signal-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -87091,6 +89087,18 @@
                   "id": "protocol-wire-rtsp-repeat-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-repeat-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch05-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-repeat-evidence-r6",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r6-signal-paired-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -87100,96 +89108,126 @@
         },
         {
           "topic": "rtspcat/deferred-rtp-assembly-boundaries",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Single-NAL packets are emitted as Annex-B NALs within the current access unit.",
-              "coverage": "partial",
-              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-single-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-single-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch05-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "STAP-A aggregates are split into their component NALs.",
-              "coverage": "partial",
-              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-stap-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-stap-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch06-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "FU-A fragments are reassembled into one NAL with the reconstructed header.",
-              "coverage": "partial",
-              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-fu-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-fu-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch06-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Access units end on the RTP marker bit and on a timestamp change when the marker is absent.",
-              "coverage": "partial",
-              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-marker-timestamp-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-marker-timestamp-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch06-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "SPS/PPS from SDP sprop-parameter-sets are inserted before every IDR.",
-              "coverage": "partial",
-              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-sps-repeat-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-sps-repeat-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch06-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "-n COUNT stops after exactly COUNT units.",
-              "coverage": "partial",
-              "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -87202,83 +89240,119 @@
                   "id": "protocol-wire-rtsp-sps-repeat-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-marker-timestamp-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch06-paired-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-sps-repeat-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch06-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "rtspcat/deferred-rtsp-h264-happy-path",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Client handshake order OPTIONS, DESCRIBE, SETUP (track from SDP a=control), PLAY with correct URIs.",
-              "coverage": "partial",
-              "gap": "The request sequence and track URI were captured, but the sent SDP containing the control attribute was not recorded.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-happy-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-happy-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "SETUP requests 'RTP/AVP/TCP;unicast;interleaved=0-1' and the client uses the server-assigned channel.",
-              "coverage": "partial",
-              "gap": "The requested transport, locally accepted channel-4 media and output were recorded, but the SETUP response assigning the channel and the candidate-side received bytes were not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-happy-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-happy-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "One complete IDR access unit is written as a 4-byte big-endian length followed by Annex-B bytes.",
-              "coverage": "partial",
-              "gap": "The locally accepted RTP and framed output were retained, but candidate-side receive bytes and the SDP response containing the parameter sets were not captured.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-happy-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-happy-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "TEARDOWN with the session id is sent after -n is satisfied; status 0.",
-              "coverage": "partial",
-              "gap": "One output unit and TEARDOWN with the session header were captured; the SETUP session response and candidate-side input stream were not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "protocol-wire-rtsp-happy-media-r3",
                   "status": "PASS",
                   "run": "qual-remote-canon-protocol-rtsp-media-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "protocol-wire-rtsp-happy-evidence-r5",
+                  "status": "PASS",
+                  "run": "probe-composite-rtsp134r5-batch01-paired-178-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -90915,7 +92989,7 @@
         {
           "topic": "ssh/ssh-pty-multiplex-deferred",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -90940,20 +93014,34 @@
             {
               "id": "r3",
               "behavior": "ControlMaster: `ssh master -S CTLPATH --persist N` starts, persists for N seconds, then exits and removes the socket",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ssh-retention-master-persist-125",
+                  "status": "PASS",
+                  "run": "probe-composite-retention125-ssh-paired-178-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "-O check / -O exit probe and terminate a live master",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ssh-retention-master-routing-125",
+                  "status": "PASS",
+                  "run": "probe-composite-retention125-ssh-paired-178-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -91403,10 +93491,10 @@
         },
         {
           "topic": "sshd/encrypted-ssh-interoperability",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -91459,8 +93547,8 @@
             {
               "id": "r4",
               "behavior": "Cipher/MAC/KEX allow-list from config is enforced (disallowed algorithm refused)",
-              "coverage": "partial",
-              "gap": "Both MAC variants advertise the configured restrictions and refuse an offer with no shared MAC, but allowed and permissive-other candidate encrypted commands fail after NEWKEYS before public-key authentication on both builds. A working allowed/other baseline is missing, so complete MAC enforcement remains unresolved.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -91487,8 +93575,8 @@
                   "run": "ssh-mac-packets-dynamic-118"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -101242,9 +103330,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 268,
-        "FAIL": 163,
-        "PASS": 169
+        "UNRESOLVED": 254,
+        "FAIL": 169,
+        "PASS": 177
       },
       "migration_without_complete_evidence": []
     }

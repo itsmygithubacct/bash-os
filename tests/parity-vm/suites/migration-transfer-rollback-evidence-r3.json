@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "transfer-pkg-explicit-rollback-r3",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Exercise candidate rollback TXN with a signed input and bounded pinned backend transaction, including unknown transaction refusal and unrelated entries.",
+      "covers": [
+        "pkg/pkg-install-rollback-remove"
+      ],
+      "oracle": "OpenSSL Ed25519 verifies an independently constructed USTAR package; a pinned, VM-guarded bounded mock creates a transaction journal and restores one saved file and two state entries. Positive and unknown-ID negative mock controls run in a distinct root.",
+      "comparison": "Exact signed input, trust material, transaction identifier, mock argv and output, candidate invocations/statuses, independently captured baseline/installed/after bytes and modes, and unrelated sentinels. The mock is not the real image installer.",
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-rollback-evidence-r3.py": "caa39157083f6f1e852b3811d3ed87d56187ae3da090c7fcb3675398223d19e4"
+      },
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-rollback-evidence-r3.py\ntxn=$(<\"$HOME/rollback-txn-root\")\nexport BASHPKG_BLPKG_PATH=\"$HOME/rollback-backend\"\nbuiltin pkg rollback txn-00000000000000000000000000000000 --root root > \"$HOME/unknown.out\" 2> \"$HOME/unknown.err\"\nprintf '%s\\n' \"$?\" > \"$HOME/unknown-status\"\n/usr/bin/python3 \"$H\" snapshot root unknown-after || exit 98\nbuiltin pkg rollback \"$txn\" --root root > \"$HOME/candidate.out\" 2> \"$HOME/candidate.err\"\nrc=$?\n/usr/bin/python3 \"$H\" snapshot root after || exit 98\n/usr/bin/python3 \"$H\" assess \"$txn\" \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "explicit-rollback=ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "rollback-input-evidence.json",
+        "rollback-control.json",
+        "rollback-backend.jsonl",
+        "backend-selection.txt",
+        "seed.out",
+        "seed.err",
+        "before.json",
+        "installed.json",
+        "unknown-after.json",
+        "after.json",
+        "unknown.out",
+        "unknown.err",
+        "unknown-status",
+        "candidate.out",
+        "candidate.err",
+        "rollback-assessment.json"
+      ],
+      "setup_script": "H=/opt/bashos-parity/harness/helpers/transfer-rollback-evidence-r3.py\n/usr/bin/python3 \"$H\" prepare || { echo 'CONTROL-FAILED signed input'; exit 98; }\n/usr/bin/cp \"$H\" \"$HOME/rollback-backend\" && /usr/bin/chmod 700 \"$HOME/rollback-backend\" && /usr/bin/cmp -s \"$H\" \"$HOME/rollback-backend\" || { echo 'CONTROL-FAILED backend copy'; exit 98; }\nif [[ -x /bash-os/bl-pkg.sh ]]; then printf '%s\\n' 'image backend takes precedence; pinned mock not used' > \"$HOME/backend-selection.txt\"; echo 'CONTROL-FAILED image backend precedence'; exit 98; fi\nprintf '%s\\n' 'image backend not executable; BASHPKG_BLPKG_PATH selects pinned mock' > \"$HOME/backend-selection.txt\"\n/usr/bin/python3 \"$H\" control || { echo 'CONTROL-FAILED backend transaction'; exit 98; }\n/usr/bin/python3 \"$H\" snapshot root before || exit 98\n\"$HOME/rollback-backend\" seed root > \"$HOME/seed.out\" 2> \"$HOME/seed.err\" || { echo 'CONTROL-FAILED seed'; exit 98; }\ntxn=$(<\"$HOME/rollback-txn-root\")\n/usr/bin/python3 \"$H\" snapshot root installed || exit 98\n",
+      "setup_timeout": 60
+    }
+  ]
+}

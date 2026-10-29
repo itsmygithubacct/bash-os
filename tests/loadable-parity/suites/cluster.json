@@ -47,7 +47,7 @@
       "id": "roster-heartbeats",
       "kind": "deferred",
       "purpose": "Verify three-peer roster convergence after joins and leaves, heartbeat refresh, peer expiry, and leaf disconnection after seed loss.",
-      "reason": "No multi-peer run exists; three candidate shells in one per-side script are feasible within the 60 s case limit using short timeouts."
+      "reason": "Remaining obligations: r1: Not observed.; r2: Not observed.; r4: Not observed."
     },
     {
       "id": "ping-protocol",
@@ -59,7 +59,7 @@
       "id": "packet-rejection",
       "kind": "deferred",
       "purpose": "Verify malformed, truncated, oversized, wrong-key, invalid-count, and invalid-node packets do not add members or prevent a later valid ping.",
-      "reason": "No listener is ever started; the python3 injector and oracle can run in the same per-side script."
+      "reason": "Remaining obligations: r1: The 125 oversized attempt bytes are retained, but candidate receipt of each datagram is not proved; original 113/119 oversized payload bytes are missing.; r2: Not observed.; r3: Not observed.; r4: The later 125 response is captured, but candidate receipt of each preceding attempted packet is not proved; older combined oversized payload bytes are missing."
     },
     {
       "id": "leave-and-owner-lifecycle",

@@ -1,0 +1,123 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "comparison": "Retain exact request/response/challenge/SDP/SETUP/RTP peer bytes with send boundaries and timing, and independently capture candidate socket read bytes and syscall boundaries. Assert original result, session, output and lifecycle terms; observer/control gaps are invalid observations.",
+      "covers": [],
+      "diagnostic_files": [
+        "rtsp-trace.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-evidence-r6.py": "f4365f7d377a599e3d9929d4fb0e14bfe6618bfcd21bba4622ee370c6388de94",
+        "helpers/protocol-wire-rtsp-receipt-r6.py": "a7758b37b87b187b5ef47e9ba8a99eccbf3577e8bca720fadfe18342c3ad8acd"
+      },
+      "id": "protocol-wire-rtsp-control-evidence-r6",
+      "kind": "contract",
+      "loadable": "rtspcat",
+      "oracle": "Independent loopback RTSP/SDP, RFC 7616 Digest fixed-vector controls, RFC 6184 RTP/Annex-B controls and owned-child ptrace native read controls, all VM-only.",
+      "purpose": "Validate explicit Annex-B length, interleaving and modified-byte negative controls.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-evidence-r6.py control",
+      "stderr": "",
+      "stdout": "rtsp-control=ok\n",
+      "timeout": 55
+    },
+    {
+      "comparison": "Retain exact request/response/challenge/SDP/SETUP/RTP peer bytes with send boundaries and timing, and independently capture candidate socket read bytes and syscall boundaries. Assert original result, session, output and lifecycle terms; observer/control gaps are invalid observations.",
+      "covers": [],
+      "diagnostic_files": [
+        "rtsp-receipt-control.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-evidence-r6.py": "f4365f7d377a599e3d9929d4fb0e14bfe6618bfcd21bba4622ee370c6388de94",
+        "helpers/protocol-wire-rtsp-receipt-r6.py": "a7758b37b87b187b5ef47e9ba8a99eccbf3577e8bca720fadfe18342c3ad8acd"
+      },
+      "id": "protocol-wire-rtsp-receipt-control-r6",
+      "kind": "contract",
+      "loadable": "rtspcat",
+      "oracle": "Independent loopback RTSP/SDP, RFC 7616 Digest fixed-vector controls, RFC 6184 RTP/Annex-B controls and owned-child ptrace native read controls, all VM-only.",
+      "purpose": "Native owned-child read observer positive, altered-byte and truncated-stream controls.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-receipt-r6.py control",
+      "stderr": "",
+      "stdout": "owned-read-observer-control=ok\n",
+      "timeout": 55
+    },
+    {
+      "comparison": "Retain exact request/response/challenge/SDP/SETUP/RTP peer bytes with send boundaries and timing, and independently capture candidate socket read bytes and syscall boundaries. Assert original result, session, output and lifecycle terms; observer/control gaps are invalid observations.",
+      "covers": [
+        "rtspcat/deferred-output-fd-lifecycle"
+      ],
+      "diagnostic_files": [
+        "rtsp-trace.json",
+        "rtsp-oracle-control.json",
+        "rtsp-receipt-control.json",
+        "rtsp-receipt.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-evidence-r6.py": "f4365f7d377a599e3d9929d4fb0e14bfe6618bfcd21bba4622ee370c6388de94",
+        "helpers/protocol-wire-rtsp-receipt-r6.py": "a7758b37b87b187b5ef47e9ba8a99eccbf3577e8bca720fadfe18342c3ad8acd"
+      },
+      "id": "protocol-wire-rtsp-output-pipe-evidence-r6",
+      "kind": "contract",
+      "loadable": "rtspcat",
+      "oracle": "Independent loopback RTSP/SDP, RFC 7616 Digest fixed-vector controls, RFC 6184 RTP/Annex-B controls and owned-child ptrace native read controls, all VM-only.",
+      "purpose": "A closed-pipe output returns nonzero while the shell survives and restores SIGPIPE.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-evidence-r6.py \"$BASH\" output-pipe",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-evidence-r6.py control\n/bin/cp \"$HOME/rtsp-trace.json\" \"$HOME/rtsp-oracle-control.json\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-receipt-r6.py control\n",
+      "setup_timeout": 60,
+      "stderr": "",
+      "stdout": "rtsp-output-pipe=ok\n",
+      "timeout": 55
+    },
+    {
+      "comparison": "Retain exact request/response/challenge/SDP/SETUP/RTP peer bytes with send boundaries and timing, and independently capture candidate socket read bytes and syscall boundaries. Assert original result, session, output and lifecycle terms; observer/control gaps are invalid observations.",
+      "covers": [
+        "rtspcat/deferred-output-fd-lifecycle"
+      ],
+      "diagnostic_files": [
+        "rtsp-trace.json",
+        "rtsp-oracle-control.json",
+        "rtsp-receipt-control.json",
+        "rtsp-receipt.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/protocol-wire-rtsp-evidence-r6.py": "f4365f7d377a599e3d9929d4fb0e14bfe6618bfcd21bba4622ee370c6388de94",
+        "helpers/protocol-wire-rtsp-receipt-r6.py": "a7758b37b87b187b5ef47e9ba8a99eccbf3577e8bca720fadfe18342c3ad8acd"
+      },
+      "id": "protocol-wire-rtsp-repeat-evidence-r6",
+      "kind": "contract",
+      "loadable": "rtspcat",
+      "oracle": "Independent loopback RTSP/SDP, RFC 7616 Digest fixed-vector controls, RFC 6184 RTP/Annex-B controls and owned-child ptrace native read controls, all VM-only.",
+      "purpose": "Two calls in one shell write exact records and preserve SIGPIPE disposition.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-evidence-r6.py \"$BASH\" repeat",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-evidence-r6.py control\n/bin/cp \"$HOME/rtsp-trace.json\" \"$HOME/rtsp-oracle-control.json\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-rtsp-receipt-r6.py control\n",
+      "setup_timeout": 60,
+      "stderr": "",
+      "stdout": "rtsp-repeat=ok\n",
+      "timeout": 55
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 8463 Appendix A published Ed25519 and RSA signatures/public keys, RFC 6376 relaxed DKIM canonicalization and SHA-256; OpenSSL verifies Ed25519 or RSA cryptography independently of the candidate.",
+      "comparison": "Retain exact RFC message bytes, public key, independent original/body/header verification, all three candidate argv and raw outputs/statuses. Candidate original must accept and both mutations must reject; every invocation is recorded before comparisons.",
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-dkim-evidence-r4.py": "61ebea06a6d076967325b13109570231db33b932a9fda8453ef801fb430fb627"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 35,
+      "diagnostic_files": [
+        "dkim-trace.json"
+      ],
+      "id": "protocol-wire-dkim-control-r4",
+      "purpose": "Published RFC 8463 original, body and signed-header mutation: control",
+      "covers": [],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-dkim-evidence-r4.py \"$BASH\" control",
+      "stdout": "dkim-control=ok\n"
+    },
+    {
+      "loadable": "mail",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "RFC 8463 Appendix A published Ed25519 and RSA signatures/public keys, RFC 6376 relaxed DKIM canonicalization and SHA-256; OpenSSL verifies Ed25519 or RSA cryptography independently of the candidate.",
+      "comparison": "Retain exact RFC message bytes, public key, independent original/body/header verification, all three candidate argv and raw outputs/statuses. Candidate original must accept and both mutations must reject; every invocation is recorded before comparisons.",
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-dkim-evidence-r4.py": "61ebea06a6d076967325b13109570231db33b932a9fda8453ef801fb430fb627"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 35,
+      "diagnostic_files": [
+        "dkim-trace.json"
+      ],
+      "id": "protocol-wire-dkim-published-discrimination-r4",
+      "purpose": "Published RFC 8463 original, body and signed-header mutation: published",
+      "covers": [
+        "mail/dkim_contract_vectors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-dkim-evidence-r4.py \"$BASH\" published",
+      "stdout": "dkim-published=ok\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-dkim-evidence-r4.py \"$BASH\" control\n",
+      "setup_timeout": 25
+    }
+  ]
+}

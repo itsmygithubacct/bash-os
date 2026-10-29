@@ -7166,16 +7166,35 @@
         "purpose": "Verify malformed, truncated, oversized, wrong-key, invalid-count, and invalid-node packets do not add members or prevent a later valid ping.",
         "reason": "Requires an isolated disposable Linux VM with an owned UDP injector and a separately implemented Python packet encoder/MAC oracle. Send only to a fixture listener on 127.0.0.1, compare the roster before and after each rejected packet, then check a valid independent exchange. No host or external target may be used."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "No listener is ever started; the python3 injector and oracle can run in the same per-side script.",
+      "current_reason": "Remaining obligations: r1: The 125 oversized attempt bytes are retained, but candidate receipt of each datagram is not proved; original 113/119 oversized payload bytes are missing.; r2: Not observed.; r3: Not observed.; r4: The later 125 response is captured, but candidate receipt of each preceding attempted packet is not proved; older combined oversized payload bytes are missing.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Malformed, truncated and oversized datagrams do not change the roster.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No injector."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-retention-packet-rejection-125",
+              "assertion": "Both builds retain the complete malformed and oversized packet attempts and later roster snapshots; two separate guest-only integrity controls were bound byte-for-byte to the original captures. Outbound trace entries are pre-send attempts and do not prove each candidate receive.",
+              "definition_sha256": "fbb826535fe6d89bdb400d50c69724d0ae227675a9edba19f50bf099161c9b01"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-packet-rejection",
+              "assertion": "original 113 case: Malformed/truncated and oversized injection reached unchanged-roster and later-ping checks; eight oversized packets per build lack retained bytes. Remaining gap: The actual bytes of the oversized datagrams are missing in both retained traces; size and SHA alone do not independently identify the rejected corpus.",
+              "definition_sha256": "58982ed04717fad83746170b262af00cab2af6eaae42a7e5b9586b4e1754250f"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-packet-rejection-r2",
+              "assertion": "original 119 retention case: Malformed/truncated and oversized injection reached unchanged-roster and later-ping checks; eight oversized packets per build lack retained bytes. Remaining gap: The actual bytes of the oversized datagrams are missing in both retained traces; size and SHA alone do not independently identify the rejected corpus.",
+              "definition_sha256": "203229d61d52905f6af5922743cf149b11b1efc50e712bd660c383dfeb45923c"
+            }
+          ],
+          "gap": "The 125 oversized attempt bytes are retained, but candidate receipt of each datagram is not proved; original 113/119 oversized payload bytes are missing."
         },
         {
           "id": "r2",
@@ -7194,12 +7213,31 @@
         {
           "id": "r4",
           "behavior": "After rejected packets a valid ping still succeeds.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-retention-packet-rejection-125",
+              "assertion": "After the recorded malformed attempt sequences, an actual reply was received from each candidate-reported listener port on both builds. Exact attempted packet bytes are retained and their guest audit is an integrity control only.",
+              "definition_sha256": "fbb826535fe6d89bdb400d50c69724d0ae227675a9edba19f50bf099161c9b01"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-packet-rejection",
+              "assertion": "original 113 case: Later candidate and oracle pings succeed after the combined injection, while several oversized payloads in that combined corpus are absent. Remaining gap: The exact bytes of the oversized packets before the final ping are absent, so the complete recorded combined corpus cannot yet be independently qualified.",
+              "definition_sha256": "58982ed04717fad83746170b262af00cab2af6eaae42a7e5b9586b4e1754250f"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-packet-rejection-r2",
+              "assertion": "original 119 retention case: Later candidate and oracle pings succeed after the combined injection, while several oversized payloads in that combined corpus are absent. Remaining gap: The exact bytes of the oversized packets before the final ping are absent, so the complete recorded combined corpus cannot yet be independently qualified.",
+              "definition_sha256": "203229d61d52905f6af5922743cf149b11b1efc50e712bd660c383dfeb45923c"
+            }
+          ],
+          "gap": "The later 125 response is captured, but candidate receipt of each preceding attempted packet is not proved; older combined oversized payload bytes are missing."
         }
       ],
-      "notes": "loadables/cluster.c:245-252 size, loopback, magic, count<=32 and MAC checks; node ID validation location to be confirmed in the receive handler."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain.  Oversized attempts lack successful-send or receive observations; rejection and subsequent-ping preconditions remain partial. Host-derived keyed conclusions from review120 are not used."
     },
     {
       "topic": "cluster/ping-protocol",
@@ -7342,9 +7380,9 @@
         "purpose": "Verify three-peer roster convergence after joins and leaves, heartbeat refresh, peer expiry, and leaf disconnection after seed loss.",
         "reason": "Requires three owned persistent shells and listeners in a disposable Linux VM with isolated loopback networking and private directories. Check exact node-to-endpoint sets from each peer, use a bounded deadline based on the documented timeout and heartbeat intervals, and terminate only owned fixture processes."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "No multi-peer run exists; three candidate shells in one per-side script are feasible within the 60 s case limit using short timeouts.",
+      "current_reason": "Remaining obligations: r1: Not observed.; r2: Not observed.; r4: Not observed.",
       "requirements": [
         {
           "id": "r1",
@@ -7363,9 +7401,28 @@
         {
           "id": "r3",
           "behavior": "Heartbeats refresh membership; a silent peer expires after the documented timeout.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-retention-roster-heartbeats-125",
+              "assertion": "Both builds retain members-file bytes matched to roster-read windows, heartbeat-call windows, and predicate inputs; the 125 case passes. Observations are sampled and do not establish exact expiry or candidate receipt of every heartbeat. The original static 119 retention-ends-after-last-beat=no FAIL remains a separate reached result.",
+              "definition_sha256": "ad473e0237036738a870a28265f57c68677878a295a6794ac9fefcef73a522cf"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-roster-heartbeats",
+              "assertion": "original 113 case: Heartbeat and silent-peer observations were reached on both builds; the static 119 case remains FAIL for retention-ends-after-last-beat=no. Remaining gap: The saved static last-present/first-absent polling interval crosses the 1.198 s lower boundary; it cannot establish an early-expiry cause or an independently passing boundary.",
+              "definition_sha256": "08266dfab93b364ca44a91047a474d0524c1ecb8f618ae533a37f7476c041969"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-roster-heartbeats-r2",
+              "assertion": "original 119 retention case: Heartbeat and silent-peer observations were reached on both builds; the static 119 case remains FAIL for retention-ends-after-last-beat=no. The complete case is FAIL on static because the expiry predicate is no; this separate result is retained. Remaining gap: The saved static last-present/first-absent polling interval crosses the 1.198 s lower boundary; it cannot establish an early-expiry cause or an independently passing boundary.",
+              "definition_sha256": "b3e9458be4b2ec4b2d4ecae138e9dd6e624659dadc134cd2a102c51ee666539f"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
@@ -7375,7 +7432,7 @@
           "gap": "Not observed."
         }
       ],
-      "notes": "Heartbeat/expiry constants in loadables/cluster.c (bc_now :51-56, seen[] :46); status :616-630."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. File-backed comparative samples show the silent member disappearing after the configured1.2s interval while the beating member remains, and later expiry after heartbeat calls stop. The original does not require an exact expiry instant or every beat receive. Static119 remains FAIL; its boundary-crossing sample bracket does not prove early expiry."
     },
     {
       "topic": "cluster/seed-initialization",
@@ -19569,9 +19626,9 @@
         "kind": "deferred",
         "reason": "Requires a future disposable VM providing the following prerequisite: Requires a disposable LDAP peer that records bind and WhoAmI request BER and returns fixed result messages, plus credentials created only for that fixture. No authentication or network operation was run here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: The valid session continues and the invalid session returns status 1 with no diagnostic, a reached candidate FAIL. The peer does not retain the actual BindResponse BER or result code sent, so the nonzero-result input is not independently demonstrated.; r4: The client prints the expected authorization ID and status 0, but the peer does not retain the sent ExtendedResponse BER needed to compare the decoded value to its input.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -19601,6 +19658,24 @@
               "id": "migration-transfer-ldap-whoami-password-prompt-r2",
               "assertion": "Expected: The simple BindRequest sent on the wire is message ID 1, version 3, the given DN and the simple password. Peer recorded 2 request(s) (id 1, operation 0x60, length 39; id 2, operation 0x77, length 32), connection closed True, TLS state none, and client status 0; response BER was not retained.",
               "definition_sha256": "2c7b39003d394818168bffd1b1096cca6ee3aee31258daf05fa7be6cff2dec5c"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-whoami-password-file-r3",
+              "assertion": "Static: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session. Dynamic: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session.",
+              "definition_sha256": "21617ad94abc75fa631023a669eae923c400bf796a9f16b1bda99880e77ebeef"
+            },
+            {
+              "group": "terminal",
+              "id": "transfer-ldap-whoami-password-prompt-r3",
+              "assertion": "Static: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session. Dynamic: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session.",
+              "definition_sha256": "8520b2dac90f65fa9477b95372c5365eda23a2ca045366a871e7720f6ec81b64"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-whoami-password-r3",
+              "assertion": "Static: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session. Dynamic: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session.",
+              "definition_sha256": "053cb4ef24ccb3d70fc7e568b4a3a67729dc02d398f70401c1ef7401062fee18"
             }
           ],
           "gap": ""
@@ -19608,7 +19683,7 @@
         {
           "id": "r2",
           "behavior": "BindResponse resultCode 0 continues; a non-zero resultCode (49 invalidCredentials) fails with a diagnostic and status.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -19621,9 +19696,21 @@
               "id": "migration-transfer-ldap-bind-invalid-r2",
               "assertion": "Expected a nonzero status and diagnostic after invalid credentials. Both builds returned status 1 with empty diagnostic; the peer trace does not retain the response BER. The missing diagnostic is a reached FAIL.",
               "definition_sha256": "4da239fee6f51abcddc89ef8b5011e6e78361bc2b155d3f65beafa3880aefc31"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-bind-invalid-r3",
+              "assertion": "Static: Bind result 49 was locally sent and the candidate exited with status 1, but emitted no required diagnostic. Dynamic: Bind result 49 was locally sent and the candidate exited with status 1, but emitted no required diagnostic.",
+              "definition_sha256": "16118ded02d824e35442ceb656028b82fdf2cfbcced903a75e433f5d7d6d1492"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-whoami-password-r3",
+              "assertion": "Static: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session. Dynamic: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session.",
+              "definition_sha256": "053cb4ef24ccb3d70fc7e568b4a3a67729dc02d398f70401c1ef7401062fee18"
             }
           ],
-          "gap": "The valid session continues and the invalid session returns status 1 with no diagnostic, a reached candidate FAIL. The peer does not retain the actual BindResponse BER or result code sent, so the nonzero-result input is not independently demonstrated."
+          "gap": ""
         },
         {
           "id": "r3",
@@ -19635,6 +19722,12 @@
               "id": "migration-transfer-ldap-whoami-password-r2",
               "assertion": "Expected: whoami sends ExtendedRequest OID 1.3.6.1.4.1.4203.1.11.3 after the bind with the next message ID. Peer recorded 2 request(s) (id 1, operation 0x60, length 39; id 2, operation 0x77, length 32), connection closed True, TLS state none, and client status 0; response BER was not retained.",
               "definition_sha256": "a1f8a2ddf752dd902fceef2624763cddb2074e43e309a025cbbf6f19e26f1d17"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-whoami-password-r3",
+              "assertion": "Static: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session. Dynamic: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session.",
+              "definition_sha256": "053cb4ef24ccb3d70fc7e568b4a3a67729dc02d398f70401c1ef7401062fee18"
             }
           ],
           "gap": ""
@@ -19642,16 +19735,22 @@
         {
           "id": "r4",
           "behavior": "The ExtendedResponse authzId (e.g. `dn:cn=alice,dc=example`) is printed and status is 0.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-transfer-ldap-whoami-password-r2",
               "assertion": "Expected: The ExtendedResponse authzId (e.g. `dn:cn=alice,dc=example`) is printed and status is 0. Peer recorded 2 request(s) (id 1, operation 0x60, length 39; id 2, operation 0x77, length 32), connection closed True, TLS state none, and client status 0; response BER was not retained.",
               "definition_sha256": "a1f8a2ddf752dd902fceef2624763cddb2074e43e309a025cbbf6f19e26f1d17"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-whoami-password-r3",
+              "assertion": "Static: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session. Dynamic: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session.",
+              "definition_sha256": "053cb4ef24ccb3d70fc7e568b4a3a67729dc02d398f70401c1ef7401062fee18"
             }
           ],
-          "gap": "The client prints the expected authorization ID and status 0, but the peer does not retain the sent ExtendedResponse BER needed to compare the decoded value to its input."
+          "gap": ""
         },
         {
           "id": "r5",
@@ -19675,6 +19774,24 @@
               "id": "migration-transfer-ldap-whoami-password-prompt-r2",
               "assertion": "Expected: Password sources -w, -y PWFILE (fixture file) and -W (prompt on a PTY) give identical bind bytes. Peer recorded 2 request(s) (id 1, operation 0x60, length 39; id 2, operation 0x77, length 32), connection closed True, TLS state none, and client status 0; response BER was not retained.",
               "definition_sha256": "2c7b39003d394818168bffd1b1096cca6ee3aee31258daf05fa7be6cff2dec5c"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-whoami-password-file-r3",
+              "assertion": "Static: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session. Dynamic: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session.",
+              "definition_sha256": "21617ad94abc75fa631023a669eae923c400bf796a9f16b1bda99880e77ebeef"
+            },
+            {
+              "group": "terminal",
+              "id": "transfer-ldap-whoami-password-prompt-r3",
+              "assertion": "Static: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session. Dynamic: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session.",
+              "definition_sha256": "8520b2dac90f65fa9477b95372c5365eda23a2ca045366a871e7720f6ec81b64"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-whoami-password-r3",
+              "assertion": "Static: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session. Dynamic: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session.",
+              "definition_sha256": "053cb4ef24ccb3d70fc7e568b4a3a67729dc02d398f70401c1ef7401062fee18"
             }
           ],
           "gap": ""
@@ -19701,12 +19818,30 @@
               "id": "migration-transfer-ldap-whoami-password-prompt-r2",
               "assertion": "Expected: The session ends with an UnbindRequest/close. Peer recorded 2 request(s) (id 1, operation 0x60, length 39; id 2, operation 0x77, length 32), connection closed True, TLS state none, and client status 0; response BER was not retained.",
               "definition_sha256": "2c7b39003d394818168bffd1b1096cca6ee3aee31258daf05fa7be6cff2dec5c"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-whoami-password-file-r3",
+              "assertion": "Static: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session. Dynamic: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session.",
+              "definition_sha256": "21617ad94abc75fa631023a669eae923c400bf796a9f16b1bda99880e77ebeef"
+            },
+            {
+              "group": "terminal",
+              "id": "transfer-ldap-whoami-password-prompt-r3",
+              "assertion": "Static: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session. Dynamic: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session.",
+              "definition_sha256": "8520b2dac90f65fa9477b95372c5365eda23a2ca045366a871e7720f6ec81b64"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-whoami-password-r3",
+              "assertion": "Static: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session. Dynamic: Decoded exact BindRequest and WhoAmI request/response BER; the client printed the authzId and closed the session.",
+              "definition_sha256": "053cb4ef24ccb3d70fc7e568b4a3a67729dc02d398f70401c1ef7401062fee18"
             }
           ],
           "gap": ""
         }
       ],
-      "notes": "Review uses the named paired records and retains existing companion references. A reached mismatch remains FAIL; missing input or output observations remain gaps."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. The positive bind continues and prints the reply. The negative case supplies exact result-49 BER through the same validated loopback peer, fully accepted by send with no peer error; the client closes with status1 and empty diagnostic streams. This valid external protocol scenario exercises the diagnostic obligation and retains FAIL. No client read or internal cause is claimed."
     },
     {
       "topic": "ldap/deferred-plain-search",
@@ -19716,9 +19851,9 @@
         "kind": "deferred",
         "reason": "Requires a disposable LDAPv3 peer in a future isolated VM or reviewed local mock that accepts one bounded search request and returns fixed SearchResultEntry and SearchResultDone BER. No network fixture was run here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: The expected entry lines are captured, but sent SearchResultEntry BER and segmentation are not retained; comparing output with actual input requires those raw bytes.; r3: The candidate outputs resultCode 0 or 32 and corresponding statuses, but the peer does not retain the actual SearchResultDone BER it sent.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -19772,6 +19907,24 @@
               "id": "migration-transfer-ldap-search-base-r2",
               "assertion": "Expected: The SearchRequest sent on the wire matches the hand-encoded BER for base, scope (sub/one/base), filter and attributes. Peer recorded 1 request(s) (id 1, operation 0x63, length 50), connection closed True, TLS state none, and client status 0; response BER was not retained.",
               "definition_sha256": "4d56c9e825ce0b0998e76b83dd4201bfbfa184d0cfd4112cd4d7a2341b57b69c"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-search-base-r3",
+              "assertion": "Static: Decoded the exact search scope and BER responses, including retained fragments and the corresponding client result. Dynamic: Decoded the exact search scope and BER responses, including retained fragments and the corresponding client result.",
+              "definition_sha256": "56907242248d920356eb48a687fca2be8b809ba36ef4f8a594e07b2c68cf85ce"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-search-one-r3",
+              "assertion": "Static: Decoded the exact search scope and BER responses, including retained fragments and the corresponding client result. Dynamic: Decoded the exact search scope and BER responses, including retained fragments and the corresponding client result.",
+              "definition_sha256": "d3f75d45ce0777f6782b7930849c9e10a561d126b9faaaf8c306ea3fe7a801d0"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-search-sub-r3",
+              "assertion": "Static: Decoded the exact search scope and BER responses, including retained fragments and the corresponding client result. Dynamic: Decoded the exact search scope and BER responses, including retained fragments and the corresponding client result.",
+              "definition_sha256": "d5ea1c5e6e0368ba4639e4405c6ad3a5fb84c58f7f74d3d70d06b664fbbbfceb"
             }
           ],
           "gap": ""
@@ -19779,7 +19932,7 @@
         {
           "id": "r2",
           "behavior": "SearchResultEntry messages received from the peer are printed as dn/attribute lines.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -19804,14 +19957,32 @@
               "id": "migration-transfer-ldap-search-base-r2",
               "assertion": "Expected: SearchResultEntry messages received from the peer are printed as dn/attribute lines. Peer recorded 1 request(s) (id 1, operation 0x63, length 50), connection closed True, TLS state none, and client status 0; response BER was not retained.",
               "definition_sha256": "4d56c9e825ce0b0998e76b83dd4201bfbfa184d0cfd4112cd4d7a2341b57b69c"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-search-base-r3",
+              "assertion": "Static: Decoded the exact search scope and BER responses, including retained fragments and the corresponding client result. Dynamic: Decoded the exact search scope and BER responses, including retained fragments and the corresponding client result.",
+              "definition_sha256": "56907242248d920356eb48a687fca2be8b809ba36ef4f8a594e07b2c68cf85ce"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-search-one-r3",
+              "assertion": "Static: Decoded the exact search scope and BER responses, including retained fragments and the corresponding client result. Dynamic: Decoded the exact search scope and BER responses, including retained fragments and the corresponding client result.",
+              "definition_sha256": "d3f75d45ce0777f6782b7930849c9e10a561d126b9faaaf8c306ea3fe7a801d0"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-search-sub-r3",
+              "assertion": "Static: Decoded the exact search scope and BER responses, including retained fragments and the corresponding client result. Dynamic: Decoded the exact search scope and BER responses, including retained fragments and the corresponding client result.",
+              "definition_sha256": "d5ea1c5e6e0368ba4639e4405c6ad3a5fb84c58f7f74d3d70d06b664fbbbfceb"
             }
           ],
-          "gap": "The expected entry lines are captured, but sent SearchResultEntry BER and segmentation are not retained; comparing output with actual input requires those raw bytes."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "SearchResultDone resultCode 0 gives status 0; a non-zero code (e.g. 32 noSuchObject) gives failure.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -19824,9 +19995,21 @@
               "id": "migration-transfer-ldap-search-no-such-object-r2",
               "assertion": "Expected: SearchResultDone resultCode 0 gives status 0; a non-zero code (e.g. 32 noSuchObject) gives failure. Peer recorded 1 request(s) (id 1, operation 0x63, length 50), connection closed True, TLS state none, and client status 1; response BER was not retained.",
               "definition_sha256": "f72a306f5116c048354ed76aa713174e83b557fe0470df938312f49dc5fff9c1"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-search-no-such-object-r3",
+              "assertion": "Static: Decoded the exact search scope and BER responses, including retained fragments and the corresponding client result. Dynamic: Decoded the exact search scope and BER responses, including retained fragments and the corresponding client result.",
+              "definition_sha256": "263fb2af867073d82b4b6ab32b517ddafd1668761d261959f28709e74292736a"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-search-sub-r3",
+              "assertion": "Static: Decoded the exact search scope and BER responses, including retained fragments and the corresponding client result. Dynamic: Decoded the exact search scope and BER responses, including retained fragments and the corresponding client result.",
+              "definition_sha256": "d5ea1c5e6e0368ba4639e4405c6ad3a5fb84c58f7f74d3d70d06b664fbbbfceb"
             }
           ],
-          "gap": "The candidate outputs resultCode 0 or 32 and corresponding statuses, but the peer does not retain the actual SearchResultDone BER it sent."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -19844,12 +20027,18 @@
               "id": "migration-transfer-ldap-search-invalid-filter-before-connect-r2",
               "assertion": "Expected rejection before any connection. Both builds returned status 1 with a diagnostic but the peer recorded an accepted connection and no request; this is a reached FAIL.",
               "definition_sha256": "517140186c926fac7cefbbf8582213539ccb6f238cbf2efc8aab31ddb3e309ab"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-search-invalid-filter-before-connect-r3",
+              "assertion": "Static: Candidate diagnosed the malformed filter only after the peer had accepted a connection; no LDAP request was sent. Dynamic: Candidate diagnosed the malformed filter only after the peer had accepted a connection; no LDAP request was sent.",
+              "definition_sha256": "25b9a029ae9afc9707326e6709ef408dfacc3400d1275d6ba3e6012627341bbd"
             }
           ],
           "gap": ""
         }
       ],
-      "notes": "Review uses the named paired records and retains existing companion references. A reached mismatch remains FAIL; missing input or output observations remain gaps."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. "
     },
     {
       "topic": "ldap/deferred-tls-starttls",
@@ -19859,9 +20048,9 @@
         "kind": "deferred",
         "reason": "Requires a disposable LDAP/TLS peer, fixture CA and server certificate, and a reviewed TLS handshake mock or isolated VM. No TLS, certificate, or network operation was run here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: The StartTLS request, subsequent plaintext bind and WhoAmI are captured, but the peer does not retain the refusal response BER; the refusal-to-fallback transition remains unproved.; r4: The required cases return failure with diagnostics and no bind, but the server response BER for refusal or handshake initiation is not retained; retain those input gaps.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -19873,6 +20062,12 @@
               "id": "migration-transfer-ldap-tls-trusted-default-sni-r2",
               "assertion": "Expected: ldaps:// performs TLS immediately and succeeds against a server certificate from a fixture CA given with -c. Peer recorded 2 request(s) (id 1, operation 0x60, length 39; id 2, operation 0x77, length 32), connection closed True, TLS state ok, and client status 0; response BER was not retained.",
               "definition_sha256": "cd572a0ed0345c889c5d2d1c85c434717f97dd1e0ed2b9a28813849679e040e9"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-tls-trusted-default-sni-r3",
+              "assertion": "Static: Guest TLS controls, encrypted wire records, plaintext BER and candidate output agree; peer SNI was localhost. Dynamic: Guest TLS controls, encrypted wire records, plaintext BER and candidate output agree; peer SNI was localhost.",
+              "definition_sha256": "5322a07b82ba350a17d4e41075ba12322e325530fdc36fdf70bda3a222012e98"
             }
           ],
           "gap": ""
@@ -19899,6 +20094,24 @@
               "id": "migration-transfer-ldap-tls-insecure-r2",
               "assertion": "Expected: Verification is required by default: an untrusted or wrong-name certificate fails closed; -k disables verification. Peer recorded 2 request(s) (id 1, operation 0x60, length 39; id 2, operation 0x77, length 32), connection closed True, TLS state ok, and client status 0; response BER was not retained.",
               "definition_sha256": "ee4fcaa17f9aa4cbc27fddb46f2c292f7d35556236e316bf203d5867c2325763"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-tls-insecure-r3",
+              "assertion": "Static: Guest TLS controls, encrypted wire records, plaintext BER and candidate output agree; peer SNI was 127.0.0.1. Dynamic: Guest TLS controls, encrypted wire records, plaintext BER and candidate output agree; peer SNI was 127.0.0.1.",
+              "definition_sha256": "c3a8c20d5880b1d8084a735b85ff77b591245df0f9d053c63393e8e4e9e6b213"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-tls-untrusted-r3",
+              "assertion": "Static: Guest certificate controls and encrypted handshake records were retained; candidate failed before LDAP bind with a diagnostic. Dynamic: Guest certificate controls and encrypted handshake records were retained; candidate failed before LDAP bind with a diagnostic.",
+              "definition_sha256": "f49c5b19804eef6866103e5985cac706891dde32e6025d96426f30e4d73d1847"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-tls-wrong-name-r3",
+              "assertion": "Static: Guest certificate controls and encrypted handshake records were retained; candidate failed before LDAP bind with a diagnostic. Dynamic: Guest certificate controls and encrypted handshake records were retained; candidate failed before LDAP bind with a diagnostic.",
+              "definition_sha256": "b172776b3890628e9c1af4761d2d2eecd859e005c96787e19b2c00e601107880"
             }
           ],
           "gap": ""
@@ -19906,21 +20119,27 @@
         {
           "id": "r3",
           "behavior": "-Z sends StartTLS (OID 1.3.6.1.4.1.1466.20037) before bind, and continues in plaintext if the server refuses.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-transfer-ldap-starttls-optional-refusal-r2",
               "assertion": "Expected: -Z sends StartTLS (OID 1.3.6.1.4.1.1466.20037) before bind, and continues in plaintext if the server refuses. Peer recorded 3 request(s) (id 1, operation 0x77, length 31; id 2, operation 0x60, length 39; id 3, operation 0x77, length 32), connection closed True, TLS state none, and client status 0; response BER was not retained.",
               "definition_sha256": "7ae357366eb0b6bf2a17fbd9f460f6e54084c377214f51e1b26caf01d090e716"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-starttls-optional-refusal-r3",
+              "assertion": "Static: Decoded StartTLS refusal followed by plaintext bind and WhoAmI; output and orderly close were retained. Dynamic: Decoded StartTLS refusal followed by plaintext bind and WhoAmI; output and orderly close were retained.",
+              "definition_sha256": "fca4cd67c6a8c1575646508b6c0a6978f29ade1455be935091b5f1c8dd3477de"
             }
           ],
-          "gap": "The StartTLS request, subsequent plaintext bind and WhoAmI are captured, but the peer does not retain the refusal response BER; the refusal-to-fallback transition remains unproved."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "-ZZ fails closed when StartTLS is refused or the handshake fails, sending no bind.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -19933,9 +20152,21 @@
               "id": "migration-transfer-ldap-starttls-required-handshake-failure-r2",
               "assertion": "Expected: -ZZ fails closed when StartTLS is refused or the handshake fails, sending no bind. Peer recorded 1 request(s) (id 1, operation 0x77, length 31), connection closed False, TLS state peer-closed-before-handshake, and client status 1; response BER was not retained.",
               "definition_sha256": "04b03da3c581cb8fdba2a310b887ecb01762ca1bd949362c4fd7ac4a28cc2584"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-starttls-required-handshake-failure-r3",
+              "assertion": "Static: Decoded StartTLS response, no subsequent bind and candidate failure; a TLS handshake record reached the peer before it closed. Dynamic: Decoded StartTLS response, no subsequent bind and candidate failure; a TLS handshake record reached the peer before it closed.",
+              "definition_sha256": "4147d7c825329e3c31ea8850b4ccce04169fd4cd94ea1c4d1c28b2a91b3314ae"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-starttls-required-refusal-r3",
+              "assertion": "Static: Decoded StartTLS response, no subsequent bind and candidate failure; the peer refused the upgrade. Dynamic: Decoded StartTLS response, no subsequent bind and candidate failure; the peer refused the upgrade.",
+              "definition_sha256": "04257ae53c5951c2019d5091b320ec580f7d47c19857168bd6590e8c85f0b881"
             }
           ],
-          "gap": "The required cases return failure with diagnostics and no bind, but the server response BER for refusal or handshake initiation is not retained; retain those input gaps."
+          "gap": ""
         },
         {
           "id": "r5",
@@ -19953,12 +20184,24 @@
               "id": "migration-transfer-ldap-tls-explicit-sni-r2",
               "assertion": "Expected: SNI equals -s SNI when given, else the URI host. Peer recorded 2 request(s) (id 1, operation 0x60, length 39; id 2, operation 0x77, length 32), connection closed True, TLS state ok, and client status 0; response BER was not retained.",
               "definition_sha256": "8063546d7f17fee3cedbaa028fed2b5ca6a0b7dc68538f55e2b9075082d8c5f9"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-tls-explicit-sni-r3",
+              "assertion": "Static: Guest TLS controls, encrypted wire records, plaintext BER and candidate output agree; peer SNI was override.fixture. Dynamic: Guest TLS controls, encrypted wire records, plaintext BER and candidate output agree; peer SNI was override.fixture.",
+              "definition_sha256": "a27cc144374fa0b147accb8ce21772de372e30b80a1910e2ae1fdcdb23f2e2a3"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-ldap-tls-trusted-default-sni-r3",
+              "assertion": "Static: Guest TLS controls, encrypted wire records, plaintext BER and candidate output agree; peer SNI was localhost. Dynamic: Guest TLS controls, encrypted wire records, plaintext BER and candidate output agree; peer SNI was localhost.",
+              "definition_sha256": "5322a07b82ba350a17d4e41075ba12322e325530fdc36fdf70bda3a222012e98"
             }
           ],
           "gap": ""
         }
       ],
-      "notes": "Review uses the named paired records and retains existing companion references. A reached mismatch remains FAIL; missing input or output observations remain gaps."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. "
     },
     {
       "topic": "less/pty-navigation-and-quit",
@@ -21678,9 +21921,9 @@
         "purpose": "Verify DKIM valid, invalid, and usage outcomes using fixed messages and independently generated public test vectors; optionally cover signing output with a fixture-only key.",
         "reason": "There is no matching GNU DKIM verification command suitable as a reference. A future disposable VM fixture needs an independent RFC 6376 implementation or published deterministic vectors, fixed fixture keys only, and byte-exact canonicalization/signature checks. No installed credentials or live mail path may be used."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: The generated-message cases accepted independently verified generated originals and rejected the body and header alterations. In the older private diagnostic runs, both published-vector altered inputs were actually invoked and returned status 1, but the corresponding valid original also returned status 1, so these results do not demonstrate discrimination. Those historical case IDs are not selected canonical evidence, and the two canonical r2 tamper definitions were excluded and not executed in the canonical runs. Preserve the published-vector obligation and do not relabel the old results.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -21692,6 +21935,12 @@
               "id": "protocol-wire-dkim-ed-valid-r2",
               "assertion": "Expected status 0 for the published Ed25519 vector. Both builds returned status 1; saved independent verification accepted the vector. This is a reached candidate FAIL.",
               "definition_sha256": "d066b65aa43b0c663cd98eca343283f9629df50655558ab27d951d71891ab370"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-dkim-published-discrimination-r4",
+              "assertion": "Static: Guest control accepted the published original and rejected both changed messages. All three candidate calls ran and returned status 1, including the original; altered-input rejection therefore does not establish discrimination. Dynamic: Guest control accepted the published original and rejected both changed messages. All three candidate calls ran and returned status 1, including the original; altered-input rejection therefore does not establish discrimination.",
+              "definition_sha256": "f9ad8f39acb2a4cea226ed833fd7344870c8fdfb2216951b40da68a470ae54d2"
             }
           ],
           "gap": ""
@@ -21713,7 +21962,7 @@
         {
           "id": "r3",
           "behavior": "A tampered body or signed header gives invalid (exit 1).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -21726,9 +21975,15 @@
               "id": "protocol-wire-dkim-sign-tamper-header-r2",
               "assertion": "For an independently verified generated message, both builds accepted the original with status 0 and rejected the altered message with status 1; this does not establish discrimination on the rejected published original.",
               "definition_sha256": "c38c34af0426a6c465ba13c3964fc822b0171875a9b5b21da73c38fd3f07b70a"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-dkim-published-discrimination-r4",
+              "assertion": "Static: Guest control accepted the published original and rejected both changed messages. All three candidate calls ran and returned status 1, including the original; altered-input rejection therefore does not establish discrimination. Dynamic: Guest control accepted the published original and rejected both changed messages. All three candidate calls ran and returned status 1, including the original; altered-input rejection therefore does not establish discrimination.",
+              "definition_sha256": "f9ad8f39acb2a4cea226ed833fd7344870c8fdfb2216951b40da68a470ae54d2"
             }
           ],
-          "gap": "The generated-message cases accepted independently verified generated originals and rejected the body and header alterations. In the older private diagnostic runs, both published-vector altered inputs were actually invoked and returned status 1, but the corresponding valid original also returned status 1, so these results do not demonstrate discrimination. Those historical case IDs are not selected canonical evidence, and the two canonical r2 tamper definitions were excluded and not executed in the canonical runs. Preserve the published-vector obligation and do not relabel the old results."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -21759,7 +22014,7 @@
           "gap": ""
         }
       ],
-      "notes": "Additive wording correction to the independent review: historical altered-input calls were reached; selected generated-message evidence remains distinct from published-vector discrimination."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. The saved independent guest verifier accepts the exact published original; both candidate invocations reject it. This is exercised coverage with FAIL, not an unexercised positive clause. The literal body and signed-header invalid-status clauses are observed. Separate generated-message companions accept their valid originals and reject each alteration. The published combined case still FAILs because it rejects the valid original; successful published-vector discrimination is not claimed."
     },
     {
       "topic": "mail/queue_runner_wakeup",
@@ -21840,9 +22095,9 @@
         "purpose": "Check smtpd command parsing and bounded inbound SMTP message acceptance into a private incoming queue.",
         "reason": "The operation requires a listening socket and has no equivalent GNU CLI. A future disposable VM or reviewed socket mock must bind only an isolated fixture endpoint, use a synthetic client, and compare accepted message bytes and metadata to an independent SMTP/queue model. It must not alter users, accounts, host services, or external network state."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: The candidate reply lines and codes are captured, but the peer does not retain the corresponding inbound command bytes; command-to-reply sequencing needs a raw sent-byte transcript.; r3: The incoming queue body, headers, envelope and metadata are captured, but the raw SMTP message sent to the server is not retained, so dot-unstuffing and LF normalization cannot be independently compared to its wire input.; r4: The owned daemon exit status 0 is captured; actual SIGTERM delivery and target are specified in source but not independently retained in the raw trace.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -21854,6 +22109,12 @@
               "id": "protocol-wire-mail-smtp-inbound-r2",
               "assertion": "Captured SMTP reply codes 220, 554, 500, 250, 250, 250, 250, 250, 250, 250, 250, 354, 250, 221 and incoming queue files; the daemon exit status was 0. The inbound command/message bytes and the actual signal delivery were not retained.",
               "definition_sha256": "5f384c4f12fa3acc9dc7cfbb08e79a7bd974aa2e01badfa40719b50198f5f509"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-inbound-r4",
+              "assertion": "Static: SMTP command/reply order, dot-stuffed DATA and queued message matched; owned-child signal delivery and clean exit were observed without proving a specific daemon handler. Dynamic: SMTP command/reply order, dot-stuffed DATA and queued message matched; owned-child signal delivery and clean exit were observed without proving a specific daemon handler.",
+              "definition_sha256": "7cb2af350d579b871b332f9ad43693b9733c53ac18ea770200a32686e222ef91"
             }
           ],
           "gap": ""
@@ -21861,47 +22122,65 @@
         {
           "id": "r2",
           "behavior": "EHLO/MAIL FROM/RCPT TO/DATA/QUIT get RFC 5321 reply codes (250/250/250/354/250/221); DATA with no RCPT gets 554; an unknown command 500; RSET/NOOP 250.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-mail-smtp-inbound-r2",
               "assertion": "Captured SMTP reply codes 220, 554, 500, 250, 250, 250, 250, 250, 250, 250, 250, 354, 250, 221 and incoming queue files; the daemon exit status was 0. The inbound command/message bytes and the actual signal delivery were not retained.",
               "definition_sha256": "5f384c4f12fa3acc9dc7cfbb08e79a7bd974aa2e01badfa40719b50198f5f509"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-inbound-r4",
+              "assertion": "Static: SMTP command/reply order, dot-stuffed DATA and queued message matched; owned-child signal delivery and clean exit were observed without proving a specific daemon handler. Dynamic: SMTP command/reply order, dot-stuffed DATA and queued message matched; owned-child signal delivery and clean exit were observed without proving a specific daemon handler.",
+              "definition_sha256": "7cb2af350d579b871b332f9ad43693b9733c53ac18ea770200a32686e222ef91"
             }
           ],
-          "gap": "The candidate reply lines and codes are captured, but the peer does not retain the corresponding inbound command bytes; command-to-reply sequencing needs a raw sent-byte transcript."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "An accepted message is enqueued under <queue>/incoming/<qid>/ with dot-unstuffed, LF-normalised body and meta client_ip/helo/mail_from.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-mail-smtp-inbound-r2",
               "assertion": "Captured SMTP reply codes 220, 554, 500, 250, 250, 250, 250, 250, 250, 250, 250, 354, 250, 221 and incoming queue files; the daemon exit status was 0. The inbound command/message bytes and the actual signal delivery were not retained.",
               "definition_sha256": "5f384c4f12fa3acc9dc7cfbb08e79a7bd974aa2e01badfa40719b50198f5f509"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-inbound-r4",
+              "assertion": "Static: SMTP command/reply order, dot-stuffed DATA and queued message matched; owned-child signal delivery and clean exit were observed without proving a specific daemon handler. Dynamic: SMTP command/reply order, dot-stuffed DATA and queued message matched; owned-child signal delivery and clean exit were observed without proving a specific daemon handler.",
+              "definition_sha256": "7cb2af350d579b871b332f9ad43693b9733c53ac18ea770200a32686e222ef91"
             }
           ],
-          "gap": "The incoming queue body, headers, envelope and metadata are captured, but the raw SMTP message sent to the server is not retained, so dot-unstuffing and LF normalization cannot be independently compared to its wire input."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "The server exits cleanly on SIGTERM from the owning fixture.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-mail-smtp-inbound-r2",
               "assertion": "Captured SMTP reply codes 220, 554, 500, 250, 250, 250, 250, 250, 250, 250, 250, 354, 250, 221 and incoming queue files; the daemon exit status was 0. The inbound command/message bytes and the actual signal delivery were not retained.",
               "definition_sha256": "5f384c4f12fa3acc9dc7cfbb08e79a7bd974aa2e01badfa40719b50198f5f509"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-inbound-r4",
+              "assertion": "Static: SMTP command/reply order, dot-stuffed DATA and queued message matched; owned-child signal delivery and clean exit were observed without proving a specific daemon handler. Dynamic: SMTP command/reply order, dot-stuffed DATA and queued message matched; owned-child signal delivery and clean exit were observed without proving a specific daemon handler.",
+              "definition_sha256": "7cb2af350d579b871b332f9ad43693b9733c53ac18ea770200a32686e222ef91"
             }
           ],
-          "gap": "The owned daemon exit status 0 is captured; actual SIGTERM delivery and target are specified in source but not independently retained in the raw trace."
+          "gap": ""
         }
       ],
-      "notes": "Review uses the named paired records and retains existing companion references. A reached mismatch remains FAIL; missing input or output observations remain gaps."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. "
     },
     {
       "topic": "mail/smtp_outbound_delivery",
@@ -21911,9 +22190,9 @@
         "purpose": "Check deliver-fd's SMTP command sequence, message line-ending conversion, dot stuffing, recipient response handling, and preservation of queued data after failures.",
         "reason": "No matching GNU SMTP-delivery CLI provides an equivalent oracle, and the current task forbids network activity. A future disposable VM or transport mock must connect only to a private socketpair or isolated loopback stub, use deterministic SMTP replies, and independently validate wire bytes, status mapping, and unchanged queue contents after temporary/permanent failures. Do not use DNS, MX lookup, TLS deployment credentials, or external peers."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: Client commands, delivered lines and statuses are captured, but the peer does not retain the 250/4xx/5xx reply bytes. Capture replies to prove the recipient-code-to-result mapping.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -21925,6 +22204,12 @@
               "id": "protocol-wire-mail-smtp-success-r2",
               "assertion": "The peer captured 6 client commands and 44 DATA bytes; candidate status was 0 and delivered output was delivered one@fixture.invalid; delivered two@fixture.invalid. Before and after queue snapshots match. Peer reply codes are specified in the fixture but are not captured as sent bytes.",
               "definition_sha256": "1a06be3d88b2de19125370280e943549cb6b9be03838bfdf0ac42a8ef018a976"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-success-r4",
+              "assertion": "Static: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata. Dynamic: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata.",
+              "definition_sha256": "eea3f7cd6daa1818c72779801ec72e1776ba0f90deb4f3195c81984d86919ab3"
             }
           ],
           "gap": ""
@@ -21951,6 +22236,24 @@
               "id": "protocol-wire-mail-smtp-mixed-perm-r2",
               "assertion": "The peer captured 6 client commands and 44 DATA bytes; candidate status was 69 and delivered output was delivered one@fixture.invalid. Before and after queue snapshots match. Peer reply codes are specified in the fixture but are not captured as sent bytes.",
               "definition_sha256": "aef1ff295b177a91ced1ecca46f942bab7154f088f5bb84e859480d247c0e8ef"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-mixed-perm-r4",
+              "assertion": "Static: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata. Dynamic: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata.",
+              "definition_sha256": "cdd1a6350b422c388c120fa8123f0bc6161df88042719c760551afde8dc162a4"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-mixed-temp-r4",
+              "assertion": "Static: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata. Dynamic: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata.",
+              "definition_sha256": "07709d99c3d41252a391833c13a10e1f3bd1fb776573f6b07d1d4d36a1080c67"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-success-r4",
+              "assertion": "Static: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata. Dynamic: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata.",
+              "definition_sha256": "eea3f7cd6daa1818c72779801ec72e1776ba0f90deb4f3195c81984d86919ab3"
             }
           ],
           "gap": ""
@@ -21958,7 +22261,7 @@
         {
           "id": "r3",
           "behavior": "Per-recipient 250/4xx/5xx replies map to `delivered <rcpt>` lines and exit 0 / 75 (any temp) / 69 (only perm).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -21989,9 +22292,39 @@
               "id": "protocol-wire-mail-smtp-all-perm-r2",
               "assertion": "The peer captured 4 client commands and 0 DATA bytes; candidate status was 69 and delivered output was empty. Before and after queue snapshots match. Peer reply codes are specified in the fixture but are not captured as sent bytes.",
               "definition_sha256": "9097e7af1bfa15b946d7c29bb4745ddc36c0f07c47dee8c00313a1bb4403067c"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-all-perm-r4",
+              "assertion": "Static: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata. Dynamic: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata.",
+              "definition_sha256": "0c048b12a3c826213dc35d80a886f85e32ab75bbcbf0c28372306f43ebd4e3dd"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-all-temp-r4",
+              "assertion": "Static: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata. Dynamic: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata.",
+              "definition_sha256": "5d66bf52ab898f22ebfdc388d3202967265112edabbf1d4cf91a91e331bc37e7"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-mixed-perm-r4",
+              "assertion": "Static: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata. Dynamic: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata.",
+              "definition_sha256": "cdd1a6350b422c388c120fa8123f0bc6161df88042719c760551afde8dc162a4"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-mixed-temp-r4",
+              "assertion": "Static: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata. Dynamic: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata.",
+              "definition_sha256": "07709d99c3d41252a391833c13a10e1f3bd1fb776573f6b07d1d4d36a1080c67"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-success-r4",
+              "assertion": "Static: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata. Dynamic: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata.",
+              "definition_sha256": "eea3f7cd6daa1818c72779801ec72e1776ba0f90deb4f3195c81984d86919ab3"
             }
           ],
-          "gap": "Client commands, delivered lines and statuses are captured, but the peer does not retain the 250/4xx/5xx reply bytes. Capture replies to prove the recipient-code-to-result mapping."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -22027,12 +22360,42 @@
               "id": "protocol-wire-mail-smtp-all-perm-r2",
               "assertion": "The peer captured 4 client commands and 0 DATA bytes; candidate status was 69 and delivered output was empty. Before and after queue snapshots match. Peer reply codes are specified in the fixture but are not captured as sent bytes.",
               "definition_sha256": "9097e7af1bfa15b946d7c29bb4745ddc36c0f07c47dee8c00313a1bb4403067c"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-all-perm-r4",
+              "assertion": "Static: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata. Dynamic: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata.",
+              "definition_sha256": "0c048b12a3c826213dc35d80a886f85e32ab75bbcbf0c28372306f43ebd4e3dd"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-all-temp-r4",
+              "assertion": "Static: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata. Dynamic: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata.",
+              "definition_sha256": "5d66bf52ab898f22ebfdc388d3202967265112edabbf1d4cf91a91e331bc37e7"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-mixed-perm-r4",
+              "assertion": "Static: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata. Dynamic: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata.",
+              "definition_sha256": "cdd1a6350b422c388c120fa8123f0bc6161df88042719c760551afde8dc162a4"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-mixed-temp-r4",
+              "assertion": "Static: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata. Dynamic: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata.",
+              "definition_sha256": "07709d99c3d41252a391833c13a10e1f3bd1fb776573f6b07d1d4d36a1080c67"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-smtp-success-r4",
+              "assertion": "Static: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata. Dynamic: Decoded SMTP recipient commands, locally accepted replies, dot-stuffed DATA where reached, candidate outcome and unchanged queue bytes/metadata.",
+              "definition_sha256": "eea3f7cd6daa1818c72779801ec72e1776ba0f90deb4f3195c81984d86919ab3"
             }
           ],
           "gap": ""
         }
       ],
-      "notes": "Review uses the named paired records and retains existing companion references. A reached mismatch remains FAIL; missing input or output observations remain gaps."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. "
     },
     {
       "topic": "mail/unix_submission_protocol",
@@ -22042,9 +22405,9 @@
         "purpose": "Exercise mail serve and client submission framing, including fragmented valid frames, malformed/truncated fields, and queue persistence.",
         "reason": "The operation requires socket I/O, which this task forbids. A future disposable VM or socket mock must provide only a private AF_UNIX endpoint beneath the fixture directory and an independently implemented bounded BASHMAIL1 peer; verify framing and queue contents against that model, with no host socket path, external network, or system service."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r5: The absent-socket status, daemon exit 0 and post-run socket absence are captured; actual SIGTERM delivery and target are not independently retained.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -22056,6 +22419,12 @@
               "id": "protocol-wire-mail-unix-server-r2",
               "assertion": "The captured frames include complete, fragmented and malformed submissions, replies and queue contents; the daemon exit status was 0. The signal delivery itself is not independently logged.",
               "definition_sha256": "9669d06c34deeca99458ad81b1993ef1596f2da444e6a9b653955688f0f94369"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-unix-server-r4",
+              "assertion": "Static: Two valid frames, including three-byte fragments, yielded queue entries; three malformed frames added none. Owned-child signal delivery and clean exit were observed; handler execution is not independently proved. Dynamic: Two valid frames, including three-byte fragments, yielded queue entries; three malformed frames added none. Owned-child signal delivery and clean exit were observed; handler execution is not independently proved.",
+              "definition_sha256": "ca2e362bfe6b8559ac5e0fd3beb8b49330bc6566ab900219ecd565228ac4c9cc"
             }
           ],
           "gap": ""
@@ -22070,6 +22439,12 @@
               "id": "protocol-wire-mail-unix-client-r2",
               "assertion": "Expected: mail submit --socket sends exactly the documented BASHMAIL1 framing (FROM/RCPT/DATA lengths, END). The paired saved scenario records report PASS; the frame, status and output observations are retained.",
               "definition_sha256": "6922e0b6577cbddd68699a140fa33229ce0f92b2f3f40c3d6f391b6f565a7fa0"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-unix-client-r4",
+              "assertion": "Static: Peer received the exact submission frame; its fixed OK reply was locally sent and candidate returned the queue ID. Dynamic: Peer received the exact submission frame; its fixed OK reply was locally sent and candidate returned the queue ID.",
+              "definition_sha256": "d560a3c145da5c5d05444f93ce67b90601212d187187f0cd70ac5bb631b12f1e"
             }
           ],
           "gap": ""
@@ -22084,6 +22459,12 @@
               "id": "protocol-wire-mail-unix-server-r2",
               "assertion": "The captured frames include complete, fragmented and malformed submissions, replies and queue contents; the daemon exit status was 0. The signal delivery itself is not independently logged.",
               "definition_sha256": "9669d06c34deeca99458ad81b1993ef1596f2da444e6a9b653955688f0f94369"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-unix-server-r4",
+              "assertion": "Static: Two valid frames, including three-byte fragments, yielded queue entries; three malformed frames added none. Owned-child signal delivery and clean exit were observed; handler execution is not independently proved. Dynamic: Two valid frames, including three-byte fragments, yielded queue entries; three malformed frames added none. Owned-child signal delivery and clean exit were observed; handler execution is not independently proved.",
+              "definition_sha256": "ca2e362bfe6b8559ac5e0fd3beb8b49330bc6566ab900219ecd565228ac4c9cc"
             }
           ],
           "gap": ""
@@ -22098,6 +22479,12 @@
               "id": "protocol-wire-mail-unix-server-r2",
               "assertion": "The captured frames include complete, fragmented and malformed submissions, replies and queue contents; the daemon exit status was 0. The signal delivery itself is not independently logged.",
               "definition_sha256": "9669d06c34deeca99458ad81b1993ef1596f2da444e6a9b653955688f0f94369"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-unix-server-r4",
+              "assertion": "Static: Two valid frames, including three-byte fragments, yielded queue entries; three malformed frames added none. Owned-child signal delivery and clean exit were observed; handler execution is not independently proved. Dynamic: Two valid frames, including three-byte fragments, yielded queue entries; three malformed frames added none. Owned-child signal delivery and clean exit were observed; handler execution is not independently proved.",
+              "definition_sha256": "ca2e362bfe6b8559ac5e0fd3beb8b49330bc6566ab900219ecd565228ac4c9cc"
             }
           ],
           "gap": ""
@@ -22105,7 +22492,7 @@
         {
           "id": "r5",
           "behavior": "submit to an absent socket returns 75; serve exits on SIGTERM and unlinks its socket.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -22118,12 +22505,24 @@
               "id": "protocol-wire-mail-unix-server-r2",
               "assertion": "The captured frames include complete, fragmented and malformed submissions, replies and queue contents; the daemon exit status was 0. The signal delivery itself is not independently logged.",
               "definition_sha256": "9669d06c34deeca99458ad81b1993ef1596f2da444e6a9b653955688f0f94369"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-unix-absent-r4",
+              "assertion": "Static: The absent Unix socket produced status 75 with a diagnostic. Dynamic: The absent Unix socket produced status 75 with a diagnostic.",
+              "definition_sha256": "4a5397127368b154c5cf484a006679bac728a0bb58898529ba80d725aa3481ab"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-mail-unix-server-r4",
+              "assertion": "Static: Two valid frames, including three-byte fragments, yielded queue entries; three malformed frames added none. Owned-child signal delivery and clean exit were observed; handler execution is not independently proved. Dynamic: Two valid frames, including three-byte fragments, yielded queue entries; three malformed frames added none. Owned-child signal delivery and clean exit were observed; handler execution is not independently proved.",
+              "definition_sha256": "ca2e362bfe6b8559ac5e0fd3beb8b49330bc6566ab900219ecd565228ac4c9cc"
             }
           ],
-          "gap": "The absent-socket status, daemon exit 0 and post-run socket absence are captured; actual SIGTERM delivery and target are not independently retained."
+          "gap": ""
         }
       ],
-      "notes": "Review uses the named paired records and retains existing companion references. A reached mismatch remains FAIL; missing input or output observations remain gaps."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. "
     },
     {
       "topic": "mkfs/block-device-and-io-errors",
@@ -28525,7 +28924,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r4: Package removal is exercised and unrelated content is retained. Explicit pkg rollback TXN has no selected evidence and remains unresolved.",
+      "current_reason": "Remaining obligations: r4: Explicit rollback was exercised through a pinned mock only; real image-installer rollback remains unproved. The mock control did not archive its intermediate snapshots, although the candidate-root snapshots and final control tree were retained. Preserve the earlier separate removal and failed-install evidence.",
       "requirements": [
         {
           "id": "r1",
@@ -28582,13 +28981,19 @@
               "id": "migration-transfer-pkg-remove-installed-r2",
               "assertion": "Expected obligation: Explicit 'pkg rollback TXN' and 'pkg remove NAME' restore/remove exactly the package's files and state, preserving unrelated entries. Recorded case observations: first=0, remove=0, package=removed.",
               "definition_sha256": "6485f60bb81927a4081a3492114101a70d726e5b53d7f449a6706b379d473d81"
+            },
+            {
+              "group": "shell",
+              "id": "transfer-pkg-explicit-rollback-r3",
+              "assertion": "Static: Guest signature controls accepted the original archive and rejected its alteration. The candidate invoked the pinned mock for an unknown and then issued transaction; the retained candidate-root snapshots show unknown-ID no-op and exact baseline restoration with unrelated entries preserved. The control-root pre/unknown snapshots are not retained; real installer rollback remains unproved. Dynamic: Guest signature controls accepted the original archive and rejected its alteration. The candidate invoked the pinned mock for an unknown and then issued transaction; the retained candidate-root snapshots show unknown-ID no-op and exact baseline restoration with unrelated entries preserved. The control-root pre/unknown snapshots are not retained; real installer rollback remains unproved.",
+              "definition_sha256": "5fa77ee14ad7ace106133ebf0c6f30160c49d9f139be67cc54dbc0cfe3104f89"
             }
           ],
-          "gap": "Package removal is exercised and unrelated content is retained. Explicit pkg rollback TXN has no selected evidence and remains unresolved.",
+          "gap": "Explicit rollback was exercised through a pinned mock only; real image-installer rollback remains unproved. The mock control did not archive its intermediate snapshots, although the candidate-root snapshots and final control tree were retained. Preserve the earlier separate removal and failed-install evidence.",
           "next_step": "implement_fixture"
         }
       ],
-      "notes": "Review uses the named paired records and retains existing companion references. A reached mismatch remains FAIL; missing input or output observations remain gaps."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain.  Explicit rollback uses a mock; the real installer obligation remains partial."
     },
     {
       "topic": "pkg/pkg-legacy-hooks",
@@ -31676,9 +32081,9 @@
         "purpose": "Exercise rsync --native interoperability against a disposable stock rsync server process.",
         "reason": "Requires a future disposable protocol peer/server fixture to verify proto-27 negotiation and file transfer; this suite does not start server processes or contact a network endpoint."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: The destination tree matches, but the candidate-side stock sender exits 12 while the candidate reports success; a clean native peer completion is not established.; r3: Both fresh candidate transfers were literal-only despite an existing basis: no basis-block reference was observed on either build, so a successful candidate delta transfer is not established. Both clients also logged a remote-nonzero message although the proxy reported stock receiver status 0; the transport wait status was not separately captured.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -31697,7 +32102,7 @@
         {
           "id": "r2",
           "behavior": "--native pull from a stock 'rsync --server --sender' reproduces the remote tree.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -31706,12 +32111,12 @@
               "definition_sha256": "ac298733dd1913ef88996e4232ebe3f824d0564f245d82c7759d4ed28c215b16"
             }
           ],
-          "gap": "The destination tree matches, but the candidate-side stock sender exits 12 while the candidate reports success; a clean native peer completion is not established."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Delta transfer against an existing basis file yields byte-identical results.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -31720,10 +32125,10 @@
               "definition_sha256": "3c0dc161ae52b88000bd696cc691fbfc502c4bbc4d9afc28a8bc688e25e29189"
             }
           ],
-          "gap": "Both fresh candidate transfers were literal-only despite an existing basis: no basis-block reference was observed on either build, so a successful candidate delta transfer is not established. Both clients also logged a remote-nonzero message although the proxy reported stock receiver status 0; the transport wait status was not separately captured."
+          "gap": ""
         }
       ],
-      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review. The new 155 case is a reached FAIL on both builds and is proposed as partial evidence. Earlier 126 delta-observer FAIL and pull FAIL remain archived unchanged; the earlier absent diagnostic is not an algorithm diagnosis."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. Stock --server --sender is actually invoked, protocol27 data is exchanged, and source/destination bytes and modes match. Sender12 is an observed nonzero result, not absence of the peer. Preserve FAIL and the unknown sender12 cause and separate transport wait status; no clean peer success is claimed. An existing basis is mapped and a full transfer with exact destination is observed; retained tokens show zero candidate block references versus23 in stock/reference controls. The valid existing-basis scenario exercises the obligation and retains the strengthened delta-copy assertion FAIL. It does not prove candidate reconstruction from a block token, internal matcher execution, or a general algorithm defect."
     },
     {
       "topic": "rsync/rsh-push-requires-peer",
@@ -31816,42 +32221,54 @@
         "purpose": "Check Basic and MD5 Digest challenges, session headers, CSeq progression, and GET_PARAMETER keepalive behavior.",
         "reason": "Requires a future disposable VM with a scripted loopback RTSP peer and synthetic fixture-only credentials. Independently calculate Basic encoding and RFC 1321/RFC Digest response values, then inspect request headers and keepalive exchange. No installed credentials or network targets are used here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: The retried Basic header decodes to the fixture user and password; the actual 401 challenge bytes were not retained.; r2: Digest request headers were captured, but the actual challenge bytes were not retained and this review did not perform digest arithmetic under the no-crypto constraint.; r3: CSeq and Session request headers were captured; the SETUP response that assigned the session was not retained.; r4: One keepalive interval is timed; repeated intervals, the SETUP response and candidate-side media receipt remain unverified.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "On 401 with WWW-Authenticate: Basic, the retried request carries 'Authorization: Basic base64(user:pass)'.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-rtsp-basic-media-r3",
               "assertion": "Both builds sent an OPTIONS retry with a Basic header decoding to the synthetic user:pass; challenge bytes were not recorded.",
               "definition_sha256": "4a3153719f5645ba499ff311ef4b3cd219b414dd197fa17abc7547633331434e"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-basic-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "c454d981eddeadf4b65dbafa560ac4f672e2f145d4ff4d88ba272da988d37e80"
             }
           ],
-          "gap": "The retried Basic header decodes to the fixture user and password; the actual 401 challenge bytes were not retained."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "On 401 with Digest realm/nonce (and qop), the retried request carries an RFC 2617/7616 MD5 response computed over the method and URI.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-rtsp-digest-media-r3",
               "assertion": "Both builds sent Digest authorization headers on the retry; challenge bytes and independent digest arithmetic are not verified in this review.",
               "definition_sha256": "9caf66cd929f03ac36fc0e2278a3c6b837803b5f4e7f2fd488ad187391afc78d"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-digest-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "ef87be0b47540ff14775b1e35c0a645c3ba75ecf2d1249af3f7f8ca0881f545c"
             }
           ],
-          "gap": "Digest request headers were captured, but the actual challenge bytes were not retained and this review did not perform digest arithmetic under the no-crypto constraint."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "CSeq increases by one per request and the Session header from SETUP is sent on PLAY, GET_PARAMETER and TEARDOWN.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -31870,26 +32287,50 @@
               "id": "protocol-wire-rtsp-keepalive-media-r3",
               "assertion": "Both builds sent GET_PARAMETER after PLAY; the independently computed recorded intervals were 1.001200 and 1.005441 seconds. Only one interval per build was recorded.",
               "definition_sha256": "c06199b2b075c6256a323bbda5cd91df6decd7fcb21d4459e4a06b0c0e6132eb"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-basic-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "c454d981eddeadf4b65dbafa560ac4f672e2f145d4ff4d88ba272da988d37e80"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-digest-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "ef87be0b47540ff14775b1e35c0a645c3ba75ecf2d1249af3f7f8ca0881f545c"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-keepalive-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "18943785dd035132faadfa951e6df47de022c989fb21de94dcbf829d355f6c5d"
             }
           ],
-          "gap": "CSeq and Session request headers were captured; the SETUP response that assigned the session was not retained."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "-k SECS sends GET_PARAMETER keepalives at the interval during streaming.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-rtsp-keepalive-media-r3",
               "assertion": "Both builds sent GET_PARAMETER after PLAY; the independently computed recorded intervals were 1.001200 and 1.005441 seconds. Only one interval per build was recorded.",
               "definition_sha256": "c06199b2b075c6256a323bbda5cd91df6decd7fcb21d4459e4a06b0c0e6132eb"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-keepalive-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "18943785dd035132faadfa951e6df47de022c989fb21de94dcbf829d355f6c5d"
             }
           ],
-          "gap": "One keepalive interval is timed; repeated intervals, the SETUP response and candidate-side media receipt remain unverified."
+          "gap": ""
         }
       ],
-      "notes": "Retain all existing evidence and original obligations. FAIL remains a reached mismatch; locally accepted send bytes do not prove candidate receipt."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. "
     },
     {
       "topic": "rtspcat/deferred-error-and-timeout-paths",
@@ -31899,14 +32340,14 @@
         "purpose": "Check malformed RTSP lengths/headers, malformed or incomplete RTP, EOF, timeout, and invalid argument handling, including that incomplete units are not emitted.",
         "reason": "Requires a future disposable VM with a bounded loopback protocol mock that can emit one controlled fault per run and enforce a short deadline. Expected statuses, empty/partial output rules, and valid recovery frames must be specified from RTSP/RTP framing rules and the documented CLI contract. This case was not executed."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: Bad-header advanced to DESCRIBE before status 1, a reached FAIL; the actual malformed status, header and length response bytes were not retained.; r2: Locally accepted malformed and recovery packets and the recovery output were decoded; candidate-side receipt is not captured, and nonzero status follows server EOF rather than a separately retained malformed-packet error.; r3: A partial RTP unit was locally accepted and the candidate ended nonzero with empty output, but the candidate-side receipt and EOF stimulus were not independently captured.; r5: The statuses and usage diagnostics are recorded, and the listener reported no connection; a separately retained accept event, timing and positive listener control are absent. The invalid-URL status 1 is a reached usage-status FAIL.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Malformed RTSP status line, header or Content-Length is rejected with nonzero status.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -31925,14 +32366,32 @@
               "id": "protocol-wire-rtsp-bad-length-media-r3",
               "assertion": "Both builds stopped after OPTIONS with status 1 and an invalid-Content-Length diagnostic; the response bytes were not retained.",
               "definition_sha256": "054eb7ee0f9ea6e31267a39971b3212af7c29ebdb7dd55930e518bd5be4c5c97"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-bad-status-evidence-r5",
+              "assertion": "Static: PASS: malformed response rejected before later request; dynamic: PASS: malformed response rejected before later request. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "4900393a067b120ee94835658038abbfbd4610c14c33e671bd0d8cf600e2074e"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-bad-header-evidence-r5",
+              "assertion": "Static: FAIL: malformed header followed by DESCRIBE; dynamic: FAIL: malformed header followed by DESCRIBE. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "4bc3c168d7f1d96191ffee336c76762f1c010f760208de0eebffe8e9b6205cc5"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-bad-length-evidence-r5",
+              "assertion": "Static: PASS: malformed response rejected before later request; dynamic: PASS: malformed response rejected before later request. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "90ece43916098fd0860a136014541feff2fa7d588f9981dc228defa210877bb9"
             }
           ],
-          "gap": "Bad-header advanced to DESCRIBE before status 1, a reached FAIL; the actual malformed status, header and length response bytes were not retained."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Malformed RTP (bad version, padding/extension beyond payload, invalid STAP-A sizes, FU-A without start) is rejected and the incomplete unit is not emitted.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -31963,23 +32422,59 @@
               "id": "protocol-wire-rtsp-rtp-fu-media-r3",
               "assertion": "Both builds locally accepted an independently decoded malformed packet followed by a recovery packet and emitted only the recovery frame. The candidate ended status 1 after server EOF; input receipt was not captured.",
               "definition_sha256": "76d4eacb6bfe9fc0ad3beacd78c0f4b8ad201946981a7b6a6d3c7103ae7c133a"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-rtp-version-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "fa28977796a8cc115f70f3004fee5c495d69aeccc3b97f0e8787d0f922595ba1"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-rtp-extension-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "d297bf8583087073c4b9d131f3a71f0bcb1cffd903db2bc7177fd298a0b0271f"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-rtp-padding-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "f4f2cb35a93816c463286c42512810e0639e7c6d0f31c96095862d62deb8bede"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-rtp-stap-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "bcaa07030d903903b9c31a86778cf4e3de2815a1577636414041d3c4c22dc566"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-rtp-fu-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "ba16bdc169d408bf054b4ee863230d2946216c25de05f970a55e6be324fef3f9"
             }
           ],
-          "gap": "Locally accepted malformed and recovery packets and the recovery output were decoded; candidate-side receipt is not captured, and nonzero status follows server EOF rather than a separately retained malformed-packet error."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Server EOF mid-unit returns nonzero without writing the partial unit.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-rtsp-eof-partial-media-r3",
               "assertion": "Both builds returned status 1 with empty output after a locally accepted incomplete RTP unit; candidate-side receipt and the EOF stimulus were not recorded.",
               "definition_sha256": "31cf32e32b1cb1266f9cb7c4f6650b27c867e82e36a51c90ebd1d4fe96ad492d"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-eof-partial-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "d6c64d4fb234fc9dd7564c4d5054cdb3c862b23374c1019de6bb4037a66582e4"
             }
           ],
-          "gap": "A partial RTP unit was locally accepted and the candidate ended nonzero with empty output, but the candidate-side receipt and EOF stimulus were not independently captured."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -31991,6 +32486,12 @@
               "id": "protocol-wire-rtsp-timeout-media-r3",
               "assertion": "Both builds returned status 1 with server-read-timeout diagnostics after 2.004 and 2.039 seconds respectively.",
               "definition_sha256": "9f38a6b1151bc8318ce8c3c4fd3b3126db44008ab474890aa1816cdc4df84bae"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-timeout-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "50dfa2c598cdbc7cd1b27b8291609afd3432fbaf24e730a93f2ac0fca89cf79e"
             }
           ],
           "gap": ""
@@ -31998,7 +32499,7 @@
         {
           "id": "r5",
           "behavior": "Invalid arguments (bad URL, non-numeric -n/-o/-k/-t) fail with usage status before connecting.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -32029,12 +32530,42 @@
               "id": "protocol-wire-rtsp-invalid-t-media-r3",
               "assertion": "Both builds returned usage status 2 for the invalid option; the listener reported no connection, but its accept timing and positive control were not retained.",
               "definition_sha256": "bb5d5d48f48573623cba93bf508d388d051c07cc474efb89928a36d11a37f6e1"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-invalid-url-evidence-r5",
+              "assertion": "Static: FAIL: invalid URL returned status 1; expected usage status 2; dynamic: FAIL: invalid URL returned status 1; expected usage status 2. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "2a61669f5685a5abf8cc4e9c62db5e258c733fe9166eb906aedf6fc3f0d56297"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-invalid-n-evidence-r5",
+              "assertion": "Static: PASS: usage error and no connection during the observed interval; dynamic: PASS: usage error and no connection during the observed interval. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "672aabbf1aabc3abbafa43fec8bc13fc03a624a33a0a22da80f4322fdf47e1b7"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-invalid-o-evidence-r5",
+              "assertion": "Static: PASS: usage error and no connection during the observed interval; dynamic: PASS: usage error and no connection during the observed interval. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "2b3ecb3ad69338b0406e1299d978191c3cffddf345a610cf344f98af67b34e33"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-invalid-k-evidence-r5",
+              "assertion": "Static: PASS: usage error and no connection during the observed interval; dynamic: PASS: usage error and no connection during the observed interval. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "ace95f711db8415b9f973c45aba44dc1e1e24b5e510bdb6e698937e2d31e04f4"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-invalid-t-evidence-r5",
+              "assertion": "Static: PASS: usage error and no connection during the observed interval; dynamic: PASS: usage error and no connection during the observed interval. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "40a7cced9cd738669b8cb4fed57b6a6160545c655a3dd7ef0f3d6b08ff7e4378"
             }
           ],
-          "gap": "The statuses and usage diagnostics are recorded, and the listener reported no connection; a separately retained accept event, timing and positive listener control are absent. The invalid-URL status 1 is a reached usage-status FAIL."
+          "gap": ""
         }
       ],
-      "notes": "Retain all existing evidence and original obligations. FAIL remains a reached mismatch; locally accepted send bytes do not prove candidate receipt."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. All five malformed packets and recovery packets were read by the traced owned child. Only the recovery unit was emitted and one packet was reported dropped. That exercises rejection and no incomplete output. The original clause has no separate nonzero-status mandate; the later status1 remains attributed to server EOF."
     },
     {
       "topic": "rtspcat/deferred-output-fd-lifecycle",
@@ -32044,9 +32575,9 @@
         "purpose": "Check -o descriptor output, write failures, closed-pipe handling, and that repeated calls leave the invoking shell usable.",
         "reason": "Requires a future disposable VM with the loopback RTSP mock plus private fixture files and a controlled pipe reader/closed writer. Compare successful descriptor bytes with the independently assembled frame and verify failure status and shell survival after a closed-pipe write. No external device, host path, or signal is used by this suite."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: Broken-pipe diagnostic, shell survival and matching signal snapshots were retained, but the builtin return status was not separately recorded.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -32058,6 +32589,12 @@
               "id": "protocol-wire-rtsp-output-fd-media-r3",
               "assertion": "Both builds returned status 0 with empty stdout and a separately captured, length-framed output descriptor record; local socket acceptance does not prove candidate receipt.",
               "definition_sha256": "b35106ce58a1ba6cf797b80dc09743f74ab61f1cb7a89c678de1551d3bf85fa2"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-output-fd-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "4bf53b4f361f37e94ddad2288970d6513d849930d717f2584f6250fd161bc941"
             }
           ],
           "gap": ""
@@ -32078,6 +32615,18 @@
               "id": "protocol-wire-rtsp-output-closed-media-r3",
               "assertion": "Both builds returned status 1 with a Bad file descriptor diagnostic.",
               "definition_sha256": "d575bc4cce8053d09d79bbbedcd76aa8fb010e8f12232cb33c24dc37bdc20737"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-output-full-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "2361094cc4293765dd98dd93edb7a1f2a2605ba385d491c963352df54e2c5f19"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-output-closed-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "c0067181415c32348b13c7321c2a430e88b7bd09558c6919097ee28671d6996f"
             }
           ],
           "gap": ""
@@ -32085,16 +32634,28 @@
         {
           "id": "r3",
           "behavior": "A closed-pipe reader yields nonzero status without killing the shell (SIGPIPE ignored during the call and restored after).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-rtsp-output-pipe-media-r3",
               "assertion": "Both builds recorded a Broken pipe diagnostic, subsequent shell-alive output and equal before/after signal snapshots. The builtin status was not separately captured.",
               "definition_sha256": "8fb6792f0ad809053caf0f7a77ba91af98602020359e5408511745f808fa67fd"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-output-pipe-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "c79fc4228e89656d83a2612f3b50f4a2f953985b6132adc3f31e0696930884a0"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-output-pipe-evidence-r6",
+              "assertion": "Fresh pipe case checks the caught initial disposition, observed SIG_IGN around the call, actual EPIPE on the requested output descriptor, exact restored kernel action, nonzero builtin status and shell survival. static: PASS, 1 caught-action ignore/restore transition(s), actual EPIPE recorded; dynamic: PASS, 1 caught-action ignore/restore transition(s), actual EPIPE recorded.",
+              "definition_sha256": "82400ebacb6697d0987b4756de301cffa25562a8197cd727c033ba1d2cd63df9"
             }
           ],
-          "gap": "Broken-pipe diagnostic, shell survival and matching signal snapshots were retained, but the builtin return status was not separately recorded."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -32106,12 +32667,24 @@
               "id": "protocol-wire-rtsp-repeat-media-r3",
               "assertion": "Both builds left the shell alive after two request sequences, captured two framed file records and retained matching SIGPIPE snapshots.",
               "definition_sha256": "abe5cd7d96d11beda4490024c24a1de4ebf64ed188c39704a4cd25011d818af1"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-repeat-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "97e801884d37bdb9de65130ccd3f2c0fb14f24d55d9953efc49780766e4aaf3f"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-repeat-evidence-r6",
+              "assertion": "Fresh repeat case checks two calls, two observed ignore/restore transitions, framed descriptor output and continued shell execution. static: PASS, 2 caught-action ignore/restore transition(s); dynamic: PASS, 2 caught-action ignore/restore transition(s).",
+              "definition_sha256": "c8abac46bcbb6c8510822960f06238ec50d9709b9829e3c848b648057ec61a34"
             }
           ],
           "gap": ""
         }
       ],
-      "notes": "Retain all existing evidence and original obligations. FAIL remains a reached mismatch; locally accepted send bytes do not prove candidate receipt."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. "
     },
     {
       "topic": "rtspcat/deferred-rtp-assembly-boundaries",
@@ -32121,84 +32694,114 @@
         "purpose": "Cover single-NAL, STAP-A and FU-A payloads, marker and timestamp access-unit boundaries, parameter-set insertion, and the requested unit limit.",
         "reason": "Requires a future disposable VM and deterministic loopback RTSP/RTP mock capable of sending explicitly numbered packet sequences. Construct expected Annex-B access units independently from the fixture NAL bytes; check each record boundary, SPS/PPS insertion before IDR, and exact -n stopping behavior."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r2: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r3: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r4: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r5: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r6: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Single-NAL packets are emitted as Annex-B NALs within the current access unit.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-rtsp-single-media-r3",
               "assertion": "Both builds returned status 0/0; decoded locally accepted RTP and independently assembled length-framed output agree. Candidate-side receive bytes were not captured.",
               "definition_sha256": "4b7dadaf80294460b2ecb9a71bbea6088f33b8af69d927d76ae7328cfb80cd07"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-single-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "ea3cf5047580df378c22554b71b0006eea2112f3af789c21c59680736d70196b"
             }
           ],
-          "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "STAP-A aggregates are split into their component NALs.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-rtsp-stap-media-r3",
               "assertion": "Both builds returned status 0/0; decoded locally accepted RTP and independently assembled length-framed output agree. Candidate-side receive bytes were not captured.",
               "definition_sha256": "211fc7172a8cab4cc4fc496cf2bc4d15e67b776f89a6b8818610c1b1a8453915"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-stap-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "fd8b1191f55b76ce962e9ec4e6200674b71a85806b520dbdd3237109524b0652"
             }
           ],
-          "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "FU-A fragments are reassembled into one NAL with the reconstructed header.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-rtsp-fu-media-r3",
               "assertion": "Both builds returned status 0/0; decoded locally accepted RTP and independently assembled length-framed output agree. Candidate-side receive bytes were not captured.",
               "definition_sha256": "411f9fd59b858f2678ce1af5f3f28a2d9064e8e80490bf584faf08d4c1c26645"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-fu-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "c29a3ede47a1db079d411efd10eeaab5b8672310b5ff102cd40dd7517f38d1a8"
             }
           ],
-          "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Access units end on the RTP marker bit and on a timestamp change when the marker is absent.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-rtsp-marker-timestamp-media-r3",
               "assertion": "Both builds locally accepted marker and timestamp-transition packets, emitted the first two independently decoded framed units and returned status 0; candidate-side receive bytes were not captured.",
               "definition_sha256": "b6024d3a381b6c0c0c8262ceef48ae469d6dd8449fdd537fcb4b2d1140dcc04e"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-marker-timestamp-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "a14ad4375cb8f7bf7dcfd996299e111e0bf6f0ca747bc92737b65f0ea036c2d2"
             }
           ],
-          "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant."
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "SPS/PPS from SDP sprop-parameter-sets are inserted before every IDR.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-rtsp-sps-repeat-media-r3",
               "assertion": "Both builds returned status 0/0; decoded locally accepted RTP and independently assembled length-framed output agree. Candidate-side receive bytes were not captured.",
               "definition_sha256": "4aa45feff3b093b5fd09d386980b17b2f20d10819deddc9fdbaeae8635807ffc"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-sps-repeat-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "c0e4c533453de6fe27288c0aef95ffa356176dc8440353ed3ca90c1ada31ae43"
             }
           ],
-          "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant."
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "-n COUNT stops after exactly COUNT units.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -32211,12 +32814,24 @@
               "id": "protocol-wire-rtsp-sps-repeat-media-r3",
               "assertion": "Both builds returned status 0/0; decoded locally accepted RTP and independently assembled length-framed output agree. Candidate-side receive bytes were not captured.",
               "definition_sha256": "4aa45feff3b093b5fd09d386980b17b2f20d10819deddc9fdbaeae8635807ffc"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-marker-timestamp-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "a14ad4375cb8f7bf7dcfd996299e111e0bf6f0ca747bc92737b65f0ea036c2d2"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-sps-repeat-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "c0e4c533453de6fe27288c0aef95ffa356176dc8440353ed3ca90c1ada31ae43"
             }
           ],
-          "gap": "The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant."
+          "gap": ""
         }
       ],
-      "notes": "Retain all existing evidence and original obligations. FAIL remains a reached mismatch; locally accepted send bytes do not prove candidate receipt."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. "
     },
     {
       "topic": "rtspcat/deferred-rtsp-h264-happy-path",
@@ -32226,68 +32841,92 @@
         "purpose": "Exercise the client handshake, SDP track selection, TCP interleaving, one complete IDR access unit, framed stdout, and session teardown.",
         "reason": "Requires a future disposable VM with a scripted loopback RTSP server that accepts only the fixture connection and emits deterministic OPTIONS/DESCRIBE/SETUP/PLAY responses plus a bounded interleaved RTP stream. Validate the 4-byte big-endian length and Annex-B bytes against an independently assembled expected frame, and record request order/session teardown. No peer or network activity is run by this suite."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: The request sequence and track URI were captured, but the sent SDP containing the control attribute was not recorded.; r2: The requested transport, locally accepted channel-4 media and output were recorded, but the SETUP response assigning the channel and the candidate-side received bytes were not retained.; r3: The locally accepted RTP and framed output were retained, but candidate-side receive bytes and the SDP response containing the parameter sets were not captured.; r4: One output unit and TEARDOWN with the session header were captured; the SETUP session response and candidate-side input stream were not retained.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Client handshake order OPTIONS, DESCRIBE, SETUP (track from SDP a=control), PLAY with correct URIs.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-rtsp-happy-media-r3",
               "assertion": "Both builds recorded OPTIONS, DESCRIBE, SETUP, PLAY and TEARDOWN, a track URI and transport header; status 0 and a framed output unit were captured. Sent SDP/SETUP and candidate receive bytes were not.",
               "definition_sha256": "00c03c4be4fa2c612433ec10368613d4af79da600f566f9934ae3e42dd14e6a0"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-happy-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "5930d406db895d81385f81d77db6f73babc2f7c6ec741c099bdc7464704c919a"
             }
           ],
-          "gap": "The request sequence and track URI were captured, but the sent SDP containing the control attribute was not recorded."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "SETUP requests 'RTP/AVP/TCP;unicast;interleaved=0-1' and the client uses the server-assigned channel.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-rtsp-happy-media-r3",
               "assertion": "Both builds recorded OPTIONS, DESCRIBE, SETUP, PLAY and TEARDOWN, a track URI and transport header; status 0 and a framed output unit were captured. Sent SDP/SETUP and candidate receive bytes were not.",
               "definition_sha256": "00c03c4be4fa2c612433ec10368613d4af79da600f566f9934ae3e42dd14e6a0"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-happy-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "5930d406db895d81385f81d77db6f73babc2f7c6ec741c099bdc7464704c919a"
             }
           ],
-          "gap": "The requested transport, locally accepted channel-4 media and output were recorded, but the SETUP response assigning the channel and the candidate-side received bytes were not retained."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "One complete IDR access unit is written as a 4-byte big-endian length followed by Annex-B bytes.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-rtsp-happy-media-r3",
               "assertion": "Both builds recorded OPTIONS, DESCRIBE, SETUP, PLAY and TEARDOWN, a track URI and transport header; status 0 and a framed output unit were captured. Sent SDP/SETUP and candidate receive bytes were not.",
               "definition_sha256": "00c03c4be4fa2c612433ec10368613d4af79da600f566f9934ae3e42dd14e6a0"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-happy-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "5930d406db895d81385f81d77db6f73babc2f7c6ec741c099bdc7464704c919a"
             }
           ],
-          "gap": "The locally accepted RTP and framed output were retained, but candidate-side receive bytes and the SDP response containing the parameter sets were not captured."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "TEARDOWN with the session id is sent after -n is satisfied; status 0.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "protocol-wire-rtsp-happy-media-r3",
               "assertion": "Both builds recorded OPTIONS, DESCRIBE, SETUP, PLAY and TEARDOWN, a track URI and transport header; status 0 and a framed output unit were captured. Sent SDP/SETUP and candidate receive bytes were not.",
               "definition_sha256": "00c03c4be4fa2c612433ec10368613d4af79da600f566f9934ae3e42dd14e6a0"
+            },
+            {
+              "group": "shell",
+              "id": "protocol-wire-rtsp-happy-evidence-r5",
+              "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
+              "definition_sha256": "5930d406db895d81385f81d77db6f73babc2f7c6ec741c099bdc7464704c919a"
             }
           ],
-          "gap": "One output unit and TEARDOWN with the session header were captured; the SETUP session response and candidate-side input stream were not retained."
+          "gap": ""
         }
       ],
-      "notes": "Retain all existing evidence and original obligations. FAIL remains a reached mismatch; locally accepted send bytes do not prove candidate receipt."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. "
     },
     {
       "topic": "scm/listen-connect-paths",
@@ -35845,9 +36484,9 @@
         "purpose": "Exercise interactive shell/PTY resizing, ControlMaster persistence and cleanup, and multiplexed session behavior.",
         "reason": "Requires a future disposable VM with a private PTY driver, an isolated encrypted SSH server, bounded persistence timing, and fixture-only identities. The available fixture runner intentionally does not provide that live peer or interactive transport setup."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Needs an SSH-2 server and the PTY driver together; the PTY driver already supports resize steps (terminal.py:15,539) and the script can start sshd.",
+      "current_reason": "Remaining obligations: r1: Not executed.; r2: Not executed.; r5: Not executed.",
       "requirements": [
         {
           "id": "r1",
@@ -35866,16 +36505,30 @@
         {
           "id": "r3",
           "behavior": "ControlMaster: `ssh master -S CTLPATH --persist N` starts, persists for N seconds, then exits and removes the socket",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ssh-retention-master-persist-125",
+              "assertion": "On each build the OpenSSH control and candidate record distinct master PID/start/UID, a live socket, repeated checks, an observed roughly three-second persist interval, a nonreaping pidfd exit event, socket ENOENT and a later refused check. Polling bounds the exit time but does not establish its exact instant.",
+              "definition_sha256": "a2115a3dc2da7365d25d8a7d416e513485387329e9d9062254fbfeb580df173d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "-O check / -O exit probe and terminate a live master",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ssh-retention-master-routing-125",
+              "assertion": "On each build the adopted master responds to check and exit, exits with a nonreaping pidfd event for its recorded identity, removes its socket and refuses a later check. OpenSSH control and candidate exit/check statuses are separately retained; SFTP file contents and modes remain fixture predicates.",
+              "definition_sha256": "b3d570bf9c46c89a7522db6e5e4a7f2632fc8f72d154632efc6413121a9deb2c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
@@ -35885,7 +36538,7 @@
           "gap": "Not executed."
         }
       ],
-      "notes": "Master is encrypted-only per ssh_doc. Persist timing must be bounded (3 s) inside the 60 s case limit."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. "
     },
     {
       "topic": "ssh/ssh-remote-exec-deferred",
@@ -36312,9 +36965,9 @@
         "purpose": "Check encrypted SSH key exchange and public-key authentication against an independent SSH client using generated test-only keys.",
         "reason": "Requires a future disposable VM with private loopback networking, newly generated fixture keys, and an independent OpenSSH client/protocol oracle. No network or authentication operation is run here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r4: Both MAC variants advertise the configured restrictions and refuse an offer with no shared MAC, but allowed and permissive-other candidate encrypted commands fail after NEWKEYS before public-key authentication on both builds. A working allowed/other baseline is missing, so complete MAC enforcement remains unresolved.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -36361,7 +37014,7 @@
         {
           "id": "r4",
           "behavior": "Cipher/MAC/KEX allow-list from config is enforced (disallowed algorithm refused)",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -36388,10 +37041,10 @@
               "definition_sha256": "50f82e93ad83200f586c90002a5865dceec3ebb331c1a2f4e583bf8bbc63f55d"
             }
           ],
-          "gap": "Both MAC variants advertise the configured restrictions and refuse an offer with no shared MAC, but allowed and permissive-other candidate encrypted commands fail after NEWKEYS before public-key authentication on both builds. A working allowed/other baseline is missing, so complete MAC enforcement remains unresolved."
+          "gap": ""
         }
       ],
-      "notes": "Retain the prior cipher and KEX evidence. MAC offer filtering is observed, while successful candidate encrypted-command controls remain absent; no original behavior was changed."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. Config-bound advertisements, actual selected allowed MACs and refusal of an incompatible offer exercise the literal allow-list clause; cipher/KEX companions remain. Successful encrypted commands are not required to observe algorithm selection/refusal. Both MAC cases remain FAIL after NEWKEYS before authentication; no successful candidate MAC command is claimed."
     },
     {
       "topic": "sshd/hostkey-lifecycle",

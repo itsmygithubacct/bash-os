@@ -43,33 +43,278 @@
     },
     {
       "id": "deferred-rtsp-h264-happy-path",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise the client handshake, SDP track selection, TCP interleaving, one complete IDR access unit, framed stdout, and session teardown.",
-      "reason": "Remaining obligations: r1: The request sequence and track URI were captured, but the sent SDP containing the control attribute was not recorded.; r2: The requested transport, locally accepted channel-4 media and output were recorded, but the SETUP response assigning the channel and the candidate-side received bytes were not retained.; r3: The locally accepted RTP and framed output were retained, but candidate-side receive bytes and the SDP response containing the parameter sets were not captured.; r4: One output unit and TEARDOWN with the session header were captured; the SETUP session response and candidate-side input stream were not retained."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-happy-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-happy-media-r3"
+        }
+      ]
     },
     {
       "id": "deferred-rtp-assembly-boundaries",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Cover single-NAL, STAP-A and FU-A payloads, marker and timestamp access-unit boundaries, parameter-set insertion, and the requested unit limit.",
-      "reason": "Remaining obligations: r1: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r2: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r3: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r4: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r5: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant.; r6: The locally accepted RTP packet bytes and candidate output were independently decoded; candidate-side received bytes were not recorded. Sent SDP parameter-set bytes were also not retained where relevant."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-fu-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-fu-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-marker-timestamp-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-marker-timestamp-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-single-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-single-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-sps-repeat-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-sps-repeat-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-stap-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-stap-media-r3"
+        }
+      ]
     },
     {
       "id": "deferred-auth-session-keepalive",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check Basic and MD5 Digest challenges, session headers, CSeq progression, and GET_PARAMETER keepalive behavior.",
-      "reason": "Remaining obligations: r1: The retried Basic header decodes to the fixture user and password; the actual 401 challenge bytes were not retained.; r2: Digest request headers were captured, but the actual challenge bytes were not retained and this review did not perform digest arithmetic under the no-crypto constraint.; r3: CSeq and Session request headers were captured; the SETUP response that assigned the session was not retained.; r4: One keepalive interval is timed; repeated intervals, the SETUP response and candidate-side media receipt remain unverified."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-basic-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-basic-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-digest-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-digest-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-keepalive-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-keepalive-media-r3"
+        }
+      ]
     },
     {
       "id": "deferred-error-and-timeout-paths",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check malformed RTSP lengths/headers, malformed or incomplete RTP, EOF, timeout, and invalid argument handling, including that incomplete units are not emitted.",
-      "reason": "Remaining obligations: r1: Bad-header advanced to DESCRIBE before status 1, a reached FAIL; the actual malformed status, header and length response bytes were not retained.; r2: Locally accepted malformed and recovery packets and the recovery output were decoded; candidate-side receipt is not captured, and nonzero status follows server EOF rather than a separately retained malformed-packet error.; r3: A partial RTP unit was locally accepted and the candidate ended nonzero with empty output, but the candidate-side receipt and EOF stimulus were not independently captured.; r5: The statuses and usage diagnostics are recorded, and the listener reported no connection; a separately retained accept event, timing and positive listener control are absent. The invalid-URL status 1 is a reached usage-status FAIL."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-bad-header-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-bad-header-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-bad-length-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-bad-length-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-bad-status-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-bad-status-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-eof-partial-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-eof-partial-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-invalid-k-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-invalid-k-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-invalid-n-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-invalid-n-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-invalid-o-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-invalid-o-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-invalid-t-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-invalid-t-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-invalid-url-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-invalid-url-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-rtp-extension-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-rtp-extension-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-rtp-fu-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-rtp-fu-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-rtp-padding-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-rtp-padding-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-rtp-stap-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-rtp-stap-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-rtp-version-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-rtp-version-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-timeout-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-timeout-media-r3"
+        }
+      ]
     },
     {
       "id": "deferred-output-fd-lifecycle",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check -o descriptor output, write failures, closed-pipe handling, and that repeated calls leave the invoking shell usable.",
-      "reason": "Remaining obligations: r3: Broken-pipe diagnostic, shell survival and matching signal snapshots were retained, but the builtin return status was not separately recorded."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-output-closed-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-output-closed-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-output-fd-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-output-fd-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-output-full-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-output-full-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-output-pipe-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-output-pipe-evidence-r6"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-output-pipe-media-r3"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-repeat-evidence-r5"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-repeat-evidence-r6"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-rtsp-repeat-media-r3"
+        }
+      ]
     }
   ]
 }

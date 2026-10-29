@@ -43,27 +43,131 @@
     },
     {
       "id": "unix_submission_protocol",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise mail serve and client submission framing, including fragmented valid frames, malformed/truncated fields, and queue persistence.",
-      "reason": "Remaining obligations: r5: The absent-socket status, daemon exit 0 and post-run socket absence are captured; actual SIGTERM delivery and target are not independently retained."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-unix-absent-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-unix-absent-r4"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-unix-client-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-unix-client-r4"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-unix-server-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-unix-server-r4"
+        }
+      ]
     },
     {
       "id": "smtp_outbound_delivery",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check deliver-fd's SMTP command sequence, message line-ending conversion, dot stuffing, recipient response handling, and preservation of queued data after failures.",
-      "reason": "Remaining obligations: r3: Client commands, delivered lines and statuses are captured, but the peer does not retain the 250/4xx/5xx reply bytes. Capture replies to prove the recipient-code-to-result mapping."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-smtp-all-perm-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-smtp-all-perm-r4"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-smtp-all-temp-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-smtp-all-temp-r4"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-smtp-mixed-perm-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-smtp-mixed-perm-r4"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-smtp-mixed-temp-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-smtp-mixed-temp-r4"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-smtp-success-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-smtp-success-r4"
+        }
+      ]
     },
     {
       "id": "smtp_inbound_server",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check smtpd command parsing and bounded inbound SMTP message acceptance into a private incoming queue.",
-      "reason": "Remaining obligations: r2: The candidate reply lines and codes are captured, but the peer does not retain the corresponding inbound command bytes; command-to-reply sequencing needs a raw sent-byte transcript.; r3: The incoming queue body, headers, envelope and metadata are captured, but the raw SMTP message sent to the server is not retained, so dot-unstuffing and LF normalization cannot be independently compared to its wire input.; r4: The owned daemon exit status 0 is captured; actual SIGTERM delivery and target are specified in source but not independently retained in the raw trace."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-smtp-inbound-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-mail-smtp-inbound-r4"
+        }
+      ]
     },
     {
       "id": "dkim_contract_vectors",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify DKIM valid, invalid, and usage outcomes using fixed messages and independently generated public test vectors; optionally cover signing output with a fixture-only key.",
-      "reason": "Remaining obligations: r3: The generated-message cases accepted independently verified generated originals and rejected the body and header alterations. In the older private diagnostic runs, both published-vector altered inputs were actually invoked and returned status 1, but the corresponding valid original also returned status 1, so these results do not demonstrate discrimination. Those historical case IDs are not selected canonical evidence, and the two canonical r2 tamper definitions were excluded and not executed in the canonical runs. Preserve the published-vector obligation and do not relabel the old results."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "protocol-wire-dkim-ed-valid-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-dkim-published-discrimination-r4"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-dkim-rsa-valid-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-dkim-sign-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-dkim-sign-tamper-body-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-dkim-sign-tamper-header-r2"
+        },
+        {
+          "group": "shell",
+          "id": "protocol-wire-dkim-usage-r2"
+        }
+      ]
     },
     {
       "id": "queue_runner_wakeup",

@@ -84,20 +84,191 @@
     {
       "id": "deferred-plain-search",
       "purpose": "Exercise an LDAPv3 search round trip, entry decoding, and SearchResultDone status against a deterministic server response.",
-      "kind": "deferred",
-      "reason": "Remaining obligations: r2: The expected entry lines are captured, but sent SearchResultEntry BER and segmentation are not retained; comparing output with actual input requires those raw bytes.; r3: The candidate outputs resultCode 0 or 32 and corresponding statuses, but the peer does not retain the actual SearchResultDone BER it sent."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/ldap/compound-escaped-filter-vector"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/ldap/equality-filter-vector"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/ldap/offline-search-result-decoding"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/ldap/or-and-not-filter-vectors"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/ldap/search-request-ber-vector"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/ldap/substring-filter-vector"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/ldap/unterminated-filter-rejected"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-ldap-search-base-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-ldap-search-invalid-filter-before-connect-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-ldap-search-no-such-object-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-ldap-search-one-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-ldap-search-sub-r2"
+        },
+        {
+          "group": "shell",
+          "id": "transfer-ldap-search-base-r3"
+        },
+        {
+          "group": "shell",
+          "id": "transfer-ldap-search-invalid-filter-before-connect-r3"
+        },
+        {
+          "group": "shell",
+          "id": "transfer-ldap-search-no-such-object-r3"
+        },
+        {
+          "group": "shell",
+          "id": "transfer-ldap-search-one-r3"
+        },
+        {
+          "group": "shell",
+          "id": "transfer-ldap-search-sub-r3"
+        }
+      ]
     },
     {
       "id": "deferred-bind-whoami",
       "purpose": "Exercise simple bind sequencing and the WhoAmI extended request/response using fixture-only credentials.",
-      "kind": "deferred",
-      "reason": "Remaining obligations: r2: The valid session continues and the invalid session returns status 1 with no diagnostic, a reached candidate FAIL. The peer does not retain the actual BindResponse BER or result code sent, so the nonzero-result input is not independently demonstrated.; r4: The client prints the expected authorization ID and status 0, but the peer does not retain the sent ExtendedResponse BER needed to compare the decoded value to its input."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/ldap/bind-ber-vector"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-ldap-bind-invalid-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-ldap-whoami-password-file-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-ldap-whoami-password-r2"
+        },
+        {
+          "group": "shell",
+          "id": "transfer-ldap-bind-invalid-r3"
+        },
+        {
+          "group": "shell",
+          "id": "transfer-ldap-whoami-password-file-r3"
+        },
+        {
+          "group": "shell",
+          "id": "transfer-ldap-whoami-password-r3"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-transfer-ldap-whoami-password-prompt-r2"
+        },
+        {
+          "group": "terminal",
+          "id": "transfer-ldap-whoami-password-prompt-r3"
+        }
+      ]
     },
     {
       "id": "deferred-tls-starttls",
       "purpose": "Exercise implicit LDAPS and both optional and required StartTLS paths, certificate verification, and SNI behavior.",
-      "kind": "deferred",
-      "reason": "Remaining obligations: r3: The StartTLS request, subsequent plaintext bind and WhoAmI are captured, but the peer does not retain the refusal response BER; the refusal-to-fallback transition remains unproved.; r4: The required cases return failure with diagnostics and no bind, but the server response BER for refusal or handshake initiation is not retained; retain those input gaps."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-transfer-ldap-starttls-optional-refusal-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-ldap-starttls-required-handshake-failure-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-ldap-starttls-required-refusal-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-ldap-tls-explicit-sni-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-ldap-tls-insecure-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-ldap-tls-trusted-default-sni-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-ldap-tls-untrusted-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-ldap-tls-wrong-name-r2"
+        },
+        {
+          "group": "shell",
+          "id": "transfer-ldap-starttls-optional-refusal-r3"
+        },
+        {
+          "group": "shell",
+          "id": "transfer-ldap-starttls-required-handshake-failure-r3"
+        },
+        {
+          "group": "shell",
+          "id": "transfer-ldap-starttls-required-refusal-r3"
+        },
+        {
+          "group": "shell",
+          "id": "transfer-ldap-tls-explicit-sni-r3"
+        },
+        {
+          "group": "shell",
+          "id": "transfer-ldap-tls-insecure-r3"
+        },
+        {
+          "group": "shell",
+          "id": "transfer-ldap-tls-trusted-default-sni-r3"
+        },
+        {
+          "group": "shell",
+          "id": "transfer-ldap-tls-untrusted-r3"
+        },
+        {
+          "group": "shell",
+          "id": "transfer-ldap-tls-wrong-name-r3"
+        }
+      ]
     },
     {
       "id": "or-and-not-filter-vectors",

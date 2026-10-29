@@ -88,9 +88,30 @@
     },
     {
       "id": "encrypted-ssh-interoperability",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check encrypted SSH key exchange and public-key authentication against an independent SSH client using generated test-only keys.",
-      "reason": "Remaining obligations: r4: Both MAC variants advertise the configured restrictions and refuse an offer with no shared MAC, but allowed and permissive-other candidate encrypted commands fail after NEWKEYS before public-key authentication on both builds. A working allowed/other baseline is missing, so complete MAC enforcement remains unresolved."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-sshd-cipher-allowlist"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-encrypted-exec"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-mac-packets-etm-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-mac-packets-standard-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-review-kex-allowlist"
+        }
+      ]
     },
     {
       "id": "configuration-policy",
