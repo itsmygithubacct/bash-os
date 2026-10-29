@@ -36,7 +36,7 @@
       "id": "session-lifecycle",
       "kind": "deferred",
       "purpose": "Create a live named session with a deterministic child, verify list/status state after the creating shell exits, then kill it and verify broker and child cleanup.",
-      "reason": "Never executed. The plain driver in the VM provides /proc, PTYs, SOCK_SEQPACKET and subreaper-based stray detection, so it is directly implementable."
+      "reason": "Remaining obligations: r1: The child readiness files are awaited after the creating shell returns, and no contemporaneous readiness or independent create status is retained at return.; r3: Stopped child/descendants and session directory removal are observed, but the distinct pid-file removed/marked-dead state is not independently bound. The broker is a zombie, not an absent PID. Preserve the recorded PASS without crediting the missing file/reaping observations.; r4: No live executing member remains in the observed tree and the broker is a terminated zombie. Its final reaping and the state exactly at case completion are unobserved; preserve the recorded PASS and this remaining cleanup limitation."
     },
     {
       "id": "pane-layout-geometry",
@@ -105,7 +105,7 @@
       "id": "remote-attach-mock",
       "kind": "deferred",
       "purpose": "Check remote attach/roam command construction and framed byte exchange against an independent protocol encoder, including short, malformed, and valid bounded frames.",
-      "reason": "Only offline frame encode/decode ran. r1, r2 and r4 are offline and implementable now. The live framed exchange is implementation work: an unprivileged sshd running as the fixture uid in the VM is enough, and openssh-server is already in the reference image lock."
+      "reason": "Remaining obligations: r4: The nominal over-limit frame also has no declared payload, so rejection may be due to truncation. The bound-specific condition remains partial even though source construction and saved rejection statuses bind the attempted inputs.; r5: The saved guest-loopback SSH exchange reaches a framing FAIL, but the original deferred reason explicitly forbids network activity and requires a mocked transport. It remains supplementary evidence; a conforming live mock exchange is still required for complete original coverage."
     },
     {
       "id": "encode-pty",

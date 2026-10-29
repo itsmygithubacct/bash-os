@@ -82,7 +82,7 @@
       "id": "bounded_io_errors",
       "kind": "deferred",
       "purpose": "Verify documented invalid-argument and FD failures, timeout status, and exact partial-output resumption without duplicate or missing bytes.",
-      "reason": "There is no fixture. The broker allocates its own PTYs, so the driver needs no extra PTY. The VM supplies /proc, pidfd, SOCK_SEQPACKET and subreaper; only the case scripts and their helpers are missing. The SOCK_SEQPACKET protocol mock named in the old reason is not needed for these obligations: argument, FD and timeout errors are reachable through the public CLI."
+      "reason": "Remaining obligations: r3: Idle return 124 and maximum-parameter acceptance/over-limit rejection are exercised. External elapsed measurements include uncalibrated launch/scheduling overhead and do not exclude an early wait return; exact default/representative timeout behavior remains partial. A full 60,000 ms idle wait is not itself required.; r4: The 16,384-byte aggregate repeats four identical 4,096-byte blocks. A duplicated/reordered whole block with another omitted can match the aggregate; this fixture cannot establish the original no-duplicate/no-missing condition. No actual duplication is inferred."
     }
   ]
 }

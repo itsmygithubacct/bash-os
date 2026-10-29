@@ -24579,47 +24579,142 @@
         "purpose": "Exercise keyboard navigation, sorting, descent/ascent, and screen restoration in the interactive browser.",
         "reason": "Requires an isolated PTY driver with fixed terminal dimensions and a bounded key stream. The supplied runner starts fixtures with stdin disconnected and has no PTY fixture; run only in a future disposable VM or an independently reviewed PTY mock."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Never executed. The PTY driver already provides keys, screen and termios checks, and ncdu is not installed in the reference image, so this is contract work.",
+      "current_reason": "Remaining obligations: r5: No saved prior visible-screen baseline is available; alternate-screen exit does not independently prove prior visible content was restored.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "on a TTY, ncdu opens the full-screen browser listing children sorted by size (default)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No PTY case runs ncdu."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-ncdu-initial-sort-r2",
+              "assertion": "Source purpose: Shows largest, medium, directory, and sparse file in descending allocated size.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Both builds draw zlarge, mmedium, adir, a_sparse in decreasing allocation order; retained GNU du/stat give 12288, 8192, 4096 and 0 bytes respectively.",
+              "definition_sha256": "1930f6461fdba5dd9a63e56460ffc60fbc711f9cb4e3c382e088347f7d401c00"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "keyboard navigation (Up/Down/Home/End) moves the selection",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-ncdu-down-r2",
+              "assertion": "Source purpose: Down selects the second displayed item.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: The four retained r2 key events and reconstructed frames show the selected row moving for Down, Up, Home and End in both builds.",
+              "definition_sha256": "08283828d5e8a7f4ab76cef65dcab28a6ab164bbbc4a14c8ba2cc0473efeee65"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-ncdu-end-r2",
+              "assertion": "Source purpose: End selects the last displayed item.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: The four retained r2 key events and reconstructed frames show the selected row moving for Down, Up, Home and End in both builds.",
+              "definition_sha256": "efbd30130b7654387eb9524f91912b1ab9113bcadf521c238f9734c547040d88"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-ncdu-home-r2",
+              "assertion": "Source purpose: End then Home returns to the first item.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: The four retained r2 key events and reconstructed frames show the selected row moving for Down, Up, Home and End in both builds.",
+              "definition_sha256": "64e8ddada73475e8317f681386ca83cc317be0d5189a069337614b2e9890a502"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-ncdu-up-r2",
+              "assertion": "Source purpose: Down then Up returns selection to the first item.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: The four retained r2 key events and reconstructed frames show the selected row moving for Down, Up, Home and End in both builds.",
+              "definition_sha256": "fffb52610d8f7dd1e951f172ff7eb27536f1b7c039c44dcc4796cc12989eabc2"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "n sorts by name, s by size, a toggles apparent/disk",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-ncdu-sort-apparent-r2",
+              "assertion": "Source purpose: a switches to apparent size, making the sparse 32768-byte file the largest, and labels that mode.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Replayed frames show n produces a_sparse/adir/mmedium/zlarge name order, s restores size order and a puts the 32768-byte sparse file first; independent setup allocation/apparent records are retained.",
+              "definition_sha256": "3c95b4914b5f3de28546d3c056afaf11a276f969f0a54187ca4f75bbfb23fde0"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-ncdu-sort-name-r2",
+              "assertion": "Source purpose: n sorts items in ascending name order.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Replayed frames show n produces a_sparse/adir/mmedium/zlarge name order, s restores size order and a puts the 32768-byte sparse file first; independent setup allocation/apparent records are retained.",
+              "definition_sha256": "45f158383ecc8bf917258691c87a2f30d26e0b9b1b8e72cccfbf66bd11301acd"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-ncdu-sort-size-r2",
+              "assertion": "Source purpose: After n, s restores descending allocated-size order.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Replayed frames show n produces a_sparse/adir/mmedium/zlarge name order, s restores size order and a puts the 32768-byte sparse file first; independent setup allocation/apparent records are retained.",
+              "definition_sha256": "49c015d6b36a7494a1efe1587c082143bc5788aec43d24378bf9fed0a99737f2"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Enter/Right descends into a directory and Left/Backspace ascends",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-terminal-ncdu-descend-enter-backspace-r2",
+              "assertion": "Source purpose: enter descends into adir and backspace returns to its parent.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: Enter and Right descend and Left returns; each Backspace case sends 0x7f after reaching tree/adir but times out waiting for the parent listing, a saved FAIL in both builds. Primary adjudication: Both descent keys and Left ascent were observed; each Backspace byte was written after the child frame and the parent-frame check timed out. This is a reached end-to-end failure of ascent, retained as FAIL. Application read location and successful ascent are not claimed; later q is not part of r4.",
+              "definition_sha256": "e5d995979c661901782c1fcaeda0feb4b3ddf29b8fc6348ba01a3cf71b48d694"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-ncdu-descend-enter-left-r2",
+              "assertion": "Source purpose: enter descends into adir and left returns to its parent.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Enter and Right descend and Left returns; each Backspace case sends 0x7f after reaching tree/adir but times out waiting for the parent listing, a saved FAIL in both builds. Primary adjudication: Both descent keys and Left ascent were observed; each Backspace byte was written after the child frame and the parent-frame check timed out. This is a reached end-to-end failure of ascent, retained as FAIL. Application read location and successful ascent are not claimed; later q is not part of r4.",
+              "definition_sha256": "95f51e392950c17b5dbe4d1863e7a47a8eb3aa70ae8dbb290fc17ce2109fcf75"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terra-local-terminal-ncdu-descend-right-backspace-r2",
+              "assertion": "Source purpose: right descends into adir and backspace returns to its parent.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: Enter and Right descend and Left returns; each Backspace case sends 0x7f after reaching tree/adir but times out waiting for the parent listing, a saved FAIL in both builds. Primary adjudication: Both descent keys and Left ascent were observed; each Backspace byte was written after the child frame and the parent-frame check timed out. This is a reached end-to-end failure of ascent, retained as FAIL. Application read location and successful ascent are not claimed; later q is not part of r4.",
+              "definition_sha256": "420fd394d9a5cc3818b87aca9c102f923f4418e671404d2c19a057be1205c4e5"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-ncdu-descend-right-left-r2",
+              "assertion": "Source purpose: right descends into adir and left returns to its parent.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Enter and Right descend and Left returns; each Backspace case sends 0x7f after reaching tree/adir but times out waiting for the parent listing, a saved FAIL in both builds. Primary adjudication: Both descent keys and Left ascent were observed; each Backspace byte was written after the child frame and the parent-frame check timed out. This is a reached end-to-end failure of ascent, retained as FAIL. Application read location and successful ascent are not claimed; later q is not part of r4.",
+              "definition_sha256": "04d2c5c2f1273bc70882289f5d764a8e6d1611461c8fa118f5cf63a3ba9d58f3"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "q/ESC/^C exits and restores the screen and termios",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-ncdu-quit-ctrl-c-r2",
+              "assertion": "Source purpose: Quit by ctrl-c restores the cursor, alternate screen, and original termios.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: The three q, ESC and Ctrl-C cases reach exits and record cursor-show, alternate-screen exit and equal initial/final termios.",
+              "definition_sha256": "54fb20e5f8e59e418c584f62441287231fb4049b356ac86dc46ced621ff5e4ee"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-ncdu-quit-escape-r2",
+              "assertion": "Source purpose: Quit by escape restores the cursor, alternate screen, and original termios.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: The three q, ESC and Ctrl-C cases reach exits and record cursor-show, alternate-screen exit and equal initial/final termios.",
+              "definition_sha256": "d631c8a0bf22ae43285b0e2aa9b5674a5605b3cd076934b9b732d9284c1a00f7"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-ncdu-quit-q-r2",
+              "assertion": "Source purpose: Quit by q restores the cursor, alternate screen, and original termios.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: The three q, ESC and Ctrl-C cases reach exits and record cursor-show, alternate-screen exit and equal initial/final termios.",
+              "definition_sha256": "89bfb72e3e1469702ba1b9831f2651802766fe687efa4a094e82f83438ca7941"
+            }
+          ],
+          "gap": "No saved prior visible-screen baseline is available; alternate-screen exit does not independently prove prior visible content was restored."
         }
       ],
-      "notes": "Source: ncdu.c:18-35 (key docs), 430-470 (loop). Contract only: real ncdu is not in image.lock packages and its UI differs."
+      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. Both descent keys and Left ascent were observed; each Backspace byte was written after the child frame and the parent-frame check timed out. This is a reached end-to-end failure of ascent, retained as FAIL. Application read location and successful ascent are not claimed; later q is not part of r4."
     },
     {
       "topic": "ncdu/one-filesystem-boundary",
@@ -30575,47 +30670,88 @@
         "purpose": "Exercise setsid, open-tty, and foreground against a controlled session and controlling terminal.",
         "reason": "Requires a future disposable Linux VM with a private PTY/TTY fixture and session support. That fixture must verify setsid, TIOCSCTTY acquisition, FDVAR versus stdio behavior, and foreground process-group assignment without opening a host console. No controlling-terminal or session operation is run by this suite."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Never executed. Everything is observable with the existing PTY driver plus a trusted python3 helper (allowed in the VM) that creates an unattached PTY pair for the open-tty acquisition path. No new driver capability is required.",
+      "current_reason": "Remaining obligations: r1: Candidate stderr was redirected and errno was not retained; status 1 alone does not establish EPERM.; r5: The job PID supplied to pty foreground and a final restored tcgetpgrp value are not separately retained, so the sampled group cannot be independently tied to the requested PGRP.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "pty setsid makes the calling process a new session leader with no controlling terminal; it fails (EPERM) when the caller is already a group leader.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Observable: in the PTY driver 'pty setsid' in the main -c shell (a session leader) must fail. In a subshell '( pty setsid; read sid < /proc/$BASHPID/stat ... )' the session id equals BASHPID and /proc/$BASHPID/stat shows tty_nr 0."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b01r2-session-setsid",
+              "assertion": "Source purpose: Observe setsid through kernel PTY/session state in a live, handshaken child.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Saved candidate and Python reference observe new SID and PGRP equal to PID, tty_nr 0, first rc 0 and second rc 1 in both builds.",
+              "definition_sha256": "3622a9c30c4f074da5140e158ad362f44ef77c0520397e8411f387ad25d8f37a"
+            }
+          ],
+          "gap": "Candidate stderr was redirected and errno was not retained; status 1 alone does not establish EPERM."
         },
         {
           "id": "r2",
           "behavior": "pty open-tty PATH acquires PATH as the controlling terminal (TIOCSCTTY) and by default dup2s it onto 0/1/2.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs a PTY slave with no session attached. pty spawn's slave is taken by its child; the driver's PTY belongs to the leader's session. A fixture-owned python3 helper can create one with os.openpty() (no ctty attached) and run '$BASH -c \"pty setsid; pty open-tty /proc/self/fd/N; ...\"' on it."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b01r2-session-stdio",
+              "assertion": "Source purpose: Observe stdio through kernel PTY/session state in a live, handshaken child.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: Candidate acquires the controlling tty but FD 0 remains the original pipe while 1/2 are the slave; Python reference has all three descriptors on the slave. Both candidate runs are reached FAILs.",
+              "definition_sha256": "c69d01a3aba006206a7d355c20359205602ba3ba06392fa45cc67fe0f1af1af9"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "With FDVAR, open-tty binds the fd number to FDVAR and leaves 0/1/2 untouched.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "As r2."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b01r3-session-fdvar",
+              "assertion": "Source purpose: Observe fdvar through kernel PTY/session state in a live, handshaken child.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Both sides record FDVAR 3 whose device/inode/rdev equals the PTY slave, unchanged stdio, successful acquisition and session/TTY identities.",
+              "definition_sha256": "5f20610913fd821e22fbf0b8d97d29250886fa6adceea283ced1f50bbb30126d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "open-tty fails (TIOCSCTTY refused) when the caller is not a session leader or already has a ctty, without changing stdio.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Observable in the PTY driver without a helper."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b01r2-session-reject-leader",
+              "assertion": "Source purpose: Observe reject-leader through kernel PTY/session state in a live, handshaken child.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: For both already-controlled leader and nonleader, the reference reports failure and unchanged stdio; candidate returns 0 and changes stdio despite a TIOCSCTTY refusal diagnostic. Both are reached FAILs.",
+              "definition_sha256": "fc6ca368e5caf1103483727e6362e983d2a6c60b3f9c350d2cb847f64bf6c169"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b01r2-session-reject-nonleader",
+              "assertion": "Source purpose: Observe reject-nonleader through kernel PTY/session state in a live, handshaken child.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: For both already-controlled leader and nonleader, the reference reports failure and unchanged stdio; candidate returns 0 and changes stdio despite a TIOCSCTTY refusal diagnostic. Both are reached FAILs.",
+              "definition_sha256": "022d900f0ac37231f013c02c8d9a020450b9eed6d1c666d17d860379f4b681c3"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "pty foreground PGRP [FD] sets the terminal foreground process group.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Observable in the PTY driver: 'set -m; sleep 5 & pty foreground $!' (an absolute /usr/bin/sleep for the candidate PATH), then the foreground_job step sees tcgetpgrp != leader; restore with 'pty foreground $$'."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-pty-b01r2-session-foreground",
+              "assertion": "Source purpose: A separate owned process group becomes foreground and the original group is restored.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: The driver samples a foreground group different from the shell with a member present and observes the restoration marker on candidate and reference.",
+              "definition_sha256": "8fe3d0f48cd46f4bf6435104e88a0b24ce89b5a4416d2f68e8014b9540092c38"
+            }
+          ],
+          "gap": "The job PID supplied to pty foreground and a final restored tcgetpgrp value are not separately retained, so the sampled group cannot be independently tied to the requested PGRP."
         }
       ],
-      "notes": "pty.c 13-37 (documented semantics). Helper code must live in the case files (private dir), run only in the VM, and use /usr/bin/python3."
+      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. "
     },
     {
       "topic": "pty/pty-spawn-waitpid-deferred",
@@ -30927,40 +31063,68 @@
         "purpose": "Verify documented invalid-argument and FD failures, timeout status, and exact partial-output resumption without duplicate or missing bytes.",
         "reason": "Requires a disposable Linux VM plus a reviewed private Unix SOCK_SEQPACKET protocol mock or equivalent controlled broker fixture, and bounded pipes with independently known payloads. The mock must stay local to the fixture; no host or external socket is permitted."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "There is no fixture. The broker allocates its own PTYs, so the driver needs no extra PTY. The VM supplies /proc, pidfd, SOCK_SEQPACKET and subreaper; only the case scripts and their helpers are missing. The SOCK_SEQPACKET protocol mock named in the old reason is not needed for these obligations: argument, FD and timeout errors are reachable through the public CLI.",
+      "current_reason": "Remaining obligations: r3: Idle return 124 and maximum-parameter acceptance/over-limit rejection are exercised. External elapsed measurements include uncalibrated launch/scheduling overhead and do not exclude an early wait return; exact default/representative timeout behavior remains partial. A full 60,000 ms idle wait is not itself required.; r4: The 16,384-byte aggregate repeats four identical 4,096-byte blocks. A duplicated/reordered whole block with another omitted can match the aggregate; this fixture cannot establish the original no-duplicate/no-missing condition. No actual duplication is inferred.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Invalid arguments (missing operands, a bad ID, an over-long ID beyond PB_ID_MAX 48, a non-scalar or array output variable) give the documented usage or failure statuses",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b02r3-errors",
+              "assertion": "Source purpose: Check invalid arguments, closed and unwritable descriptors, timeout bounds and the idle default.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: error-observation and stderr retain missing-operand status 2, bad/49-character ID status 1, array and integer variable failures with original values intact, for both builds.",
+              "definition_sha256": "d9f96165beb536d1a23d17231ec855dba722dc5eb2d3d1c8e0fea5437d9181a1"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "FD failures: an OUTFD that is closed or not writable, and an INFD that is closed, report errors",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b02r3-errors",
+              "assertion": "Source purpose: Check invalid arguments, closed and unwritable descriptors, timeout bounds and the idle default.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: error-observation plus three actual stderr files retain nonzero results and Bad file descriptor messages for closed output, read-only output, and closed input.",
+              "definition_sha256": "d9f96165beb536d1a23d17231ec855dba722dc5eb2d3d1c8e0fea5437d9181a1"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "receive with no pending output times out with status 124 after TIMEOUT_MS (default 100, maximum 60000; an over-limit value is rejected)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b02r3-errors",
+              "assertion": "Source purpose: Check invalid arguments, closed and unwritable descriptors, timeout bounds and the idle default.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Saved default and explicit idle receives both return 124, 60000 is accepted for a queued attached event, and 60001 returns 2; timing.log records both elapsed values.",
+              "definition_sha256": "d9f96165beb536d1a23d17231ec855dba722dc5eb2d3d1c8e0fea5437d9181a1"
+            }
+          ],
+          "gap": "Idle return 124 and maximum-parameter acceptance/over-limit rejection are exercised. External elapsed measurements include uncalibrated launch/scheduling overhead and do not exclude an early wait return; exact default/representative timeout behavior remains partial. A full 60,000 ms idle wait is not itself required."
         },
         {
           "id": "r4",
           "behavior": "A partial write to OUTFD keeps the remaining event bytes for the next receive, with no duplicate or missing bytes",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised. This needs an OUTFD that accepts short writes."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b02r2-partial-output",
+              "assertion": "Source purpose: Force three partial output timeouts and verify exact resumption of one 16384-byte event.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Four receive statuses are 124,124,124,0 with capacity 4096; combined 16384 captured bytes hash to the independent expected fixture digest.",
+              "definition_sha256": "ac218f0ef56a68d1528f8fe518d533d3386b1a50505af54dd95aa12662871b84"
+            }
+          ],
+          "gap": "The 16,384-byte aggregate repeats four identical 4,096-byte blocks. A duplicated/reordered whole block with another omitted can match the aggregate; this fixture cannot establish the original no-duplicate/no-missing condition. No actual duplication is inferred."
         }
       ],
-      "notes": "loadables/ptybroker.c:494-515 (contract text); _ptybroker/server.c and client.c (0700 root checks at client.c:48-70, observer limit at server.c:202, PB_CHUNK 16384 in ptybroker.h:10). No GNU equivalent exists, so these are contract cases. All of them fit a new VM suite: the shell or terminal group with ROOT=$(pwd)/root at mode 0700 and children that are fixed in-tree helpers (trusted /usr/bin/python3 or /bin/sh)."
+      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. Idle return 124 and maximum-parameter acceptance/over-limit rejection are exercised. External elapsed measurements include uncalibrated launch/scheduling overhead and do not exclude an early wait return; exact default/representative timeout behavior remains partial. A full 60,000 ms idle wait is not itself required. The 16,384-byte aggregate repeats four identical 4,096-byte blocks. A duplicated/reordered whole block with another omitted can match the aggregate; this fixture cannot establish the original no-duplicate/no-missing condition. No actual duplication is inferred."
     },
     {
       "topic": "ptybroker/child_exit_and_cleanup",
@@ -33951,26 +34115,40 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Only offline frame encode/decode ran. r1, r2 and r4 are offline and implementable now. The live framed exchange is implementation work: an unprivileged sshd running as the fixture uid in the VM is enough, and openssh-server is already in the reference image lock.",
+      "current_reason": "Remaining obligations: r4: The nominal over-limit frame also has no declared payload, so rejection may be due to truncation. The bound-specific condition remains partial even though source construction and saved rejection statuses bind the attempted inputs.; r5: The saved guest-loopback SSH exchange reaches a framing FAIL, but the original deferred reason explicitly forbids network activity and requires a mocked transport. It remains supplementary evidence; a conforming live mock exchange is still required for complete original coverage.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "attach NODE/SESSION --remote --dry-run prints the documented command construction (node, session, hostport, key, command).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case. Offline and implementable (screen.c 568-571)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b04r2-remote-dry-run",
+              "assertion": "Source purpose: Resolve independent cluster data into the exact attach and roam dry-run commands.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: attach-dry.txt retains node, session, hostport, key and command; attach-override.txt retains the explicit override, with empty captured stderr.",
+              "definition_sha256": "99d3de3b6a0d29ca0b4a370c7618168b349bddc9d50b0f225bd5a7422cf7f664"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "roam NODE/SESSION --dry-run prints its command construction.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; offline."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b04r2-remote-dry-run",
+              "assertion": "Source purpose: Resolve independent cluster data into the exact attach and roam dry-run commands.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: roam-dry.txt retains source, destination, hostport, key and command with empty captured stderr.",
+              "definition_sha256": "99d3de3b6a0d29ca0b4a370c7618168b349bddc9d50b0f225bd5a7422cf7f664"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Framed byte exchange: valid bounded BSCR frames of each type round-trip through encode/decode.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -34007,33 +34185,70 @@
               "id": "legacy/screen/decode-control",
               "assertion": "decode",
               "definition_sha256": "e5eb076ee38eebdd6c4f40ae246f3f063e5492c69b0943bcb3d742d855612107"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b04r2-remote-frame-binary",
+              "assertion": "Source purpose: Decode a valid BSCR payload containing NUL and a high-bit byte without losing data.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: Saved small PTY/query/control encoded and decoded byte files agree with independent expected files; boundary observation retains matching lengths and hashes. Binary decoding is a reached FAIL: declared len 4 but payload only A. Primary adjudication: Fixed fixture source and successful setup bind the binary stimulus; small PTY/query/control frames have retained byte comparisons and the maximum frame has exact lengths/hashes. Binary decode declares length 4 but emits only A, a reached FAIL. Full successful binary round trip is not claimed; separate per-input persistence is not an original requirement.",
+              "definition_sha256": "323cdb1d03009eb40099d6d62f15c892fffabd7d6a399fdc9e3500e3c754fddb"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b04r2-remote-frame-boundary",
+              "assertion": "Source purpose: Round-trip a valid frame at the 1 MiB payload boundary.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Saved small PTY/query/control encoded and decoded byte files agree with independent expected files; boundary observation retains matching lengths and hashes. Binary decoding is a reached FAIL: declared len 4 but payload only A. Primary adjudication: Fixed fixture source and successful setup bind the binary stimulus; small PTY/query/control frames have retained byte comparisons and the maximum frame has exact lengths/hashes. Binary decode declares length 4 but emits only A, a reached FAIL. Full successful binary round trip is not claimed; separate per-input persistence is not an original requirement.",
+              "definition_sha256": "5a1a7c93a6b203ae84cb99c71602cba45d5bea2afddee6a815d45fa4ed6e2bb2"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b04r2-remote-frames-small",
+              "assertion": "Source purpose: Round-trip independently encoded PTY, query, and control frames.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Saved small PTY/query/control encoded and decoded byte files agree with independent expected files; boundary observation retains matching lengths and hashes. Binary decoding is a reached FAIL: declared len 4 but payload only A. Primary adjudication: Fixed fixture source and successful setup bind the binary stimulus; small PTY/query/control frames have retained byte comparisons and the maximum frame has exact lengths/hashes. Binary decode declares length 4 but emits only A, a reached FAIL. Full successful binary round trip is not claimed; separate per-input persistence is not an original requirement.",
+              "definition_sha256": "56f3ce8286d0cc7be2fb5876dbd9e9ac50bd8bad6401b8ce57be82307db565d2"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b04r3-remote-ssh-frames",
+              "assertion": "Source purpose: Exchange framed bytes through a fixture-owned loopback OpenSSH transport.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: Saved small PTY/query/control encoded and decoded byte files agree with independent expected files; boundary observation retains matching lengths and hashes. Binary decoding is a reached FAIL: declared len 4 but payload only A. Primary adjudication: Fixed fixture source and successful setup bind the binary stimulus; small PTY/query/control frames have retained byte comparisons and the maximum frame has exact lengths/hashes. Binary decode declares length 4 but emits only A, a reached FAIL. Full successful binary round trip is not claimed; separate per-input persistence is not an original requirement.",
+              "definition_sha256": "aac30c58d3650150ca88962855d10bde9c6063c708bdde1fc6b971ddf1af568e"
             }
           ],
-          "gap": "Offline encode/decode only; no exchange with a peer."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Short and malformed frames (truncated header, bad magic or version, length larger than the payload or over the bound) are rejected.",
-          "coverage": "missing",
+          "coverage": "partial",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/screen/frame-usage",
               "assertion": "unknown frame type rejected before writing (encode side only)",
               "definition_sha256": "2e4f9b538f4fed08b71cbccd77a2747d9e30a754055f9db9297ab33d3d76ebef"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b04r2-remote-frames-malformed",
+              "assertion": "Source purpose: Reject malformed or over-bound independently constructed BSCR frames.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: The six saved malformed statuses are 1 and outputs are empty, with individual diagnostic messages.",
+              "definition_sha256": "e0772ffdd0b1261f0fa322984f57a2d038c1a2ca82b1cc3d537d054fa748adfb"
             }
           ],
-          "gap": "No malformed-decode case."
+          "gap": "The nominal over-limit frame also has no declared payload, so rejection may be due to truncation. The bound-specific condition remains partial even though source construction and saved rejection statuses bind the attempted inputs."
         },
         {
           "id": "r5",
           "behavior": "A live remote attach over the transport exchanges frames with the peer.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The candidate uses vendored libssh (bs_remote_ssh_attach), not BASHSSH1, so it needs a real SSH server. An unprivileged OpenSSH sshd on loopback inside the VM (openssh-server 1:10.0p1 is already in image.lock.json) provides it."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b04r3-remote-ssh-frames",
+              "assertion": "Source purpose: Exchange framed bytes through a fixture-owned loopback OpenSSH transport.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: The standard OpenSSH control saves valid framed input/output, while the candidate live peer receives client-pay rather than a frame, exposes a framed response in stdout and exits 1; both builds FAIL.",
+              "definition_sha256": "aac30c58d3650150ca88962855d10bde9c6063c708bdde1fc6b971ddf1af568e"
+            }
+          ],
+          "gap": "The saved guest-loopback SSH exchange reaches a framing FAIL, but the original deferred reason explicitly forbids network activity and requires a mocked transport. It remains supplementary evidence; a conforming live mock exchange is still required for complete original coverage."
         }
       ],
-      "notes": "Candidate CLI per loadables/screen.c screen_doc 3928-3967. Live services need an absolute BASHSCREEN_STATE_DIR (a private 0700 dir in the case workspace). Brokers are spawned from /proc/self/exe (bos_ptybroker_create), so on the candidate side the broker is the candidate binary itself. GNU screen 4.9.1 is installed in the reference image but is not a semantic oracle for this API: contract cases only. The remote command template is built at screen.c 1010-1030; BASHSCREEN_REMOTE_BASH is validated as safe."
+      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. Fixed fixture source and successful setup bind the binary stimulus; small PTY/query/control frames have retained byte comparisons and the maximum frame has exact lengths/hashes. Binary decode declares length 4 but emits only A, a reached FAIL. Full successful binary round trip is not claimed; separate per-input persistence is not an original requirement. The nominal over-limit frame also has no declared payload, so rejection may be due to truncation. The bound-specific condition remains partial even though source construction and saved rejection statuses bind the attempted inputs. The saved guest-loopback SSH exchange reaches a framing FAIL, but the original deferred reason explicitly forbids network activity and requires a mocked transport. It remains supplementary evidence; a conforming live mock exchange is still required for complete original coverage."
     },
     {
       "topic": "screen/session-lifecycle",
@@ -34043,40 +34258,68 @@
         "purpose": "Create a live named session with a deterministic child, verify list/status state after the creating shell exits, then kill it and verify broker and child cleanup.",
         "reason": "Requires a disposable Linux VM with /proc, PTYs, Unix SOCK_SEQPACKET, pidfd and subreaper support, plus the ptybroker companion and a private 0700 state directory. Use only a fixture-owned child and verify cleanup before the VM is discarded."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Never executed. The plain driver in the VM provides /proc, PTYs, SOCK_SEQPACKET and subreaper-based stray detection, so it is directly implementable.",
+      "current_reason": "Remaining obligations: r1: The child readiness files are awaited after the creating shell returns, and no contemporaneous readiness or independent create status is retained at return.; r3: Stopped child/descendants and session directory removal are observed, but the distinct pid-file removed/marked-dead state is not independently bound. The broker is a zombie, not an absent PID. Preserve the recorded PASS without crediting the missing file/reaping observations.; r4: No live executing member remains in the observed tree and the broker is a terminated zombie. Its final reaping and the state exactly at case completion are unobserved; preserve the recorded PASS and this remaining cleanup limitation.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "run -n NAME -d creates a live named session with a deterministic child and returns after service readiness.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b03r3-lifecycle",
+              "assertion": "Source purpose: A session survives its creating shell and kill waits for its owned descendant tree.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: create.log names live and the saved process snapshots show the deterministic child, grandchild and broker alive after creation.",
+              "definition_sha256": "40e7e03cc356536a6d21fa110dfd8a05446e7dda7d206f95a6066844a38598e6"
+            }
+          ],
+          "gap": "The child readiness files are awaited after the creating shell returns, and no contemporaneous readiness or independent create status is retained at return."
         },
         {
           "id": "r2",
           "behavior": "After the creating shell exits, list/status (screen list, state NAME) still report the session and the child is alive.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Observable: create inside '$BASH -c \"screen run ...\"' (a child shell that exits), then list from the parent."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b03r3-lifecycle",
+              "assertion": "Source purpose: A session survives its creating shell and kill waits for its owned descendant tree.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: After the creating shell has exited, state-before and relay-before report session live and running 1, while the independently sampled child remains live. Primary adjudication: The exact retained source emits survives-creator-exit=PASS only after zero list/state statuses, expected content and live-child observations after creator exit. The retained marker and state/process snapshots exercise this clause. Individual transient list bytes/status are not claimed to be separately retained.",
+              "definition_sha256": "40e7e03cc356536a6d21fa110dfd8a05446e7dda7d206f95a6066844a38598e6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "kill NAME stops the pane service and all descendants; the broker socket and pid files are removed or marked dead.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b03r3-lifecycle",
+              "assertion": "Source purpose: A session survives its creating shell and kill waits for its owned descendant tree.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: kill-status shows rc 0 and later state failure; child and grandchild are absent, session_remaining is false, and the broker is recorded in dead Z state without fallback intervention.",
+              "definition_sha256": "40e7e03cc356536a6d21fa110dfd8a05446e7dda7d206f95a6066844a38598e6"
+            }
+          ],
+          "gap": "Stopped child/descendants and session directory removal are observed, but the distinct pid-file removed/marked-dead state is not independently bound. The broker is a zombie, not an absent PID. Preserve the recorded PASS without crediting the missing file/reaping observations."
         },
         {
           "id": "r4",
           "behavior": "No process outlives the case (broker and child cleanup).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The plain driver's stray-process check ('fixture left live child processes') observes this."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-b03r3-lifecycle",
+              "assertion": "Source purpose: A session survives its creating shell and kill waits for its owned descendant tree.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Recorded post-kill child and grandchild are absent and broker is Z; cleanup reports no intervention and outer stray list is empty.",
+              "definition_sha256": "40e7e03cc356536a6d21fa110dfd8a05446e7dda7d206f95a6066844a38598e6"
+            }
+          ],
+          "gap": "No live executing member remains in the observed tree and the broker is a terminated zombie. Its final reaping and the state exactly at case completion are unobserved; preserve the recorded PASS and this remaining cleanup limitation."
         }
       ],
-      "notes": "Candidate CLI per loadables/screen.c screen_doc 3928-3967. Live services need an absolute BASHSCREEN_STATE_DIR (a private 0700 dir in the case workspace). Brokers are spawned from /proc/self/exe (bos_ptybroker_create), so on the candidate side the broker is the candidate binary itself. GNU screen 4.9.1 is installed in the reference image but is not a semantic oracle for this API: contract cases only."
+      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. The exact retained source emits survives-creator-exit=PASS only after zero list/state statuses, expected content and live-child observations after creator exit. The retained marker and state/process snapshots exercise this clause. Individual transient list bytes/status are not claimed to be separately retained. Stopped child/descendants and session directory removal are observed, but the distinct pid-file removed/marked-dead state is not independently bound. The broker is a zombie, not an absent PID. Preserve the recorded PASS without crediting the missing file/reaping observations. No live executing member remains in the observed tree and the broker is a terminated zombie. Its final reaping and the state exactly at case completion are unobserved; preserve the recorded PASS and this remaining cleanup limitation."
     },
     {
       "topic": "script/interactive-resize-deferred",
@@ -41822,40 +42065,74 @@
         "kind": "deferred",
         "reason": "Requires a private proc fixture and bounded output-failure injection in a disposable VM (for example, a controlled failing sink); it must not read host proc data or use a host device path."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Never executed. Write failure, repetition and fd checks are implementable now on live namespaced /proc. Missing proc input needs the user-namespace bind-mount technique.",
+      "current_reason": "Remaining obligations: r4: The descriptor targets and identities are not recorded; equal numbers do not exclude a close-and-reuse or replaced-descriptor leak.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "missing proc input (e.g. absent meminfo/stat) yields the documented failure status and diagnostic",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-terminal-top-missing-mem-r3",
+              "assertion": "Source purpose: Missing /proc/meminfo is reported as failure with a diagnostic.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: The private proc setup succeeds; each absent meminfo/stat case retains top status 0 and empty stderr instead of the required failure and diagnostic. Both builds are reached FAILs.",
+              "definition_sha256": "c61eb7453977a75a381829e8019d06aa50bc150071086f7525fd317a1987e0a6"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terra-local-terminal-top-missing-stat-r3",
+              "assertion": "Source purpose: Missing /proc/stat is reported as failure with a diagnostic.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: The private proc setup succeeds; each absent meminfo/stat case retains top status 0 and empty stderr instead of the required failure and diagnostic. Both builds are reached FAILs.",
+              "definition_sha256": "16b0dd42c818c30bde165b1702c68a3e7917d8666d95b3126efb1c8bdeaf1e77"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "an output write failure (ENOSPC) yields the documented failure status",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed. 'top --once > /dev/full' inside the VM is an unprivileged, guest-only device sink."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-terminal-top-full-r3",
+              "assertion": "Source purpose: The disposable VM /dev/full sink returns ENOSPC; top reports write failure.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: The independently probed guest /dev/full sink returns ENOSPC; top-status records 1 and top.err contains the write error on both builds.",
+              "definition_sha256": "e687921e4a5039b1882185df919e292f50ee6205b4ad8ea1507d55229d9c98a6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "repeated invocations in one shell give consistent results",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-terminal-top-repeat-r3",
+              "assertion": "Source purpose: Two batch invocations in the same shell over unchanged data have identical output and status.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: The two retained output files are byte-identical and the two stderr files are empty in each build. Primary adjudication: The saved repeat=PASS predicate requires both same-shell invocation statuses zero and both output comparisons; retained output files are equal and stderr empty. This exercises consistency without inventing separately saved numeric status files.",
+              "definition_sha256": "650520bfad4bff0353f51b8c7e1ef9f2f2c9b20e0557b0e0105c4d493dd3584b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "no descriptors leak into the shell after success or failure",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed. Observable by listing /dev/fd (real /proc) before and after in the same shell, since top is a builtin."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-terminal-top-fds-r3",
+              "assertion": "Source purpose: The same shell retains exactly the original descriptor set after both success and ENOSPC failure.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Saved success/failure statuses are 0/1 and before/after lists contain the same descriptor numbers.",
+              "definition_sha256": "b1684aaacf666bd2fd40b5d0aa68b2c549cf9be0f1cbfc0c9538bad029801127"
+            }
+          ],
+          "gap": "The descriptor targets and identities are not recorded; equal numbers do not exclude a close-and-reuse or replaced-descriptor leak."
         }
       ],
-      "notes": "top.c hardcodes /proc (top.c:160-319) and has no BASHOS_PROC_ROOT override (vmstat.c:72 has one). A private snapshot can still be presented without a mock: inside '/usr/bin/unshare -Urm', bind a fixture directory over /proc ('mount --bind snap /proc'). Before that, bind the real /proc elsewhere if descriptor checks need it. This assumes unprivileged user namespaces in the guest kernel, which root should verify once. If they are unavailable, the missing capability is a root-controller per-case bind mount of a synthetic tree over /proc in the case's mount namespace. Alternatively, add an env override to top.c as vmstat has; that is a candidate change and needs root coordination."
+      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. The saved repeat=PASS predicate requires both same-shell invocation statuses zero and both output comparisons; retained output files are equal and stderr empty. This exercises consistency without inventing separately saved numeric status files."
     },
     {
       "topic": "top/batch-proc-snapshots",
@@ -41908,47 +42185,166 @@
         "kind": "deferred",
         "reason": "Requires a disposable VM or private PTY driver plus the same controlled proc snapshots. A cell decoder must independently interpret the emitted ECMA-48 subset; no real user's terminal or host process table may be used."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Never executed. The PTY driver supplies keys, resize, screen and termios. Deterministic rows need the same private /proc snapshot (user-namespace bind mount) or rows restricted to owned processes on live namespaced /proc.",
+      "current_reason": "Remaining obligations: r1: Three load values occur in the stream with a bounded exit, but the final saved screen checkpoint is after alternate-screen exit. Exact count/cadence and the third visible checkpoint are not independently established; retain this bounded observation without complete coverage.; r2: Sort values and validation steps were never reached after the prompt timeout.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "interactive mode redraws a bounded number of times at the -d delay (with -n count)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-redraw-count",
+              "assertion": "Source purpose: -n 3 completes three timed redraws that see successive controlled load values.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Replayed raw frames show 0.25 and 0.50 loads, with 0.75 emitted before alternate-screen exit.",
+              "definition_sha256": "ad888e2a17dbd646547ea7b7a3c3cb3f3dbdf0e9b361deb14abdfbb4a55b3107"
+            }
+          ],
+          "gap": "Three load values occur in the stream with a bounded exit, but the final saved screen checkpoint is after alternate-screen exit. Exact count/cadence and the third visible checkpoint are not independently established; retain this bounded observation without complete coverage."
         },
         {
           "id": "r2",
           "behavior": "n (delay) and o/O (sort) prompts accept and validate input",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-delay-invalid",
+              "assertion": "Source purpose: n then 0 Enter is rejected without changing the interval.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: n prompt cases show accepted 3s and rejected 0; both o/O cases send their key and then time out before the sort prompt, a FAIL on each build.",
+              "definition_sha256": "6e1502c0eb7d9df6b5ac1f2ece8130f2c629a07d2a4f66824b6b71b16ee7deea"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-delay-valid",
+              "assertion": "Source purpose: n then 3 Enter updates the displayed interval.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: n prompt cases show accepted 3s and rejected 0; both o/O cases send their key and then time out before the sort prompt, a FAIL on each build.",
+              "definition_sha256": "28ab1fad84143300a8aa5a6899da31073322f919fd9a248ff09ab140438a9033"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terra-local-terminal-top-ui-sort-prompt-invalid-r4",
+              "assertion": "Source purpose: O opens a sort prompt and rejects an invalid sort name.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: n prompt cases show accepted 3s and rejected 0; both o/O cases send their key and then time out before the sort prompt, a FAIL on each build.",
+              "definition_sha256": "9419210254ed2fcc07351940fc58c0e25aefcbbe89caef01a2434f6a46cc7cb5"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terra-local-terminal-top-ui-sort-prompt-valid-r4",
+              "assertion": "Source purpose: o opens a sort prompt and accepts mem.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: n prompt cases show accepted 3s and rejected 0; both o/O cases send their key and then time out before the sort prompt, a FAIL on each build.",
+              "definition_sha256": "ece6ac8a32174a0ec67e9f6121725bad251e914592e4d5c2def19f0712cba7df"
+            }
+          ],
+          "gap": "Sort values and validation steps were never reached after the prompt timeout."
         },
         {
           "id": "r3",
           "behavior": "scrolling keys move the row window; resize redraws at the new size",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-resize",
+              "assertion": "Source purpose: A SIGWINCH after initial raw header emits a fresh header at the new size.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Replayed frames show row-window changes for arrows, Page Up/Down and Home/End; the resize event to 12x60 is followed by a new header at later byte offsets.",
+              "definition_sha256": "e3a6cf25bd2182fa71325a06bcce5fa92ab7974f86f4644f91e0248b9b500610"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-scroll-down",
+              "assertion": "Source purpose: Down scrolls the process window by one row.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Replayed frames show row-window changes for arrows, Page Up/Down and Home/End; the resize event to 12x60 is followed by a new header at later byte offsets.",
+              "definition_sha256": "ac7342acabe5bc34557381829dcb4b0ff757a076828498334d104e038435067a"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-scroll-home-end",
+              "assertion": "Source purpose: End reaches PID 101 and Home returns to PID 130.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Replayed frames show row-window changes for arrows, Page Up/Down and Home/End; the resize event to 12x60 is followed by a new header at later byte offsets.",
+              "definition_sha256": "056a61a9fc3f52378cdc28eb3c5c2d12aaaca00d2f55ef393b02178b34efbe02"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-scroll-page",
+              "assertion": "Source purpose: PageDown moves beyond the initial first process.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Replayed frames show row-window changes for arrows, Page Up/Down and Home/End; the resize event to 12x60 is followed by a new header at later byte offsets.",
+              "definition_sha256": "0b1731247840c4798b717c478ba0c87cbc364f893c1f2f8ea093bbd41af0cfa1"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-scroll-page-up",
+              "assertion": "Source purpose: After PageDown, PageUp returns to the first process.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Replayed frames show row-window changes for arrows, Page Up/Down and Home/End; the resize event to 12x60 is followed by a new header at later byte offsets.",
+              "definition_sha256": "2e937dcfbc990d9483581e1734abb0a2beef8fa324ded8ac6d538e642b209711"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-scroll-up",
+              "assertion": "Source purpose: After Down, Up restores the first process.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Replayed frames show row-window changes for arrows, Page Up/Down and Home/End; the resize event to 12x60 is followed by a new header at later byte offsets.",
+              "definition_sha256": "dd0dabf375fd377a170a5024ce3a37f9e0f6f80e42036acf036d3cf63f06d0a9"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "an empty process list recovers; q/Q/^C exits",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-empty-recovers",
+              "assertion": "Source purpose: An initially empty process list becomes nonempty after a private fixture addition.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: A zero-process frame is followed by a frame with proc101; q, Q and Ctrl-C each exit with saved status and terminal-restoration observations.",
+              "definition_sha256": "fb08f8aace82e0b88955a92e20754acb2caae22491a0e6e6a2ac4fa24487cee3"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-exit-Q",
+              "assertion": "Source purpose: Exit using Q restores cursor, alternate screen and termios.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: A zero-process frame is followed by a frame with proc101; q, Q and Ctrl-C each exit with saved status and terminal-restoration observations.",
+              "definition_sha256": "ae2a3197b3a34ee3e353627d348f25f1d0f74f15c6fa1357d26d089033738c85"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-exit-ctrl-c",
+              "assertion": "Source purpose: Exit using ctrl-c restores cursor, alternate screen and termios.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: A zero-process frame is followed by a frame with proc101; q, Q and Ctrl-C each exit with saved status and terminal-restoration observations.",
+              "definition_sha256": "641521619e2a68de5565c19935137b4556b78d42a7e0f16a8e1ff923d87b888c"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-exit-q",
+              "assertion": "Source purpose: Exit using q restores cursor, alternate screen and termios.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: A zero-process frame is followed by a frame with proc101; q, Q and Ctrl-C each exit with saved status and terminal-restoration observations.",
+              "definition_sha256": "16b63749a22a9076fd9e331683ee2cdc6bf757a721ac020c8f061e638b3b42e2"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "terminal modes and shell traps are restored after exit",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-exit-Q",
+              "assertion": "Source purpose: Exit using Q restores cursor, alternate screen and termios.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: For q, Q and Ctrl-C the saved initial/final termios match; in the separate q shell test the four saved before/after trap definitions match and top status is 0.",
+              "definition_sha256": "ae2a3197b3a34ee3e353627d348f25f1d0f74f15c6fa1357d26d089033738c85"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-exit-ctrl-c",
+              "assertion": "Source purpose: Exit using ctrl-c restores cursor, alternate screen and termios.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: For q, Q and Ctrl-C the saved initial/final termios match; in the separate q shell test the four saved before/after trap definitions match and top status is 0.",
+              "definition_sha256": "641521619e2a68de5565c19935137b4556b78d42a7e0f16a8e1ff923d87b888c"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-exit-q",
+              "assertion": "Source purpose: Exit using q restores cursor, alternate screen and termios.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: For q, Q and Ctrl-C the saved initial/final termios match; in the separate q shell test the four saved before/after trap definitions match and top status is 0.",
+              "definition_sha256": "16b63749a22a9076fd9e331683ee2cdc6bf757a721ac020c8f061e638b3b42e2"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-top-ui-shell-traps-r3",
+              "assertion": "Source purpose: Quitting top preserves the shell INT, TERM, HUP and WINCH traps.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: For q, Q and Ctrl-C the saved initial/final termios match; in the separate q shell test the four saved before/after trap definitions match and top status is 0.",
+              "definition_sha256": "cb91660fdbd4ceaefc7aa5a298714a32db7d371c096bbacfaabf66f90aebce2a"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "top.c hardcodes /proc (top.c:160-319) and has no BASHOS_PROC_ROOT override (vmstat.c:72 has one). A private snapshot can still be presented without a mock: inside '/usr/bin/unshare -Urm', bind a fixture directory over /proc ('mount --bind snap /proc'). Before that, bind the real /proc elsewhere if descriptor checks need it. This assumes unprivileged user namespaces in the guest kernel, which root should verify once. If they are unavailable, the missing capability is a root-controller per-case bind mount of a synthetic tree over /proc in the case's mount namespace. Alternatively, add an env override to top.c as vmstat has; that is a candidate change and needs root coordination. Interactive keys: top.c:640-760."
+      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. Three load values occur in the stream with a bounded exit, but the final saved screen checkpoint is after alternate-screen exit. Exact count/cadence and the third visible checkpoint are not independently established; retain this bounded observation without complete coverage."
     },
     {
       "topic": "top/mutation-prompts-mocked",
@@ -45210,66 +45606,106 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "No terminal comparison ran. procps 4.0.4 watch is in the VM, and the PTY driver can drive it (screen rows, keys, ^C, resize, termios restore). Cadence timing stays out of scope by the topic's own terms.",
+      "current_reason": "Remaining obligations: r3: The candidate message, key wait and keyed exit were never reached. Preserve the existing legacy bounded-execution companion.; r6: A width 40 redraw follows resize, coincident with the ordinary one-second update. The data do not distinguish the named SIGWINCH path from periodic polling; retain partial without imposing an unstated exact-latency threshold.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "On a terminal, watch renders a header line ('Every Ns: CMD' plus host and time) and the command output, matching procps watch semantically.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No PTY case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-terminal-watch-header-r3",
+              "assertion": "Source purpose: Header includes interval, command, host/time and the command output below it.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: Reference raw frame contains the full Every 1.0s header, hostname/time and payload; candidate repeatedly outputs WATCH_PAYLOAD without a header and times out, a FAIL on both builds. Primary adjudication: The validated PTY and procps reference show the full header and payload, while candidate output repeatedly contains only payload and reaches the first header assertion timeout. This exercises the original header contract as FAIL. Correct candidate host/time header parity and a later scripted interrupt are not claimed.",
+              "definition_sha256": "2ddeabcf7a6de1d23c22be6f3e15c32a1880623b197834fde22689f982c2cf6e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "-t suppresses the header; the screen shows only the command output.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-watch-no-title",
+              "assertion": "Source purpose: -t places the command output at the top row and suppresses the Every header.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Replayed candidate and procps screens have WATCH_PAYLOAD at row 0 and no Every header under -t on both builds.",
+              "definition_sha256": "6b46b9ada2584471237d8fd0c0e977c7023c38cac60e6afcad22b3a8efc1c511"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Interactive error: with -e, a failing command shows procps's error message and waits for a key before exiting with the documented status.",
-          "coverage": "missing",
+          "coverage": "partial",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/watch/watch-bounded-exec-failure",
               "assertion": "non-terminal -e exits after one failing child (custom contract)",
               "definition_sha256": "1338956a66f5a7644cd4ddae9aaa24b0acff7665dad9246bac46bdff3af7cbcf"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-watch-error-key",
+              "assertion": "Source purpose: -e displays the reference error text and waits for a key before returning procps 4.0.4 status 8.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: The procps side shows the error message, waits for 300 ms and exits 8 after its key event; the candidate exits 1 before the first screen step in both builds.",
+              "definition_sha256": "86e577b8f2d967fdd764e3f1deceebde58e1a8080d37899d137225591796f6dd"
             }
           ],
-          "gap": "The terminal key-wait path is unobserved."
+          "gap": "The candidate message, key wait and keyed exit were never reached. Preserve the existing legacy bounded-execution companion."
         },
         {
           "id": "r4",
           "behavior": "Terminal interaction: Ctrl-C ends watch and restores the terminal modes; the exit status matches procps.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terra-local-terminal-watch-interrupt-r3",
+              "assertion": "Source purpose: Ctrl-C on a running watch exits with the procps status and restores terminal modes.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Both candidate and reference observe ISIG set, send 0x03, exit 0 and retain equal before/after termios in the r3 observer.",
+              "definition_sha256": "771589a99a7dea6ca7df7825c5673d7f56897ea290dbc3f533f38207839b49ab"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "-d highlighting of changed characters on screen (reverse video) between frames.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/watch/watch-bounded-diff-capture",
               "assertion": "custom -C capture contains reverse-video bytes",
               "definition_sha256": "6f42e2ef96e5b2277dd54e06ef9d57ef60da153c862397c526269136836dfa07"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-watch-diff",
+              "assertion": "Source purpose: After the controlled first ABY frame, ABZ shows only changed Z in reverse video.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Candidate and procps raw frames change ABY to ABZ; both use reverse rendition on Z and leave A unhighlighted. Preserve the existing legacy diff-capture companion.",
+              "definition_sha256": "c52a7ec5f69d94ad08e0199c814aece6a2d40d669fb609d8a3aa50222424cef8"
             }
           ],
-          "gap": "Capture-file contract only."
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "Resize redraw (SIGWINCH) re-renders at the new width.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-terra-local-terminal-watch-resize",
+              "assertion": "Source purpose: Resize 80 columns to 40 and require the long output to wrap onto a second row.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Both sides record a resize from width 80 to 40, then render 40 characters on row 0 and the remainder on row 1.",
+              "definition_sha256": "3f2b79f64fb3ae5e34dc321e6a4bacd5eae446bff265efc4d3a89a369491fb3e"
+            }
+          ],
+          "gap": "A width 40 redraw follows resize, coincident with the ordinary one-second update. The data do not distinguish the named SIGWINCH path from periodic polling; retain partial without imposing an unstated exact-latency threshold."
         }
       ],
-      "notes": "Candidate watch is custom (legacy reference says so). Expect FAILs where its terminal UI differs; record them as candidate mismatches."
+      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. The validated PTY and procps reference show the full header and payload, while candidate output repeatedly contains only payload and reaches the first header assertion timeout. This exercises the original header contract as FAIL. Correct candidate host/time header parity and a later scripted interrupt are not claimed. A width 40 redraw follows resize, coincident with the ordinary one-second update. The data do not distinguish the named SIGWINCH path from periodic polling; retain partial without imposing an unstated exact-latency threshold."
     },
     {
       "topic": "wg/deferred-set-kernel-apply",

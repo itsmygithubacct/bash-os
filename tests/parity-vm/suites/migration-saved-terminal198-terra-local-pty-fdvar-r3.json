@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terra-local-pty-b01r3-session-fdvar",
+      "loadable": "pty",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe fdvar through kernel PTY/session state in a live, handshaken child.",
+      "expected_status": 0,
+      "covers": [
+        "pty/pty-session-control-deferred"
+      ],
+      "timeout": 22,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-pty-session-r3.py": "329cdaeaf4ef8097c7c5f2bd54e953c00850da19813103ddc7373f9e7f5f092f"
+      },
+      "oracle": "An independent Python os.setsid and Linux TIOCSCTTY participant supplies the reference; the parent verifies /proc descriptors, session IDs, controlling-device identity and tcgetpgrp on the fixture-owned PTYs.",
+      "comparison": "Exact named predicates and status; bounded dynamic PID, FD, descriptor identities and raw child diagnostics are retained separately. The returned FD and independently statted slave device, inode and rdev are retained as raw values.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-session-r3.py fdvar reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-session-r3.py fdvar candidate \"$BASH\"\n",
+      "diagnostic_files": [
+        "session-observation.json"
+      ],
+      "stdout": "acquired-controlling-tty=PASS\nfdvar-descriptor-and-stdio=PASS\nparticipant-exited=PASS\n",
+      "stderr": ""
+    }
+  ]
+}

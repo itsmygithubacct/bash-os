@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terra-local-pty-b04r3-remote-ssh-frames",
+      "loadable": "screen",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Exchange framed bytes through a fixture-owned loopback OpenSSH transport.",
+      "covers": [
+        "screen/remote-attach-mock"
+      ],
+      "expected_status": 0,
+      "timeout": 60,
+      "requires": [
+        "python3",
+        "ssh",
+        "ssh-keygen",
+        "sshd"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-pty-remote-r3.py": "44d615515643f0c6330ba90feafa25b2692b335f8661bc4d8f958f8af1439afc"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-remote-r3.py ssh-control\n",
+      "setup_timeout": 60,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-remote-r3.py ssh-observe \"$BASH\"\n",
+      "stdout": "independent-ssh-frame-control=PASS\nlive-peer-startup-line=PASS\nlive-peer-receives-framed-input=PASS\nlive-peer-frame-delivered-as-payload=PASS\nremote-attach-success=PASS\nowned-cleanup=PASS\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "ssh-control.json",
+        "ssh-live.json",
+        "ssh-control-server.log",
+        "ssh-live-server.log",
+        "ssh-server.conf",
+        "ssh-live-client.stdout",
+        "ssh-live-client.stderr"
+      ],
+      "oracle": "A fresh unprivileged OpenSSH daemon listens only on loopback with fixture-generated keys and a forced independent BSCR peer. Setup first proves a real OpenSSH client exchanges the exact frames with this peer. The forced peer enters the private case cwd and HOME before its own guard. The positive control queues a complete startup line before a TCSANOW raw transition, proves the peer read the exact line and then exchanges independent exact frames; terminal flags, transition phases, and any exact canonical echo are retained.",
+      "comparison": "The live candidate must deliver the fixed frontend bytes as a valid BSCR PTY frame, deliver the peer PTY frame as its payload, and exit successfully; peer input, output and SSH logs are retained. Candidate streams/status and peer partial input are captured on success and exception paths, with client/server cleanup actions and process outcomes. The candidate must send the exact startup line before the frame branch is exercised. Full candidate output is compared without removing startup echoes or frame bytes."
+    }
+  ]
+}

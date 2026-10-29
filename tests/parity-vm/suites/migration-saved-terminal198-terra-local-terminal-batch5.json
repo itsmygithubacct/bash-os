@@ -1,0 +1,3207 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terra-local-terminal-top-ui-delay-valid",
+      "loadable": "top",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "n then 3 Enter updates the displayed interval.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; top -d 2'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "top.*procs 30.*sort CPU",
+              "4": "^\\s*130\\s"
+            }
+          }
+        },
+        {
+          "send": "n"
+        },
+        {
+          "screen": {
+            "contains": [
+              "delay \\(s\\):"
+            ]
+          }
+        },
+        {
+          "send": "3\r"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "every 3s"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 20,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/30 130\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (proc101) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 20\n",
+        "snap/101/status": "Name:\tproc101\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "cHJvYzEwMQA="
+        },
+        "snap/102/stat": "102 (proc102) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1102 1048576 20\n",
+        "snap/102/status": "Name:\tproc102\nUid:\t0\t0\t0\t0\n",
+        "snap/102/cmdline": {
+          "base64": "cHJvYzEwMgA="
+        },
+        "snap/103/stat": "103 (proc103) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1103 1048576 20\n",
+        "snap/103/status": "Name:\tproc103\nUid:\t0\t0\t0\t0\n",
+        "snap/103/cmdline": {
+          "base64": "cHJvYzEwMwA="
+        },
+        "snap/104/stat": "104 (proc104) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1104 1048576 20\n",
+        "snap/104/status": "Name:\tproc104\nUid:\t0\t0\t0\t0\n",
+        "snap/104/cmdline": {
+          "base64": "cHJvYzEwNAA="
+        },
+        "snap/105/stat": "105 (proc105) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1105 1048576 20\n",
+        "snap/105/status": "Name:\tproc105\nUid:\t0\t0\t0\t0\n",
+        "snap/105/cmdline": {
+          "base64": "cHJvYzEwNQA="
+        },
+        "snap/106/stat": "106 (proc106) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1106 1048576 20\n",
+        "snap/106/status": "Name:\tproc106\nUid:\t0\t0\t0\t0\n",
+        "snap/106/cmdline": {
+          "base64": "cHJvYzEwNgA="
+        },
+        "snap/107/stat": "107 (proc107) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1107 1048576 20\n",
+        "snap/107/status": "Name:\tproc107\nUid:\t0\t0\t0\t0\n",
+        "snap/107/cmdline": {
+          "base64": "cHJvYzEwNwA="
+        },
+        "snap/108/stat": "108 (proc108) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1108 1048576 20\n",
+        "snap/108/status": "Name:\tproc108\nUid:\t0\t0\t0\t0\n",
+        "snap/108/cmdline": {
+          "base64": "cHJvYzEwOAA="
+        },
+        "snap/109/stat": "109 (proc109) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1109 1048576 20\n",
+        "snap/109/status": "Name:\tproc109\nUid:\t0\t0\t0\t0\n",
+        "snap/109/cmdline": {
+          "base64": "cHJvYzEwOQA="
+        },
+        "snap/110/stat": "110 (proc110) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1110 1048576 20\n",
+        "snap/110/status": "Name:\tproc110\nUid:\t0\t0\t0\t0\n",
+        "snap/110/cmdline": {
+          "base64": "cHJvYzExMAA="
+        },
+        "snap/111/stat": "111 (proc111) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1111 1048576 20\n",
+        "snap/111/status": "Name:\tproc111\nUid:\t0\t0\t0\t0\n",
+        "snap/111/cmdline": {
+          "base64": "cHJvYzExMQA="
+        },
+        "snap/112/stat": "112 (proc112) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1112 1048576 20\n",
+        "snap/112/status": "Name:\tproc112\nUid:\t0\t0\t0\t0\n",
+        "snap/112/cmdline": {
+          "base64": "cHJvYzExMgA="
+        },
+        "snap/113/stat": "113 (proc113) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1113 1048576 20\n",
+        "snap/113/status": "Name:\tproc113\nUid:\t0\t0\t0\t0\n",
+        "snap/113/cmdline": {
+          "base64": "cHJvYzExMwA="
+        },
+        "snap/114/stat": "114 (proc114) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1114 1048576 20\n",
+        "snap/114/status": "Name:\tproc114\nUid:\t0\t0\t0\t0\n",
+        "snap/114/cmdline": {
+          "base64": "cHJvYzExNAA="
+        },
+        "snap/115/stat": "115 (proc115) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1115 1048576 20\n",
+        "snap/115/status": "Name:\tproc115\nUid:\t0\t0\t0\t0\n",
+        "snap/115/cmdline": {
+          "base64": "cHJvYzExNQA="
+        },
+        "snap/116/stat": "116 (proc116) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1116 1048576 20\n",
+        "snap/116/status": "Name:\tproc116\nUid:\t0\t0\t0\t0\n",
+        "snap/116/cmdline": {
+          "base64": "cHJvYzExNgA="
+        },
+        "snap/117/stat": "117 (proc117) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1117 1048576 20\n",
+        "snap/117/status": "Name:\tproc117\nUid:\t0\t0\t0\t0\n",
+        "snap/117/cmdline": {
+          "base64": "cHJvYzExNwA="
+        },
+        "snap/118/stat": "118 (proc118) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1118 1048576 20\n",
+        "snap/118/status": "Name:\tproc118\nUid:\t0\t0\t0\t0\n",
+        "snap/118/cmdline": {
+          "base64": "cHJvYzExOAA="
+        },
+        "snap/119/stat": "119 (proc119) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1119 1048576 20\n",
+        "snap/119/status": "Name:\tproc119\nUid:\t0\t0\t0\t0\n",
+        "snap/119/cmdline": {
+          "base64": "cHJvYzExOQA="
+        },
+        "snap/120/stat": "120 (proc120) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1120 1048576 20\n",
+        "snap/120/status": "Name:\tproc120\nUid:\t0\t0\t0\t0\n",
+        "snap/120/cmdline": {
+          "base64": "cHJvYzEyMAA="
+        },
+        "snap/121/stat": "121 (proc121) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1121 1048576 20\n",
+        "snap/121/status": "Name:\tproc121\nUid:\t0\t0\t0\t0\n",
+        "snap/121/cmdline": {
+          "base64": "cHJvYzEyMQA="
+        },
+        "snap/122/stat": "122 (proc122) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1122 1048576 20\n",
+        "snap/122/status": "Name:\tproc122\nUid:\t0\t0\t0\t0\n",
+        "snap/122/cmdline": {
+          "base64": "cHJvYzEyMgA="
+        },
+        "snap/123/stat": "123 (proc123) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1123 1048576 20\n",
+        "snap/123/status": "Name:\tproc123\nUid:\t0\t0\t0\t0\n",
+        "snap/123/cmdline": {
+          "base64": "cHJvYzEyMwA="
+        },
+        "snap/124/stat": "124 (proc124) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1124 1048576 20\n",
+        "snap/124/status": "Name:\tproc124\nUid:\t0\t0\t0\t0\n",
+        "snap/124/cmdline": {
+          "base64": "cHJvYzEyNAA="
+        },
+        "snap/125/stat": "125 (proc125) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1125 1048576 20\n",
+        "snap/125/status": "Name:\tproc125\nUid:\t0\t0\t0\t0\n",
+        "snap/125/cmdline": {
+          "base64": "cHJvYzEyNQA="
+        },
+        "snap/126/stat": "126 (proc126) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1126 1048576 20\n",
+        "snap/126/status": "Name:\tproc126\nUid:\t0\t0\t0\t0\n",
+        "snap/126/cmdline": {
+          "base64": "cHJvYzEyNgA="
+        },
+        "snap/127/stat": "127 (proc127) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1127 1048576 20\n",
+        "snap/127/status": "Name:\tproc127\nUid:\t0\t0\t0\t0\n",
+        "snap/127/cmdline": {
+          "base64": "cHJvYzEyNwA="
+        },
+        "snap/128/stat": "128 (proc128) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1128 1048576 20\n",
+        "snap/128/status": "Name:\tproc128\nUid:\t0\t0\t0\t0\n",
+        "snap/128/cmdline": {
+          "base64": "cHJvYzEyOAA="
+        },
+        "snap/129/stat": "129 (proc129) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1129 1048576 20\n",
+        "snap/129/status": "Name:\tproc129\nUid:\t0\t0\t0\t0\n",
+        "snap/129/cmdline": {
+          "base64": "cHJvYzEyOQA="
+        },
+        "snap/130/stat": "130 (proc130) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1130 1048576 20\n",
+        "snap/130/status": "Name:\tproc130\nUid:\t0\t0\t0\t0\n",
+        "snap/130/cmdline": {
+          "base64": "cHJvYzEzMAA="
+        }
+      },
+      "covers": [
+        "top/interactive-pty-contract"
+      ],
+      "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
+      "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence."
+    },
+    {
+      "id": "migration-terra-local-terminal-top-ui-delay-invalid",
+      "loadable": "top",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "n then 0 Enter is rejected without changing the interval.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; top -d 2'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "top.*procs 30.*sort CPU",
+              "4": "^\\s*130\\s"
+            }
+          }
+        },
+        {
+          "send": "n"
+        },
+        {
+          "screen": {
+            "contains": [
+              "delay \\(s\\):"
+            ]
+          }
+        },
+        {
+          "send": "0\r"
+        },
+        {
+          "screen": {
+            "contains": [
+              "invalid delay"
+            ]
+          }
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "every 2s"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 20,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/30 130\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (proc101) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 20\n",
+        "snap/101/status": "Name:\tproc101\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "cHJvYzEwMQA="
+        },
+        "snap/102/stat": "102 (proc102) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1102 1048576 20\n",
+        "snap/102/status": "Name:\tproc102\nUid:\t0\t0\t0\t0\n",
+        "snap/102/cmdline": {
+          "base64": "cHJvYzEwMgA="
+        },
+        "snap/103/stat": "103 (proc103) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1103 1048576 20\n",
+        "snap/103/status": "Name:\tproc103\nUid:\t0\t0\t0\t0\n",
+        "snap/103/cmdline": {
+          "base64": "cHJvYzEwMwA="
+        },
+        "snap/104/stat": "104 (proc104) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1104 1048576 20\n",
+        "snap/104/status": "Name:\tproc104\nUid:\t0\t0\t0\t0\n",
+        "snap/104/cmdline": {
+          "base64": "cHJvYzEwNAA="
+        },
+        "snap/105/stat": "105 (proc105) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1105 1048576 20\n",
+        "snap/105/status": "Name:\tproc105\nUid:\t0\t0\t0\t0\n",
+        "snap/105/cmdline": {
+          "base64": "cHJvYzEwNQA="
+        },
+        "snap/106/stat": "106 (proc106) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1106 1048576 20\n",
+        "snap/106/status": "Name:\tproc106\nUid:\t0\t0\t0\t0\n",
+        "snap/106/cmdline": {
+          "base64": "cHJvYzEwNgA="
+        },
+        "snap/107/stat": "107 (proc107) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1107 1048576 20\n",
+        "snap/107/status": "Name:\tproc107\nUid:\t0\t0\t0\t0\n",
+        "snap/107/cmdline": {
+          "base64": "cHJvYzEwNwA="
+        },
+        "snap/108/stat": "108 (proc108) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1108 1048576 20\n",
+        "snap/108/status": "Name:\tproc108\nUid:\t0\t0\t0\t0\n",
+        "snap/108/cmdline": {
+          "base64": "cHJvYzEwOAA="
+        },
+        "snap/109/stat": "109 (proc109) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1109 1048576 20\n",
+        "snap/109/status": "Name:\tproc109\nUid:\t0\t0\t0\t0\n",
+        "snap/109/cmdline": {
+          "base64": "cHJvYzEwOQA="
+        },
+        "snap/110/stat": "110 (proc110) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1110 1048576 20\n",
+        "snap/110/status": "Name:\tproc110\nUid:\t0\t0\t0\t0\n",
+        "snap/110/cmdline": {
+          "base64": "cHJvYzExMAA="
+        },
+        "snap/111/stat": "111 (proc111) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1111 1048576 20\n",
+        "snap/111/status": "Name:\tproc111\nUid:\t0\t0\t0\t0\n",
+        "snap/111/cmdline": {
+          "base64": "cHJvYzExMQA="
+        },
+        "snap/112/stat": "112 (proc112) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1112 1048576 20\n",
+        "snap/112/status": "Name:\tproc112\nUid:\t0\t0\t0\t0\n",
+        "snap/112/cmdline": {
+          "base64": "cHJvYzExMgA="
+        },
+        "snap/113/stat": "113 (proc113) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1113 1048576 20\n",
+        "snap/113/status": "Name:\tproc113\nUid:\t0\t0\t0\t0\n",
+        "snap/113/cmdline": {
+          "base64": "cHJvYzExMwA="
+        },
+        "snap/114/stat": "114 (proc114) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1114 1048576 20\n",
+        "snap/114/status": "Name:\tproc114\nUid:\t0\t0\t0\t0\n",
+        "snap/114/cmdline": {
+          "base64": "cHJvYzExNAA="
+        },
+        "snap/115/stat": "115 (proc115) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1115 1048576 20\n",
+        "snap/115/status": "Name:\tproc115\nUid:\t0\t0\t0\t0\n",
+        "snap/115/cmdline": {
+          "base64": "cHJvYzExNQA="
+        },
+        "snap/116/stat": "116 (proc116) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1116 1048576 20\n",
+        "snap/116/status": "Name:\tproc116\nUid:\t0\t0\t0\t0\n",
+        "snap/116/cmdline": {
+          "base64": "cHJvYzExNgA="
+        },
+        "snap/117/stat": "117 (proc117) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1117 1048576 20\n",
+        "snap/117/status": "Name:\tproc117\nUid:\t0\t0\t0\t0\n",
+        "snap/117/cmdline": {
+          "base64": "cHJvYzExNwA="
+        },
+        "snap/118/stat": "118 (proc118) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1118 1048576 20\n",
+        "snap/118/status": "Name:\tproc118\nUid:\t0\t0\t0\t0\n",
+        "snap/118/cmdline": {
+          "base64": "cHJvYzExOAA="
+        },
+        "snap/119/stat": "119 (proc119) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1119 1048576 20\n",
+        "snap/119/status": "Name:\tproc119\nUid:\t0\t0\t0\t0\n",
+        "snap/119/cmdline": {
+          "base64": "cHJvYzExOQA="
+        },
+        "snap/120/stat": "120 (proc120) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1120 1048576 20\n",
+        "snap/120/status": "Name:\tproc120\nUid:\t0\t0\t0\t0\n",
+        "snap/120/cmdline": {
+          "base64": "cHJvYzEyMAA="
+        },
+        "snap/121/stat": "121 (proc121) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1121 1048576 20\n",
+        "snap/121/status": "Name:\tproc121\nUid:\t0\t0\t0\t0\n",
+        "snap/121/cmdline": {
+          "base64": "cHJvYzEyMQA="
+        },
+        "snap/122/stat": "122 (proc122) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1122 1048576 20\n",
+        "snap/122/status": "Name:\tproc122\nUid:\t0\t0\t0\t0\n",
+        "snap/122/cmdline": {
+          "base64": "cHJvYzEyMgA="
+        },
+        "snap/123/stat": "123 (proc123) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1123 1048576 20\n",
+        "snap/123/status": "Name:\tproc123\nUid:\t0\t0\t0\t0\n",
+        "snap/123/cmdline": {
+          "base64": "cHJvYzEyMwA="
+        },
+        "snap/124/stat": "124 (proc124) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1124 1048576 20\n",
+        "snap/124/status": "Name:\tproc124\nUid:\t0\t0\t0\t0\n",
+        "snap/124/cmdline": {
+          "base64": "cHJvYzEyNAA="
+        },
+        "snap/125/stat": "125 (proc125) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1125 1048576 20\n",
+        "snap/125/status": "Name:\tproc125\nUid:\t0\t0\t0\t0\n",
+        "snap/125/cmdline": {
+          "base64": "cHJvYzEyNQA="
+        },
+        "snap/126/stat": "126 (proc126) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1126 1048576 20\n",
+        "snap/126/status": "Name:\tproc126\nUid:\t0\t0\t0\t0\n",
+        "snap/126/cmdline": {
+          "base64": "cHJvYzEyNgA="
+        },
+        "snap/127/stat": "127 (proc127) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1127 1048576 20\n",
+        "snap/127/status": "Name:\tproc127\nUid:\t0\t0\t0\t0\n",
+        "snap/127/cmdline": {
+          "base64": "cHJvYzEyNwA="
+        },
+        "snap/128/stat": "128 (proc128) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1128 1048576 20\n",
+        "snap/128/status": "Name:\tproc128\nUid:\t0\t0\t0\t0\n",
+        "snap/128/cmdline": {
+          "base64": "cHJvYzEyOAA="
+        },
+        "snap/129/stat": "129 (proc129) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1129 1048576 20\n",
+        "snap/129/status": "Name:\tproc129\nUid:\t0\t0\t0\t0\n",
+        "snap/129/cmdline": {
+          "base64": "cHJvYzEyOQA="
+        },
+        "snap/130/stat": "130 (proc130) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1130 1048576 20\n",
+        "snap/130/status": "Name:\tproc130\nUid:\t0\t0\t0\t0\n",
+        "snap/130/cmdline": {
+          "base64": "cHJvYzEzMAA="
+        }
+      },
+      "covers": [
+        "top/interactive-pty-contract"
+      ],
+      "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
+      "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence."
+    },
+    {
+      "id": "migration-terra-local-terminal-top-ui-sort-prompt-valid-r4",
+      "loadable": "top",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "o opens a sort prompt and accepts mem.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py control\n",
+      "expected_status": 0,
+      "timeout": 28,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "python3"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/30 130\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (proc101) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 20\n",
+        "snap/101/status": "Name:\tproc101\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "cHJvYzEwMQA="
+        },
+        "snap/102/stat": "102 (proc102) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1102 1048576 20\n",
+        "snap/102/status": "Name:\tproc102\nUid:\t0\t0\t0\t0\n",
+        "snap/102/cmdline": {
+          "base64": "cHJvYzEwMgA="
+        },
+        "snap/103/stat": "103 (proc103) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1103 1048576 20\n",
+        "snap/103/status": "Name:\tproc103\nUid:\t0\t0\t0\t0\n",
+        "snap/103/cmdline": {
+          "base64": "cHJvYzEwMwA="
+        },
+        "snap/104/stat": "104 (proc104) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1104 1048576 20\n",
+        "snap/104/status": "Name:\tproc104\nUid:\t0\t0\t0\t0\n",
+        "snap/104/cmdline": {
+          "base64": "cHJvYzEwNAA="
+        },
+        "snap/105/stat": "105 (proc105) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1105 1048576 20\n",
+        "snap/105/status": "Name:\tproc105\nUid:\t0\t0\t0\t0\n",
+        "snap/105/cmdline": {
+          "base64": "cHJvYzEwNQA="
+        },
+        "snap/106/stat": "106 (proc106) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1106 1048576 20\n",
+        "snap/106/status": "Name:\tproc106\nUid:\t0\t0\t0\t0\n",
+        "snap/106/cmdline": {
+          "base64": "cHJvYzEwNgA="
+        },
+        "snap/107/stat": "107 (proc107) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1107 1048576 20\n",
+        "snap/107/status": "Name:\tproc107\nUid:\t0\t0\t0\t0\n",
+        "snap/107/cmdline": {
+          "base64": "cHJvYzEwNwA="
+        },
+        "snap/108/stat": "108 (proc108) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1108 1048576 20\n",
+        "snap/108/status": "Name:\tproc108\nUid:\t0\t0\t0\t0\n",
+        "snap/108/cmdline": {
+          "base64": "cHJvYzEwOAA="
+        },
+        "snap/109/stat": "109 (proc109) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1109 1048576 20\n",
+        "snap/109/status": "Name:\tproc109\nUid:\t0\t0\t0\t0\n",
+        "snap/109/cmdline": {
+          "base64": "cHJvYzEwOQA="
+        },
+        "snap/110/stat": "110 (proc110) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1110 1048576 20\n",
+        "snap/110/status": "Name:\tproc110\nUid:\t0\t0\t0\t0\n",
+        "snap/110/cmdline": {
+          "base64": "cHJvYzExMAA="
+        },
+        "snap/111/stat": "111 (proc111) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1111 1048576 20\n",
+        "snap/111/status": "Name:\tproc111\nUid:\t0\t0\t0\t0\n",
+        "snap/111/cmdline": {
+          "base64": "cHJvYzExMQA="
+        },
+        "snap/112/stat": "112 (proc112) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1112 1048576 20\n",
+        "snap/112/status": "Name:\tproc112\nUid:\t0\t0\t0\t0\n",
+        "snap/112/cmdline": {
+          "base64": "cHJvYzExMgA="
+        },
+        "snap/113/stat": "113 (proc113) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1113 1048576 20\n",
+        "snap/113/status": "Name:\tproc113\nUid:\t0\t0\t0\t0\n",
+        "snap/113/cmdline": {
+          "base64": "cHJvYzExMwA="
+        },
+        "snap/114/stat": "114 (proc114) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1114 1048576 20\n",
+        "snap/114/status": "Name:\tproc114\nUid:\t0\t0\t0\t0\n",
+        "snap/114/cmdline": {
+          "base64": "cHJvYzExNAA="
+        },
+        "snap/115/stat": "115 (proc115) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1115 1048576 20\n",
+        "snap/115/status": "Name:\tproc115\nUid:\t0\t0\t0\t0\n",
+        "snap/115/cmdline": {
+          "base64": "cHJvYzExNQA="
+        },
+        "snap/116/stat": "116 (proc116) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1116 1048576 20\n",
+        "snap/116/status": "Name:\tproc116\nUid:\t0\t0\t0\t0\n",
+        "snap/116/cmdline": {
+          "base64": "cHJvYzExNgA="
+        },
+        "snap/117/stat": "117 (proc117) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1117 1048576 20\n",
+        "snap/117/status": "Name:\tproc117\nUid:\t0\t0\t0\t0\n",
+        "snap/117/cmdline": {
+          "base64": "cHJvYzExNwA="
+        },
+        "snap/118/stat": "118 (proc118) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1118 1048576 20\n",
+        "snap/118/status": "Name:\tproc118\nUid:\t0\t0\t0\t0\n",
+        "snap/118/cmdline": {
+          "base64": "cHJvYzExOAA="
+        },
+        "snap/119/stat": "119 (proc119) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1119 1048576 20\n",
+        "snap/119/status": "Name:\tproc119\nUid:\t0\t0\t0\t0\n",
+        "snap/119/cmdline": {
+          "base64": "cHJvYzExOQA="
+        },
+        "snap/120/stat": "120 (proc120) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1120 1048576 20\n",
+        "snap/120/status": "Name:\tproc120\nUid:\t0\t0\t0\t0\n",
+        "snap/120/cmdline": {
+          "base64": "cHJvYzEyMAA="
+        },
+        "snap/121/stat": "121 (proc121) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1121 1048576 20\n",
+        "snap/121/status": "Name:\tproc121\nUid:\t0\t0\t0\t0\n",
+        "snap/121/cmdline": {
+          "base64": "cHJvYzEyMQA="
+        },
+        "snap/122/stat": "122 (proc122) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1122 1048576 20\n",
+        "snap/122/status": "Name:\tproc122\nUid:\t0\t0\t0\t0\n",
+        "snap/122/cmdline": {
+          "base64": "cHJvYzEyMgA="
+        },
+        "snap/123/stat": "123 (proc123) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1123 1048576 20\n",
+        "snap/123/status": "Name:\tproc123\nUid:\t0\t0\t0\t0\n",
+        "snap/123/cmdline": {
+          "base64": "cHJvYzEyMwA="
+        },
+        "snap/124/stat": "124 (proc124) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1124 1048576 20\n",
+        "snap/124/status": "Name:\tproc124\nUid:\t0\t0\t0\t0\n",
+        "snap/124/cmdline": {
+          "base64": "cHJvYzEyNAA="
+        },
+        "snap/125/stat": "125 (proc125) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1125 1048576 20\n",
+        "snap/125/status": "Name:\tproc125\nUid:\t0\t0\t0\t0\n",
+        "snap/125/cmdline": {
+          "base64": "cHJvYzEyNQA="
+        },
+        "snap/126/stat": "126 (proc126) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1126 1048576 20\n",
+        "snap/126/status": "Name:\tproc126\nUid:\t0\t0\t0\t0\n",
+        "snap/126/cmdline": {
+          "base64": "cHJvYzEyNgA="
+        },
+        "snap/127/stat": "127 (proc127) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1127 1048576 20\n",
+        "snap/127/status": "Name:\tproc127\nUid:\t0\t0\t0\t0\n",
+        "snap/127/cmdline": {
+          "base64": "cHJvYzEyNwA="
+        },
+        "snap/128/stat": "128 (proc128) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1128 1048576 20\n",
+        "snap/128/status": "Name:\tproc128\nUid:\t0\t0\t0\t0\n",
+        "snap/128/cmdline": {
+          "base64": "cHJvYzEyOAA="
+        },
+        "snap/129/stat": "129 (proc129) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1129 1048576 20\n",
+        "snap/129/status": "Name:\tproc129\nUid:\t0\t0\t0\t0\n",
+        "snap/129/cmdline": {
+          "base64": "cHJvYzEyOQA="
+        },
+        "snap/130/stat": "130 (proc130) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1130 1048576 20\n",
+        "snap/130/status": "Name:\tproc130\nUid:\t0\t0\t0\t0\n",
+        "snap/130/cmdline": {
+          "base64": "cHJvYzEzMAA="
+        },
+        "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"rows\": {\n          \"0\": \"top.*procs 30.*sort CPU\",\n          \"4\": \"^\\\\s*130\\\\s\"\n        }\n      }\n    },\n    {\n      \"send\": \"o\"\n    },\n    {\n      \"screen\": {\n        \"contains\": [\n          \"(?i)sort[^\\\\n]*:\"\n        ]\n      }\n    },\n    {\n      \"send\": \"mem\\r\"\n    },\n    {\n      \"screen\": {\n        \"rows\": {\n          \"0\": \"sort MEM\"\n        }\n      }\n    },\n    {\n      \"send\": \"q\"\n    }\n  ],\n  \"candidate_script\": \"/usr/bin/unshare --user --map-root-user --mount \\\"$BASH\\\" --noprofile --norc -c '/usr/bin/mount -n --bind \\\"$PWD/snap\\\" /proc || exit 91; top -d 2'\",\n  \"reference_script\": \"/usr/bin/unshare --user --map-root-user --mount \\\"$BASH\\\" --noprofile --norc -c '/usr/bin/mount -n --bind \\\"$PWD/snap\\\" /proc || exit 91; top -d 2'\",\n  \"expected_status\": 0,\n  \"timeout\": 23,\n  \"cleanup_base64\": \"cQ==\",\n  \"answer_queries\": false\n}\n"
+      },
+      "covers": [
+        "top/interactive-pty-contract"
+      ],
+      "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
+      "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence. A guarded owned PTY adapter runs the same ordered predicates, retains full live termios and events, and attempts only bounded cleanup after a failed step; later steps remain unexercised.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
+      "setup_timeout": 30,
+      "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
+      "stderr": "",
+      "helpers_sha256": {
+        "helpers/terra-local-terminal-pty-repair.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+      },
+      "diagnostic_files": [
+        "pty-repair-control.json",
+        "pty-repair.raw",
+        "pty-repair.json"
+      ]
+    },
+    {
+      "id": "migration-terra-local-terminal-top-ui-sort-prompt-invalid-r4",
+      "loadable": "top",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "O opens a sort prompt and rejects an invalid sort name.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py control\n",
+      "expected_status": 0,
+      "timeout": 28,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "python3"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/30 130\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (proc101) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 20\n",
+        "snap/101/status": "Name:\tproc101\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "cHJvYzEwMQA="
+        },
+        "snap/102/stat": "102 (proc102) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1102 1048576 20\n",
+        "snap/102/status": "Name:\tproc102\nUid:\t0\t0\t0\t0\n",
+        "snap/102/cmdline": {
+          "base64": "cHJvYzEwMgA="
+        },
+        "snap/103/stat": "103 (proc103) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1103 1048576 20\n",
+        "snap/103/status": "Name:\tproc103\nUid:\t0\t0\t0\t0\n",
+        "snap/103/cmdline": {
+          "base64": "cHJvYzEwMwA="
+        },
+        "snap/104/stat": "104 (proc104) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1104 1048576 20\n",
+        "snap/104/status": "Name:\tproc104\nUid:\t0\t0\t0\t0\n",
+        "snap/104/cmdline": {
+          "base64": "cHJvYzEwNAA="
+        },
+        "snap/105/stat": "105 (proc105) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1105 1048576 20\n",
+        "snap/105/status": "Name:\tproc105\nUid:\t0\t0\t0\t0\n",
+        "snap/105/cmdline": {
+          "base64": "cHJvYzEwNQA="
+        },
+        "snap/106/stat": "106 (proc106) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1106 1048576 20\n",
+        "snap/106/status": "Name:\tproc106\nUid:\t0\t0\t0\t0\n",
+        "snap/106/cmdline": {
+          "base64": "cHJvYzEwNgA="
+        },
+        "snap/107/stat": "107 (proc107) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1107 1048576 20\n",
+        "snap/107/status": "Name:\tproc107\nUid:\t0\t0\t0\t0\n",
+        "snap/107/cmdline": {
+          "base64": "cHJvYzEwNwA="
+        },
+        "snap/108/stat": "108 (proc108) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1108 1048576 20\n",
+        "snap/108/status": "Name:\tproc108\nUid:\t0\t0\t0\t0\n",
+        "snap/108/cmdline": {
+          "base64": "cHJvYzEwOAA="
+        },
+        "snap/109/stat": "109 (proc109) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1109 1048576 20\n",
+        "snap/109/status": "Name:\tproc109\nUid:\t0\t0\t0\t0\n",
+        "snap/109/cmdline": {
+          "base64": "cHJvYzEwOQA="
+        },
+        "snap/110/stat": "110 (proc110) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1110 1048576 20\n",
+        "snap/110/status": "Name:\tproc110\nUid:\t0\t0\t0\t0\n",
+        "snap/110/cmdline": {
+          "base64": "cHJvYzExMAA="
+        },
+        "snap/111/stat": "111 (proc111) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1111 1048576 20\n",
+        "snap/111/status": "Name:\tproc111\nUid:\t0\t0\t0\t0\n",
+        "snap/111/cmdline": {
+          "base64": "cHJvYzExMQA="
+        },
+        "snap/112/stat": "112 (proc112) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1112 1048576 20\n",
+        "snap/112/status": "Name:\tproc112\nUid:\t0\t0\t0\t0\n",
+        "snap/112/cmdline": {
+          "base64": "cHJvYzExMgA="
+        },
+        "snap/113/stat": "113 (proc113) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1113 1048576 20\n",
+        "snap/113/status": "Name:\tproc113\nUid:\t0\t0\t0\t0\n",
+        "snap/113/cmdline": {
+          "base64": "cHJvYzExMwA="
+        },
+        "snap/114/stat": "114 (proc114) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1114 1048576 20\n",
+        "snap/114/status": "Name:\tproc114\nUid:\t0\t0\t0\t0\n",
+        "snap/114/cmdline": {
+          "base64": "cHJvYzExNAA="
+        },
+        "snap/115/stat": "115 (proc115) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1115 1048576 20\n",
+        "snap/115/status": "Name:\tproc115\nUid:\t0\t0\t0\t0\n",
+        "snap/115/cmdline": {
+          "base64": "cHJvYzExNQA="
+        },
+        "snap/116/stat": "116 (proc116) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1116 1048576 20\n",
+        "snap/116/status": "Name:\tproc116\nUid:\t0\t0\t0\t0\n",
+        "snap/116/cmdline": {
+          "base64": "cHJvYzExNgA="
+        },
+        "snap/117/stat": "117 (proc117) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1117 1048576 20\n",
+        "snap/117/status": "Name:\tproc117\nUid:\t0\t0\t0\t0\n",
+        "snap/117/cmdline": {
+          "base64": "cHJvYzExNwA="
+        },
+        "snap/118/stat": "118 (proc118) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1118 1048576 20\n",
+        "snap/118/status": "Name:\tproc118\nUid:\t0\t0\t0\t0\n",
+        "snap/118/cmdline": {
+          "base64": "cHJvYzExOAA="
+        },
+        "snap/119/stat": "119 (proc119) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1119 1048576 20\n",
+        "snap/119/status": "Name:\tproc119\nUid:\t0\t0\t0\t0\n",
+        "snap/119/cmdline": {
+          "base64": "cHJvYzExOQA="
+        },
+        "snap/120/stat": "120 (proc120) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1120 1048576 20\n",
+        "snap/120/status": "Name:\tproc120\nUid:\t0\t0\t0\t0\n",
+        "snap/120/cmdline": {
+          "base64": "cHJvYzEyMAA="
+        },
+        "snap/121/stat": "121 (proc121) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1121 1048576 20\n",
+        "snap/121/status": "Name:\tproc121\nUid:\t0\t0\t0\t0\n",
+        "snap/121/cmdline": {
+          "base64": "cHJvYzEyMQA="
+        },
+        "snap/122/stat": "122 (proc122) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1122 1048576 20\n",
+        "snap/122/status": "Name:\tproc122\nUid:\t0\t0\t0\t0\n",
+        "snap/122/cmdline": {
+          "base64": "cHJvYzEyMgA="
+        },
+        "snap/123/stat": "123 (proc123) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1123 1048576 20\n",
+        "snap/123/status": "Name:\tproc123\nUid:\t0\t0\t0\t0\n",
+        "snap/123/cmdline": {
+          "base64": "cHJvYzEyMwA="
+        },
+        "snap/124/stat": "124 (proc124) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1124 1048576 20\n",
+        "snap/124/status": "Name:\tproc124\nUid:\t0\t0\t0\t0\n",
+        "snap/124/cmdline": {
+          "base64": "cHJvYzEyNAA="
+        },
+        "snap/125/stat": "125 (proc125) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1125 1048576 20\n",
+        "snap/125/status": "Name:\tproc125\nUid:\t0\t0\t0\t0\n",
+        "snap/125/cmdline": {
+          "base64": "cHJvYzEyNQA="
+        },
+        "snap/126/stat": "126 (proc126) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1126 1048576 20\n",
+        "snap/126/status": "Name:\tproc126\nUid:\t0\t0\t0\t0\n",
+        "snap/126/cmdline": {
+          "base64": "cHJvYzEyNgA="
+        },
+        "snap/127/stat": "127 (proc127) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1127 1048576 20\n",
+        "snap/127/status": "Name:\tproc127\nUid:\t0\t0\t0\t0\n",
+        "snap/127/cmdline": {
+          "base64": "cHJvYzEyNwA="
+        },
+        "snap/128/stat": "128 (proc128) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1128 1048576 20\n",
+        "snap/128/status": "Name:\tproc128\nUid:\t0\t0\t0\t0\n",
+        "snap/128/cmdline": {
+          "base64": "cHJvYzEyOAA="
+        },
+        "snap/129/stat": "129 (proc129) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1129 1048576 20\n",
+        "snap/129/status": "Name:\tproc129\nUid:\t0\t0\t0\t0\n",
+        "snap/129/cmdline": {
+          "base64": "cHJvYzEyOQA="
+        },
+        "snap/130/stat": "130 (proc130) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1130 1048576 20\n",
+        "snap/130/status": "Name:\tproc130\nUid:\t0\t0\t0\t0\n",
+        "snap/130/cmdline": {
+          "base64": "cHJvYzEzMAA="
+        },
+        "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"rows\": {\n          \"0\": \"top.*procs 30.*sort CPU\",\n          \"4\": \"^\\\\s*130\\\\s\"\n        }\n      }\n    },\n    {\n      \"send\": \"O\"\n    },\n    {\n      \"screen\": {\n        \"contains\": [\n          \"(?i)sort[^\\\\n]*:\"\n        ]\n      }\n    },\n    {\n      \"send\": \"bogus\\r\"\n    },\n    {\n      \"screen\": {\n        \"contains\": [\n          \"(?i)invalid.*sort\"\n        ]\n      }\n    },\n    {\n      \"send\": \"q\"\n    }\n  ],\n  \"candidate_script\": \"/usr/bin/unshare --user --map-root-user --mount \\\"$BASH\\\" --noprofile --norc -c '/usr/bin/mount -n --bind \\\"$PWD/snap\\\" /proc || exit 91; top -d 2'\",\n  \"reference_script\": \"/usr/bin/unshare --user --map-root-user --mount \\\"$BASH\\\" --noprofile --norc -c '/usr/bin/mount -n --bind \\\"$PWD/snap\\\" /proc || exit 91; top -d 2'\",\n  \"expected_status\": 0,\n  \"timeout\": 23,\n  \"cleanup_base64\": \"cQ==\",\n  \"answer_queries\": false\n}\n"
+      },
+      "covers": [
+        "top/interactive-pty-contract"
+      ],
+      "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
+      "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence. A guarded owned PTY adapter runs the same ordered predicates, retains full live termios and events, and attempts only bounded cleanup after a failed step; later steps remain unexercised.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
+      "setup_timeout": 30,
+      "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
+      "stderr": "",
+      "helpers_sha256": {
+        "helpers/terra-local-terminal-pty-repair.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+      },
+      "diagnostic_files": [
+        "pty-repair-control.json",
+        "pty-repair.raw",
+        "pty-repair.json"
+      ]
+    },
+    {
+      "id": "migration-terra-local-terminal-top-ui-scroll-down",
+      "loadable": "top",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Down scrolls the process window by one row.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; top -d 2'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "top.*procs 30.*sort CPU",
+              "4": "^\\s*130\\s"
+            }
+          }
+        },
+        {
+          "key": "down"
+        },
+        {
+          "screen": {
+            "rows": {
+              "4": "^\\s*129\\s"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 20,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/30 130\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (proc101) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 20\n",
+        "snap/101/status": "Name:\tproc101\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "cHJvYzEwMQA="
+        },
+        "snap/102/stat": "102 (proc102) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1102 1048576 20\n",
+        "snap/102/status": "Name:\tproc102\nUid:\t0\t0\t0\t0\n",
+        "snap/102/cmdline": {
+          "base64": "cHJvYzEwMgA="
+        },
+        "snap/103/stat": "103 (proc103) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1103 1048576 20\n",
+        "snap/103/status": "Name:\tproc103\nUid:\t0\t0\t0\t0\n",
+        "snap/103/cmdline": {
+          "base64": "cHJvYzEwMwA="
+        },
+        "snap/104/stat": "104 (proc104) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1104 1048576 20\n",
+        "snap/104/status": "Name:\tproc104\nUid:\t0\t0\t0\t0\n",
+        "snap/104/cmdline": {
+          "base64": "cHJvYzEwNAA="
+        },
+        "snap/105/stat": "105 (proc105) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1105 1048576 20\n",
+        "snap/105/status": "Name:\tproc105\nUid:\t0\t0\t0\t0\n",
+        "snap/105/cmdline": {
+          "base64": "cHJvYzEwNQA="
+        },
+        "snap/106/stat": "106 (proc106) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1106 1048576 20\n",
+        "snap/106/status": "Name:\tproc106\nUid:\t0\t0\t0\t0\n",
+        "snap/106/cmdline": {
+          "base64": "cHJvYzEwNgA="
+        },
+        "snap/107/stat": "107 (proc107) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1107 1048576 20\n",
+        "snap/107/status": "Name:\tproc107\nUid:\t0\t0\t0\t0\n",
+        "snap/107/cmdline": {
+          "base64": "cHJvYzEwNwA="
+        },
+        "snap/108/stat": "108 (proc108) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1108 1048576 20\n",
+        "snap/108/status": "Name:\tproc108\nUid:\t0\t0\t0\t0\n",
+        "snap/108/cmdline": {
+          "base64": "cHJvYzEwOAA="
+        },
+        "snap/109/stat": "109 (proc109) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1109 1048576 20\n",
+        "snap/109/status": "Name:\tproc109\nUid:\t0\t0\t0\t0\n",
+        "snap/109/cmdline": {
+          "base64": "cHJvYzEwOQA="
+        },
+        "snap/110/stat": "110 (proc110) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1110 1048576 20\n",
+        "snap/110/status": "Name:\tproc110\nUid:\t0\t0\t0\t0\n",
+        "snap/110/cmdline": {
+          "base64": "cHJvYzExMAA="
+        },
+        "snap/111/stat": "111 (proc111) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1111 1048576 20\n",
+        "snap/111/status": "Name:\tproc111\nUid:\t0\t0\t0\t0\n",
+        "snap/111/cmdline": {
+          "base64": "cHJvYzExMQA="
+        },
+        "snap/112/stat": "112 (proc112) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1112 1048576 20\n",
+        "snap/112/status": "Name:\tproc112\nUid:\t0\t0\t0\t0\n",
+        "snap/112/cmdline": {
+          "base64": "cHJvYzExMgA="
+        },
+        "snap/113/stat": "113 (proc113) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1113 1048576 20\n",
+        "snap/113/status": "Name:\tproc113\nUid:\t0\t0\t0\t0\n",
+        "snap/113/cmdline": {
+          "base64": "cHJvYzExMwA="
+        },
+        "snap/114/stat": "114 (proc114) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1114 1048576 20\n",
+        "snap/114/status": "Name:\tproc114\nUid:\t0\t0\t0\t0\n",
+        "snap/114/cmdline": {
+          "base64": "cHJvYzExNAA="
+        },
+        "snap/115/stat": "115 (proc115) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1115 1048576 20\n",
+        "snap/115/status": "Name:\tproc115\nUid:\t0\t0\t0\t0\n",
+        "snap/115/cmdline": {
+          "base64": "cHJvYzExNQA="
+        },
+        "snap/116/stat": "116 (proc116) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1116 1048576 20\n",
+        "snap/116/status": "Name:\tproc116\nUid:\t0\t0\t0\t0\n",
+        "snap/116/cmdline": {
+          "base64": "cHJvYzExNgA="
+        },
+        "snap/117/stat": "117 (proc117) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1117 1048576 20\n",
+        "snap/117/status": "Name:\tproc117\nUid:\t0\t0\t0\t0\n",
+        "snap/117/cmdline": {
+          "base64": "cHJvYzExNwA="
+        },
+        "snap/118/stat": "118 (proc118) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1118 1048576 20\n",
+        "snap/118/status": "Name:\tproc118\nUid:\t0\t0\t0\t0\n",
+        "snap/118/cmdline": {
+          "base64": "cHJvYzExOAA="
+        },
+        "snap/119/stat": "119 (proc119) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1119 1048576 20\n",
+        "snap/119/status": "Name:\tproc119\nUid:\t0\t0\t0\t0\n",
+        "snap/119/cmdline": {
+          "base64": "cHJvYzExOQA="
+        },
+        "snap/120/stat": "120 (proc120) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1120 1048576 20\n",
+        "snap/120/status": "Name:\tproc120\nUid:\t0\t0\t0\t0\n",
+        "snap/120/cmdline": {
+          "base64": "cHJvYzEyMAA="
+        },
+        "snap/121/stat": "121 (proc121) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1121 1048576 20\n",
+        "snap/121/status": "Name:\tproc121\nUid:\t0\t0\t0\t0\n",
+        "snap/121/cmdline": {
+          "base64": "cHJvYzEyMQA="
+        },
+        "snap/122/stat": "122 (proc122) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1122 1048576 20\n",
+        "snap/122/status": "Name:\tproc122\nUid:\t0\t0\t0\t0\n",
+        "snap/122/cmdline": {
+          "base64": "cHJvYzEyMgA="
+        },
+        "snap/123/stat": "123 (proc123) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1123 1048576 20\n",
+        "snap/123/status": "Name:\tproc123\nUid:\t0\t0\t0\t0\n",
+        "snap/123/cmdline": {
+          "base64": "cHJvYzEyMwA="
+        },
+        "snap/124/stat": "124 (proc124) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1124 1048576 20\n",
+        "snap/124/status": "Name:\tproc124\nUid:\t0\t0\t0\t0\n",
+        "snap/124/cmdline": {
+          "base64": "cHJvYzEyNAA="
+        },
+        "snap/125/stat": "125 (proc125) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1125 1048576 20\n",
+        "snap/125/status": "Name:\tproc125\nUid:\t0\t0\t0\t0\n",
+        "snap/125/cmdline": {
+          "base64": "cHJvYzEyNQA="
+        },
+        "snap/126/stat": "126 (proc126) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1126 1048576 20\n",
+        "snap/126/status": "Name:\tproc126\nUid:\t0\t0\t0\t0\n",
+        "snap/126/cmdline": {
+          "base64": "cHJvYzEyNgA="
+        },
+        "snap/127/stat": "127 (proc127) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1127 1048576 20\n",
+        "snap/127/status": "Name:\tproc127\nUid:\t0\t0\t0\t0\n",
+        "snap/127/cmdline": {
+          "base64": "cHJvYzEyNwA="
+        },
+        "snap/128/stat": "128 (proc128) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1128 1048576 20\n",
+        "snap/128/status": "Name:\tproc128\nUid:\t0\t0\t0\t0\n",
+        "snap/128/cmdline": {
+          "base64": "cHJvYzEyOAA="
+        },
+        "snap/129/stat": "129 (proc129) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1129 1048576 20\n",
+        "snap/129/status": "Name:\tproc129\nUid:\t0\t0\t0\t0\n",
+        "snap/129/cmdline": {
+          "base64": "cHJvYzEyOQA="
+        },
+        "snap/130/stat": "130 (proc130) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1130 1048576 20\n",
+        "snap/130/status": "Name:\tproc130\nUid:\t0\t0\t0\t0\n",
+        "snap/130/cmdline": {
+          "base64": "cHJvYzEzMAA="
+        }
+      },
+      "covers": [
+        "top/interactive-pty-contract"
+      ],
+      "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
+      "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence."
+    },
+    {
+      "id": "migration-terra-local-terminal-top-ui-scroll-page",
+      "loadable": "top",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "PageDown moves beyond the initial first process.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; top -d 2'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "top.*procs 30.*sort CPU",
+              "4": "^\\s*130\\s"
+            }
+          }
+        },
+        {
+          "key": "page_down"
+        },
+        {
+          "screen": {
+            "rows": {
+              "4": "^\\s*111\\s"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 20,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/30 130\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (proc101) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 20\n",
+        "snap/101/status": "Name:\tproc101\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "cHJvYzEwMQA="
+        },
+        "snap/102/stat": "102 (proc102) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1102 1048576 20\n",
+        "snap/102/status": "Name:\tproc102\nUid:\t0\t0\t0\t0\n",
+        "snap/102/cmdline": {
+          "base64": "cHJvYzEwMgA="
+        },
+        "snap/103/stat": "103 (proc103) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1103 1048576 20\n",
+        "snap/103/status": "Name:\tproc103\nUid:\t0\t0\t0\t0\n",
+        "snap/103/cmdline": {
+          "base64": "cHJvYzEwMwA="
+        },
+        "snap/104/stat": "104 (proc104) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1104 1048576 20\n",
+        "snap/104/status": "Name:\tproc104\nUid:\t0\t0\t0\t0\n",
+        "snap/104/cmdline": {
+          "base64": "cHJvYzEwNAA="
+        },
+        "snap/105/stat": "105 (proc105) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1105 1048576 20\n",
+        "snap/105/status": "Name:\tproc105\nUid:\t0\t0\t0\t0\n",
+        "snap/105/cmdline": {
+          "base64": "cHJvYzEwNQA="
+        },
+        "snap/106/stat": "106 (proc106) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1106 1048576 20\n",
+        "snap/106/status": "Name:\tproc106\nUid:\t0\t0\t0\t0\n",
+        "snap/106/cmdline": {
+          "base64": "cHJvYzEwNgA="
+        },
+        "snap/107/stat": "107 (proc107) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1107 1048576 20\n",
+        "snap/107/status": "Name:\tproc107\nUid:\t0\t0\t0\t0\n",
+        "snap/107/cmdline": {
+          "base64": "cHJvYzEwNwA="
+        },
+        "snap/108/stat": "108 (proc108) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1108 1048576 20\n",
+        "snap/108/status": "Name:\tproc108\nUid:\t0\t0\t0\t0\n",
+        "snap/108/cmdline": {
+          "base64": "cHJvYzEwOAA="
+        },
+        "snap/109/stat": "109 (proc109) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1109 1048576 20\n",
+        "snap/109/status": "Name:\tproc109\nUid:\t0\t0\t0\t0\n",
+        "snap/109/cmdline": {
+          "base64": "cHJvYzEwOQA="
+        },
+        "snap/110/stat": "110 (proc110) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1110 1048576 20\n",
+        "snap/110/status": "Name:\tproc110\nUid:\t0\t0\t0\t0\n",
+        "snap/110/cmdline": {
+          "base64": "cHJvYzExMAA="
+        },
+        "snap/111/stat": "111 (proc111) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1111 1048576 20\n",
+        "snap/111/status": "Name:\tproc111\nUid:\t0\t0\t0\t0\n",
+        "snap/111/cmdline": {
+          "base64": "cHJvYzExMQA="
+        },
+        "snap/112/stat": "112 (proc112) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1112 1048576 20\n",
+        "snap/112/status": "Name:\tproc112\nUid:\t0\t0\t0\t0\n",
+        "snap/112/cmdline": {
+          "base64": "cHJvYzExMgA="
+        },
+        "snap/113/stat": "113 (proc113) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1113 1048576 20\n",
+        "snap/113/status": "Name:\tproc113\nUid:\t0\t0\t0\t0\n",
+        "snap/113/cmdline": {
+          "base64": "cHJvYzExMwA="
+        },
+        "snap/114/stat": "114 (proc114) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1114 1048576 20\n",
+        "snap/114/status": "Name:\tproc114\nUid:\t0\t0\t0\t0\n",
+        "snap/114/cmdline": {
+          "base64": "cHJvYzExNAA="
+        },
+        "snap/115/stat": "115 (proc115) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1115 1048576 20\n",
+        "snap/115/status": "Name:\tproc115\nUid:\t0\t0\t0\t0\n",
+        "snap/115/cmdline": {
+          "base64": "cHJvYzExNQA="
+        },
+        "snap/116/stat": "116 (proc116) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1116 1048576 20\n",
+        "snap/116/status": "Name:\tproc116\nUid:\t0\t0\t0\t0\n",
+        "snap/116/cmdline": {
+          "base64": "cHJvYzExNgA="
+        },
+        "snap/117/stat": "117 (proc117) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1117 1048576 20\n",
+        "snap/117/status": "Name:\tproc117\nUid:\t0\t0\t0\t0\n",
+        "snap/117/cmdline": {
+          "base64": "cHJvYzExNwA="
+        },
+        "snap/118/stat": "118 (proc118) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1118 1048576 20\n",
+        "snap/118/status": "Name:\tproc118\nUid:\t0\t0\t0\t0\n",
+        "snap/118/cmdline": {
+          "base64": "cHJvYzExOAA="
+        },
+        "snap/119/stat": "119 (proc119) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1119 1048576 20\n",
+        "snap/119/status": "Name:\tproc119\nUid:\t0\t0\t0\t0\n",
+        "snap/119/cmdline": {
+          "base64": "cHJvYzExOQA="
+        },
+        "snap/120/stat": "120 (proc120) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1120 1048576 20\n",
+        "snap/120/status": "Name:\tproc120\nUid:\t0\t0\t0\t0\n",
+        "snap/120/cmdline": {
+          "base64": "cHJvYzEyMAA="
+        },
+        "snap/121/stat": "121 (proc121) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1121 1048576 20\n",
+        "snap/121/status": "Name:\tproc121\nUid:\t0\t0\t0\t0\n",
+        "snap/121/cmdline": {
+          "base64": "cHJvYzEyMQA="
+        },
+        "snap/122/stat": "122 (proc122) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1122 1048576 20\n",
+        "snap/122/status": "Name:\tproc122\nUid:\t0\t0\t0\t0\n",
+        "snap/122/cmdline": {
+          "base64": "cHJvYzEyMgA="
+        },
+        "snap/123/stat": "123 (proc123) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1123 1048576 20\n",
+        "snap/123/status": "Name:\tproc123\nUid:\t0\t0\t0\t0\n",
+        "snap/123/cmdline": {
+          "base64": "cHJvYzEyMwA="
+        },
+        "snap/124/stat": "124 (proc124) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1124 1048576 20\n",
+        "snap/124/status": "Name:\tproc124\nUid:\t0\t0\t0\t0\n",
+        "snap/124/cmdline": {
+          "base64": "cHJvYzEyNAA="
+        },
+        "snap/125/stat": "125 (proc125) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1125 1048576 20\n",
+        "snap/125/status": "Name:\tproc125\nUid:\t0\t0\t0\t0\n",
+        "snap/125/cmdline": {
+          "base64": "cHJvYzEyNQA="
+        },
+        "snap/126/stat": "126 (proc126) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1126 1048576 20\n",
+        "snap/126/status": "Name:\tproc126\nUid:\t0\t0\t0\t0\n",
+        "snap/126/cmdline": {
+          "base64": "cHJvYzEyNgA="
+        },
+        "snap/127/stat": "127 (proc127) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1127 1048576 20\n",
+        "snap/127/status": "Name:\tproc127\nUid:\t0\t0\t0\t0\n",
+        "snap/127/cmdline": {
+          "base64": "cHJvYzEyNwA="
+        },
+        "snap/128/stat": "128 (proc128) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1128 1048576 20\n",
+        "snap/128/status": "Name:\tproc128\nUid:\t0\t0\t0\t0\n",
+        "snap/128/cmdline": {
+          "base64": "cHJvYzEyOAA="
+        },
+        "snap/129/stat": "129 (proc129) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1129 1048576 20\n",
+        "snap/129/status": "Name:\tproc129\nUid:\t0\t0\t0\t0\n",
+        "snap/129/cmdline": {
+          "base64": "cHJvYzEyOQA="
+        },
+        "snap/130/stat": "130 (proc130) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1130 1048576 20\n",
+        "snap/130/status": "Name:\tproc130\nUid:\t0\t0\t0\t0\n",
+        "snap/130/cmdline": {
+          "base64": "cHJvYzEzMAA="
+        }
+      },
+      "covers": [
+        "top/interactive-pty-contract"
+      ],
+      "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
+      "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence."
+    },
+    {
+      "id": "migration-terra-local-terminal-top-ui-scroll-up",
+      "loadable": "top",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "After Down, Up restores the first process.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; top -d 2'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "top.*procs 30.*sort CPU",
+              "4": "^\\s*130\\s"
+            }
+          }
+        },
+        {
+          "key": "down"
+        },
+        {
+          "screen": {
+            "rows": {
+              "4": "^\\s*129\\s"
+            }
+          }
+        },
+        {
+          "key": "up"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "top.*procs 30.*sort CPU",
+              "4": "^\\s*130\\s"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 20,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/30 130\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (proc101) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 20\n",
+        "snap/101/status": "Name:\tproc101\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "cHJvYzEwMQA="
+        },
+        "snap/102/stat": "102 (proc102) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1102 1048576 20\n",
+        "snap/102/status": "Name:\tproc102\nUid:\t0\t0\t0\t0\n",
+        "snap/102/cmdline": {
+          "base64": "cHJvYzEwMgA="
+        },
+        "snap/103/stat": "103 (proc103) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1103 1048576 20\n",
+        "snap/103/status": "Name:\tproc103\nUid:\t0\t0\t0\t0\n",
+        "snap/103/cmdline": {
+          "base64": "cHJvYzEwMwA="
+        },
+        "snap/104/stat": "104 (proc104) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1104 1048576 20\n",
+        "snap/104/status": "Name:\tproc104\nUid:\t0\t0\t0\t0\n",
+        "snap/104/cmdline": {
+          "base64": "cHJvYzEwNAA="
+        },
+        "snap/105/stat": "105 (proc105) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1105 1048576 20\n",
+        "snap/105/status": "Name:\tproc105\nUid:\t0\t0\t0\t0\n",
+        "snap/105/cmdline": {
+          "base64": "cHJvYzEwNQA="
+        },
+        "snap/106/stat": "106 (proc106) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1106 1048576 20\n",
+        "snap/106/status": "Name:\tproc106\nUid:\t0\t0\t0\t0\n",
+        "snap/106/cmdline": {
+          "base64": "cHJvYzEwNgA="
+        },
+        "snap/107/stat": "107 (proc107) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1107 1048576 20\n",
+        "snap/107/status": "Name:\tproc107\nUid:\t0\t0\t0\t0\n",
+        "snap/107/cmdline": {
+          "base64": "cHJvYzEwNwA="
+        },
+        "snap/108/stat": "108 (proc108) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1108 1048576 20\n",
+        "snap/108/status": "Name:\tproc108\nUid:\t0\t0\t0\t0\n",
+        "snap/108/cmdline": {
+          "base64": "cHJvYzEwOAA="
+        },
+        "snap/109/stat": "109 (proc109) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1109 1048576 20\n",
+        "snap/109/status": "Name:\tproc109\nUid:\t0\t0\t0\t0\n",
+        "snap/109/cmdline": {
+          "base64": "cHJvYzEwOQA="
+        },
+        "snap/110/stat": "110 (proc110) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1110 1048576 20\n",
+        "snap/110/status": "Name:\tproc110\nUid:\t0\t0\t0\t0\n",
+        "snap/110/cmdline": {
+          "base64": "cHJvYzExMAA="
+        },
+        "snap/111/stat": "111 (proc111) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1111 1048576 20\n",
+        "snap/111/status": "Name:\tproc111\nUid:\t0\t0\t0\t0\n",
+        "snap/111/cmdline": {
+          "base64": "cHJvYzExMQA="
+        },
+        "snap/112/stat": "112 (proc112) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1112 1048576 20\n",
+        "snap/112/status": "Name:\tproc112\nUid:\t0\t0\t0\t0\n",
+        "snap/112/cmdline": {
+          "base64": "cHJvYzExMgA="
+        },
+        "snap/113/stat": "113 (proc113) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1113 1048576 20\n",
+        "snap/113/status": "Name:\tproc113\nUid:\t0\t0\t0\t0\n",
+        "snap/113/cmdline": {
+          "base64": "cHJvYzExMwA="
+        },
+        "snap/114/stat": "114 (proc114) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1114 1048576 20\n",
+        "snap/114/status": "Name:\tproc114\nUid:\t0\t0\t0\t0\n",
+        "snap/114/cmdline": {
+          "base64": "cHJvYzExNAA="
+        },
+        "snap/115/stat": "115 (proc115) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1115 1048576 20\n",
+        "snap/115/status": "Name:\tproc115\nUid:\t0\t0\t0\t0\n",
+        "snap/115/cmdline": {
+          "base64": "cHJvYzExNQA="
+        },
+        "snap/116/stat": "116 (proc116) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1116 1048576 20\n",
+        "snap/116/status": "Name:\tproc116\nUid:\t0\t0\t0\t0\n",
+        "snap/116/cmdline": {
+          "base64": "cHJvYzExNgA="
+        },
+        "snap/117/stat": "117 (proc117) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1117 1048576 20\n",
+        "snap/117/status": "Name:\tproc117\nUid:\t0\t0\t0\t0\n",
+        "snap/117/cmdline": {
+          "base64": "cHJvYzExNwA="
+        },
+        "snap/118/stat": "118 (proc118) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1118 1048576 20\n",
+        "snap/118/status": "Name:\tproc118\nUid:\t0\t0\t0\t0\n",
+        "snap/118/cmdline": {
+          "base64": "cHJvYzExOAA="
+        },
+        "snap/119/stat": "119 (proc119) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1119 1048576 20\n",
+        "snap/119/status": "Name:\tproc119\nUid:\t0\t0\t0\t0\n",
+        "snap/119/cmdline": {
+          "base64": "cHJvYzExOQA="
+        },
+        "snap/120/stat": "120 (proc120) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1120 1048576 20\n",
+        "snap/120/status": "Name:\tproc120\nUid:\t0\t0\t0\t0\n",
+        "snap/120/cmdline": {
+          "base64": "cHJvYzEyMAA="
+        },
+        "snap/121/stat": "121 (proc121) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1121 1048576 20\n",
+        "snap/121/status": "Name:\tproc121\nUid:\t0\t0\t0\t0\n",
+        "snap/121/cmdline": {
+          "base64": "cHJvYzEyMQA="
+        },
+        "snap/122/stat": "122 (proc122) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1122 1048576 20\n",
+        "snap/122/status": "Name:\tproc122\nUid:\t0\t0\t0\t0\n",
+        "snap/122/cmdline": {
+          "base64": "cHJvYzEyMgA="
+        },
+        "snap/123/stat": "123 (proc123) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1123 1048576 20\n",
+        "snap/123/status": "Name:\tproc123\nUid:\t0\t0\t0\t0\n",
+        "snap/123/cmdline": {
+          "base64": "cHJvYzEyMwA="
+        },
+        "snap/124/stat": "124 (proc124) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1124 1048576 20\n",
+        "snap/124/status": "Name:\tproc124\nUid:\t0\t0\t0\t0\n",
+        "snap/124/cmdline": {
+          "base64": "cHJvYzEyNAA="
+        },
+        "snap/125/stat": "125 (proc125) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1125 1048576 20\n",
+        "snap/125/status": "Name:\tproc125\nUid:\t0\t0\t0\t0\n",
+        "snap/125/cmdline": {
+          "base64": "cHJvYzEyNQA="
+        },
+        "snap/126/stat": "126 (proc126) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1126 1048576 20\n",
+        "snap/126/status": "Name:\tproc126\nUid:\t0\t0\t0\t0\n",
+        "snap/126/cmdline": {
+          "base64": "cHJvYzEyNgA="
+        },
+        "snap/127/stat": "127 (proc127) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1127 1048576 20\n",
+        "snap/127/status": "Name:\tproc127\nUid:\t0\t0\t0\t0\n",
+        "snap/127/cmdline": {
+          "base64": "cHJvYzEyNwA="
+        },
+        "snap/128/stat": "128 (proc128) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1128 1048576 20\n",
+        "snap/128/status": "Name:\tproc128\nUid:\t0\t0\t0\t0\n",
+        "snap/128/cmdline": {
+          "base64": "cHJvYzEyOAA="
+        },
+        "snap/129/stat": "129 (proc129) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1129 1048576 20\n",
+        "snap/129/status": "Name:\tproc129\nUid:\t0\t0\t0\t0\n",
+        "snap/129/cmdline": {
+          "base64": "cHJvYzEyOQA="
+        },
+        "snap/130/stat": "130 (proc130) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1130 1048576 20\n",
+        "snap/130/status": "Name:\tproc130\nUid:\t0\t0\t0\t0\n",
+        "snap/130/cmdline": {
+          "base64": "cHJvYzEzMAA="
+        }
+      },
+      "covers": [
+        "top/interactive-pty-contract"
+      ],
+      "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
+      "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence."
+    },
+    {
+      "id": "migration-terra-local-terminal-top-ui-scroll-page-up",
+      "loadable": "top",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "After PageDown, PageUp returns to the first process.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; top -d 2'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "top.*procs 30.*sort CPU",
+              "4": "^\\s*130\\s"
+            }
+          }
+        },
+        {
+          "key": "page_down"
+        },
+        {
+          "screen": {
+            "rows": {
+              "4": "^\\s*111\\s"
+            }
+          }
+        },
+        {
+          "key": "page_up"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "top.*procs 30.*sort CPU",
+              "4": "^\\s*130\\s"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 20,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/30 130\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (proc101) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 20\n",
+        "snap/101/status": "Name:\tproc101\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "cHJvYzEwMQA="
+        },
+        "snap/102/stat": "102 (proc102) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1102 1048576 20\n",
+        "snap/102/status": "Name:\tproc102\nUid:\t0\t0\t0\t0\n",
+        "snap/102/cmdline": {
+          "base64": "cHJvYzEwMgA="
+        },
+        "snap/103/stat": "103 (proc103) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1103 1048576 20\n",
+        "snap/103/status": "Name:\tproc103\nUid:\t0\t0\t0\t0\n",
+        "snap/103/cmdline": {
+          "base64": "cHJvYzEwMwA="
+        },
+        "snap/104/stat": "104 (proc104) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1104 1048576 20\n",
+        "snap/104/status": "Name:\tproc104\nUid:\t0\t0\t0\t0\n",
+        "snap/104/cmdline": {
+          "base64": "cHJvYzEwNAA="
+        },
+        "snap/105/stat": "105 (proc105) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1105 1048576 20\n",
+        "snap/105/status": "Name:\tproc105\nUid:\t0\t0\t0\t0\n",
+        "snap/105/cmdline": {
+          "base64": "cHJvYzEwNQA="
+        },
+        "snap/106/stat": "106 (proc106) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1106 1048576 20\n",
+        "snap/106/status": "Name:\tproc106\nUid:\t0\t0\t0\t0\n",
+        "snap/106/cmdline": {
+          "base64": "cHJvYzEwNgA="
+        },
+        "snap/107/stat": "107 (proc107) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1107 1048576 20\n",
+        "snap/107/status": "Name:\tproc107\nUid:\t0\t0\t0\t0\n",
+        "snap/107/cmdline": {
+          "base64": "cHJvYzEwNwA="
+        },
+        "snap/108/stat": "108 (proc108) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1108 1048576 20\n",
+        "snap/108/status": "Name:\tproc108\nUid:\t0\t0\t0\t0\n",
+        "snap/108/cmdline": {
+          "base64": "cHJvYzEwOAA="
+        },
+        "snap/109/stat": "109 (proc109) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1109 1048576 20\n",
+        "snap/109/status": "Name:\tproc109\nUid:\t0\t0\t0\t0\n",
+        "snap/109/cmdline": {
+          "base64": "cHJvYzEwOQA="
+        },
+        "snap/110/stat": "110 (proc110) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1110 1048576 20\n",
+        "snap/110/status": "Name:\tproc110\nUid:\t0\t0\t0\t0\n",
+        "snap/110/cmdline": {
+          "base64": "cHJvYzExMAA="
+        },
+        "snap/111/stat": "111 (proc111) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1111 1048576 20\n",
+        "snap/111/status": "Name:\tproc111\nUid:\t0\t0\t0\t0\n",
+        "snap/111/cmdline": {
+          "base64": "cHJvYzExMQA="
+        },
+        "snap/112/stat": "112 (proc112) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1112 1048576 20\n",
+        "snap/112/status": "Name:\tproc112\nUid:\t0\t0\t0\t0\n",
+        "snap/112/cmdline": {
+          "base64": "cHJvYzExMgA="
+        },
+        "snap/113/stat": "113 (proc113) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1113 1048576 20\n",
+        "snap/113/status": "Name:\tproc113\nUid:\t0\t0\t0\t0\n",
+        "snap/113/cmdline": {
+          "base64": "cHJvYzExMwA="
+        },
+        "snap/114/stat": "114 (proc114) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1114 1048576 20\n",
+        "snap/114/status": "Name:\tproc114\nUid:\t0\t0\t0\t0\n",
+        "snap/114/cmdline": {
+          "base64": "cHJvYzExNAA="
+        },
+        "snap/115/stat": "115 (proc115) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1115 1048576 20\n",
+        "snap/115/status": "Name:\tproc115\nUid:\t0\t0\t0\t0\n",
+        "snap/115/cmdline": {
+          "base64": "cHJvYzExNQA="
+        },
+        "snap/116/stat": "116 (proc116) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1116 1048576 20\n",
+        "snap/116/status": "Name:\tproc116\nUid:\t0\t0\t0\t0\n",
+        "snap/116/cmdline": {
+          "base64": "cHJvYzExNgA="
+        },
+        "snap/117/stat": "117 (proc117) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1117 1048576 20\n",
+        "snap/117/status": "Name:\tproc117\nUid:\t0\t0\t0\t0\n",
+        "snap/117/cmdline": {
+          "base64": "cHJvYzExNwA="
+        },
+        "snap/118/stat": "118 (proc118) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1118 1048576 20\n",
+        "snap/118/status": "Name:\tproc118\nUid:\t0\t0\t0\t0\n",
+        "snap/118/cmdline": {
+          "base64": "cHJvYzExOAA="
+        },
+        "snap/119/stat": "119 (proc119) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1119 1048576 20\n",
+        "snap/119/status": "Name:\tproc119\nUid:\t0\t0\t0\t0\n",
+        "snap/119/cmdline": {
+          "base64": "cHJvYzExOQA="
+        },
+        "snap/120/stat": "120 (proc120) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1120 1048576 20\n",
+        "snap/120/status": "Name:\tproc120\nUid:\t0\t0\t0\t0\n",
+        "snap/120/cmdline": {
+          "base64": "cHJvYzEyMAA="
+        },
+        "snap/121/stat": "121 (proc121) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1121 1048576 20\n",
+        "snap/121/status": "Name:\tproc121\nUid:\t0\t0\t0\t0\n",
+        "snap/121/cmdline": {
+          "base64": "cHJvYzEyMQA="
+        },
+        "snap/122/stat": "122 (proc122) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1122 1048576 20\n",
+        "snap/122/status": "Name:\tproc122\nUid:\t0\t0\t0\t0\n",
+        "snap/122/cmdline": {
+          "base64": "cHJvYzEyMgA="
+        },
+        "snap/123/stat": "123 (proc123) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1123 1048576 20\n",
+        "snap/123/status": "Name:\tproc123\nUid:\t0\t0\t0\t0\n",
+        "snap/123/cmdline": {
+          "base64": "cHJvYzEyMwA="
+        },
+        "snap/124/stat": "124 (proc124) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1124 1048576 20\n",
+        "snap/124/status": "Name:\tproc124\nUid:\t0\t0\t0\t0\n",
+        "snap/124/cmdline": {
+          "base64": "cHJvYzEyNAA="
+        },
+        "snap/125/stat": "125 (proc125) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1125 1048576 20\n",
+        "snap/125/status": "Name:\tproc125\nUid:\t0\t0\t0\t0\n",
+        "snap/125/cmdline": {
+          "base64": "cHJvYzEyNQA="
+        },
+        "snap/126/stat": "126 (proc126) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1126 1048576 20\n",
+        "snap/126/status": "Name:\tproc126\nUid:\t0\t0\t0\t0\n",
+        "snap/126/cmdline": {
+          "base64": "cHJvYzEyNgA="
+        },
+        "snap/127/stat": "127 (proc127) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1127 1048576 20\n",
+        "snap/127/status": "Name:\tproc127\nUid:\t0\t0\t0\t0\n",
+        "snap/127/cmdline": {
+          "base64": "cHJvYzEyNwA="
+        },
+        "snap/128/stat": "128 (proc128) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1128 1048576 20\n",
+        "snap/128/status": "Name:\tproc128\nUid:\t0\t0\t0\t0\n",
+        "snap/128/cmdline": {
+          "base64": "cHJvYzEyOAA="
+        },
+        "snap/129/stat": "129 (proc129) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1129 1048576 20\n",
+        "snap/129/status": "Name:\tproc129\nUid:\t0\t0\t0\t0\n",
+        "snap/129/cmdline": {
+          "base64": "cHJvYzEyOQA="
+        },
+        "snap/130/stat": "130 (proc130) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1130 1048576 20\n",
+        "snap/130/status": "Name:\tproc130\nUid:\t0\t0\t0\t0\n",
+        "snap/130/cmdline": {
+          "base64": "cHJvYzEzMAA="
+        }
+      },
+      "covers": [
+        "top/interactive-pty-contract"
+      ],
+      "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
+      "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence."
+    },
+    {
+      "id": "migration-terra-local-terminal-top-ui-scroll-home-end",
+      "loadable": "top",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "End reaches PID 101 and Home returns to PID 130.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; top -d 2'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "top.*procs 30.*sort CPU",
+              "4": "^\\s*130\\s"
+            }
+          }
+        },
+        {
+          "key": "end"
+        },
+        {
+          "screen": {
+            "rows": {
+              "4": "^\\s*101\\s"
+            }
+          }
+        },
+        {
+          "key": "home"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "top.*procs 30.*sort CPU",
+              "4": "^\\s*130\\s"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 20,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/30 130\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (proc101) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 20\n",
+        "snap/101/status": "Name:\tproc101\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "cHJvYzEwMQA="
+        },
+        "snap/102/stat": "102 (proc102) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1102 1048576 20\n",
+        "snap/102/status": "Name:\tproc102\nUid:\t0\t0\t0\t0\n",
+        "snap/102/cmdline": {
+          "base64": "cHJvYzEwMgA="
+        },
+        "snap/103/stat": "103 (proc103) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1103 1048576 20\n",
+        "snap/103/status": "Name:\tproc103\nUid:\t0\t0\t0\t0\n",
+        "snap/103/cmdline": {
+          "base64": "cHJvYzEwMwA="
+        },
+        "snap/104/stat": "104 (proc104) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1104 1048576 20\n",
+        "snap/104/status": "Name:\tproc104\nUid:\t0\t0\t0\t0\n",
+        "snap/104/cmdline": {
+          "base64": "cHJvYzEwNAA="
+        },
+        "snap/105/stat": "105 (proc105) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1105 1048576 20\n",
+        "snap/105/status": "Name:\tproc105\nUid:\t0\t0\t0\t0\n",
+        "snap/105/cmdline": {
+          "base64": "cHJvYzEwNQA="
+        },
+        "snap/106/stat": "106 (proc106) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1106 1048576 20\n",
+        "snap/106/status": "Name:\tproc106\nUid:\t0\t0\t0\t0\n",
+        "snap/106/cmdline": {
+          "base64": "cHJvYzEwNgA="
+        },
+        "snap/107/stat": "107 (proc107) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1107 1048576 20\n",
+        "snap/107/status": "Name:\tproc107\nUid:\t0\t0\t0\t0\n",
+        "snap/107/cmdline": {
+          "base64": "cHJvYzEwNwA="
+        },
+        "snap/108/stat": "108 (proc108) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1108 1048576 20\n",
+        "snap/108/status": "Name:\tproc108\nUid:\t0\t0\t0\t0\n",
+        "snap/108/cmdline": {
+          "base64": "cHJvYzEwOAA="
+        },
+        "snap/109/stat": "109 (proc109) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1109 1048576 20\n",
+        "snap/109/status": "Name:\tproc109\nUid:\t0\t0\t0\t0\n",
+        "snap/109/cmdline": {
+          "base64": "cHJvYzEwOQA="
+        },
+        "snap/110/stat": "110 (proc110) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1110 1048576 20\n",
+        "snap/110/status": "Name:\tproc110\nUid:\t0\t0\t0\t0\n",
+        "snap/110/cmdline": {
+          "base64": "cHJvYzExMAA="
+        },
+        "snap/111/stat": "111 (proc111) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1111 1048576 20\n",
+        "snap/111/status": "Name:\tproc111\nUid:\t0\t0\t0\t0\n",
+        "snap/111/cmdline": {
+          "base64": "cHJvYzExMQA="
+        },
+        "snap/112/stat": "112 (proc112) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1112 1048576 20\n",
+        "snap/112/status": "Name:\tproc112\nUid:\t0\t0\t0\t0\n",
+        "snap/112/cmdline": {
+          "base64": "cHJvYzExMgA="
+        },
+        "snap/113/stat": "113 (proc113) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1113 1048576 20\n",
+        "snap/113/status": "Name:\tproc113\nUid:\t0\t0\t0\t0\n",
+        "snap/113/cmdline": {
+          "base64": "cHJvYzExMwA="
+        },
+        "snap/114/stat": "114 (proc114) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1114 1048576 20\n",
+        "snap/114/status": "Name:\tproc114\nUid:\t0\t0\t0\t0\n",
+        "snap/114/cmdline": {
+          "base64": "cHJvYzExNAA="
+        },
+        "snap/115/stat": "115 (proc115) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1115 1048576 20\n",
+        "snap/115/status": "Name:\tproc115\nUid:\t0\t0\t0\t0\n",
+        "snap/115/cmdline": {
+          "base64": "cHJvYzExNQA="
+        },
+        "snap/116/stat": "116 (proc116) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1116 1048576 20\n",
+        "snap/116/status": "Name:\tproc116\nUid:\t0\t0\t0\t0\n",
+        "snap/116/cmdline": {
+          "base64": "cHJvYzExNgA="
+        },
+        "snap/117/stat": "117 (proc117) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1117 1048576 20\n",
+        "snap/117/status": "Name:\tproc117\nUid:\t0\t0\t0\t0\n",
+        "snap/117/cmdline": {
+          "base64": "cHJvYzExNwA="
+        },
+        "snap/118/stat": "118 (proc118) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1118 1048576 20\n",
+        "snap/118/status": "Name:\tproc118\nUid:\t0\t0\t0\t0\n",
+        "snap/118/cmdline": {
+          "base64": "cHJvYzExOAA="
+        },
+        "snap/119/stat": "119 (proc119) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1119 1048576 20\n",
+        "snap/119/status": "Name:\tproc119\nUid:\t0\t0\t0\t0\n",
+        "snap/119/cmdline": {
+          "base64": "cHJvYzExOQA="
+        },
+        "snap/120/stat": "120 (proc120) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1120 1048576 20\n",
+        "snap/120/status": "Name:\tproc120\nUid:\t0\t0\t0\t0\n",
+        "snap/120/cmdline": {
+          "base64": "cHJvYzEyMAA="
+        },
+        "snap/121/stat": "121 (proc121) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1121 1048576 20\n",
+        "snap/121/status": "Name:\tproc121\nUid:\t0\t0\t0\t0\n",
+        "snap/121/cmdline": {
+          "base64": "cHJvYzEyMQA="
+        },
+        "snap/122/stat": "122 (proc122) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1122 1048576 20\n",
+        "snap/122/status": "Name:\tproc122\nUid:\t0\t0\t0\t0\n",
+        "snap/122/cmdline": {
+          "base64": "cHJvYzEyMgA="
+        },
+        "snap/123/stat": "123 (proc123) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1123 1048576 20\n",
+        "snap/123/status": "Name:\tproc123\nUid:\t0\t0\t0\t0\n",
+        "snap/123/cmdline": {
+          "base64": "cHJvYzEyMwA="
+        },
+        "snap/124/stat": "124 (proc124) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1124 1048576 20\n",
+        "snap/124/status": "Name:\tproc124\nUid:\t0\t0\t0\t0\n",
+        "snap/124/cmdline": {
+          "base64": "cHJvYzEyNAA="
+        },
+        "snap/125/stat": "125 (proc125) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1125 1048576 20\n",
+        "snap/125/status": "Name:\tproc125\nUid:\t0\t0\t0\t0\n",
+        "snap/125/cmdline": {
+          "base64": "cHJvYzEyNQA="
+        },
+        "snap/126/stat": "126 (proc126) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1126 1048576 20\n",
+        "snap/126/status": "Name:\tproc126\nUid:\t0\t0\t0\t0\n",
+        "snap/126/cmdline": {
+          "base64": "cHJvYzEyNgA="
+        },
+        "snap/127/stat": "127 (proc127) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1127 1048576 20\n",
+        "snap/127/status": "Name:\tproc127\nUid:\t0\t0\t0\t0\n",
+        "snap/127/cmdline": {
+          "base64": "cHJvYzEyNwA="
+        },
+        "snap/128/stat": "128 (proc128) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1128 1048576 20\n",
+        "snap/128/status": "Name:\tproc128\nUid:\t0\t0\t0\t0\n",
+        "snap/128/cmdline": {
+          "base64": "cHJvYzEyOAA="
+        },
+        "snap/129/stat": "129 (proc129) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1129 1048576 20\n",
+        "snap/129/status": "Name:\tproc129\nUid:\t0\t0\t0\t0\n",
+        "snap/129/cmdline": {
+          "base64": "cHJvYzEyOQA="
+        },
+        "snap/130/stat": "130 (proc130) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1130 1048576 20\n",
+        "snap/130/status": "Name:\tproc130\nUid:\t0\t0\t0\t0\n",
+        "snap/130/cmdline": {
+          "base64": "cHJvYzEzMAA="
+        }
+      },
+      "covers": [
+        "top/interactive-pty-contract"
+      ],
+      "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
+      "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence."
+    },
+    {
+      "id": "migration-terra-local-terminal-top-ui-resize",
+      "loadable": "top",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "A SIGWINCH after initial raw header emits a fresh header at the new size.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; top -d 2'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "top.*procs 30.*sort CPU",
+              "4": "^\\s*130\\s"
+            }
+          }
+        },
+        {
+          "expect": "top  load"
+        },
+        {
+          "resize": [
+            12,
+            60
+          ]
+        },
+        {
+          "expect": "top  load"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "top.*procs 30"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 20,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/30 130\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (proc101) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 20\n",
+        "snap/101/status": "Name:\tproc101\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "cHJvYzEwMQA="
+        },
+        "snap/102/stat": "102 (proc102) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1102 1048576 20\n",
+        "snap/102/status": "Name:\tproc102\nUid:\t0\t0\t0\t0\n",
+        "snap/102/cmdline": {
+          "base64": "cHJvYzEwMgA="
+        },
+        "snap/103/stat": "103 (proc103) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1103 1048576 20\n",
+        "snap/103/status": "Name:\tproc103\nUid:\t0\t0\t0\t0\n",
+        "snap/103/cmdline": {
+          "base64": "cHJvYzEwMwA="
+        },
+        "snap/104/stat": "104 (proc104) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1104 1048576 20\n",
+        "snap/104/status": "Name:\tproc104\nUid:\t0\t0\t0\t0\n",
+        "snap/104/cmdline": {
+          "base64": "cHJvYzEwNAA="
+        },
+        "snap/105/stat": "105 (proc105) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1105 1048576 20\n",
+        "snap/105/status": "Name:\tproc105\nUid:\t0\t0\t0\t0\n",
+        "snap/105/cmdline": {
+          "base64": "cHJvYzEwNQA="
+        },
+        "snap/106/stat": "106 (proc106) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1106 1048576 20\n",
+        "snap/106/status": "Name:\tproc106\nUid:\t0\t0\t0\t0\n",
+        "snap/106/cmdline": {
+          "base64": "cHJvYzEwNgA="
+        },
+        "snap/107/stat": "107 (proc107) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1107 1048576 20\n",
+        "snap/107/status": "Name:\tproc107\nUid:\t0\t0\t0\t0\n",
+        "snap/107/cmdline": {
+          "base64": "cHJvYzEwNwA="
+        },
+        "snap/108/stat": "108 (proc108) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1108 1048576 20\n",
+        "snap/108/status": "Name:\tproc108\nUid:\t0\t0\t0\t0\n",
+        "snap/108/cmdline": {
+          "base64": "cHJvYzEwOAA="
+        },
+        "snap/109/stat": "109 (proc109) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1109 1048576 20\n",
+        "snap/109/status": "Name:\tproc109\nUid:\t0\t0\t0\t0\n",
+        "snap/109/cmdline": {
+          "base64": "cHJvYzEwOQA="
+        },
+        "snap/110/stat": "110 (proc110) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1110 1048576 20\n",
+        "snap/110/status": "Name:\tproc110\nUid:\t0\t0\t0\t0\n",
+        "snap/110/cmdline": {
+          "base64": "cHJvYzExMAA="
+        },
+        "snap/111/stat": "111 (proc111) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1111 1048576 20\n",
+        "snap/111/status": "Name:\tproc111\nUid:\t0\t0\t0\t0\n",
+        "snap/111/cmdline": {
+          "base64": "cHJvYzExMQA="
+        },
+        "snap/112/stat": "112 (proc112) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1112 1048576 20\n",
+        "snap/112/status": "Name:\tproc112\nUid:\t0\t0\t0\t0\n",
+        "snap/112/cmdline": {
+          "base64": "cHJvYzExMgA="
+        },
+        "snap/113/stat": "113 (proc113) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1113 1048576 20\n",
+        "snap/113/status": "Name:\tproc113\nUid:\t0\t0\t0\t0\n",
+        "snap/113/cmdline": {
+          "base64": "cHJvYzExMwA="
+        },
+        "snap/114/stat": "114 (proc114) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1114 1048576 20\n",
+        "snap/114/status": "Name:\tproc114\nUid:\t0\t0\t0\t0\n",
+        "snap/114/cmdline": {
+          "base64": "cHJvYzExNAA="
+        },
+        "snap/115/stat": "115 (proc115) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1115 1048576 20\n",
+        "snap/115/status": "Name:\tproc115\nUid:\t0\t0\t0\t0\n",
+        "snap/115/cmdline": {
+          "base64": "cHJvYzExNQA="
+        },
+        "snap/116/stat": "116 (proc116) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1116 1048576 20\n",
+        "snap/116/status": "Name:\tproc116\nUid:\t0\t0\t0\t0\n",
+        "snap/116/cmdline": {
+          "base64": "cHJvYzExNgA="
+        },
+        "snap/117/stat": "117 (proc117) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1117 1048576 20\n",
+        "snap/117/status": "Name:\tproc117\nUid:\t0\t0\t0\t0\n",
+        "snap/117/cmdline": {
+          "base64": "cHJvYzExNwA="
+        },
+        "snap/118/stat": "118 (proc118) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1118 1048576 20\n",
+        "snap/118/status": "Name:\tproc118\nUid:\t0\t0\t0\t0\n",
+        "snap/118/cmdline": {
+          "base64": "cHJvYzExOAA="
+        },
+        "snap/119/stat": "119 (proc119) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1119 1048576 20\n",
+        "snap/119/status": "Name:\tproc119\nUid:\t0\t0\t0\t0\n",
+        "snap/119/cmdline": {
+          "base64": "cHJvYzExOQA="
+        },
+        "snap/120/stat": "120 (proc120) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1120 1048576 20\n",
+        "snap/120/status": "Name:\tproc120\nUid:\t0\t0\t0\t0\n",
+        "snap/120/cmdline": {
+          "base64": "cHJvYzEyMAA="
+        },
+        "snap/121/stat": "121 (proc121) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1121 1048576 20\n",
+        "snap/121/status": "Name:\tproc121\nUid:\t0\t0\t0\t0\n",
+        "snap/121/cmdline": {
+          "base64": "cHJvYzEyMQA="
+        },
+        "snap/122/stat": "122 (proc122) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1122 1048576 20\n",
+        "snap/122/status": "Name:\tproc122\nUid:\t0\t0\t0\t0\n",
+        "snap/122/cmdline": {
+          "base64": "cHJvYzEyMgA="
+        },
+        "snap/123/stat": "123 (proc123) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1123 1048576 20\n",
+        "snap/123/status": "Name:\tproc123\nUid:\t0\t0\t0\t0\n",
+        "snap/123/cmdline": {
+          "base64": "cHJvYzEyMwA="
+        },
+        "snap/124/stat": "124 (proc124) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1124 1048576 20\n",
+        "snap/124/status": "Name:\tproc124\nUid:\t0\t0\t0\t0\n",
+        "snap/124/cmdline": {
+          "base64": "cHJvYzEyNAA="
+        },
+        "snap/125/stat": "125 (proc125) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1125 1048576 20\n",
+        "snap/125/status": "Name:\tproc125\nUid:\t0\t0\t0\t0\n",
+        "snap/125/cmdline": {
+          "base64": "cHJvYzEyNQA="
+        },
+        "snap/126/stat": "126 (proc126) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1126 1048576 20\n",
+        "snap/126/status": "Name:\tproc126\nUid:\t0\t0\t0\t0\n",
+        "snap/126/cmdline": {
+          "base64": "cHJvYzEyNgA="
+        },
+        "snap/127/stat": "127 (proc127) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1127 1048576 20\n",
+        "snap/127/status": "Name:\tproc127\nUid:\t0\t0\t0\t0\n",
+        "snap/127/cmdline": {
+          "base64": "cHJvYzEyNwA="
+        },
+        "snap/128/stat": "128 (proc128) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1128 1048576 20\n",
+        "snap/128/status": "Name:\tproc128\nUid:\t0\t0\t0\t0\n",
+        "snap/128/cmdline": {
+          "base64": "cHJvYzEyOAA="
+        },
+        "snap/129/stat": "129 (proc129) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1129 1048576 20\n",
+        "snap/129/status": "Name:\tproc129\nUid:\t0\t0\t0\t0\n",
+        "snap/129/cmdline": {
+          "base64": "cHJvYzEyOQA="
+        },
+        "snap/130/stat": "130 (proc130) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1130 1048576 20\n",
+        "snap/130/status": "Name:\tproc130\nUid:\t0\t0\t0\t0\n",
+        "snap/130/cmdline": {
+          "base64": "cHJvYzEzMAA="
+        }
+      },
+      "covers": [
+        "top/interactive-pty-contract"
+      ],
+      "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
+      "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence."
+    },
+    {
+      "id": "migration-terra-local-terminal-top-ui-exit-q",
+      "loadable": "top",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Exit using q restores cursor, alternate screen and termios.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; top -d 2'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "top.*procs 30.*sort CPU",
+              "4": "^\\s*130\\s"
+            }
+          }
+        },
+        {
+          "send": "q"
+        },
+        {
+          "expect": "\\x1b\\[\\?25h"
+        },
+        {
+          "expect": "\\x1b\\[\\?1049l"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 20,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/30 130\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (proc101) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 20\n",
+        "snap/101/status": "Name:\tproc101\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "cHJvYzEwMQA="
+        },
+        "snap/102/stat": "102 (proc102) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1102 1048576 20\n",
+        "snap/102/status": "Name:\tproc102\nUid:\t0\t0\t0\t0\n",
+        "snap/102/cmdline": {
+          "base64": "cHJvYzEwMgA="
+        },
+        "snap/103/stat": "103 (proc103) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1103 1048576 20\n",
+        "snap/103/status": "Name:\tproc103\nUid:\t0\t0\t0\t0\n",
+        "snap/103/cmdline": {
+          "base64": "cHJvYzEwMwA="
+        },
+        "snap/104/stat": "104 (proc104) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1104 1048576 20\n",
+        "snap/104/status": "Name:\tproc104\nUid:\t0\t0\t0\t0\n",
+        "snap/104/cmdline": {
+          "base64": "cHJvYzEwNAA="
+        },
+        "snap/105/stat": "105 (proc105) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1105 1048576 20\n",
+        "snap/105/status": "Name:\tproc105\nUid:\t0\t0\t0\t0\n",
+        "snap/105/cmdline": {
+          "base64": "cHJvYzEwNQA="
+        },
+        "snap/106/stat": "106 (proc106) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1106 1048576 20\n",
+        "snap/106/status": "Name:\tproc106\nUid:\t0\t0\t0\t0\n",
+        "snap/106/cmdline": {
+          "base64": "cHJvYzEwNgA="
+        },
+        "snap/107/stat": "107 (proc107) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1107 1048576 20\n",
+        "snap/107/status": "Name:\tproc107\nUid:\t0\t0\t0\t0\n",
+        "snap/107/cmdline": {
+          "base64": "cHJvYzEwNwA="
+        },
+        "snap/108/stat": "108 (proc108) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1108 1048576 20\n",
+        "snap/108/status": "Name:\tproc108\nUid:\t0\t0\t0\t0\n",
+        "snap/108/cmdline": {
+          "base64": "cHJvYzEwOAA="
+        },
+        "snap/109/stat": "109 (proc109) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1109 1048576 20\n",
+        "snap/109/status": "Name:\tproc109\nUid:\t0\t0\t0\t0\n",
+        "snap/109/cmdline": {
+          "base64": "cHJvYzEwOQA="
+        },
+        "snap/110/stat": "110 (proc110) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1110 1048576 20\n",
+        "snap/110/status": "Name:\tproc110\nUid:\t0\t0\t0\t0\n",
+        "snap/110/cmdline": {
+          "base64": "cHJvYzExMAA="
+        },
+        "snap/111/stat": "111 (proc111) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1111 1048576 20\n",
+        "snap/111/status": "Name:\tproc111\nUid:\t0\t0\t0\t0\n",
+        "snap/111/cmdline": {
+          "base64": "cHJvYzExMQA="
+        },
+        "snap/112/stat": "112 (proc112) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1112 1048576 20\n",
+        "snap/112/status": "Name:\tproc112\nUid:\t0\t0\t0\t0\n",
+        "snap/112/cmdline": {
+          "base64": "cHJvYzExMgA="
+        },
+        "snap/113/stat": "113 (proc113) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1113 1048576 20\n",
+        "snap/113/status": "Name:\tproc113\nUid:\t0\t0\t0\t0\n",
+        "snap/113/cmdline": {
+          "base64": "cHJvYzExMwA="
+        },
+        "snap/114/stat": "114 (proc114) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1114 1048576 20\n",
+        "snap/114/status": "Name:\tproc114\nUid:\t0\t0\t0\t0\n",
+        "snap/114/cmdline": {
+          "base64": "cHJvYzExNAA="
+        },
+        "snap/115/stat": "115 (proc115) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1115 1048576 20\n",
+        "snap/115/status": "Name:\tproc115\nUid:\t0\t0\t0\t0\n",
+        "snap/115/cmdline": {
+          "base64": "cHJvYzExNQA="
+        },
+        "snap/116/stat": "116 (proc116) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1116 1048576 20\n",
+        "snap/116/status": "Name:\tproc116\nUid:\t0\t0\t0\t0\n",
+        "snap/116/cmdline": {
+          "base64": "cHJvYzExNgA="
+        },
+        "snap/117/stat": "117 (proc117) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1117 1048576 20\n",
+        "snap/117/status": "Name:\tproc117\nUid:\t0\t0\t0\t0\n",
+        "snap/117/cmdline": {
+          "base64": "cHJvYzExNwA="
+        },
+        "snap/118/stat": "118 (proc118) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1118 1048576 20\n",
+        "snap/118/status": "Name:\tproc118\nUid:\t0\t0\t0\t0\n",
+        "snap/118/cmdline": {
+          "base64": "cHJvYzExOAA="
+        },
+        "snap/119/stat": "119 (proc119) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1119 1048576 20\n",
+        "snap/119/status": "Name:\tproc119\nUid:\t0\t0\t0\t0\n",
+        "snap/119/cmdline": {
+          "base64": "cHJvYzExOQA="
+        },
+        "snap/120/stat": "120 (proc120) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1120 1048576 20\n",
+        "snap/120/status": "Name:\tproc120\nUid:\t0\t0\t0\t0\n",
+        "snap/120/cmdline": {
+          "base64": "cHJvYzEyMAA="
+        },
+        "snap/121/stat": "121 (proc121) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1121 1048576 20\n",
+        "snap/121/status": "Name:\tproc121\nUid:\t0\t0\t0\t0\n",
+        "snap/121/cmdline": {
+          "base64": "cHJvYzEyMQA="
+        },
+        "snap/122/stat": "122 (proc122) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1122 1048576 20\n",
+        "snap/122/status": "Name:\tproc122\nUid:\t0\t0\t0\t0\n",
+        "snap/122/cmdline": {
+          "base64": "cHJvYzEyMgA="
+        },
+        "snap/123/stat": "123 (proc123) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1123 1048576 20\n",
+        "snap/123/status": "Name:\tproc123\nUid:\t0\t0\t0\t0\n",
+        "snap/123/cmdline": {
+          "base64": "cHJvYzEyMwA="
+        },
+        "snap/124/stat": "124 (proc124) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1124 1048576 20\n",
+        "snap/124/status": "Name:\tproc124\nUid:\t0\t0\t0\t0\n",
+        "snap/124/cmdline": {
+          "base64": "cHJvYzEyNAA="
+        },
+        "snap/125/stat": "125 (proc125) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1125 1048576 20\n",
+        "snap/125/status": "Name:\tproc125\nUid:\t0\t0\t0\t0\n",
+        "snap/125/cmdline": {
+          "base64": "cHJvYzEyNQA="
+        },
+        "snap/126/stat": "126 (proc126) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1126 1048576 20\n",
+        "snap/126/status": "Name:\tproc126\nUid:\t0\t0\t0\t0\n",
+        "snap/126/cmdline": {
+          "base64": "cHJvYzEyNgA="
+        },
+        "snap/127/stat": "127 (proc127) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1127 1048576 20\n",
+        "snap/127/status": "Name:\tproc127\nUid:\t0\t0\t0\t0\n",
+        "snap/127/cmdline": {
+          "base64": "cHJvYzEyNwA="
+        },
+        "snap/128/stat": "128 (proc128) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1128 1048576 20\n",
+        "snap/128/status": "Name:\tproc128\nUid:\t0\t0\t0\t0\n",
+        "snap/128/cmdline": {
+          "base64": "cHJvYzEyOAA="
+        },
+        "snap/129/stat": "129 (proc129) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1129 1048576 20\n",
+        "snap/129/status": "Name:\tproc129\nUid:\t0\t0\t0\t0\n",
+        "snap/129/cmdline": {
+          "base64": "cHJvYzEyOQA="
+        },
+        "snap/130/stat": "130 (proc130) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1130 1048576 20\n",
+        "snap/130/status": "Name:\tproc130\nUid:\t0\t0\t0\t0\n",
+        "snap/130/cmdline": {
+          "base64": "cHJvYzEzMAA="
+        }
+      },
+      "covers": [
+        "top/interactive-pty-contract"
+      ],
+      "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
+      "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence."
+    },
+    {
+      "id": "migration-terra-local-terminal-top-ui-exit-Q",
+      "loadable": "top",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Exit using Q restores cursor, alternate screen and termios.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; top -d 2'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "top.*procs 30.*sort CPU",
+              "4": "^\\s*130\\s"
+            }
+          }
+        },
+        {
+          "send": "Q"
+        },
+        {
+          "expect": "\\x1b\\[\\?25h"
+        },
+        {
+          "expect": "\\x1b\\[\\?1049l"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 20,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/30 130\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (proc101) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 20\n",
+        "snap/101/status": "Name:\tproc101\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "cHJvYzEwMQA="
+        },
+        "snap/102/stat": "102 (proc102) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1102 1048576 20\n",
+        "snap/102/status": "Name:\tproc102\nUid:\t0\t0\t0\t0\n",
+        "snap/102/cmdline": {
+          "base64": "cHJvYzEwMgA="
+        },
+        "snap/103/stat": "103 (proc103) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1103 1048576 20\n",
+        "snap/103/status": "Name:\tproc103\nUid:\t0\t0\t0\t0\n",
+        "snap/103/cmdline": {
+          "base64": "cHJvYzEwMwA="
+        },
+        "snap/104/stat": "104 (proc104) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1104 1048576 20\n",
+        "snap/104/status": "Name:\tproc104\nUid:\t0\t0\t0\t0\n",
+        "snap/104/cmdline": {
+          "base64": "cHJvYzEwNAA="
+        },
+        "snap/105/stat": "105 (proc105) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1105 1048576 20\n",
+        "snap/105/status": "Name:\tproc105\nUid:\t0\t0\t0\t0\n",
+        "snap/105/cmdline": {
+          "base64": "cHJvYzEwNQA="
+        },
+        "snap/106/stat": "106 (proc106) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1106 1048576 20\n",
+        "snap/106/status": "Name:\tproc106\nUid:\t0\t0\t0\t0\n",
+        "snap/106/cmdline": {
+          "base64": "cHJvYzEwNgA="
+        },
+        "snap/107/stat": "107 (proc107) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1107 1048576 20\n",
+        "snap/107/status": "Name:\tproc107\nUid:\t0\t0\t0\t0\n",
+        "snap/107/cmdline": {
+          "base64": "cHJvYzEwNwA="
+        },
+        "snap/108/stat": "108 (proc108) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1108 1048576 20\n",
+        "snap/108/status": "Name:\tproc108\nUid:\t0\t0\t0\t0\n",
+        "snap/108/cmdline": {
+          "base64": "cHJvYzEwOAA="
+        },
+        "snap/109/stat": "109 (proc109) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1109 1048576 20\n",
+        "snap/109/status": "Name:\tproc109\nUid:\t0\t0\t0\t0\n",
+        "snap/109/cmdline": {
+          "base64": "cHJvYzEwOQA="
+        },
+        "snap/110/stat": "110 (proc110) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1110 1048576 20\n",
+        "snap/110/status": "Name:\tproc110\nUid:\t0\t0\t0\t0\n",
+        "snap/110/cmdline": {
+          "base64": "cHJvYzExMAA="
+        },
+        "snap/111/stat": "111 (proc111) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1111 1048576 20\n",
+        "snap/111/status": "Name:\tproc111\nUid:\t0\t0\t0\t0\n",
+        "snap/111/cmdline": {
+          "base64": "cHJvYzExMQA="
+        },
+        "snap/112/stat": "112 (proc112) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1112 1048576 20\n",
+        "snap/112/status": "Name:\tproc112\nUid:\t0\t0\t0\t0\n",
+        "snap/112/cmdline": {
+          "base64": "cHJvYzExMgA="
+        },
+        "snap/113/stat": "113 (proc113) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1113 1048576 20\n",
+        "snap/113/status": "Name:\tproc113\nUid:\t0\t0\t0\t0\n",
+        "snap/113/cmdline": {
+          "base64": "cHJvYzExMwA="
+        },
+        "snap/114/stat": "114 (proc114) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1114 1048576 20\n",
+        "snap/114/status": "Name:\tproc114\nUid:\t0\t0\t0\t0\n",
+        "snap/114/cmdline": {
+          "base64": "cHJvYzExNAA="
+        },
+        "snap/115/stat": "115 (proc115) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1115 1048576 20\n",
+        "snap/115/status": "Name:\tproc115\nUid:\t0\t0\t0\t0\n",
+        "snap/115/cmdline": {
+          "base64": "cHJvYzExNQA="
+        },
+        "snap/116/stat": "116 (proc116) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1116 1048576 20\n",
+        "snap/116/status": "Name:\tproc116\nUid:\t0\t0\t0\t0\n",
+        "snap/116/cmdline": {
+          "base64": "cHJvYzExNgA="
+        },
+        "snap/117/stat": "117 (proc117) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1117 1048576 20\n",
+        "snap/117/status": "Name:\tproc117\nUid:\t0\t0\t0\t0\n",
+        "snap/117/cmdline": {
+          "base64": "cHJvYzExNwA="
+        },
+        "snap/118/stat": "118 (proc118) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1118 1048576 20\n",
+        "snap/118/status": "Name:\tproc118\nUid:\t0\t0\t0\t0\n",
+        "snap/118/cmdline": {
+          "base64": "cHJvYzExOAA="
+        },
+        "snap/119/stat": "119 (proc119) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1119 1048576 20\n",
+        "snap/119/status": "Name:\tproc119\nUid:\t0\t0\t0\t0\n",
+        "snap/119/cmdline": {
+          "base64": "cHJvYzExOQA="
+        },
+        "snap/120/stat": "120 (proc120) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1120 1048576 20\n",
+        "snap/120/status": "Name:\tproc120\nUid:\t0\t0\t0\t0\n",
+        "snap/120/cmdline": {
+          "base64": "cHJvYzEyMAA="
+        },
+        "snap/121/stat": "121 (proc121) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1121 1048576 20\n",
+        "snap/121/status": "Name:\tproc121\nUid:\t0\t0\t0\t0\n",
+        "snap/121/cmdline": {
+          "base64": "cHJvYzEyMQA="
+        },
+        "snap/122/stat": "122 (proc122) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1122 1048576 20\n",
+        "snap/122/status": "Name:\tproc122\nUid:\t0\t0\t0\t0\n",
+        "snap/122/cmdline": {
+          "base64": "cHJvYzEyMgA="
+        },
+        "snap/123/stat": "123 (proc123) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1123 1048576 20\n",
+        "snap/123/status": "Name:\tproc123\nUid:\t0\t0\t0\t0\n",
+        "snap/123/cmdline": {
+          "base64": "cHJvYzEyMwA="
+        },
+        "snap/124/stat": "124 (proc124) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1124 1048576 20\n",
+        "snap/124/status": "Name:\tproc124\nUid:\t0\t0\t0\t0\n",
+        "snap/124/cmdline": {
+          "base64": "cHJvYzEyNAA="
+        },
+        "snap/125/stat": "125 (proc125) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1125 1048576 20\n",
+        "snap/125/status": "Name:\tproc125\nUid:\t0\t0\t0\t0\n",
+        "snap/125/cmdline": {
+          "base64": "cHJvYzEyNQA="
+        },
+        "snap/126/stat": "126 (proc126) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1126 1048576 20\n",
+        "snap/126/status": "Name:\tproc126\nUid:\t0\t0\t0\t0\n",
+        "snap/126/cmdline": {
+          "base64": "cHJvYzEyNgA="
+        },
+        "snap/127/stat": "127 (proc127) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1127 1048576 20\n",
+        "snap/127/status": "Name:\tproc127\nUid:\t0\t0\t0\t0\n",
+        "snap/127/cmdline": {
+          "base64": "cHJvYzEyNwA="
+        },
+        "snap/128/stat": "128 (proc128) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1128 1048576 20\n",
+        "snap/128/status": "Name:\tproc128\nUid:\t0\t0\t0\t0\n",
+        "snap/128/cmdline": {
+          "base64": "cHJvYzEyOAA="
+        },
+        "snap/129/stat": "129 (proc129) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1129 1048576 20\n",
+        "snap/129/status": "Name:\tproc129\nUid:\t0\t0\t0\t0\n",
+        "snap/129/cmdline": {
+          "base64": "cHJvYzEyOQA="
+        },
+        "snap/130/stat": "130 (proc130) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1130 1048576 20\n",
+        "snap/130/status": "Name:\tproc130\nUid:\t0\t0\t0\t0\n",
+        "snap/130/cmdline": {
+          "base64": "cHJvYzEzMAA="
+        }
+      },
+      "covers": [
+        "top/interactive-pty-contract"
+      ],
+      "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
+      "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence."
+    },
+    {
+      "id": "migration-terra-local-terminal-top-ui-exit-ctrl-c",
+      "loadable": "top",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Exit using ctrl-c restores cursor, alternate screen and termios.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; top -d 2'",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "top.*procs 30.*sort CPU",
+              "4": "^\\s*130\\s"
+            }
+          }
+        },
+        {
+          "send_base64": "Aw=="
+        },
+        {
+          "expect": "\\x1b\\[\\?25h"
+        },
+        {
+          "expect": "\\x1b\\[\\?1049l"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 20,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/30 130\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (proc101) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 20\n",
+        "snap/101/status": "Name:\tproc101\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "cHJvYzEwMQA="
+        },
+        "snap/102/stat": "102 (proc102) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1102 1048576 20\n",
+        "snap/102/status": "Name:\tproc102\nUid:\t0\t0\t0\t0\n",
+        "snap/102/cmdline": {
+          "base64": "cHJvYzEwMgA="
+        },
+        "snap/103/stat": "103 (proc103) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1103 1048576 20\n",
+        "snap/103/status": "Name:\tproc103\nUid:\t0\t0\t0\t0\n",
+        "snap/103/cmdline": {
+          "base64": "cHJvYzEwMwA="
+        },
+        "snap/104/stat": "104 (proc104) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1104 1048576 20\n",
+        "snap/104/status": "Name:\tproc104\nUid:\t0\t0\t0\t0\n",
+        "snap/104/cmdline": {
+          "base64": "cHJvYzEwNAA="
+        },
+        "snap/105/stat": "105 (proc105) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1105 1048576 20\n",
+        "snap/105/status": "Name:\tproc105\nUid:\t0\t0\t0\t0\n",
+        "snap/105/cmdline": {
+          "base64": "cHJvYzEwNQA="
+        },
+        "snap/106/stat": "106 (proc106) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1106 1048576 20\n",
+        "snap/106/status": "Name:\tproc106\nUid:\t0\t0\t0\t0\n",
+        "snap/106/cmdline": {
+          "base64": "cHJvYzEwNgA="
+        },
+        "snap/107/stat": "107 (proc107) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1107 1048576 20\n",
+        "snap/107/status": "Name:\tproc107\nUid:\t0\t0\t0\t0\n",
+        "snap/107/cmdline": {
+          "base64": "cHJvYzEwNwA="
+        },
+        "snap/108/stat": "108 (proc108) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1108 1048576 20\n",
+        "snap/108/status": "Name:\tproc108\nUid:\t0\t0\t0\t0\n",
+        "snap/108/cmdline": {
+          "base64": "cHJvYzEwOAA="
+        },
+        "snap/109/stat": "109 (proc109) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1109 1048576 20\n",
+        "snap/109/status": "Name:\tproc109\nUid:\t0\t0\t0\t0\n",
+        "snap/109/cmdline": {
+          "base64": "cHJvYzEwOQA="
+        },
+        "snap/110/stat": "110 (proc110) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1110 1048576 20\n",
+        "snap/110/status": "Name:\tproc110\nUid:\t0\t0\t0\t0\n",
+        "snap/110/cmdline": {
+          "base64": "cHJvYzExMAA="
+        },
+        "snap/111/stat": "111 (proc111) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1111 1048576 20\n",
+        "snap/111/status": "Name:\tproc111\nUid:\t0\t0\t0\t0\n",
+        "snap/111/cmdline": {
+          "base64": "cHJvYzExMQA="
+        },
+        "snap/112/stat": "112 (proc112) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1112 1048576 20\n",
+        "snap/112/status": "Name:\tproc112\nUid:\t0\t0\t0\t0\n",
+        "snap/112/cmdline": {
+          "base64": "cHJvYzExMgA="
+        },
+        "snap/113/stat": "113 (proc113) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1113 1048576 20\n",
+        "snap/113/status": "Name:\tproc113\nUid:\t0\t0\t0\t0\n",
+        "snap/113/cmdline": {
+          "base64": "cHJvYzExMwA="
+        },
+        "snap/114/stat": "114 (proc114) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1114 1048576 20\n",
+        "snap/114/status": "Name:\tproc114\nUid:\t0\t0\t0\t0\n",
+        "snap/114/cmdline": {
+          "base64": "cHJvYzExNAA="
+        },
+        "snap/115/stat": "115 (proc115) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1115 1048576 20\n",
+        "snap/115/status": "Name:\tproc115\nUid:\t0\t0\t0\t0\n",
+        "snap/115/cmdline": {
+          "base64": "cHJvYzExNQA="
+        },
+        "snap/116/stat": "116 (proc116) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1116 1048576 20\n",
+        "snap/116/status": "Name:\tproc116\nUid:\t0\t0\t0\t0\n",
+        "snap/116/cmdline": {
+          "base64": "cHJvYzExNgA="
+        },
+        "snap/117/stat": "117 (proc117) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1117 1048576 20\n",
+        "snap/117/status": "Name:\tproc117\nUid:\t0\t0\t0\t0\n",
+        "snap/117/cmdline": {
+          "base64": "cHJvYzExNwA="
+        },
+        "snap/118/stat": "118 (proc118) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1118 1048576 20\n",
+        "snap/118/status": "Name:\tproc118\nUid:\t0\t0\t0\t0\n",
+        "snap/118/cmdline": {
+          "base64": "cHJvYzExOAA="
+        },
+        "snap/119/stat": "119 (proc119) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1119 1048576 20\n",
+        "snap/119/status": "Name:\tproc119\nUid:\t0\t0\t0\t0\n",
+        "snap/119/cmdline": {
+          "base64": "cHJvYzExOQA="
+        },
+        "snap/120/stat": "120 (proc120) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1120 1048576 20\n",
+        "snap/120/status": "Name:\tproc120\nUid:\t0\t0\t0\t0\n",
+        "snap/120/cmdline": {
+          "base64": "cHJvYzEyMAA="
+        },
+        "snap/121/stat": "121 (proc121) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1121 1048576 20\n",
+        "snap/121/status": "Name:\tproc121\nUid:\t0\t0\t0\t0\n",
+        "snap/121/cmdline": {
+          "base64": "cHJvYzEyMQA="
+        },
+        "snap/122/stat": "122 (proc122) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1122 1048576 20\n",
+        "snap/122/status": "Name:\tproc122\nUid:\t0\t0\t0\t0\n",
+        "snap/122/cmdline": {
+          "base64": "cHJvYzEyMgA="
+        },
+        "snap/123/stat": "123 (proc123) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1123 1048576 20\n",
+        "snap/123/status": "Name:\tproc123\nUid:\t0\t0\t0\t0\n",
+        "snap/123/cmdline": {
+          "base64": "cHJvYzEyMwA="
+        },
+        "snap/124/stat": "124 (proc124) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1124 1048576 20\n",
+        "snap/124/status": "Name:\tproc124\nUid:\t0\t0\t0\t0\n",
+        "snap/124/cmdline": {
+          "base64": "cHJvYzEyNAA="
+        },
+        "snap/125/stat": "125 (proc125) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1125 1048576 20\n",
+        "snap/125/status": "Name:\tproc125\nUid:\t0\t0\t0\t0\n",
+        "snap/125/cmdline": {
+          "base64": "cHJvYzEyNQA="
+        },
+        "snap/126/stat": "126 (proc126) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1126 1048576 20\n",
+        "snap/126/status": "Name:\tproc126\nUid:\t0\t0\t0\t0\n",
+        "snap/126/cmdline": {
+          "base64": "cHJvYzEyNgA="
+        },
+        "snap/127/stat": "127 (proc127) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1127 1048576 20\n",
+        "snap/127/status": "Name:\tproc127\nUid:\t0\t0\t0\t0\n",
+        "snap/127/cmdline": {
+          "base64": "cHJvYzEyNwA="
+        },
+        "snap/128/stat": "128 (proc128) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1128 1048576 20\n",
+        "snap/128/status": "Name:\tproc128\nUid:\t0\t0\t0\t0\n",
+        "snap/128/cmdline": {
+          "base64": "cHJvYzEyOAA="
+        },
+        "snap/129/stat": "129 (proc129) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1129 1048576 20\n",
+        "snap/129/status": "Name:\tproc129\nUid:\t0\t0\t0\t0\n",
+        "snap/129/cmdline": {
+          "base64": "cHJvYzEyOQA="
+        },
+        "snap/130/stat": "130 (proc130) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1130 1048576 20\n",
+        "snap/130/status": "Name:\tproc130\nUid:\t0\t0\t0\t0\n",
+        "snap/130/cmdline": {
+          "base64": "cHJvYzEzMAA="
+        }
+      },
+      "covers": [
+        "top/interactive-pty-contract"
+      ],
+      "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
+      "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence."
+    },
+    {
+      "id": "migration-terra-local-terminal-top-ui-redraw-count",
+      "loadable": "top",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "-n 3 completes three timed redraws that see successive controlled load values.",
+      "script": "( /bin/sleep 1; printf '0.50 0.50 1.00 1/30 130\\n' > snap/loadavg; /bin/sleep 2; printf '0.75 0.50 1.00 1/30 130\\n' > snap/loadavg ) &\nwriter=$!\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; top -d 2 -n 3'\nrc=$?\nwait \"$writer\"\nexit \"$rc\"\n",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "load 0\\.25"
+            }
+          }
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "load 0\\.50"
+            }
+          }
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "load 0\\.75"
+            }
+          }
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "sleep"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/30 130\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (proc101) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 20\n",
+        "snap/101/status": "Name:\tproc101\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "cHJvYzEwMQA="
+        },
+        "snap/102/stat": "102 (proc102) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1102 1048576 20\n",
+        "snap/102/status": "Name:\tproc102\nUid:\t0\t0\t0\t0\n",
+        "snap/102/cmdline": {
+          "base64": "cHJvYzEwMgA="
+        },
+        "snap/103/stat": "103 (proc103) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1103 1048576 20\n",
+        "snap/103/status": "Name:\tproc103\nUid:\t0\t0\t0\t0\n",
+        "snap/103/cmdline": {
+          "base64": "cHJvYzEwMwA="
+        },
+        "snap/104/stat": "104 (proc104) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1104 1048576 20\n",
+        "snap/104/status": "Name:\tproc104\nUid:\t0\t0\t0\t0\n",
+        "snap/104/cmdline": {
+          "base64": "cHJvYzEwNAA="
+        },
+        "snap/105/stat": "105 (proc105) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1105 1048576 20\n",
+        "snap/105/status": "Name:\tproc105\nUid:\t0\t0\t0\t0\n",
+        "snap/105/cmdline": {
+          "base64": "cHJvYzEwNQA="
+        },
+        "snap/106/stat": "106 (proc106) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1106 1048576 20\n",
+        "snap/106/status": "Name:\tproc106\nUid:\t0\t0\t0\t0\n",
+        "snap/106/cmdline": {
+          "base64": "cHJvYzEwNgA="
+        },
+        "snap/107/stat": "107 (proc107) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1107 1048576 20\n",
+        "snap/107/status": "Name:\tproc107\nUid:\t0\t0\t0\t0\n",
+        "snap/107/cmdline": {
+          "base64": "cHJvYzEwNwA="
+        },
+        "snap/108/stat": "108 (proc108) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1108 1048576 20\n",
+        "snap/108/status": "Name:\tproc108\nUid:\t0\t0\t0\t0\n",
+        "snap/108/cmdline": {
+          "base64": "cHJvYzEwOAA="
+        },
+        "snap/109/stat": "109 (proc109) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1109 1048576 20\n",
+        "snap/109/status": "Name:\tproc109\nUid:\t0\t0\t0\t0\n",
+        "snap/109/cmdline": {
+          "base64": "cHJvYzEwOQA="
+        },
+        "snap/110/stat": "110 (proc110) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1110 1048576 20\n",
+        "snap/110/status": "Name:\tproc110\nUid:\t0\t0\t0\t0\n",
+        "snap/110/cmdline": {
+          "base64": "cHJvYzExMAA="
+        },
+        "snap/111/stat": "111 (proc111) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1111 1048576 20\n",
+        "snap/111/status": "Name:\tproc111\nUid:\t0\t0\t0\t0\n",
+        "snap/111/cmdline": {
+          "base64": "cHJvYzExMQA="
+        },
+        "snap/112/stat": "112 (proc112) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1112 1048576 20\n",
+        "snap/112/status": "Name:\tproc112\nUid:\t0\t0\t0\t0\n",
+        "snap/112/cmdline": {
+          "base64": "cHJvYzExMgA="
+        },
+        "snap/113/stat": "113 (proc113) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1113 1048576 20\n",
+        "snap/113/status": "Name:\tproc113\nUid:\t0\t0\t0\t0\n",
+        "snap/113/cmdline": {
+          "base64": "cHJvYzExMwA="
+        },
+        "snap/114/stat": "114 (proc114) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1114 1048576 20\n",
+        "snap/114/status": "Name:\tproc114\nUid:\t0\t0\t0\t0\n",
+        "snap/114/cmdline": {
+          "base64": "cHJvYzExNAA="
+        },
+        "snap/115/stat": "115 (proc115) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1115 1048576 20\n",
+        "snap/115/status": "Name:\tproc115\nUid:\t0\t0\t0\t0\n",
+        "snap/115/cmdline": {
+          "base64": "cHJvYzExNQA="
+        },
+        "snap/116/stat": "116 (proc116) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1116 1048576 20\n",
+        "snap/116/status": "Name:\tproc116\nUid:\t0\t0\t0\t0\n",
+        "snap/116/cmdline": {
+          "base64": "cHJvYzExNgA="
+        },
+        "snap/117/stat": "117 (proc117) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1117 1048576 20\n",
+        "snap/117/status": "Name:\tproc117\nUid:\t0\t0\t0\t0\n",
+        "snap/117/cmdline": {
+          "base64": "cHJvYzExNwA="
+        },
+        "snap/118/stat": "118 (proc118) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1118 1048576 20\n",
+        "snap/118/status": "Name:\tproc118\nUid:\t0\t0\t0\t0\n",
+        "snap/118/cmdline": {
+          "base64": "cHJvYzExOAA="
+        },
+        "snap/119/stat": "119 (proc119) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1119 1048576 20\n",
+        "snap/119/status": "Name:\tproc119\nUid:\t0\t0\t0\t0\n",
+        "snap/119/cmdline": {
+          "base64": "cHJvYzExOQA="
+        },
+        "snap/120/stat": "120 (proc120) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1120 1048576 20\n",
+        "snap/120/status": "Name:\tproc120\nUid:\t0\t0\t0\t0\n",
+        "snap/120/cmdline": {
+          "base64": "cHJvYzEyMAA="
+        },
+        "snap/121/stat": "121 (proc121) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1121 1048576 20\n",
+        "snap/121/status": "Name:\tproc121\nUid:\t0\t0\t0\t0\n",
+        "snap/121/cmdline": {
+          "base64": "cHJvYzEyMQA="
+        },
+        "snap/122/stat": "122 (proc122) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1122 1048576 20\n",
+        "snap/122/status": "Name:\tproc122\nUid:\t0\t0\t0\t0\n",
+        "snap/122/cmdline": {
+          "base64": "cHJvYzEyMgA="
+        },
+        "snap/123/stat": "123 (proc123) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1123 1048576 20\n",
+        "snap/123/status": "Name:\tproc123\nUid:\t0\t0\t0\t0\n",
+        "snap/123/cmdline": {
+          "base64": "cHJvYzEyMwA="
+        },
+        "snap/124/stat": "124 (proc124) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1124 1048576 20\n",
+        "snap/124/status": "Name:\tproc124\nUid:\t0\t0\t0\t0\n",
+        "snap/124/cmdline": {
+          "base64": "cHJvYzEyNAA="
+        },
+        "snap/125/stat": "125 (proc125) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1125 1048576 20\n",
+        "snap/125/status": "Name:\tproc125\nUid:\t0\t0\t0\t0\n",
+        "snap/125/cmdline": {
+          "base64": "cHJvYzEyNQA="
+        },
+        "snap/126/stat": "126 (proc126) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1126 1048576 20\n",
+        "snap/126/status": "Name:\tproc126\nUid:\t0\t0\t0\t0\n",
+        "snap/126/cmdline": {
+          "base64": "cHJvYzEyNgA="
+        },
+        "snap/127/stat": "127 (proc127) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1127 1048576 20\n",
+        "snap/127/status": "Name:\tproc127\nUid:\t0\t0\t0\t0\n",
+        "snap/127/cmdline": {
+          "base64": "cHJvYzEyNwA="
+        },
+        "snap/128/stat": "128 (proc128) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1128 1048576 20\n",
+        "snap/128/status": "Name:\tproc128\nUid:\t0\t0\t0\t0\n",
+        "snap/128/cmdline": {
+          "base64": "cHJvYzEyOAA="
+        },
+        "snap/129/stat": "129 (proc129) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1129 1048576 20\n",
+        "snap/129/status": "Name:\tproc129\nUid:\t0\t0\t0\t0\n",
+        "snap/129/cmdline": {
+          "base64": "cHJvYzEyOQA="
+        },
+        "snap/130/stat": "130 (proc130) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1130 1048576 20\n",
+        "snap/130/status": "Name:\tproc130\nUid:\t0\t0\t0\t0\n",
+        "snap/130/cmdline": {
+          "base64": "cHJvYzEzMAA="
+        }
+      },
+      "covers": [
+        "top/interactive-pty-contract"
+      ],
+      "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
+      "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence.",
+      "expected_files": {
+        "snap/loadavg": "0.75 0.50 1.00 1/30 130\n"
+      }
+    },
+    {
+      "id": "migration-terra-local-terminal-top-ui-empty-recovers",
+      "loadable": "top",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "An initially empty process list becomes nonempty after a private fixture addition.",
+      "script": "( /bin/sleep 1; /bin/cp -r seed/101 snap/101 ) &\nwriter=$!\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; top -d 2'\nrc=$?\nwait \"$writer\"\nexit \"$rc\"\n",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "procs 0"
+            }
+          }
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "procs 1"
+            },
+            "contains": [
+              "proc101"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 20,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount",
+        "sleep",
+        "cp"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/30 130\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "seed/101/stat": "101 (proc101) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 20\n",
+        "seed/101/status": "Name:\tproc101\nUid:\t0\t0\t0\t0\n",
+        "seed/101/cmdline": {
+          "base64": "cHJvYzEwMQA="
+        }
+      },
+      "covers": [
+        "top/interactive-pty-contract"
+      ],
+      "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
+      "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence."
+    },
+    {
+      "id": "migration-terra-local-terminal-top-ui-shell-traps-r3",
+      "loadable": "top",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Quitting top preserves the shell INT, TERM, HUP and WINCH traps.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc traps.sh",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "top.*procs 30.*sort CPU",
+              "4": "^\\s*130\\s"
+            }
+          }
+        },
+        {
+          "send": "q"
+        },
+        {
+          "expect": "TRAPS-RESTORED"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 20,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/30 130\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (proc101) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 20\n",
+        "snap/101/status": "Name:\tproc101\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "cHJvYzEwMQA="
+        },
+        "snap/102/stat": "102 (proc102) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1102 1048576 20\n",
+        "snap/102/status": "Name:\tproc102\nUid:\t0\t0\t0\t0\n",
+        "snap/102/cmdline": {
+          "base64": "cHJvYzEwMgA="
+        },
+        "snap/103/stat": "103 (proc103) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1103 1048576 20\n",
+        "snap/103/status": "Name:\tproc103\nUid:\t0\t0\t0\t0\n",
+        "snap/103/cmdline": {
+          "base64": "cHJvYzEwMwA="
+        },
+        "snap/104/stat": "104 (proc104) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1104 1048576 20\n",
+        "snap/104/status": "Name:\tproc104\nUid:\t0\t0\t0\t0\n",
+        "snap/104/cmdline": {
+          "base64": "cHJvYzEwNAA="
+        },
+        "snap/105/stat": "105 (proc105) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1105 1048576 20\n",
+        "snap/105/status": "Name:\tproc105\nUid:\t0\t0\t0\t0\n",
+        "snap/105/cmdline": {
+          "base64": "cHJvYzEwNQA="
+        },
+        "snap/106/stat": "106 (proc106) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1106 1048576 20\n",
+        "snap/106/status": "Name:\tproc106\nUid:\t0\t0\t0\t0\n",
+        "snap/106/cmdline": {
+          "base64": "cHJvYzEwNgA="
+        },
+        "snap/107/stat": "107 (proc107) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1107 1048576 20\n",
+        "snap/107/status": "Name:\tproc107\nUid:\t0\t0\t0\t0\n",
+        "snap/107/cmdline": {
+          "base64": "cHJvYzEwNwA="
+        },
+        "snap/108/stat": "108 (proc108) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1108 1048576 20\n",
+        "snap/108/status": "Name:\tproc108\nUid:\t0\t0\t0\t0\n",
+        "snap/108/cmdline": {
+          "base64": "cHJvYzEwOAA="
+        },
+        "snap/109/stat": "109 (proc109) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1109 1048576 20\n",
+        "snap/109/status": "Name:\tproc109\nUid:\t0\t0\t0\t0\n",
+        "snap/109/cmdline": {
+          "base64": "cHJvYzEwOQA="
+        },
+        "snap/110/stat": "110 (proc110) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1110 1048576 20\n",
+        "snap/110/status": "Name:\tproc110\nUid:\t0\t0\t0\t0\n",
+        "snap/110/cmdline": {
+          "base64": "cHJvYzExMAA="
+        },
+        "snap/111/stat": "111 (proc111) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1111 1048576 20\n",
+        "snap/111/status": "Name:\tproc111\nUid:\t0\t0\t0\t0\n",
+        "snap/111/cmdline": {
+          "base64": "cHJvYzExMQA="
+        },
+        "snap/112/stat": "112 (proc112) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1112 1048576 20\n",
+        "snap/112/status": "Name:\tproc112\nUid:\t0\t0\t0\t0\n",
+        "snap/112/cmdline": {
+          "base64": "cHJvYzExMgA="
+        },
+        "snap/113/stat": "113 (proc113) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1113 1048576 20\n",
+        "snap/113/status": "Name:\tproc113\nUid:\t0\t0\t0\t0\n",
+        "snap/113/cmdline": {
+          "base64": "cHJvYzExMwA="
+        },
+        "snap/114/stat": "114 (proc114) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1114 1048576 20\n",
+        "snap/114/status": "Name:\tproc114\nUid:\t0\t0\t0\t0\n",
+        "snap/114/cmdline": {
+          "base64": "cHJvYzExNAA="
+        },
+        "snap/115/stat": "115 (proc115) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1115 1048576 20\n",
+        "snap/115/status": "Name:\tproc115\nUid:\t0\t0\t0\t0\n",
+        "snap/115/cmdline": {
+          "base64": "cHJvYzExNQA="
+        },
+        "snap/116/stat": "116 (proc116) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1116 1048576 20\n",
+        "snap/116/status": "Name:\tproc116\nUid:\t0\t0\t0\t0\n",
+        "snap/116/cmdline": {
+          "base64": "cHJvYzExNgA="
+        },
+        "snap/117/stat": "117 (proc117) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1117 1048576 20\n",
+        "snap/117/status": "Name:\tproc117\nUid:\t0\t0\t0\t0\n",
+        "snap/117/cmdline": {
+          "base64": "cHJvYzExNwA="
+        },
+        "snap/118/stat": "118 (proc118) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1118 1048576 20\n",
+        "snap/118/status": "Name:\tproc118\nUid:\t0\t0\t0\t0\n",
+        "snap/118/cmdline": {
+          "base64": "cHJvYzExOAA="
+        },
+        "snap/119/stat": "119 (proc119) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1119 1048576 20\n",
+        "snap/119/status": "Name:\tproc119\nUid:\t0\t0\t0\t0\n",
+        "snap/119/cmdline": {
+          "base64": "cHJvYzExOQA="
+        },
+        "snap/120/stat": "120 (proc120) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1120 1048576 20\n",
+        "snap/120/status": "Name:\tproc120\nUid:\t0\t0\t0\t0\n",
+        "snap/120/cmdline": {
+          "base64": "cHJvYzEyMAA="
+        },
+        "snap/121/stat": "121 (proc121) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1121 1048576 20\n",
+        "snap/121/status": "Name:\tproc121\nUid:\t0\t0\t0\t0\n",
+        "snap/121/cmdline": {
+          "base64": "cHJvYzEyMQA="
+        },
+        "snap/122/stat": "122 (proc122) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1122 1048576 20\n",
+        "snap/122/status": "Name:\tproc122\nUid:\t0\t0\t0\t0\n",
+        "snap/122/cmdline": {
+          "base64": "cHJvYzEyMgA="
+        },
+        "snap/123/stat": "123 (proc123) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1123 1048576 20\n",
+        "snap/123/status": "Name:\tproc123\nUid:\t0\t0\t0\t0\n",
+        "snap/123/cmdline": {
+          "base64": "cHJvYzEyMwA="
+        },
+        "snap/124/stat": "124 (proc124) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1124 1048576 20\n",
+        "snap/124/status": "Name:\tproc124\nUid:\t0\t0\t0\t0\n",
+        "snap/124/cmdline": {
+          "base64": "cHJvYzEyNAA="
+        },
+        "snap/125/stat": "125 (proc125) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1125 1048576 20\n",
+        "snap/125/status": "Name:\tproc125\nUid:\t0\t0\t0\t0\n",
+        "snap/125/cmdline": {
+          "base64": "cHJvYzEyNQA="
+        },
+        "snap/126/stat": "126 (proc126) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1126 1048576 20\n",
+        "snap/126/status": "Name:\tproc126\nUid:\t0\t0\t0\t0\n",
+        "snap/126/cmdline": {
+          "base64": "cHJvYzEyNgA="
+        },
+        "snap/127/stat": "127 (proc127) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1127 1048576 20\n",
+        "snap/127/status": "Name:\tproc127\nUid:\t0\t0\t0\t0\n",
+        "snap/127/cmdline": {
+          "base64": "cHJvYzEyNwA="
+        },
+        "snap/128/stat": "128 (proc128) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1128 1048576 20\n",
+        "snap/128/status": "Name:\tproc128\nUid:\t0\t0\t0\t0\n",
+        "snap/128/cmdline": {
+          "base64": "cHJvYzEyOAA="
+        },
+        "snap/129/stat": "129 (proc129) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1129 1048576 20\n",
+        "snap/129/status": "Name:\tproc129\nUid:\t0\t0\t0\t0\n",
+        "snap/129/cmdline": {
+          "base64": "cHJvYzEyOQA="
+        },
+        "snap/130/stat": "130 (proc130) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1130 1048576 20\n",
+        "snap/130/status": "Name:\tproc130\nUid:\t0\t0\t0\t0\n",
+        "snap/130/cmdline": {
+          "base64": "cHJvYzEzMAA="
+        },
+        "traps.sh": "/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91\ntrap 'printf term-trap\\n' TERM\ntrap 'printf hup-trap\\n' HUP\ntrap 'printf winch-trap\\n' WINCH\ntrap 'printf int-trap\\n' INT\ntrap -p TERM HUP WINCH INT > \"$HOME/traps-before.txt\"\nbefore=$(< \"$HOME/traps-before.txt\")\ntop -d 2\nrc=$?\nprintf \"%s\\n\" \"$rc\" > \"$HOME/traps-top-status.txt\"\ntrap -p TERM HUP WINCH INT > \"$HOME/traps-after.txt\"\nafter=$(< \"$HOME/traps-after.txt\")\nif [[ $before == \"$after\" && $rc == 0 ]]; then printf 'TRAPS-RESTORED\\n'; else printf 'TRAPS-CHANGED\\n'; exit 1; fi\n"
+      },
+      "covers": [
+        "top/interactive-pty-contract"
+      ],
+      "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
+      "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence. The exact shell trap definitions before and after top, and its numeric exit status, are retained as diagnostics.",
+      "diagnostic_files": [
+        "traps-before.txt",
+        "traps-after.txt",
+        "traps-top-status.txt"
+      ]
+    }
+  ]
+}

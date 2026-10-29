@@ -1,0 +1,154 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terra-local-pty-b01r2-session-setsid",
+      "loadable": "pty",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe setsid through kernel PTY/session state in a live, handshaken child.",
+      "expected_status": 0,
+      "covers": [
+        "pty/pty-session-control-deferred"
+      ],
+      "timeout": 22,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-pty-session-r2.py": "44897e2599e10eba2a2430a055712ec8f5eba41c7c4a2c2038d6c02c4e941fd1"
+      },
+      "oracle": "An independent Python os.setsid and Linux TIOCSCTTY participant supplies the reference; the parent verifies /proc descriptors, session IDs, controlling-device identity and tcgetpgrp on the fixture-owned PTYs.",
+      "comparison": "Exact named predicates and status; bounded dynamic PID, FD, descriptor identities and raw child diagnostics are retained separately.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-session-r2.py setsid reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-session-r2.py setsid candidate \"$BASH\"\n",
+      "diagnostic_files": [
+        "session-observation.json"
+      ],
+      "stdout": "setsid-new-session=PASS\nsetsid-leader-eperm=PASS\nparticipant-exited=PASS\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-terra-local-pty-b01r2-session-stdio",
+      "loadable": "pty",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe stdio through kernel PTY/session state in a live, handshaken child.",
+      "expected_status": 0,
+      "covers": [
+        "pty/pty-session-control-deferred"
+      ],
+      "timeout": 22,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-pty-session-r2.py": "44897e2599e10eba2a2430a055712ec8f5eba41c7c4a2c2038d6c02c4e941fd1"
+      },
+      "oracle": "An independent Python os.setsid and Linux TIOCSCTTY participant supplies the reference; the parent verifies /proc descriptors, session IDs, controlling-device identity and tcgetpgrp on the fixture-owned PTYs.",
+      "comparison": "Exact named predicates and status; bounded dynamic PID, FD, descriptor identities and raw child diagnostics are retained separately.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-session-r2.py stdio reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-session-r2.py stdio candidate \"$BASH\"\n",
+      "diagnostic_files": [
+        "session-observation.json"
+      ],
+      "stdout": "acquired-controlling-tty=PASS\nstdio-three-slave-descriptors=PASS\nparticipant-exited=PASS\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-terra-local-pty-b01r2-session-reject-leader",
+      "loadable": "pty",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe reject-leader through kernel PTY/session state in a live, handshaken child.",
+      "expected_status": 0,
+      "covers": [
+        "pty/pty-session-control-deferred"
+      ],
+      "timeout": 22,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-pty-session-r2.py": "44897e2599e10eba2a2430a055712ec8f5eba41c7c4a2c2038d6c02c4e941fd1"
+      },
+      "oracle": "An independent Python os.setsid and Linux TIOCSCTTY participant supplies the reference; the parent verifies /proc descriptors, session IDs, controlling-device identity and tcgetpgrp on the fixture-owned PTYs.",
+      "comparison": "Exact named predicates and status; bounded dynamic PID, FD, descriptor identities and raw child diagnostics are retained separately.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-session-r2.py reject-leader reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-session-r2.py reject-leader candidate \"$BASH\"\n",
+      "diagnostic_files": [
+        "session-observation.json"
+      ],
+      "stdout": "refusal-nonzero=PASS\nrefusal-stdio-unchanged=PASS\nrefusal-precondition-ctty=PASS\nparticipant-exited=PASS\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-terra-local-pty-b01r2-session-reject-nonleader",
+      "loadable": "pty",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Observe reject-nonleader through kernel PTY/session state in a live, handshaken child.",
+      "expected_status": 0,
+      "covers": [
+        "pty/pty-session-control-deferred"
+      ],
+      "timeout": 22,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-pty-session-r2.py": "44897e2599e10eba2a2430a055712ec8f5eba41c7c4a2c2038d6c02c4e941fd1"
+      },
+      "oracle": "An independent Python os.setsid and Linux TIOCSCTTY participant supplies the reference; the parent verifies /proc descriptors, session IDs, controlling-device identity and tcgetpgrp on the fixture-owned PTYs.",
+      "comparison": "Exact named predicates and status; bounded dynamic PID, FD, descriptor identities and raw child diagnostics are retained separately.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-session-r2.py reject-nonleader reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-session-r2.py reject-nonleader candidate \"$BASH\"\n",
+      "diagnostic_files": [
+        "session-observation.json"
+      ],
+      "stdout": "refusal-nonzero=PASS\nrefusal-stdio-unchanged=PASS\nrefusal-precondition-not-leader=PASS\nparticipant-exited=PASS\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-terra-local-pty-b01r2-session-foreground",
+      "loadable": "pty",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "A separate owned process group becomes foreground and the original group is restored.",
+      "expected_status": 0,
+      "covers": [
+        "pty/pty-session-control-deferred"
+      ],
+      "timeout": 16,
+      "requires": [
+        "python3"
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "oracle": "The reference uses os.setpgid and tcsetpgrp on the VM driver\u2019s fresh controlling PTY; the independent driver samples tcgetpgrp and process signal masks.",
+      "comparison": "The PTY driver observes the foreground group while the owned child is alive, then requires the restoring marker and a clean exit.",
+      "candidate_script": "set -m\n/usr/bin/sleep 5 &\njob=$!\ntrap 'kill \"$job\" 2>/dev/null || :; wait \"$job\" 2>/dev/null || :' EXIT\ntrap '' TTOU\npty foreground \"$job\" 0 || exit 1\nprintf 'FOREGROUND-READY\\n'\nIFS= read -r -t 1.5 _ < <(/usr/bin/sleep 1.5) || :\npty foreground \"$$\" 0 || exit 1\nprintf 'FOREGROUND-RESTORED\\n'\n",
+      "reference_script": "/usr/bin/python3 -c '\nimport os, signal, subprocess, time\nsignal.signal(signal.SIGTTOU, signal.SIG_IGN)\nchild = subprocess.Popen([\"/usr/bin/sleep\", \"5\"], preexec_fn=lambda: os.setpgid(0, 0))\ntry:\n    os.tcsetpgrp(0, child.pid)\n    print(\"FOREGROUND-READY\", flush=True)\n    time.sleep(1.5)\n    os.tcsetpgrp(0, os.getpgrp())\n    print(\"FOREGROUND-RESTORED\", flush=True)\nfinally:\n    child.terminate()\n    child.wait(timeout=3)\n'\n",
+      "steps": [
+        {
+          "expect": "FOREGROUND-READY\\r?\\n"
+        },
+        {
+          "foreground_job": [
+            "SIGTERM"
+          ]
+        },
+        {
+          "expect": "FOREGROUND-RESTORED\\r?\\n"
+        }
+      ]
+    }
+  ]
+}

@@ -86,7 +86,7 @@
       "id": "interactive-pty-contract",
       "purpose": "Check bounded redraw count, delay and sort prompts, scrolling keys, resize behavior, empty-list recovery, exit keys, and terminal/shell trap restoration.",
       "kind": "deferred",
-      "reason": "Never executed. The PTY driver supplies keys, resize, screen and termios. Deterministic rows need the same private /proc snapshot (user-namespace bind mount) or rows restricted to owned processes on live namespaced /proc."
+      "reason": "Remaining obligations: r1: Three load values occur in the stream with a bounded exit, but the final saved screen checkpoint is after alternate-screen exit. Exact count/cadence and the third visible checkpoint are not independently established; retain this bounded observation without complete coverage.; r2: Sort values and validation steps were never reached after the prompt timeout."
     },
     {
       "id": "mutation-prompts-mocked",
@@ -139,7 +139,7 @@
       "id": "batch-failure-cleanup",
       "purpose": "Check missing proc input, output write failure, repeated invocations, and descriptor/state cleanup while preserving the documented failure statuses.",
       "kind": "deferred",
-      "reason": "Never executed. Write failure, repetition and fd checks are implementable now on live namespaced /proc. Missing proc input needs the user-namespace bind-mount technique."
+      "reason": "Remaining obligations: r4: The descriptor targets and identities are not recorded; equal numbers do not exclude a close-and-reuse or replaced-descriptor leak."
     },
     {
       "id": "invalid-delay-zero",

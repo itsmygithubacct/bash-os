@@ -1,0 +1,335 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terra-local-terminal-top-missing-stat-r3",
+      "loadable": "top",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Missing /proc/stat is reported as failure with a diagnostic.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh missing ",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91\n[[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/3 303\" ]] || exit 92\n[[ $(/usr/bin/getconf PAGESIZE) == 4096 ]] || exit 93\n' \n[[ ! -e snap/stat ]]\n",
+      "expected_status": 0,
+      "stdout": "failure-status=PASS\ndiagnostic=PASS\n",
+      "stderr": "",
+      "timeout": 30,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "getconf",
+        "cmp",
+        "mkdir"
+      ],
+      "files": {
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/3 303\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (alpha) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 30\n",
+        "snap/101/status": "Name:\talpha\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "YWxwaGEA"
+        },
+        "snap/202/stat": "202 (beta) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1202 1048576 20\n",
+        "snap/202/status": "Name:\tbeta\nUid:\t0\t0\t0\t0\n",
+        "snap/202/cmdline": {
+          "base64": "YmV0YQA="
+        },
+        "snap/303/stat": "303 (gamma) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1303 1048576 20\n",
+        "snap/303/status": "Name:\tgamma\nUid:\t0\t0\t0\t0\n",
+        "snap/303/cmdline": {
+          "base64": "Z2FtbWEA"
+        },
+        "inner.sh": "mode=$1\narg=${2-}\nif [[ $mode == fds ]]; then\n /usr/bin/mkdir -p \"$HOME/realproc\"\n /usr/bin/mount -n --bind /proc \"$HOME/realproc\" || exit 91\nfi\n/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 92\nif [[ $mode == repeat ]]; then\n top --once > \"$HOME/a.out\" 2> \"$HOME/a.err\"; a=$?\n top --once > \"$HOME/b.out\" 2> \"$HOME/b.err\"; b=$?\n if [[ $a == 0 && $b == 0 ]] && /usr/bin/cmp -s \"$HOME/a.out\" \"$HOME/b.out\" && /usr/bin/cmp -s \"$HOME/a.err\" \"$HOME/b.err\"; then printf 'repeat=PASS\\n'; else printf 'repeat=FAIL\\n'; fi\nelif [[ $mode == fds ]]; then\n shopt -s nullglob\n before=(\"$HOME/realproc/$BASHPID/fd/\"*)\n top --once > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; a=$?\n after=(\"$HOME/realproc/$BASHPID/fd/\"*)\n if [[ ${#before[@]} -ge 3 && $a == 0 && ${before[*]} == \"${after[*]}\" ]]; then printf 'success-fds=PASS\\n'; else printf 'success-fds=FAIL\\n'; fi\n before=(\"$HOME/realproc/$BASHPID/fd/\"*)\n top --once > /dev/full 2> \"$HOME/full.err\"; b=$?\n after=(\"$HOME/realproc/$BASHPID/fd/\"*)\n if [[ ${#before[@]} -ge 3 && $b == 1 && ${before[*]} == \"${after[*]}\" ]]; then printf 'failure-fds=PASS\\n'; else printf 'failure-fds=FAIL\\n'; fi\n printf 'success_status=%d failure_status=%d\\n' \"$a\" \"$b\" > \"$HOME/fd-status\"\nelif [[ $mode == full ]]; then\n top --once > /dev/full 2> \"$HOME/top.err\"; result=$?\n /usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-top-observer.py full \"$result\"\nelse\n if [[ $mode == header ]]; then top \"$arg\" > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?\n elif [[ $mode == memory ]]; then top --once -o mem > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?\n elif [[ $mode == cap ]]; then top --once -n 2 > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?\n else top --once > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?; fi\n /usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-top-observer.py \"$mode\" \"$result\"\nfi\n"
+      },
+      "helpers_sha256": {
+        "helpers/terra-local-terminal-top-observer.py": "41ae6aa8f823cd508f733510b17681ad957bdd815ceb44481ef968515c80f618"
+      },
+      "diagnostic_files": [
+        "top.raw",
+        "top.err",
+        "full.err",
+        "fd-status",
+        "a.out",
+        "b.out",
+        "a.err",
+        "b.err",
+        "top-status.json"
+      ],
+      "covers": [
+        "top/batch-failure-cleanup"
+      ],
+      "oracle": "Independent proc(5) encoded fixture: process PIDs 101/202/303, explicit stat field positions and RSS page counts, fixed load, mem, swap, uptime and CPU counters. Userns control verifies the overlay and x86_64 page size; /dev/full is an independently probed guest ENOSPC sink.",
+      "comparison": "Named semantic predicates and explicit expected status; the raw outputs and errors are separately retained. A rejected user namespace or failed overlay is a setup error/SKIP, not coverage. The exact top mode and numeric exit status are retained in top-status.json."
+    },
+    {
+      "id": "migration-terra-local-terminal-top-missing-mem-r3",
+      "loadable": "top",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Missing /proc/meminfo is reported as failure with a diagnostic.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh missing ",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91\n[[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/3 303\" ]] || exit 92\n[[ $(/usr/bin/getconf PAGESIZE) == 4096 ]] || exit 93\n' \n[[ ! -e snap/meminfo ]]\n",
+      "expected_status": 0,
+      "stdout": "failure-status=PASS\ndiagnostic=PASS\n",
+      "stderr": "",
+      "timeout": 30,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "getconf",
+        "cmp",
+        "mkdir"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/3 303\n",
+        "snap/101/stat": "101 (alpha) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 30\n",
+        "snap/101/status": "Name:\talpha\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "YWxwaGEA"
+        },
+        "snap/202/stat": "202 (beta) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1202 1048576 20\n",
+        "snap/202/status": "Name:\tbeta\nUid:\t0\t0\t0\t0\n",
+        "snap/202/cmdline": {
+          "base64": "YmV0YQA="
+        },
+        "snap/303/stat": "303 (gamma) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1303 1048576 20\n",
+        "snap/303/status": "Name:\tgamma\nUid:\t0\t0\t0\t0\n",
+        "snap/303/cmdline": {
+          "base64": "Z2FtbWEA"
+        },
+        "inner.sh": "mode=$1\narg=${2-}\nif [[ $mode == fds ]]; then\n /usr/bin/mkdir -p \"$HOME/realproc\"\n /usr/bin/mount -n --bind /proc \"$HOME/realproc\" || exit 91\nfi\n/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 92\nif [[ $mode == repeat ]]; then\n top --once > \"$HOME/a.out\" 2> \"$HOME/a.err\"; a=$?\n top --once > \"$HOME/b.out\" 2> \"$HOME/b.err\"; b=$?\n if [[ $a == 0 && $b == 0 ]] && /usr/bin/cmp -s \"$HOME/a.out\" \"$HOME/b.out\" && /usr/bin/cmp -s \"$HOME/a.err\" \"$HOME/b.err\"; then printf 'repeat=PASS\\n'; else printf 'repeat=FAIL\\n'; fi\nelif [[ $mode == fds ]]; then\n shopt -s nullglob\n before=(\"$HOME/realproc/$BASHPID/fd/\"*)\n top --once > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; a=$?\n after=(\"$HOME/realproc/$BASHPID/fd/\"*)\n if [[ ${#before[@]} -ge 3 && $a == 0 && ${before[*]} == \"${after[*]}\" ]]; then printf 'success-fds=PASS\\n'; else printf 'success-fds=FAIL\\n'; fi\n before=(\"$HOME/realproc/$BASHPID/fd/\"*)\n top --once > /dev/full 2> \"$HOME/full.err\"; b=$?\n after=(\"$HOME/realproc/$BASHPID/fd/\"*)\n if [[ ${#before[@]} -ge 3 && $b == 1 && ${before[*]} == \"${after[*]}\" ]]; then printf 'failure-fds=PASS\\n'; else printf 'failure-fds=FAIL\\n'; fi\n printf 'success_status=%d failure_status=%d\\n' \"$a\" \"$b\" > \"$HOME/fd-status\"\nelif [[ $mode == full ]]; then\n top --once > /dev/full 2> \"$HOME/top.err\"; result=$?\n /usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-top-observer.py full \"$result\"\nelse\n if [[ $mode == header ]]; then top \"$arg\" > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?\n elif [[ $mode == memory ]]; then top --once -o mem > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?\n elif [[ $mode == cap ]]; then top --once -n 2 > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?\n else top --once > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?; fi\n /usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-top-observer.py \"$mode\" \"$result\"\nfi\n"
+      },
+      "helpers_sha256": {
+        "helpers/terra-local-terminal-top-observer.py": "41ae6aa8f823cd508f733510b17681ad957bdd815ceb44481ef968515c80f618"
+      },
+      "diagnostic_files": [
+        "top.raw",
+        "top.err",
+        "full.err",
+        "fd-status",
+        "a.out",
+        "b.out",
+        "a.err",
+        "b.err",
+        "top-status.json"
+      ],
+      "covers": [
+        "top/batch-failure-cleanup"
+      ],
+      "oracle": "Independent proc(5) encoded fixture: process PIDs 101/202/303, explicit stat field positions and RSS page counts, fixed load, mem, swap, uptime and CPU counters. Userns control verifies the overlay and x86_64 page size; /dev/full is an independently probed guest ENOSPC sink.",
+      "comparison": "Named semantic predicates and explicit expected status; the raw outputs and errors are separately retained. A rejected user namespace or failed overlay is a setup error/SKIP, not coverage. The exact top mode and numeric exit status are retained in top-status.json."
+    },
+    {
+      "id": "migration-terra-local-terminal-top-full-r3",
+      "loadable": "top",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "The disposable VM /dev/full sink returns ENOSPC; top reports write failure.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh full ",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91\n[[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/3 303\" ]] || exit 92\n[[ $(/usr/bin/getconf PAGESIZE) == 4096 ]] || exit 93\n' \n/usr/bin/python3 -c 'import os,errno; f=os.open(\"/dev/full\",os.O_WRONLY);\ntry: os.write(f,b\"x\"); raise SystemExit(99)\nexcept OSError as e: assert e.errno==errno.ENOSPC\nfinally: os.close(f)'\n",
+      "expected_status": 0,
+      "stdout": "failure-status=PASS\nenospc-diagnostic=PASS\n",
+      "stderr": "",
+      "timeout": 30,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "getconf",
+        "cmp",
+        "mkdir"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/3 303\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (alpha) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 30\n",
+        "snap/101/status": "Name:\talpha\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "YWxwaGEA"
+        },
+        "snap/202/stat": "202 (beta) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1202 1048576 20\n",
+        "snap/202/status": "Name:\tbeta\nUid:\t0\t0\t0\t0\n",
+        "snap/202/cmdline": {
+          "base64": "YmV0YQA="
+        },
+        "snap/303/stat": "303 (gamma) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1303 1048576 20\n",
+        "snap/303/status": "Name:\tgamma\nUid:\t0\t0\t0\t0\n",
+        "snap/303/cmdline": {
+          "base64": "Z2FtbWEA"
+        },
+        "inner.sh": "mode=$1\narg=${2-}\nif [[ $mode == fds ]]; then\n /usr/bin/mkdir -p \"$HOME/realproc\"\n /usr/bin/mount -n --bind /proc \"$HOME/realproc\" || exit 91\nfi\n/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 92\nif [[ $mode == repeat ]]; then\n top --once > \"$HOME/a.out\" 2> \"$HOME/a.err\"; a=$?\n top --once > \"$HOME/b.out\" 2> \"$HOME/b.err\"; b=$?\n if [[ $a == 0 && $b == 0 ]] && /usr/bin/cmp -s \"$HOME/a.out\" \"$HOME/b.out\" && /usr/bin/cmp -s \"$HOME/a.err\" \"$HOME/b.err\"; then printf 'repeat=PASS\\n'; else printf 'repeat=FAIL\\n'; fi\nelif [[ $mode == fds ]]; then\n shopt -s nullglob\n before=(\"$HOME/realproc/$BASHPID/fd/\"*)\n top --once > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; a=$?\n after=(\"$HOME/realproc/$BASHPID/fd/\"*)\n if [[ ${#before[@]} -ge 3 && $a == 0 && ${before[*]} == \"${after[*]}\" ]]; then printf 'success-fds=PASS\\n'; else printf 'success-fds=FAIL\\n'; fi\n before=(\"$HOME/realproc/$BASHPID/fd/\"*)\n top --once > /dev/full 2> \"$HOME/full.err\"; b=$?\n after=(\"$HOME/realproc/$BASHPID/fd/\"*)\n if [[ ${#before[@]} -ge 3 && $b == 1 && ${before[*]} == \"${after[*]}\" ]]; then printf 'failure-fds=PASS\\n'; else printf 'failure-fds=FAIL\\n'; fi\n printf 'success_status=%d failure_status=%d\\n' \"$a\" \"$b\" > \"$HOME/fd-status\"\nelif [[ $mode == full ]]; then\n top --once > /dev/full 2> \"$HOME/top.err\"; result=$?\n /usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-top-observer.py full \"$result\"\nelse\n if [[ $mode == header ]]; then top \"$arg\" > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?\n elif [[ $mode == memory ]]; then top --once -o mem > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?\n elif [[ $mode == cap ]]; then top --once -n 2 > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?\n else top --once > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?; fi\n /usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-top-observer.py \"$mode\" \"$result\"\nfi\n"
+      },
+      "helpers_sha256": {
+        "helpers/terra-local-terminal-top-observer.py": "41ae6aa8f823cd508f733510b17681ad957bdd815ceb44481ef968515c80f618"
+      },
+      "diagnostic_files": [
+        "top.raw",
+        "top.err",
+        "full.err",
+        "fd-status",
+        "a.out",
+        "b.out",
+        "a.err",
+        "b.err",
+        "top-status.json"
+      ],
+      "covers": [
+        "top/batch-failure-cleanup"
+      ],
+      "oracle": "Independent proc(5) encoded fixture: process PIDs 101/202/303, explicit stat field positions and RSS page counts, fixed load, mem, swap, uptime and CPU counters. Userns control verifies the overlay and x86_64 page size; /dev/full is an independently probed guest ENOSPC sink.",
+      "comparison": "Named semantic predicates and explicit expected status; the raw outputs and errors are separately retained. A rejected user namespace or failed overlay is a setup error/SKIP, not coverage. The exact top mode and numeric exit status are retained in top-status.json."
+    },
+    {
+      "id": "migration-terra-local-terminal-top-repeat-r3",
+      "loadable": "top",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Two batch invocations in the same shell over unchanged data have identical output and status.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh repeat ",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91\n[[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/3 303\" ]] || exit 92\n[[ $(/usr/bin/getconf PAGESIZE) == 4096 ]] || exit 93\n' ",
+      "expected_status": 0,
+      "stdout": "repeat=PASS\n",
+      "stderr": "",
+      "timeout": 30,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "getconf",
+        "cmp",
+        "mkdir"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/3 303\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (alpha) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 30\n",
+        "snap/101/status": "Name:\talpha\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "YWxwaGEA"
+        },
+        "snap/202/stat": "202 (beta) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1202 1048576 20\n",
+        "snap/202/status": "Name:\tbeta\nUid:\t0\t0\t0\t0\n",
+        "snap/202/cmdline": {
+          "base64": "YmV0YQA="
+        },
+        "snap/303/stat": "303 (gamma) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1303 1048576 20\n",
+        "snap/303/status": "Name:\tgamma\nUid:\t0\t0\t0\t0\n",
+        "snap/303/cmdline": {
+          "base64": "Z2FtbWEA"
+        },
+        "inner.sh": "mode=$1\narg=${2-}\nif [[ $mode == fds ]]; then\n /usr/bin/mkdir -p \"$HOME/realproc\"\n /usr/bin/mount -n --bind /proc \"$HOME/realproc\" || exit 91\nfi\n/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 92\nif [[ $mode == repeat ]]; then\n top --once > \"$HOME/a.out\" 2> \"$HOME/a.err\"; a=$?\n top --once > \"$HOME/b.out\" 2> \"$HOME/b.err\"; b=$?\n if [[ $a == 0 && $b == 0 ]] && /usr/bin/cmp -s \"$HOME/a.out\" \"$HOME/b.out\" && /usr/bin/cmp -s \"$HOME/a.err\" \"$HOME/b.err\"; then printf 'repeat=PASS\\n'; else printf 'repeat=FAIL\\n'; fi\nelif [[ $mode == fds ]]; then\n shopt -s nullglob\n before=(\"$HOME/realproc/$BASHPID/fd/\"*)\n top --once > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; a=$?\n after=(\"$HOME/realproc/$BASHPID/fd/\"*)\n if [[ ${#before[@]} -ge 3 && $a == 0 && ${before[*]} == \"${after[*]}\" ]]; then printf 'success-fds=PASS\\n'; else printf 'success-fds=FAIL\\n'; fi\n before=(\"$HOME/realproc/$BASHPID/fd/\"*)\n top --once > /dev/full 2> \"$HOME/full.err\"; b=$?\n after=(\"$HOME/realproc/$BASHPID/fd/\"*)\n if [[ ${#before[@]} -ge 3 && $b == 1 && ${before[*]} == \"${after[*]}\" ]]; then printf 'failure-fds=PASS\\n'; else printf 'failure-fds=FAIL\\n'; fi\n printf 'success_status=%d failure_status=%d\\n' \"$a\" \"$b\" > \"$HOME/fd-status\"\nelif [[ $mode == full ]]; then\n top --once > /dev/full 2> \"$HOME/top.err\"; result=$?\n /usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-top-observer.py full \"$result\"\nelse\n if [[ $mode == header ]]; then top \"$arg\" > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?\n elif [[ $mode == memory ]]; then top --once -o mem > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?\n elif [[ $mode == cap ]]; then top --once -n 2 > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?\n else top --once > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?; fi\n /usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-top-observer.py \"$mode\" \"$result\"\nfi\n"
+      },
+      "helpers_sha256": {
+        "helpers/terra-local-terminal-top-observer.py": "41ae6aa8f823cd508f733510b17681ad957bdd815ceb44481ef968515c80f618"
+      },
+      "diagnostic_files": [
+        "top.raw",
+        "top.err",
+        "full.err",
+        "fd-status",
+        "a.out",
+        "b.out",
+        "a.err",
+        "b.err"
+      ],
+      "covers": [
+        "top/batch-failure-cleanup"
+      ],
+      "oracle": "Independent proc(5) encoded fixture: process PIDs 101/202/303, explicit stat field positions and RSS page counts, fixed load, mem, swap, uptime and CPU counters. Userns control verifies the overlay and x86_64 page size; /dev/full is an independently probed guest ENOSPC sink.",
+      "comparison": "Named semantic predicates and explicit expected status; the raw outputs and errors are separately retained. A rejected user namespace or failed overlay is a setup error/SKIP, not coverage."
+    },
+    {
+      "id": "migration-terra-local-terminal-top-fds-r3",
+      "loadable": "top",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "The same shell retains exactly the original descriptor set after both success and ENOSPC failure.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh fds ",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '\n/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91\n[[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/3 303\" ]] || exit 92\n[[ $(/usr/bin/getconf PAGESIZE) == 4096 ]] || exit 93\n' \n/usr/bin/python3 -c 'import os,errno; f=os.open(\"/dev/full\",os.O_WRONLY);\ntry: os.write(f,b\"x\"); raise SystemExit(99)\nexcept OSError as e: assert e.errno==errno.ENOSPC\nfinally: os.close(f)'\n",
+      "expected_status": 0,
+      "stdout": "success-fds=PASS\nfailure-fds=PASS\n",
+      "stderr": "",
+      "timeout": 30,
+      "features": [
+        "userns"
+      ],
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "getconf",
+        "cmp",
+        "mkdir"
+      ],
+      "files": {
+        "snap/stat": "cpu 100 20 30 800 10 5 5 0 40 10\n",
+        "snap/uptime": "172800.00 86400.00\n",
+        "snap/loadavg": "0.25 0.50 1.00 1/3 303\n",
+        "snap/meminfo": "MemTotal: 1024 kB\nMemAvailable: 256 kB\nSwapTotal: 512 kB\nSwapFree: 128 kB\n",
+        "snap/101/stat": "101 (alpha) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1101 1048576 30\n",
+        "snap/101/status": "Name:\talpha\nUid:\t0\t0\t0\t0\n",
+        "snap/101/cmdline": {
+          "base64": "YWxwaGEA"
+        },
+        "snap/202/stat": "202 (beta) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1202 1048576 20\n",
+        "snap/202/status": "Name:\tbeta\nUid:\t0\t0\t0\t0\n",
+        "snap/202/cmdline": {
+          "base64": "YmV0YQA="
+        },
+        "snap/303/stat": "303 (gamma) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 1303 1048576 20\n",
+        "snap/303/status": "Name:\tgamma\nUid:\t0\t0\t0\t0\n",
+        "snap/303/cmdline": {
+          "base64": "Z2FtbWEA"
+        },
+        "inner.sh": "mode=$1\narg=${2-}\nif [[ $mode == fds ]]; then\n /usr/bin/mkdir -p \"$HOME/realproc\"\n /usr/bin/mount -n --bind /proc \"$HOME/realproc\" || exit 91\nfi\n/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 92\nif [[ $mode == repeat ]]; then\n top --once > \"$HOME/a.out\" 2> \"$HOME/a.err\"; a=$?\n top --once > \"$HOME/b.out\" 2> \"$HOME/b.err\"; b=$?\n if [[ $a == 0 && $b == 0 ]] && /usr/bin/cmp -s \"$HOME/a.out\" \"$HOME/b.out\" && /usr/bin/cmp -s \"$HOME/a.err\" \"$HOME/b.err\"; then printf 'repeat=PASS\\n'; else printf 'repeat=FAIL\\n'; fi\nelif [[ $mode == fds ]]; then\n shopt -s nullglob\n before=(\"$HOME/realproc/$BASHPID/fd/\"*)\n printf '%s\\n' \"${before[@]}\" > \"$HOME/fds-success-before.names\"\n top --once > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; a=$?\n after=(\"$HOME/realproc/$BASHPID/fd/\"*)\n printf '%s\\n' \"${after[@]}\" > \"$HOME/fds-success-after.names\"\n if [[ ${#before[@]} -ge 3 && $a == 0 && ${before[*]} == \"${after[*]}\" ]]; then printf 'success-fds=PASS\\n'; else printf 'success-fds=FAIL\\n'; fi\n before=(\"$HOME/realproc/$BASHPID/fd/\"*)\n printf '%s\\n' \"${before[@]}\" > \"$HOME/fds-failure-before.names\"\n top --once > /dev/full 2> \"$HOME/full.err\"; b=$?\n after=(\"$HOME/realproc/$BASHPID/fd/\"*)\n printf '%s\\n' \"${after[@]}\" > \"$HOME/fds-failure-after.names\"\n if [[ ${#before[@]} -ge 3 && $b == 1 && ${before[*]} == \"${after[*]}\" ]]; then printf 'failure-fds=PASS\\n'; else printf 'failure-fds=FAIL\\n'; fi\n printf 'success_status=%d failure_status=%d\\n' \"$a\" \"$b\" > \"$HOME/fd-status\"\nelif [[ $mode == full ]]; then\n top --once > /dev/full 2> \"$HOME/top.err\"; result=$?\n /usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-top-observer.py full \"$result\"\nelse\n if [[ $mode == header ]]; then top \"$arg\" > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?\n elif [[ $mode == memory ]]; then top --once -o mem > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?\n elif [[ $mode == cap ]]; then top --once -n 2 > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?\n else top --once > \"$HOME/top.raw\" 2> \"$HOME/top.err\"; result=$?; fi\n /usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-top-observer.py \"$mode\" \"$result\"\nfi\n"
+      },
+      "helpers_sha256": {
+        "helpers/terra-local-terminal-top-observer.py": "41ae6aa8f823cd508f733510b17681ad957bdd815ceb44481ef968515c80f618"
+      },
+      "diagnostic_files": [
+        "top.raw",
+        "top.err",
+        "full.err",
+        "fd-status",
+        "a.out",
+        "b.out",
+        "a.err",
+        "b.err",
+        "fds-success-before.names",
+        "fds-success-after.names",
+        "fds-failure-before.names",
+        "fds-failure-after.names"
+      ],
+      "covers": [
+        "top/batch-failure-cleanup"
+      ],
+      "oracle": "Independent proc(5) encoded fixture: process PIDs 101/202/303, explicit stat field positions and RSS page counts, fixed load, mem, swap, uptime and CPU counters. Userns control verifies the overlay and x86_64 page size; /dev/full is an independently probed guest ENOSPC sink.",
+      "comparison": "The same shell captures and compares its real-proc descriptor-name sets before and after success and ENOSPC failure, requires status 0 and 1 respectively, and retains the four raw sets with status and errors. Descriptor target identity is not tested."
+    }
+  ]
+}

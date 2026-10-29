@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "dc7d8d70ec2e4861fdc33823536cd57215245a8f16b9cd42226ccbb829d0bd6d",
+  "ledger_sha256": "d52ba235796b45378a543e7b645f0a41fbd34d47cedafe26b001b7e6a1fc0d31",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 122,
-    "none": 132,
+    "partial": 128,
+    "none": 126,
     "full": 346
   },
   "migrations": {
@@ -3858,6 +3858,269 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793226208.336518
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-pty-b01-r2-static",
+          "groups": [
+            "shell",
+            "terminal"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "89cf0b7a46e78442561301f27cb1e7e3b8edffae8b385353dfeaa568a0f5a542",
+            "provenance.json": "9c943ca864d2355fd4b4749a8b5b4b4cdfd37f134a09acdfa44732fbdc54d2ad",
+            "payload.tar": "6da906eba6eadf6dcaa9eba1adf6a2053943256b6fdc95121ea1275d97f551ec",
+            "evidence.tar": "ba0ef9f60ca5037f2f1a6f375198926e721b395c8730f9434863a1e88c9330be"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793193530.2273712
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-pty-b02-r2-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "cb5d1f355c25970abf1f3875199a16a18d5cbebc0697553c4e612b31cc21c3b3",
+            "provenance.json": "0e9bd648b5ff0d8ad2caa602385dff2e4f49bedfa57d869db6f109cad58ebc1a",
+            "payload.tar": "bdd297d1a5082931422e467ce97d4d7ee44844fb32b22f5015f7345aa5d9ffdc",
+            "evidence.tar": "eb5bbdb8efccd89d8dafdf8cd892f5585b2693e646181840b3bcbc9835347c8e"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793193617.8147235
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-pty-b04-r2-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "ab24f1252013031194cf7480a7a88240378460412a040432102ef7efe7ad66d8",
+            "provenance.json": "72c01c387fd7ce096a2603ecb2ebdd208b3ed91175a2c917c06988fe672d6875",
+            "payload.tar": "371f9ddcf31a2b25bce8985d13c04ea01954c0c5ff39764e0164d4823503a3a8",
+            "evidence.tar": "4d2a3994fd265685fd44f53f150fe33dc772bda86813a54180b420e47a41ad03"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793194071.2834978
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-pty-repair02-bundle-r3-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "360c61ddde621627492aa8eb9f33ea1e10aa43e081478bac1988b7bbb2ef7a7f",
+            "provenance.json": "df311985446cd4153d0300367f3779926e841bab4a6c87daa4588600df787ff3",
+            "payload.tar": "3be85e7044071561f3f53db125f2b26afd2866de8ae91998d5db27ad55602b6a",
+            "evidence.tar": "f5aa59c0552f5629918fcfab7d0501445d6781ab45c9d3c13c121b3dd14065ee"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793197057.7610981
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-terminal-b02-r2-static",
+          "groups": [
+            "shell",
+            "terminal"
+          ],
+          "selected_records": 15,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "15519ede99470b6d67b8b941b664da038bd5afff90b071d61a74759f7ae73a40",
+            "provenance.json": "47045dcee103c40de57bdf7fa39c668f639ae72cc37c98c399251f4aa21f4c33",
+            "payload.tar": "d4f84767e9713d66055f49db6b63ff1b7d34d3e85c43e5c76949c481c8662095",
+            "evidence.tar": "ff201788a8d67ff56369dc25d155a388f92930a3f9d7350a885ae327f6ee4f70"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793196020.6904433
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-terminal-b03-r3-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "e3103f0ec46ba1eb099426fcc78b359d5074d01e42abdea6a7583fcf1aebf1c6",
+            "provenance.json": "07b501b83c0d2bdc02b94341775bde7c695fe8ec22c0effec2bc7190417e523f",
+            "payload.tar": "89784d0d0b8a8dfe47c55e8f8a75eddd9fb873c5a9ddbf0e35ab691ee935f3a3",
+            "evidence.tar": "4e1af385f41277c819b88dbd1bfba0ca8c07299db2f4ccbd4390545667a2ece9"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793194791.9641972
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-terminal-b03-static",
+          "groups": [
+            "terminal"
+          ],
+          "selected_records": 4,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "22bb1f59b106c726a67e8bb8783f1e183beeb8c7f8fc31bf79578499e666a8e7",
+            "provenance.json": "b1b07fdf66bbd48f4f379b49b5d20879348563ad921117dc0dc12343f091dbc9",
+            "payload.tar": "2c31ba37c1d09e0156e1711927181be90db204389034f26dc7760b2356022656",
+            "evidence.tar": "be631670ddcefa1224c87faa4b9a87e77729db4b9f565caf3c3ddc76d2281770"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793192539.4304194
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-terminal-b04-r3-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "5bdd3d92890180c546dfc3a7917b2181798eb499737a0c63d44137e928a749d8",
+            "provenance.json": "50cb1b5f8428957794d87088a4a072f32e6c4ad2592461d57dc22ef106c1782f",
+            "payload.tar": "c3e9fcee7a4d370f1306c656d063b14c388bfda048daf6531b40ca354f2e3b9f",
+            "evidence.tar": "0b4adad479f0c7ba059f1f39c5da114080820ed9e54d700fd16978f548103b6c"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793194609.5572643
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-terminal-b05-r4-static",
+          "groups": [
+            "shell",
+            "terminal"
+          ],
+          "selected_records": 3,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "3aa0b4b759a6a617856f9f85b4ab515787e8110775b79b53674971a619f50eba",
+            "provenance.json": "0f66cc773d009431e4792673a394fcb3b3362fdb5a8cead7a2ee7282ff1242ce",
+            "payload.tar": "a5be690967408558cc8da13e2214f699dd75a640a21211000ba09ca1deaeebb3",
+            "evidence.tar": "d701ec9e24db14b9b8650a9df87fffd46f822ae99ff4a0b4e0caac91567b9fe3"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793196567.5319886
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-terminal-b05-static",
+          "groups": [
+            "terminal"
+          ],
+          "selected_records": 13,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "f5efa8c581a412ef27af258208adc6725f8532c664e73c5e84cb27a6f5532c0b",
+            "provenance.json": "5cd531fae4b48fdebc8acc20ac0409e719af12f559f996c611c0c506afa604b9",
+            "payload.tar": "fb82f0da5400d71d7070279707536336c083b6a779d0133f4601cca9420f746d",
+            "evidence.tar": "0953bc7458a977feb760aac93d3db03ac09437d195d6be6c1bbc5b83d762bed4"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793192869.5877542
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -29182,52 +29445,147 @@
         {
           "topic": "ncdu/interactive-browser-pty",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "on a TTY, ncdu opens the full-screen browser listing children sorted by size (default)",
-              "coverage": "missing",
-              "gap": "No PTY case runs ncdu.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-initial-sort-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "keyboard navigation (Up/Down/Home/End) moves the selection",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-down-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-end-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-home-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-up-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "n sorts by name, s by size, a toggles apparent/disk",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-sort-apparent-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-sort-name-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-sort-size-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Enter/Right descends into a directory and Left/Backspace ascends",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-ncdu-descend-enter-backspace-r2",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-descend-enter-left-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-ncdu-descend-right-backspace-r2",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-descend-right-left-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "q/ESC/^C exits and restores the screen and termios",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "No saved prior visible-screen baseline is available; alternate-screen exit does not independently prove prior visible content was restored.",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-quit-ctrl-c-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-quit-escape-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-quit-q-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -35308,52 +35666,93 @@
         {
           "topic": "pty/pty-session-control-deferred",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "pty setsid makes the calling process a new session leader with no controlling terminal; it fails (EPERM) when the caller is already a group leader.",
-              "coverage": "missing",
-              "gap": "Observable: in the PTY driver 'pty setsid' in the main -c shell (a session leader) must fail. In a subshell '( pty setsid; read sid < /proc/$BASHPID/stat ... )' the session id equals BASHPID and /proc/$BASHPID/stat shows tty_nr 0.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Candidate stderr was redirected and errno was not retained; status 1 alone does not establish EPERM.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b01r2-session-setsid",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-b01-r2-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "pty open-tty PATH acquires PATH as the controlling terminal (TIOCSCTTY) and by default dup2s it onto 0/1/2.",
-              "coverage": "missing",
-              "gap": "Needs a PTY slave with no session attached. pty spawn's slave is taken by its child; the driver's PTY belongs to the leader's session. A fixture-owned python3 helper can create one with os.openpty() (no ctty attached) and run '$BASH -c \"pty setsid; pty open-tty /proc/self/fd/N; ...\"' on it.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b01r2-session-stdio",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-pty-b01-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "With FDVAR, open-tty binds the fd number to FDVAR and leaves 0/1/2 untouched.",
-              "coverage": "missing",
-              "gap": "As r2.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b01r3-session-fdvar",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "open-tty fails (TIOCSCTTY refused) when the caller is not a session leader or already has a ctty, without changing stdio.",
-              "coverage": "missing",
-              "gap": "Observable in the PTY driver without a helper.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b01r2-session-reject-leader",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-pty-b01-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b01r2-session-reject-nonleader",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-pty-b01-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "pty foreground PGRP [FD] sets the terminal foreground process group.",
-              "coverage": "missing",
-              "gap": "Observable in the PTY driver: 'set -m; sleep 5 & pty foreground $!' (an absolute /usr/bin/sleep for the candidate PATH), then the foreground_job step sees tcgetpgrp != leader; restore with 'pty foreground $$'.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The job PID supplied to pty foreground and a final restored tcgetpgrp value are not separately retained, so the sampled group cannot be independently tied to the requested PGRP.",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-pty-b01r2-session-foreground",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-b01-r2-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -35663,43 +36062,71 @@
         {
           "topic": "ptybroker/bounded_io_errors",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Invalid arguments (missing operands, a bad ID, an over-long ID beyond PB_ID_MAX 48, a non-scalar or array output variable) give the documented usage or failure statuses",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b02r3-errors",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "FD failures: an OUTFD that is closed or not writable, and an INFD that is closed, report errors",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b02r3-errors",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "receive with no pending output times out with status 124 after TIMEOUT_MS (default 100, maximum 60000; an over-limit value is rejected)",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Idle return 124 and maximum-parameter acceptance/over-limit rejection are exercised. External elapsed measurements include uncalibrated launch/scheduling overhead and do not exclude an early wait return; exact default/representative timeout behavior remains partial. A full 60,000 ms idle wait is not itself required.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b02r3-errors",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "A partial write to OUTFD keeps the remaining event bytes for the next receive, with no duplicate or missing bytes",
-              "coverage": "missing",
-              "gap": "Not exercised. This needs an OUTFD that accepts short writes.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The 16,384-byte aggregate repeats four identical 4,096-byte blocks. A duplicated/reordered whole block with another omitted can match the aggregate; this fixture cannot establish the original no-duplicate/no-missing condition. No actual duplication is inferred.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b02r2-partial-output",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-b02-r2-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -38729,26 +39156,40 @@
             {
               "id": "r1",
               "behavior": "attach NODE/SESSION --remote --dry-run prints the documented command construction (node, session, hostport, key, command).",
-              "coverage": "missing",
-              "gap": "No case. Offline and implementable (screen.c 568-571).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b04r2-remote-dry-run",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-b04-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "roam NODE/SESSION --dry-run prints its command construction.",
-              "coverage": "missing",
-              "gap": "No case; offline.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b04r2-remote-dry-run",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-b04-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Framed byte exchange: valid bounded BSCR frames of each type round-trip through encode/decode.",
-              "coverage": "partial",
-              "gap": "Offline encode/decode only; no exchange with a peer.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -38785,22 +39226,52 @@
                   "id": "legacy/screen/decode-control",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b04r2-remote-frame-binary",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-pty-b04-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b04r2-remote-frame-boundary",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-b04-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b04r2-remote-frames-small",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-b04-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b04r3-remote-ssh-frames",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Short and malformed frames (truncated header, bad magic or version, length larger than the payload or over the bound) are rejected.",
-              "coverage": "missing",
-              "gap": "No malformed-decode case.",
+              "coverage": "partial",
+              "gap": "The nominal over-limit frame also has no declared payload, so rejection may be due to truncation. The bound-specific condition remains partial even though source construction and saved rejection statuses bind the attempted inputs.",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/screen/frame-usage",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b04r2-remote-frames-malformed",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-b04-r2-static"
                 }
               ],
               "fully_exercised": false,
@@ -38809,9 +39280,16 @@
             {
               "id": "r5",
               "behavior": "A live remote attach over the transport exchanges frames with the peer.",
-              "coverage": "missing",
-              "gap": "The candidate uses vendored libssh (bs_remote_ssh_attach), not BASHSSH1, so it needs a real SSH server. An unprivileged OpenSSH sshd on loopback inside the VM (openssh-server 1:10.0p1 is already in image.lock.json) provides it.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The saved guest-loopback SSH exchange reaches a framing FAIL, but the original deferred reason explicitly forbids network activity and requires a mocked transport. It remains supplementary evidence; a conforming live mock exchange is still required for complete original coverage.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b04r3-remote-ssh-frames",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -38820,43 +39298,71 @@
         {
           "topic": "screen/session-lifecycle",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "run -n NAME -d creates a live named session with a deterministic child and returns after service readiness.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The child readiness files are awaited after the creating shell returns, and no contemporaneous readiness or independent create status is retained at return.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b03r3-lifecycle",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "After the creating shell exits, list/status (screen list, state NAME) still report the session and the child is alive.",
-              "coverage": "missing",
-              "gap": "Observable: create inside '$BASH -c \"screen run ...\"' (a child shell that exits), then list from the parent.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b03r3-lifecycle",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "kill NAME stops the pane service and all descendants; the broker socket and pid files are removed or marked dead.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Stopped child/descendants and session directory removal are observed, but the distinct pid-file removed/marked-dead state is not independently bound. The broker is a zombie, not an absent PID. Preserve the recorded PASS without crediting the missing file/reaping observations.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b03r3-lifecycle",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "No process outlives the case (broker and child cleanup).",
-              "coverage": "missing",
-              "gap": "The plain driver's stray-process check ('fixture left live child processes') observes this.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "No live executing member remains in the observed tree and the broker is a terminated zombie. Its final reaping and the state exactly at case completion are unobserved; preserve the recorded PASS and this remaining cleanup limitation.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b03r3-lifecycle",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -46818,43 +47324,77 @@
         {
           "topic": "top/batch-failure-cleanup",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "missing proc input (e.g. absent meminfo/stat) yields the documented failure status and diagnostic",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-top-missing-mem-r3",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-terminal-b04-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-top-missing-stat-r3",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-terminal-b04-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "an output write failure (ENOSPC) yields the documented failure status",
-              "coverage": "missing",
-              "gap": "Not executed. 'top --once > /dev/full' inside the VM is an unprivileged, guest-only device sink.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-top-full-r3",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b04-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "repeated invocations in one shell give consistent results",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-top-repeat-r3",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b04-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "no descriptors leak into the shell after success or failure",
-              "coverage": "missing",
-              "gap": "Not executed. Observable by listing /dev/fd (real /proc) before and after in the same shell, since top is a builtin.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The descriptor targets and identities are not recorded; equal numbers do not exclude a close-and-reuse or replaced-descriptor leak.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-top-fds-r3",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b04-r3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -46908,54 +47448,173 @@
         {
           "topic": "top/interactive-pty-contract",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "interactive mode redraws a bounded number of times at the -d delay (with -n count)",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Three load values occur in the stream with a bounded exit, but the final saved screen checkpoint is after alternate-screen exit. Exact count/cadence and the third visible checkpoint are not independently established; retain this bounded observation without complete coverage.",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-redraw-count",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "n (delay) and o/O (sort) prompts accept and validate input",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Sort values and validation steps were never reached after the prompt timeout.",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-delay-invalid",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-delay-valid",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-top-ui-sort-prompt-invalid-r4",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-terminal-b05-r4-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-top-ui-sort-prompt-valid-r4",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-terminal-b05-r4-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "scrolling keys move the row window; resize redraws at the new size",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-resize",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-scroll-down",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-scroll-home-end",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-scroll-page",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-scroll-page-up",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-scroll-up",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "an empty process list recovers; q/Q/^C exits",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-empty-recovers",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-exit-Q",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-exit-ctrl-c",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-exit-q",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "terminal modes and shell traps are restored after exit",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-exit-Q",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-exit-ctrl-c",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-exit-q",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-shell-traps-r3",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-r4-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -50262,32 +50921,52 @@
             {
               "id": "r1",
               "behavior": "On a terminal, watch renders a header line ('Every Ns: CMD' plus host and time) and the command output, matching procps watch semantically.",
-              "coverage": "missing",
-              "gap": "No PTY case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-watch-header-r3",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-terminal-b03-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "-t suppresses the header; the screen shows only the command output.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-watch-no-title",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b03-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Interactive error: with -e, a failing command shows procps's error message and waits for a key before exiting with the documented status.",
-              "coverage": "missing",
-              "gap": "The terminal key-wait path is unobserved.",
+              "coverage": "partial",
+              "gap": "The candidate message, key wait and keyed exit were never reached. Preserve the existing legacy bounded-execution companion.",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/watch/watch-bounded-exec-failure",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-watch-error-key",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-terminal-b03-static"
                 }
               ],
               "fully_exercised": false,
@@ -50296,34 +50975,54 @@
             {
               "id": "r4",
               "behavior": "Terminal interaction: Ctrl-C ends watch and restores the terminal modes; the exit status matches procps.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-watch-interrupt-r3",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b03-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "-d highlighting of changed characters on screen (reverse video) between frames.",
-              "coverage": "partial",
-              "gap": "Capture-file contract only.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/watch/watch-bounded-diff-capture",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-watch-diff",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b03-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "Resize redraw (SIGWINCH) re-renders at the new width.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "A width 40 redraw follows resize, coincident with the ordinary one-second update. The data do not distinguish the named SIGWINCH path from periodic polling; retain partial without imposing an unstated exact-latency threshold.",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-watch-resize",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b03-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -55519,6 +56218,269 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793226300.5035522
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-pty-b01-r2-dynamic",
+          "groups": [
+            "shell",
+            "terminal"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "ddc217520720da512ec6dee1afbb59e2cb1151556efbec85dee47e8d6bac4a5d",
+            "provenance.json": "62eb34a0a256607965dbf42064b5aad4c8360687136e332b47ba6c130b3b387a",
+            "payload.tar": "ded1cdee7863ed3ac113e288f657f2b7bf9bf0fb43bb946aac0c965df4eae3b3",
+            "evidence.tar": "fe72be7a8088081d5c022bb667dffbee55bfda6710f9943d77fe2b47f0472202"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793193584.7008462
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-pty-b02-r2-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "e7f215364b7a65e25323f53530ed406b2e8210bbf0b2611c7e9d53d6f01f5baf",
+            "provenance.json": "0a155bfc78ca0d9616fab1e66b0c421b07a581a5dddbd521c2f96b38a06834f6",
+            "payload.tar": "209b3cfb906b21dbd3ef1aad53038c4bbf42c37ff5363125eebaf0dfcefcdc80",
+            "evidence.tar": "bd7a64ed703c441515fdb7a80672600758238c30a06ba22217a55eac71b21750"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793193846.831806
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-pty-b04-r2-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "25f974364240babd42a738dbd9d90fbab38fa76e8dde1411ef9fda32076958e0",
+            "provenance.json": "facea40437707c6625baf8a3b0b2d3a78a31bcc2500b63121a95e932aa562b11",
+            "payload.tar": "229c26951cedef3df34bada1a07fb5295814261e129920ee88627ec584c100c4",
+            "evidence.tar": "a9b7faf0c491d995908ec426e9fc8c77269d81be8dc4195e74fb136d1f509404"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793194138.7402537
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-pty-repair02-bundle-r3-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "fca6c408438f59ff62b73e0961fd0f3740252129185d34b2e760896963228c35",
+            "provenance.json": "4537baf6a64901d8ca1ca2e91b76297c16388b9a76ced6ef866daf8b6c56e950",
+            "payload.tar": "1bef04aea1a223eccafeeb33b9c758acb750c6c5c506a83477083e1d61139b1d",
+            "evidence.tar": "f0256b2aa0faac92efe12696cd24deb48301175d0f4ffa2e15676009e2811690"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793197288.99876
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-terminal-b02-r2-dynamic",
+          "groups": [
+            "shell",
+            "terminal"
+          ],
+          "selected_records": 15,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "70f285bc1dc3b50c1992360fb0464ce0adc3a78a8f16aa4ca20c4b646e0d1479",
+            "provenance.json": "70fc65ec560241499ad1e3c03edd76d2974bc14d29b4e4a94ccbdf46ed8dde4a",
+            "payload.tar": "db0b3ab1a797b170f99a2f9f59e3e2db42361eb26686f765127748def9917501",
+            "evidence.tar": "7f0eaaffbe4575aef1a932f06eef3855c8cf6abbc463f4c28301e45ace224771"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793196304.031398
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-terminal-b03-dynamic",
+          "groups": [
+            "terminal"
+          ],
+          "selected_records": 4,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "f5dadce1f26f86549fc4a85c9b002cf476fbefe0b55d6f02563a8a3c24e6b0b9",
+            "provenance.json": "3f31a9d9e39282aa45aa113f0b3d5d06545589b6566aa3fcfdefabc60e582e83",
+            "payload.tar": "d2c43f91f5d94244ce0d155f38d1af7504125cb66ea8d69e6dc6760c74f35738",
+            "evidence.tar": "c8a2e6223ee9be1766940022b0040da5d788735f1387b24f65e0928e69b64fd1"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793192602.7738707
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-terminal-b03-r3-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "c3087db58f4094be17d412e3fcf41ba706d19c760606807579c0e1a1e7f53283",
+            "provenance.json": "66ee90c7f0bcaf185fa7a726514d821c1eeaccd1c427a4c164a9ce37f69e85dd",
+            "payload.tar": "cee678e2355a2809839c5ec8c05307a7893f522a805f08c7099be49179c39a71",
+            "evidence.tar": "13746b0e3427b4720673ec4984f9efc2a0360554c45efaa629b6c32f4bbd707e"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793195034.609709
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-terminal-b04-r3-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "0aec5fe6169420feabccd8ad9c0fd0064d7a118e79dbac340e1f6cdcec2046af",
+            "provenance.json": "063ec1f2d6ca15a0b89add40c79cce6a5baa85a070ff871031b476f8494fec30",
+            "payload.tar": "d3943c20fd24b06bb781eb20e50149bb2c0a23fdbcba9c1c7863c0646bfea556",
+            "evidence.tar": "95ae48f453246b2f86b634c866426d8f8599f7e9d0b8f316b92a4aa3bfce7198"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793194691.9470875
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-terminal-b05-dynamic",
+          "groups": [
+            "terminal"
+          ],
+          "selected_records": 13,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "b0575bc5960c5a3415c4537909343375b79952db4df621f4ab472e26410e21ff",
+            "provenance.json": "0dd4ef946db56a9a6ba05fd1cdaff6599a7e7c67e9897d7017561840844bcaaf",
+            "payload.tar": "4012d00d971cc6b6a618baaa07dd7a11880188073405edb079ea5f7badcac379",
+            "evidence.tar": "dd6b55a7cf31024cf83b185b57d161789427d6b07fb56939c38d1d184451fb5a"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793192931.0065858
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "saved198-candidate-qual-local-terminal-b05-r4-dynamic",
+          "groups": [
+            "shell",
+            "terminal"
+          ],
+          "selected_records": 3,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "50d5e510653977406f134e5f31d6560bc03a55224c53ca86de0836466a197061",
+            "provenance.json": "2cdb508b90045bad4a743259e1e019d7b914f4de9cf15a2c7fa37d4cfd8fdbbd",
+            "payload.tar": "3ce35166e83a71615273495604f9fbc7b2a32ae2c1dd9549f76f57086026a36d",
+            "evidence.tar": "1bf3affa06cc17946e69f287623160fa4811716a53e479da065fe216215921f9"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793196816.010091
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -80843,52 +81805,147 @@
         {
           "topic": "ncdu/interactive-browser-pty",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "on a TTY, ncdu opens the full-screen browser listing children sorted by size (default)",
-              "coverage": "missing",
-              "gap": "No PTY case runs ncdu.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-initial-sort-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "keyboard navigation (Up/Down/Home/End) moves the selection",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-down-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-end-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-home-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-up-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "n sorts by name, s by size, a toggles apparent/disk",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-sort-apparent-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-sort-name-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-sort-size-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Enter/Right descends into a directory and Left/Backspace ascends",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-ncdu-descend-enter-backspace-r2",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-descend-enter-left-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-ncdu-descend-right-backspace-r2",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-descend-right-left-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "q/ESC/^C exits and restores the screen and termios",
-              "coverage": "missing",
-              "gap": "Same.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "No saved prior visible-screen baseline is available; alternate-screen exit does not independently prove prior visible content was restored.",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-quit-ctrl-c-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-quit-escape-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-ncdu-quit-q-r2",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b02-r2-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -86969,52 +88026,93 @@
         {
           "topic": "pty/pty-session-control-deferred",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "pty setsid makes the calling process a new session leader with no controlling terminal; it fails (EPERM) when the caller is already a group leader.",
-              "coverage": "missing",
-              "gap": "Observable: in the PTY driver 'pty setsid' in the main -c shell (a session leader) must fail. In a subshell '( pty setsid; read sid < /proc/$BASHPID/stat ... )' the session id equals BASHPID and /proc/$BASHPID/stat shows tty_nr 0.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Candidate stderr was redirected and errno was not retained; status 1 alone does not establish EPERM.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b01r2-session-setsid",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-b01-r2-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "pty open-tty PATH acquires PATH as the controlling terminal (TIOCSCTTY) and by default dup2s it onto 0/1/2.",
-              "coverage": "missing",
-              "gap": "Needs a PTY slave with no session attached. pty spawn's slave is taken by its child; the driver's PTY belongs to the leader's session. A fixture-owned python3 helper can create one with os.openpty() (no ctty attached) and run '$BASH -c \"pty setsid; pty open-tty /proc/self/fd/N; ...\"' on it.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b01r2-session-stdio",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-pty-b01-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "With FDVAR, open-tty binds the fd number to FDVAR and leaves 0/1/2 untouched.",
-              "coverage": "missing",
-              "gap": "As r2.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b01r3-session-fdvar",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "open-tty fails (TIOCSCTTY refused) when the caller is not a session leader or already has a ctty, without changing stdio.",
-              "coverage": "missing",
-              "gap": "Observable in the PTY driver without a helper.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b01r2-session-reject-leader",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-pty-b01-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b01r2-session-reject-nonleader",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-pty-b01-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "pty foreground PGRP [FD] sets the terminal foreground process group.",
-              "coverage": "missing",
-              "gap": "Observable in the PTY driver: 'set -m; sleep 5 & pty foreground $!' (an absolute /usr/bin/sleep for the candidate PATH), then the foreground_job step sees tcgetpgrp != leader; restore with 'pty foreground $$'.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The job PID supplied to pty foreground and a final restored tcgetpgrp value are not separately retained, so the sampled group cannot be independently tied to the requested PGRP.",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-pty-b01r2-session-foreground",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-b01-r2-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -87324,43 +88422,71 @@
         {
           "topic": "ptybroker/bounded_io_errors",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Invalid arguments (missing operands, a bad ID, an over-long ID beyond PB_ID_MAX 48, a non-scalar or array output variable) give the documented usage or failure statuses",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b02r3-errors",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "FD failures: an OUTFD that is closed or not writable, and an INFD that is closed, report errors",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b02r3-errors",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "receive with no pending output times out with status 124 after TIMEOUT_MS (default 100, maximum 60000; an over-limit value is rejected)",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Idle return 124 and maximum-parameter acceptance/over-limit rejection are exercised. External elapsed measurements include uncalibrated launch/scheduling overhead and do not exclude an early wait return; exact default/representative timeout behavior remains partial. A full 60,000 ms idle wait is not itself required.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b02r3-errors",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "A partial write to OUTFD keeps the remaining event bytes for the next receive, with no duplicate or missing bytes",
-              "coverage": "missing",
-              "gap": "Not exercised. This needs an OUTFD that accepts short writes.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The 16,384-byte aggregate repeats four identical 4,096-byte blocks. A duplicated/reordered whole block with another omitted can match the aggregate; this fixture cannot establish the original no-duplicate/no-missing condition. No actual duplication is inferred.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b02r2-partial-output",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-b02-r2-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -90390,26 +91516,40 @@
             {
               "id": "r1",
               "behavior": "attach NODE/SESSION --remote --dry-run prints the documented command construction (node, session, hostport, key, command).",
-              "coverage": "missing",
-              "gap": "No case. Offline and implementable (screen.c 568-571).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b04r2-remote-dry-run",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-b04-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "roam NODE/SESSION --dry-run prints its command construction.",
-              "coverage": "missing",
-              "gap": "No case; offline.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b04r2-remote-dry-run",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-b04-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Framed byte exchange: valid bounded BSCR frames of each type round-trip through encode/decode.",
-              "coverage": "partial",
-              "gap": "Offline encode/decode only; no exchange with a peer.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -90446,22 +91586,52 @@
                   "id": "legacy/screen/decode-control",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b04r2-remote-frame-binary",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-pty-b04-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b04r2-remote-frame-boundary",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-b04-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b04r2-remote-frames-small",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-b04-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b04r3-remote-ssh-frames",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "Short and malformed frames (truncated header, bad magic or version, length larger than the payload or over the bound) are rejected.",
-              "coverage": "missing",
-              "gap": "No malformed-decode case.",
+              "coverage": "partial",
+              "gap": "The nominal over-limit frame also has no declared payload, so rejection may be due to truncation. The bound-specific condition remains partial even though source construction and saved rejection statuses bind the attempted inputs.",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/screen/frame-usage",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b04r2-remote-frames-malformed",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-b04-r2-dynamic"
                 }
               ],
               "fully_exercised": false,
@@ -90470,9 +91640,16 @@
             {
               "id": "r5",
               "behavior": "A live remote attach over the transport exchanges frames with the peer.",
-              "coverage": "missing",
-              "gap": "The candidate uses vendored libssh (bs_remote_ssh_attach), not BASHSSH1, so it needs a real SSH server. An unprivileged OpenSSH sshd on loopback inside the VM (openssh-server 1:10.0p1 is already in image.lock.json) provides it.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The saved guest-loopback SSH exchange reaches a framing FAIL, but the original deferred reason explicitly forbids network activity and requires a mocked transport. It remains supplementary evidence; a conforming live mock exchange is still required for complete original coverage.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b04r3-remote-ssh-frames",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -90481,43 +91658,71 @@
         {
           "topic": "screen/session-lifecycle",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "run -n NAME -d creates a live named session with a deterministic child and returns after service readiness.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The child readiness files are awaited after the creating shell returns, and no contemporaneous readiness or independent create status is retained at return.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b03r3-lifecycle",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "After the creating shell exits, list/status (screen list, state NAME) still report the session and the child is alive.",
-              "coverage": "missing",
-              "gap": "Observable: create inside '$BASH -c \"screen run ...\"' (a child shell that exits), then list from the parent.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b03r3-lifecycle",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "kill NAME stops the pane service and all descendants; the broker socket and pid files are removed or marked dead.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Stopped child/descendants and session directory removal are observed, but the distinct pid-file removed/marked-dead state is not independently bound. The broker is a zombie, not an absent PID. Preserve the recorded PASS without crediting the missing file/reaping observations.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b03r3-lifecycle",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "No process outlives the case (broker and child cleanup).",
-              "coverage": "missing",
-              "gap": "The plain driver's stray-process check ('fixture left live child processes') observes this.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "No live executing member remains in the observed tree and the broker is a terminated zombie. Its final reaping and the state exactly at case completion are unobserved; preserve the recorded PASS and this remaining cleanup limitation.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-pty-b03r3-lifecycle",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -98479,43 +99684,77 @@
         {
           "topic": "top/batch-failure-cleanup",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "missing proc input (e.g. absent meminfo/stat) yields the documented failure status and diagnostic",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-top-missing-mem-r3",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-terminal-b04-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-top-missing-stat-r3",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-terminal-b04-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "an output write failure (ENOSPC) yields the documented failure status",
-              "coverage": "missing",
-              "gap": "Not executed. 'top --once > /dev/full' inside the VM is an unprivileged, guest-only device sink.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-top-full-r3",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b04-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "repeated invocations in one shell give consistent results",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-top-repeat-r3",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b04-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "no descriptors leak into the shell after success or failure",
-              "coverage": "missing",
-              "gap": "Not executed. Observable by listing /dev/fd (real /proc) before and after in the same shell, since top is a builtin.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The descriptor targets and identities are not recorded; equal numbers do not exclude a close-and-reuse or replaced-descriptor leak.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-top-fds-r3",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b04-r3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -98569,54 +99808,173 @@
         {
           "topic": "top/interactive-pty-contract",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "interactive mode redraws a bounded number of times at the -d delay (with -n count)",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Three load values occur in the stream with a bounded exit, but the final saved screen checkpoint is after alternate-screen exit. Exact count/cadence and the third visible checkpoint are not independently established; retain this bounded observation without complete coverage.",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-redraw-count",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "n (delay) and o/O (sort) prompts accept and validate input",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Sort values and validation steps were never reached after the prompt timeout.",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-delay-invalid",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-delay-valid",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-top-ui-sort-prompt-invalid-r4",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-terminal-b05-r4-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-top-ui-sort-prompt-valid-r4",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-terminal-b05-r4-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "scrolling keys move the row window; resize redraws at the new size",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-resize",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-scroll-down",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-scroll-home-end",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-scroll-page",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-scroll-page-up",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-scroll-up",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "an empty process list recovers; q/Q/^C exits",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-empty-recovers",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-exit-Q",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-exit-ctrl-c",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-exit-q",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "terminal modes and shell traps are restored after exit",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-exit-Q",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-exit-ctrl-c",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-exit-q",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-top-ui-shell-traps-r3",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b05-r4-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -101923,32 +103281,52 @@
             {
               "id": "r1",
               "behavior": "On a terminal, watch renders a header line ('Every Ns: CMD' plus host and time) and the command output, matching procps watch semantically.",
-              "coverage": "missing",
-              "gap": "No PTY case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-watch-header-r3",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-terminal-b03-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "-t suppresses the header; the screen shows only the command output.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-watch-no-title",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b03-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Interactive error: with -e, a failing command shows procps's error message and waits for a key before exiting with the documented status.",
-              "coverage": "missing",
-              "gap": "The terminal key-wait path is unobserved.",
+              "coverage": "partial",
+              "gap": "The candidate message, key wait and keyed exit were never reached. Preserve the existing legacy bounded-execution companion.",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/watch/watch-bounded-exec-failure",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-watch-error-key",
+                  "status": "FAIL",
+                  "run": "saved198-candidate-qual-local-terminal-b03-dynamic"
                 }
               ],
               "fully_exercised": false,
@@ -101957,34 +103335,54 @@
             {
               "id": "r4",
               "behavior": "Terminal interaction: Ctrl-C ends watch and restores the terminal modes; the exit status matches procps.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terra-local-terminal-watch-interrupt-r3",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b03-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "-d highlighting of changed characters on screen (reverse video) between frames.",
-              "coverage": "partial",
-              "gap": "Capture-file contract only.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/watch/watch-bounded-diff-capture",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-watch-diff",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b03-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "Resize redraw (SIGWINCH) re-renders at the new width.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "A width 40 redraw follows resize, coincident with the ordinary one-second update. The data do not distinguish the named SIGWINCH path from periodic polling; retain partial without imposing an unstated exact-latency threshold.",
+              "evidence": [
+                {
+                  "group": "terminal",
+                  "id": "migration-terra-local-terminal-watch-resize",
+                  "status": "PASS",
+                  "run": "saved198-candidate-qual-local-terminal-b03-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }

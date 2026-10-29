@@ -1,0 +1,263 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terra-local-terminal-watch-header-r3",
+      "loadable": "watch",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Header includes interval, command, host/time and the command output below it.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
+      "expected_status": 0,
+      "timeout": 23,
+      "covers": [
+        "watch/watch-terminal-parity"
+      ],
+      "oracle": "Pinned Debian procps 4.0.4 watch and procps watch(1): semantic screen positions and rendition, documented error text/status and terminal restoration. Hostname/time are patterned, never fixed to a host.",
+      "comparison": "The private PTY captures raw bytes, decoded screen, step events, status and initial/final termios; the reference must satisfy fixed predicates and each side is evaluated separately. A guarded owned PTY adapter runs the same ordered predicates, retains full live termios and events, and attempts only bounded cleanup after a failed step; later steps remain unexercised.",
+      "requires": [
+        "watch",
+        "python3"
+      ],
+      "files": {
+        "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"rows\": {\n          \"0\": \"^Every 1\\\\.0s:.*printf.*: [A-Z][a-z]{2} [A-Z][a-z]{2} +[0-9]+ [0-9]{2}:[0-9]{2}:[0-9]{2} [0-9]{4}$\",\n          \"2\": \"^WATCH_PAYLOAD$\"\n        }\n      }\n    },\n    {\n      \"send_base64\": \"Aw==\"\n    }\n  ],\n  \"candidate_script\": \"watch -n 1 'printf WATCH_PAYLOAD'\",\n  \"reference_script\": \"watch -n 1 'printf WATCH_PAYLOAD'\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Aw==\",\n  \"answer_queries\": false\n}\n"
+      },
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" reference",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py control\n",
+      "setup_timeout": 30,
+      "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
+      "stderr": "",
+      "helpers_sha256": {
+        "helpers/terra-local-terminal-pty-repair.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+      },
+      "diagnostic_files": [
+        "pty-repair-control.json",
+        "pty-repair.raw",
+        "pty-repair.json"
+      ]
+    },
+    {
+      "id": "migration-terra-local-terminal-watch-no-title",
+      "loadable": "watch",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "-t places the command output at the top row and suppresses the Every header.",
+      "script": "watch -n 1 -t 'printf WATCH_PAYLOAD'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^WATCH_PAYLOAD$"
+            },
+            "lacks": [
+              "Every [0-9]"
+            ]
+          }
+        },
+        {
+          "send_base64": "Aw=="
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "watch/watch-terminal-parity"
+      ],
+      "oracle": "Pinned Debian procps 4.0.4 watch and procps watch(1): semantic screen positions and rendition, documented error text/status and terminal restoration. Hostname/time are patterned, never fixed to a host.",
+      "comparison": "The private PTY captures raw bytes, decoded screen, step events, status and initial/final termios; the reference must satisfy fixed predicates and each side is evaluated separately.",
+      "requires": [
+        "watch"
+      ]
+    },
+    {
+      "id": "migration-terra-local-terminal-watch-error-key",
+      "loadable": "watch",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "-e displays the reference error text and waits for a key before returning procps 4.0.4 status 8.",
+      "script": "watch -e 'exit 7'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "command exit with a non-zero status, press a key to exit"
+            ]
+          }
+        },
+        {
+          "quiet_ms": 300
+        },
+        {
+          "send": "x"
+        }
+      ],
+      "expected_status": 8,
+      "timeout": 15,
+      "covers": [
+        "watch/watch-terminal-parity"
+      ],
+      "oracle": "Pinned Debian procps 4.0.4 watch and procps watch(1): semantic screen positions and rendition, documented error text/status and terminal restoration. Hostname/time are patterned, never fixed to a host.",
+      "comparison": "The private PTY captures raw bytes, decoded screen, step events, status and initial/final termios; the reference must satisfy fixed predicates and each side is evaluated separately.",
+      "requires": [
+        "watch"
+      ]
+    },
+    {
+      "id": "migration-terra-local-terminal-watch-interrupt-r3",
+      "loadable": "watch",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Ctrl-C on a running watch exits with the procps status and restores terminal modes.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
+      "expected_status": 0,
+      "timeout": 23,
+      "covers": [
+        "watch/watch-terminal-parity"
+      ],
+      "oracle": "Pinned Debian procps 4.0.4 watch and procps watch(1): semantic screen positions and rendition, documented error text/status and terminal restoration. Hostname/time are patterned, never fixed to a host.",
+      "comparison": "The private PTY captures raw bytes, decoded screen, step events, status and initial/final termios; the reference must satisfy fixed predicates and each side is evaluated separately. A guarded owned PTY adapter runs the same ordered predicates, retains full live termios and events, and attempts only bounded cleanup after a failed step; later steps remain unexercised.",
+      "requires": [
+        "watch",
+        "python3"
+      ],
+      "files": {
+        "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"rows\": {\n          \"0\": \"^WATCH_PAYLOAD$\"\n        }\n      }\n    },\n    {\n      \"termios\": {\n        \"set\": [\n          \"ISIG\"\n        ]\n      }\n    },\n    {\n      \"send_base64\": \"Aw==\"\n    }\n  ],\n  \"candidate_script\": \"watch -n 1 -t 'printf WATCH_PAYLOAD'\",\n  \"reference_script\": \"watch -n 1 -t 'printf WATCH_PAYLOAD'\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Aw==\",\n  \"answer_queries\": false\n}\n"
+      },
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" reference",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py control\n",
+      "setup_timeout": 30,
+      "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
+      "stderr": "",
+      "helpers_sha256": {
+        "helpers/terra-local-terminal-pty-repair.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+      },
+      "diagnostic_files": [
+        "pty-repair-control.json",
+        "pty-repair.raw",
+        "pty-repair.json"
+      ]
+    },
+    {
+      "id": "migration-terra-local-terminal-watch-diff",
+      "loadable": "watch",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "After the controlled first ABY frame, ABZ shows only changed Z in reverse video.",
+      "script": "watch -n 1 -t -d 'if test -f \"$HOME/watch-seen\"; then printf ABZ; else : > \"$HOME/watch-seen\"; printf ABY; fi'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^ABY$"
+            }
+          }
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^ABZ$"
+            },
+            "cells": [
+              {
+                "row": 0,
+                "col": 0,
+                "data": "A",
+                "reverse": false
+              },
+              {
+                "row": 0,
+                "col": 2,
+                "data": "Z",
+                "reverse": true
+              }
+            ]
+          }
+        },
+        {
+          "send_base64": "Aw=="
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "watch/watch-terminal-parity"
+      ],
+      "oracle": "Pinned Debian procps 4.0.4 watch and procps watch(1): semantic screen positions and rendition, documented error text/status and terminal restoration. Hostname/time are patterned, never fixed to a host.",
+      "comparison": "The private PTY captures raw bytes, decoded screen, step events, status and initial/final termios; the reference must satisfy fixed predicates and each side is evaluated separately.",
+      "requires": [
+        "watch"
+      ],
+      "diagnostic_files": [
+        "watch-seen"
+      ]
+    },
+    {
+      "id": "migration-terra-local-terminal-watch-resize",
+      "loadable": "watch",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Resize 80 columns to 40 and require the long output to wrap onto a second row.",
+      "script": "watch -n 1 -t 'printf 01234567890123456789012345678901234567890123456789ENDMARK'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^01234567890123456789012345678901234567890123456789ENDMARK$"
+            }
+          }
+        },
+        {
+          "resize": [
+            24,
+            40
+          ]
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^0123456789012345678901234567890123456789$",
+              "1": "^0123456789ENDMARK$"
+            }
+          }
+        },
+        {
+          "send_base64": "Aw=="
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "watch/watch-terminal-parity"
+      ],
+      "oracle": "Pinned Debian procps 4.0.4 watch and procps watch(1): semantic screen positions and rendition, documented error text/status and terminal restoration. Hostname/time are patterned, never fixed to a host.",
+      "comparison": "The private PTY captures raw bytes, decoded screen, step events, status and initial/final termios; the reference must satisfy fixed predicates and each side is evaluated separately.",
+      "requires": [
+        "watch"
+      ]
+    }
+  ]
+}

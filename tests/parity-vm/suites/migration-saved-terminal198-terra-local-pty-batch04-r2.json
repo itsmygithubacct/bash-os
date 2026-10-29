@@ -1,0 +1,172 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terra-local-pty-b04r2-remote-dry-run",
+      "loadable": "screen",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Resolve independent cluster data into the exact attach and roam dry-run commands.",
+      "covers": [
+        "screen/remote-attach-mock"
+      ],
+      "expected_status": 0,
+      "timeout": 45,
+      "requires": [
+        "mkdir"
+      ],
+      "script": "cluster=$HOME/cluster\n/usr/bin/mkdir -m 700 \"$cluster\" || exit 1\nprintf 'node-1 parity@127.0.0.1:20861 /tmp/parity-home/fake-key\\n' >\"$cluster/members\"\nprintf 'local-1\\n' >\"$cluster/node_id\"\nexport BASHCLUSTER_STATE_DIR=$cluster\nfailed=0\nmark() { if [[ $2 == 1 ]]; then printf '%s=PASS\\n' \"$1\"; else printf '%s=FAIL\\n' \"$1\"; failed=1; fi; }\nscreen attach node-1/work --remote --dry-run >\"$HOME/attach-dry.txt\" 2>\"$HOME/attach-dry.err\"; a=$?\nscreen roam node-1/work --dry-run >\"$HOME/roam-dry.txt\" 2>\"$HOME/roam-dry.err\"; b=$?\nscreen attach node-1/work --remote --dry-run --key /tmp/parity-home/override >\"$HOME/attach-override.txt\" 2>\"$HOME/override.err\"; c=$?\nexpected_attach=$'node=node-1\\nsession=work\\nhostport=parity@127.0.0.1:20861\\nkey=/tmp/parity-home/fake-key\\ncommand=screen attach work -r'\nexpected_roam=$'from=local-1\\nto=node-1/work\\nhostport=parity@127.0.0.1:20861\\nkey=/tmp/parity-home/fake-key\\ncommand=screen attach work -r'\nexpected_override=$'node=node-1\\nsession=work\\nhostport=parity@127.0.0.1:20861\\nkey=/tmp/parity-home/override\\ncommand=screen attach work -r'\ngood=0; [[ $a == 0 && $(<\"$HOME/attach-dry.txt\") == \"$expected_attach\" ]] && good=1; mark attach-command \"$good\"\ngood=0; [[ $b == 0 && $(<\"$HOME/roam-dry.txt\") == \"$expected_roam\" ]] && good=1; mark roam-command \"$good\"\ngood=0; [[ $c == 0 && $(<\"$HOME/attach-override.txt\") == \"$expected_override\" ]] && good=1; mark explicit-key-override \"$good\"\nexit \"$failed\"\n",
+      "stdout": "attach-command=PASS\nroam-command=PASS\nexplicit-key-override=PASS\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "attach-dry.txt",
+        "roam-dry.txt",
+        "attach-override.txt",
+        "attach-dry.err",
+        "roam-dry.err",
+        "override.err"
+      ],
+      "oracle": "The expected construction is a fixed literal derived from the documented dry-run contract and independent fixture cluster membership, with no transport connection.",
+      "comparison": "Compare the complete attach, roam and key override output and status."
+    },
+    {
+      "id": "migration-terra-local-pty-b04r2-remote-frames-small",
+      "loadable": "screen",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Round-trip independently encoded PTY, query, and control frames.",
+      "covers": [
+        "screen/remote-attach-mock"
+      ],
+      "expected_status": 0,
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-pty-remote-r2.py": "d6bb3ff3abc7e8ef481a0336c4c9d553bbf097aad1a213b11d5e3c4c34487685"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-remote-r2.py fixtures\n",
+      "setup_timeout": 8,
+      "script": "failed=0\nmark() { if [[ $2 == 1 ]]; then printf '%s=PASS\\n' \"$1\"; else printf '%s=FAIL\\n' \"$1\"; failed=1; fi; }\nroot=$HOME/frames\n\nfor type in pty query control; do\n  case $type in pty) payload='hi!';; query) payload='';; control) payload='resize 24 80';; esac\n  screen remote-frame encode \"$type\" \"$payload\" >\"$HOME/encoded-$type\" 2>>\"$HOME/frame-errors.log\"; enc=$?\n  screen remote-frame decode <\"$HOME/encoded-$type\" >\"$HOME/decoded-$type\" 2>>\"$HOME/frame-errors.log\"; dec=$?\n  screen remote-frame decode <\"$root/$type.frame\" >\"$HOME/independent-$type\" 2>>\"$HOME/frame-errors.log\"; indep=$?\n  good=0; [[ $enc == 0 && $dec == 0 && $indep == 0 ]] && /usr/bin/cmp -s \"$root/$type.frame\" \"$HOME/encoded-$type\" && /usr/bin/cmp -s \"$root/$type.decoded\" \"$HOME/decoded-$type\" && /usr/bin/cmp -s \"$root/$type.decoded\" \"$HOME/independent-$type\" && good=1\n  mark \"$type-roundtrip\" \"$good\"\ndone\nexit \"$failed\"\n",
+      "stdout": "pty-roundtrip=PASS\nquery-roundtrip=PASS\ncontrol-roundtrip=PASS\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "encoded-pty",
+        "encoded-query",
+        "encoded-control",
+        "decoded-pty",
+        "decoded-query",
+        "decoded-control",
+        "independent-pty",
+        "independent-query",
+        "independent-control",
+        "frame-errors.log"
+      ],
+      "oracle": "Independent Python constructs BSCR magic, version, explicit type and big-endian lengths; expected decoded output is fixed without candidate results.",
+      "comparison": "Compare exact encoder bytes and both independently sourced and round-trip decoded bytes for all three frame types."
+    },
+    {
+      "id": "migration-terra-local-pty-b04r2-remote-frame-boundary",
+      "loadable": "screen",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Round-trip a valid frame at the 1 MiB payload boundary.",
+      "covers": [
+        "screen/remote-attach-mock"
+      ],
+      "expected_status": 0,
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-pty-remote-r2.py": "d6bb3ff3abc7e8ef481a0336c4c9d553bbf097aad1a213b11d5e3c4c34487685"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-remote-r2.py fixtures\n",
+      "setup_timeout": 8,
+      "script": "failed=0\nmark() { if [[ $2 == 1 ]]; then printf '%s=PASS\\n' \"$1\"; else printf '%s=FAIL\\n' \"$1\"; failed=1; fi; }\nroot=$HOME/frames\n\npayload=$(<\"$root/maximum.payload\")\nscreen remote-frame encode pty \"$payload\" >\"$HOME/maximum-encoded\" 2>\"$HOME/maximum-encode.err\"; enc=$?\nscreen remote-frame decode <\"$root/maximum.frame\" >\"$HOME/maximum-decoded\" 2>\"$HOME/maximum-decode.err\"; dec=$?\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-remote-r2.py frame-evidence \"$enc\" \"$dec\" || exit 1\ngood=0; [[ $enc == 0 && $dec == 0 ]] && /usr/bin/cmp -s \"$root/maximum.frame\" \"$HOME/maximum-encoded\" && /usr/bin/cmp -s \"$root/maximum.decoded\" \"$HOME/maximum-decoded\" && good=1\nmark maximum-valid-frame \"$good\"\nexit \"$failed\"\n",
+      "stdout": "maximum-valid-frame=PASS\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "maximum-encode.err",
+        "maximum-decode.err",
+        "frame-boundary-observation.json"
+      ],
+      "oracle": "The independent Python reference constructs a 1048576-byte payload, its big-endian length header and the complete expected decoder bytes.",
+      "comparison": "Byte-compare the entire 1 MiB encoder output and entire decoder output, including the exact boundary. Retain exact lengths, SHA-256 digests and first/last 16 bytes for expected and actual encoded/decoded files, plus statuses."
+    },
+    {
+      "id": "migration-terra-local-pty-b04r2-remote-frame-binary",
+      "loadable": "screen",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Decode a valid BSCR payload containing NUL and a high-bit byte without losing data.",
+      "covers": [
+        "screen/remote-attach-mock"
+      ],
+      "expected_status": 0,
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "cmp"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-pty-remote-r2.py": "d6bb3ff3abc7e8ef481a0336c4c9d553bbf097aad1a213b11d5e3c4c34487685"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-remote-r2.py fixtures\n",
+      "setup_timeout": 8,
+      "script": "failed=0\nmark() { if [[ $2 == 1 ]]; then printf '%s=PASS\\n' \"$1\"; else printf '%s=FAIL\\n' \"$1\"; failed=1; fi; }\nroot=$HOME/frames\n\nscreen remote-frame decode <\"$root/binary.frame\" >\"$HOME/binary-decoded\" 2>\"$HOME/binary-decode.err\"; rc=$?\ngood=0; [[ $rc == 0 ]] && /usr/bin/cmp -s \"$root/binary.decoded\" \"$HOME/binary-decoded\" && good=1\nmark binary-payload-preserved \"$good\"\nexit \"$failed\"\n",
+      "stdout": "binary-payload-preserved=PASS\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "binary-decoded",
+        "binary-decode.err"
+      ],
+      "oracle": "Independent BSCR frame bytes contain A, NUL, FF, B; the expected decoder output explicitly includes all four bytes.",
+      "comparison": "Compare every byte including embedded NUL and high-bit data; a truncated string is a mismatch."
+    },
+    {
+      "id": "migration-terra-local-pty-b04r2-remote-frames-malformed",
+      "loadable": "screen",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Reject malformed or over-bound independently constructed BSCR frames.",
+      "covers": [
+        "screen/remote-attach-mock"
+      ],
+      "expected_status": 0,
+      "timeout": 45,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-pty-remote-r2.py": "d6bb3ff3abc7e8ef481a0336c4c9d553bbf097aad1a213b11d5e3c4c34487685"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-remote-r2.py fixtures\n",
+      "setup_timeout": 8,
+      "script": "failed=0\nmark() { if [[ $2 == 1 ]]; then printf '%s=PASS\\n' \"$1\"; else printf '%s=FAIL\\n' \"$1\"; failed=1; fi; }\nroot=$HOME/frames\n\nfor name in short-header bad-magic bad-version bad-type short-payload over-limit; do\n  screen remote-frame decode <\"$root/$name.frame\" >\"$HOME/$name.out\" 2>>\"$HOME/malformed-errors.log\"; rc=$?\n  printf '%s %s\\n' \"$name\" \"$rc\" >>\"$HOME/malformed-status.log\"\n  good=0; [[ $rc != 0 && ! -s $HOME/$name.out ]] && good=1\n  mark \"$name-rejected\" \"$good\"\ndone\nexit \"$failed\"\n",
+      "stdout": "short-header-rejected=PASS\nbad-magic-rejected=PASS\nbad-version-rejected=PASS\nbad-type-rejected=PASS\nshort-payload-rejected=PASS\nover-limit-rejected=PASS\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "malformed-status.log",
+        "malformed-errors.log",
+        "short-header.out",
+        "bad-magic.out",
+        "bad-version.out",
+        "bad-type.out",
+        "short-payload.out",
+        "over-limit.out"
+      ],
+      "oracle": "Independent Python creates explicit truncated headers, bad magic, invalid versions and types, a short payload, and a 1048577-byte declared length.",
+      "comparison": "Every malformed frame must return nonzero and produce no decoded output; each result is individually reported."
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terra-local-pty-b03r3-lifecycle",
+      "loadable": "screen",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A session survives its creating shell and kill waits for its owned descendant tree.",
+      "covers": [
+        "screen/session-lifecycle"
+      ],
+      "expected_status": 0,
+      "timeout": 60,
+      "setup_timeout": 8,
+      "setup_script": "/usr/bin/python3 -c 'import os,termios,fcntl,struct; m,s=os.openpty(); fcntl.ioctl(s,termios.TIOCSWINSZ,struct.pack(\"HHHH\",24,80,0,0)); assert struct.unpack(\"HHHH\",fcntl.ioctl(s,termios.TIOCGWINSZ,b\"\\0\"*8))[:2]==(24,80); os.close(m); os.close(s)'\n",
+      "requires": [
+        "python3",
+        "mkdir",
+        "sleep"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-pty-screen-r3.py": "8070746957f696083fb5d691812e434b85bb205882be765cfc0d6ca4c457a3bf",
+        "helpers/terra-local-pty-screen-cleanup-r3.py": "b7141fad896fe63ae9e35379f70e1c94c90b1a59e10eeb70cd49da08840908a4",
+        "helpers/terra-local-pty-proc-r3.py": "ef13b167693505d9d1e6b649331ea8f02b73ce1f25e8f0f5128e9051e0b52a25"
+      },
+      "oracle": "The documented screen contract is checked against fixed child argv, independently inspected Linux process/tty state, exact geometric expectations, and private metadata snapshots; setup independently controls PTY winsize.",
+      "comparison": "The creator is a separate shell; list, state, relay status and procfs prove the named child survives it. Kill must remove the state tree and leave the recorded child, grandchild and broker not live; the guest checks all remaining strays. The tested kill and its raw return status are recorded before a separately logged, identity-checked fallback; fallback never changes the tested kill assertion.",
+      "script": "export H=/opt/bashos-parity/harness/helpers/terra-local-pty-screen-r3.py\nexport C=/opt/bashos-parity/harness/helpers/terra-local-pty-screen-cleanup-r3.py\nexport BASHSCREEN_STATE_DIR=$HOME/screen-state\n/usr/bin/mkdir -m 700 \"$BASHSCREEN_STATE_DIR\" || exit 1\nfailed=0\nmark() { if [[ $2 == 1 ]]; then printf '%s=PASS\\n' \"$1\"; else printf '%s=FAIL\\n' \"$1\"; failed=1; fi; }\nawait_file() { local j; for ((j=0;j<120;j++)); do [[ -f $HOME/$1 ]] && return 0; /usr/bin/sleep .05; done; return 1; }\nfixture_cleanup() {\n  if [[ -d $BASHSCREEN_STATE_DIR/live ]]; then\n    /usr/bin/python3 \"$C\" snapshot \"$BASH\" \"$BASHSCREEN_STATE_DIR\" live \"$HOME/screen-trap-before.json\" 0 >>\"$HOME/screen-cleanup.log\" 2>&1 &&\n      /usr/bin/python3 \"$C\" finish \"$BASH\" \"$BASHSCREEN_STATE_DIR\" live \"$HOME/screen-trap-before.json\" \"$HOME/screen-trap-cleanup.json\" >>\"$HOME/screen-cleanup.log\" 2>&1 || :\n  fi\n  if [[ -f $HOME/lifecycle-before.json ]]; then\n    /usr/bin/python3 \"$C\" finish-extra \"$HOME/lifecycle-before.json\" \"$HOME/lifecycle-trap-cleanup.json\" >>\"$HOME/screen-cleanup.log\" 2>&1 || :\n  fi\n  /usr/bin/python3 \"$H\" collect-sizes >>\"$HOME/screen-cleanup.log\" 2>&1 || :\n}\ntrap fixture_cleanup EXIT\n\n\"$BASH\" --noprofile --norc -c 'screen run -n live -d -- /usr/bin/python3 \"$H\" tree' >\"$HOME/create.log\" 2>\"$HOME/errors.log\"; create_rc=$?\nawait_file screen-child && await_file screen-grandchild || exit 1\nchild=$(<\"$HOME/screen-child\"); grand=$(<\"$HOME/screen-grandchild\")\nlisting=$(screen list 2>>\"$HOME/errors.log\"); list_rc=$?\nstate=$(screen state live 2>>\"$HOME/errors.log\"); state_rc=$?\nrelay=$(screen relay-status live 2>>\"$HOME/errors.log\"); relay_rc=$?\nprintf '%s\\n' \"$state\" >\"$HOME/state-before.log\"\nprintf '%s\\n' \"$relay\" >\"$HOME/relay-before.log\"\nbroker=''; reported=''\nif [[ $relay =~ broker[[:space:]]([0-9]+) ]]; then broker=${BASH_REMATCH[1]}; fi\nif [[ $relay =~ child[[:space:]]([0-9]+) ]]; then reported=${BASH_REMATCH[1]}; fi\ngood=0; [[ $create_rc == 0 && $(<\"$HOME/create.log\") == live && $child =~ ^[0-9]+$ && $grand =~ ^[0-9]+$ && $broker =~ ^[0-9]+$ && $reported == \"$child\" && -e /proc/$child && -e /proc/$grand && $relay_rc == 0 && $relay == *'running 1'* ]] && good=1\nmark ready-live-tree \"$good\"\ngood=0; [[ $list_rc == 0 && $listing == live && $state_rc == 0 && $state == *'session live'* && $state == *'backend ptybroker'* && -e /proc/$child ]] && good=1\nmark survives-creator-exit \"$good\"\n/usr/bin/python3 \"$C\" snapshot \"$BASH\" \"$BASHSCREEN_STATE_DIR\" live \"$HOME/screen-owned-before.json\" 1 >>\"$HOME/screen-cleanup.log\" 2>&1 || exit 1\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-proc-r3.py snapshot-live \"$HOME/lifecycle-before.json\" broker \"$broker\" child \"$child\" grandchild \"$grand\" >>\"$HOME/screen-cleanup.log\" 2>&1 || exit 1\nscreen kill live >\"$HOME/kill.log\" 2>>\"$HOME/errors.log\"; kill_rc=$?\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-proc-r3.py snapshot \"$HOME/lifecycle-after.json\" broker \"$broker\" child \"$child\" grandchild \"$grand\" >>\"$HOME/screen-cleanup.log\" 2>&1 || exit 1\nscreen state live >\"$HOME/state-after.log\" 2>\"$HOME/state-after.err\"; state_after=$?\nlisting=$(screen list 2>>\"$HOME/errors.log\"); list_after=$?\ngood=0; if [[ $kill_rc == 0 && $state_after != 0 && $list_after == 0 && -z $listing && ! -e $BASHSCREEN_STATE_DIR/live && $child =~ ^[0-9]+$ && $grand =~ ^[0-9]+$ && $broker =~ ^[0-9]+$ ]] && /usr/bin/python3 \"$H\" gone \"$child\" && /usr/bin/python3 \"$H\" gone \"$grand\" && /usr/bin/python3 \"$H\" gone \"$broker\"; then good=1; fi\nmark kill-removes-services-and-descendants \"$good\"\nprintf \"initial_kill_rc=%s state_after_rc=%s list_after_rc=%s\\n\" \"$kill_rc\" \"$state_after\" \"$list_after\" >\"$HOME/kill-status.txt\"\n/usr/bin/python3 \"$C\" finish \"$BASH\" \"$BASHSCREEN_STATE_DIR\" live \"$HOME/screen-owned-before.json\" \"$HOME/screen-cleanup-after.json\" >>\"$HOME/screen-cleanup.log\" 2>&1 || failed=1\n/usr/bin/python3 \"$C\" finish-extra \"$HOME/lifecycle-before.json\" \"$HOME/lifecycle-extra-cleanup.json\" >>\"$HOME/screen-cleanup.log\" 2>&1 || failed=1\nexit \"$failed\"\n",
+      "stdout": "ready-live-tree=PASS\nsurvives-creator-exit=PASS\nkill-removes-services-and-descendants=PASS\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "create.log",
+        "screen-child",
+        "screen-grandchild",
+        "state-before.log",
+        "relay-before.log",
+        "kill.log",
+        "state-after.err",
+        "errors.log",
+        "lifecycle-before.json",
+        "lifecycle-after.json",
+        "screen-owned-before.json",
+        "screen-cleanup-after.json",
+        "screen-cleanup.log",
+        "kill-status.txt",
+        "screen-trap-cleanup.json",
+        "lifecycle-extra-cleanup.json"
+      ]
+    }
+  ]
+}

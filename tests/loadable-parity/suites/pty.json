@@ -43,7 +43,7 @@
       "id": "pty-session-control-deferred",
       "kind": "deferred",
       "purpose": "Exercise setsid, open-tty, and foreground against a controlled session and controlling terminal.",
-      "reason": "Never executed. Everything is observable with the existing PTY driver plus a trusted python3 helper (allowed in the VM) that creates an unattached PTY pair for the open-tty acquisition path. No new driver capability is required."
+      "reason": "Remaining obligations: r1: Candidate stderr was redirected and errno was not retained; status 1 alone does not establish EPERM.; r5: The job PID supplied to pty foreground and a final restored tcgetpgrp value are not separately retained, so the sampled group cannot be independently tied to the requested PGRP."
     },
     {
       "id": "pty-terminal-io-deferred",

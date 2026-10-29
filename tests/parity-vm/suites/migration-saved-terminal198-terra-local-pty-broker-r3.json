@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terra-local-pty-b02r3-errors",
+      "loadable": "ptybroker",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Check invalid arguments, closed and unwritable descriptors, timeout bounds and the idle default.",
+      "covers": [
+        "ptybroker/bounded_io_errors"
+      ],
+      "expected_status": 0,
+      "timeout": 55,
+      "setup_timeout": 8,
+      "setup_script": "/usr/bin/python3 -c 'import hashlib,os; a=bytes((i*73+19)%256 for i in range(32768+45)); b=bytes((i*37+11)%256 for i in range(16384)); assert len(a)==32813 and len(b)==16384 and 0 in a and max(a)>127; assert hashlib.sha256(a).hexdigest()==\"d5b60ff71ffd82d71e5cda06bb82482785283d64a95c7144049a61ed1d96cdb9\" and hashlib.sha256(b).hexdigest()==\"ce61cc72a84bd3526a8f955235c5f4f67439820d6ffb910b5ab07e54741262b8\"; m,s=os.openpty(); assert os.isatty(m) and os.isatty(s); os.close(m); os.close(s)'\n",
+      "requires": [
+        "python3",
+        "mkdir",
+        "sleep"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-pty-broker-r3.py": "dc7bf5d638bc326decbf8359cdaf9d5d07d4d2e53b42724cce7bd0a044528622",
+        "helpers/terra-local-pty-proc-r3.py": "ef13b167693505d9d1e6b649331ea8f02b73ce1f25e8f0f5128e9051e0b52a25"
+      },
+      "oracle": "Documented broker contract, independently created fixed bytes and Linux PTY/process observations. Setup controls the PTY facility and exact expected byte hashes; no candidate output defines expected behavior.",
+      "comparison": "Check usage and malformed-ID failures, protected array/integer outputs, closed and read-only descriptors, acceptance of 60000 ms with an already queued event, bounded default and explicit idle timeouts returning 124 and rejection of 60001.",
+      "script": "H=/opt/bashos-parity/harness/helpers/terra-local-pty-broker-r3.py\nroot=$HOME/broker-root\nP=/opt/bashos-parity/harness/helpers/terra-local-pty-proc-r3.py\n/usr/bin/python3 \"$H\" prepare || exit 1\n/usr/bin/mkdir -m 700 \"$root\" || exit 1\nfailed=0\nmark() { if [[ $2 == 1 ]]; then printf '%s=PASS\\n' \"$1\"; else printf '%s=FAIL\\n' \"$1\"; failed=1; fi; }\nawait_file() { local j; for ((j=0;j<100;j++)); do [[ -f $HOME/$1 ]] && return 0; /usr/bin/sleep .05; done; return 1; }\nmock=''\ncleanup_owned() {\n  ptybroker terminate \"$root\" one >\"$HOME/trap-terminate.out\" 2>\"$HOME/trap-terminate.err\" || :\n  if [[ -n $mock ]]; then kill \"$mock\" 2>/dev/null || :; wait \"$mock\" 2>/dev/null || :; fi\n  if [[ -f $HOME/broker-before.json ]]; then /usr/bin/python3 \"$P\" wait-gone \"$HOME/broker-before.json\" \"$HOME/broker-trap-after.json\" broker >>\"$HOME/proc.err\" 2>&1 || :; fi\n}\ntrap cleanup_owned EXIT\n\nptybroker create \"$root\" one -- /usr/bin/python3 \"$H\" child quiet >\"$HOME/create.log\" 2>\"$HOME/errors.log\" || exit 1\ncreation=$(<\"$HOME/create.log\")\nbrokerpid=''\nif [[ $creation =~ broker_pid=([0-9]+) ]]; then brokerpid=${BASH_REMATCH[1]}; fi\n[[ $brokerpid =~ ^[0-9]+$ ]] || exit 1\n/usr/bin/python3 \"$P\" snapshot-live \"$HOME/broker-before.json\" broker \"$brokerpid\" >\"$HOME/proc.out\" 2>\"$HOME/proc.err\" || exit 1\nawait_file quiet-ready || exit 1\nptybroker receive >\"$HOME/missing.out\" 2>\"$HOME/missing.err\"; missing=$?\nptybroker status \"$root\" 'bad/id' >\"$HOME/bad-id.out\" 2>\"$HOME/bad-id.err\"; bad=$?\nprintf -v long '%049d' 0\nptybroker status \"$root\" \"$long\" >\"$HOME/long.out\" 2>\"$HOME/long.err\"; longrc=$?\ndeclare -a invalid=(keep)\nptybroker attach \"$root\" one observe invalid >\"$HOME/array.out\" 2>\"$HOME/array.err\"; arr=$?\ndeclare -i integer=3\nptybroker attach \"$root\" one observe integer >\"$HOME/int.out\" 2>\"$HOME/int.err\"; intrc=$?\nprintf 'missing=%s bad_id=%s long_id=%s array_rc=%s array0=%q integer_rc=%s integer=%s\\n' \"$missing\" \"$bad\" \"$longrc\" \"$arr\" \"${invalid[0]}\" \"$intrc\" \"$integer\" >\"$HOME/error-observation.txt\"\ngood=0; [[ $missing == 2 && $bad != 0 && $longrc != 0 && $arr != 0 && $intrc != 0 && ${invalid[0]} == keep && $integer == 3 ]] && good=1\nmark invalid-arguments \"$good\"\nptybroker attach \"$root\" one observe h 2>>\"$HOME/errors.log\" || exit 1\nexec 9>\"$HOME/output\"\nt0=$(/usr/bin/python3 \"$H\" clock-ms)\nptybroker receive \"$h\" 9 ev 60000 2>>\"$HOME/errors.log\"; maxrc=$?\nt1=$(/usr/bin/python3 \"$H\" clock-ms)\nprintf 'maximum_rc=%s maximum_elapsed_ms=%s maximum_event=%q\\n' \"$maxrc\" \"$((t1-t0))\" \"$ev\" >>\"$HOME/error-observation.txt\"\ngood=0; [[ $maxrc == 0 && $ev == attached\\ * ]] && ((t1-t0<2000)) && good=1\nmark maximum-timeout-accepted \"$good\"\nexec 8<&-\nexec 7</dev/null\nptybroker receive \"$h\" 8 ev 100 >\"$HOME/closed.out\" 2>\"$HOME/closed.err\"; closed=$?\nptybroker receive \"$h\" 7 ev 100 >\"$HOME/readonly.out\" 2>\"$HOME/readonly.err\"; readonlyrc=$?\nptybroker send-fd \"$root\" one 8 count >\"$HOME/input-closed.out\" 2>\"$HOME/input-closed.err\"; inclosed=$?\nprintf 'closed_out_rc=%s readonly_out_rc=%s closed_in_rc=%s\\n' \"$closed\" \"$readonlyrc\" \"$inclosed\" >>\"$HOME/error-observation.txt\"\ngood=0; [[ $closed != 0 && $readonlyrc != 0 && $inclosed != 0 ]] && good=1\nmark closed-and-readonly-fds \"$good\"\nt0=$(/usr/bin/python3 \"$H\" clock-ms)\nptybroker receive \"$h\" 9 ev >\"$HOME/timeout.out\" 2>\"$HOME/timeout.err\"; timeout_rc=$?\nt1=$(/usr/bin/python3 \"$H\" clock-ms)\nprintf '%s %s\\n' \"$timeout_rc\" \"$((t1-t0))\" >\"$HOME/timing.log\"\ngood=0; [[ $timeout_rc == 124 ]] && ((t1-t0>=75 && t1-t0<2000)) && good=1\nmark default-idle-timeout \"$good\"\nt0=$(/usr/bin/python3 \"$H\" clock-ms)\nptybroker receive \"$h\" 9 ev 35 >\"$HOME/explicit-timeout.out\" 2>\"$HOME/explicit-timeout.err\"; short_rc=$?\nt1=$(/usr/bin/python3 \"$H\" clock-ms)\nprintf '%s %s\\n' \"$short_rc\" \"$((t1-t0))\" >>\"$HOME/timing.log\"\ngood=0; [[ $short_rc == 124 ]] && ((t1-t0>=20 && t1-t0<2000)) && good=1\nmark explicit-idle-timeout \"$good\"\nptybroker receive \"$h\" 9 ev 60001 >\"$HOME/over.out\" 2>\"$HOME/over.err\"; over=$?\nprintf 'default_timeout_rc=%s explicit_timeout_rc=%s over_limit_rc=%s\\n' \"$timeout_rc\" \"$short_rc\" \"$over\" >>\"$HOME/error-observation.txt\"\ngood=0; [[ $over == 2 ]] && good=1\nmark over-limit-rejected \"$good\"\nptybroker terminate \"$root\" one 2>>\"$HOME/errors.log\"; rc=$?\n/usr/bin/python3 \"$P\" wait-gone \"$HOME/broker-before.json\" \"$HOME/broker-after.json\" broker >>\"$HOME/proc.out\" 2>>\"$HOME/proc.err\"; gone_rc=$?\nprintf 'terminate_rc=%s broker_disappearance_rc=%s\\n' \"$rc\" \"$gone_rc\" >\"$HOME/broker-cleanup-status.txt\"\ngood=0; [[ $rc == 0 && $gone_rc == 0 && ! -e $root/one ]] && good=1\nmark cleanup \"$good\"\nexit \"$failed\"\n",
+      "stdout": "invalid-arguments=PASS\nmaximum-timeout-accepted=PASS\nclosed-and-readonly-fds=PASS\ndefault-idle-timeout=PASS\nexplicit-idle-timeout=PASS\nover-limit-rejected=PASS\ncleanup=PASS\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "missing.err",
+        "bad-id.err",
+        "long.err",
+        "array.err",
+        "int.err",
+        "closed.err",
+        "readonly.err",
+        "input-closed.err",
+        "timing.log",
+        "over.err",
+        "errors.log",
+        "broker-before.json",
+        "broker-after.json",
+        "broker-cleanup-status.txt",
+        "proc.err",
+        "error-observation.txt"
+      ]
+    }
+  ]
+}

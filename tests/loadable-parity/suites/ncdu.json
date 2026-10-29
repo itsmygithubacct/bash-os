@@ -115,7 +115,7 @@
       "id": "interactive-browser-pty",
       "kind": "deferred",
       "purpose": "Exercise keyboard navigation, sorting, descent/ascent, and screen restoration in the interactive browser.",
-      "reason": "Never executed. The PTY driver already provides keys, screen and termios checks, and ncdu is not installed in the reference image, so this is contract work."
+      "reason": "Remaining obligations: r5: No saved prior visible-screen baseline is available; alternate-screen exit does not independently prove prior visible content was restored."
     },
     {
       "id": "one-filesystem-boundary",
