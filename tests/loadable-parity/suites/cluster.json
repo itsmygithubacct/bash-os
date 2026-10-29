@@ -33,51 +33,91 @@
     },
     {
       "id": "seed-initialization",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify seed startup, ephemeral loopback port selection, generated key and node IDs, initial one-member roster, private file modes, and listener ownership by a persistent shell.",
-      "reason": "No init has ever run; one candidate shell in a per-side script suffices."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-cluster-leave-lifecycle-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-seed-init"
+        }
+      ]
     },
     {
       "id": "authenticated-join",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify a peer joins the seed using its key file, receives the seed cluster ID, and rejects a different valid key without changing either roster.",
-      "reason": "No lifecycle operation is executed; two candidate shells and an independent BLAKE2b oracle can run inside one per-side script."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-cluster-authenticated-join"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-authenticated-join-r2"
+        }
+      ]
     },
     {
       "id": "roster-heartbeats",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify three-peer roster convergence after joins and leaves, heartbeat refresh, peer expiry, and leaf disconnection after seed loss.",
-      "reason": "Remaining obligations: r1: Not observed.; r2: Not observed.; r4: Not observed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-cluster-retention-roster-heartbeats-125"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-roster-heartbeats"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-roster-heartbeats-r2"
+        }
+      ]
     },
     {
       "id": "ping-protocol",
       "kind": "deferred",
       "purpose": "Verify ping by both node ID and numeric loopback endpoint, plus unknown-node and non-protocol timeout failures.",
-      "reason": "No ping runs; the python3 protocol peer can validate and answer on loopback."
+      "reason": "Remaining obligations: r3: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent."
     },
     {
       "id": "packet-rejection",
       "kind": "deferred",
       "purpose": "Verify malformed, truncated, oversized, wrong-key, invalid-count, and invalid-node packets do not add members or prevent a later valid ping.",
-      "reason": "Remaining obligations: r1: The 125 oversized attempt bytes are retained, but candidate receipt of each datagram is not proved; original 113/119 oversized payload bytes are missing.; r2: Not observed.; r3: Not observed.; r4: The later 125 response is captured, but candidate receipt of each preceding attempted packet is not proved; older combined oversized payload bytes are missing."
+      "reason": "Remaining obligations: r1: The 125 oversized attempt bytes are retained, but candidate receipt of each datagram is not proved; original 113/119 oversized payload bytes are missing.; r4: The later 125 response is captured, but candidate receipt of each preceding attempted packet is not proved; older combined oversized payload bytes are missing."
     },
     {
       "id": "leave-and-owner-lifecycle",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify leave is repeatable, removes owned state while preserving unrelated fixture files, notifies the seed, and cleans up the listener when its owning shell exits.",
-      "reason": "No lifecycle run exists; owner-exit is observable by the per-side script waiting on its own child shell and checking the recorded listener PID and port."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-cluster-leave-lifecycle"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-leave-lifecycle-r2"
+        }
+      ]
     },
     {
       "id": "private-state-recovery",
       "kind": "deferred",
       "purpose": "Verify private-directory checks, 0600 state files, key-file syntax, lock collision behavior, atomic snapshot recovery, stale state cleanup, and preservation of unrelated files.",
-      "reason": "Only offline snapshot reading is executed; all state-management obligations need init/listener runs, which are possible in a per-side VM script."
+      "reason": "Remaining obligations: r5: The old listener was killed and scratch removal plus forged-PID safety were observed, but both frozen helpers overwrite listener_pid with a live sentinel before the next init. The literal dead listener_pid input at that init was not exercised."
     },
     {
       "id": "argument-and-timeout-validation",
       "kind": "deferred",
       "purpose": "Validate init/join/ping arguments and timeout handling in lifecycle contexts; the offline members parser is covered separately.",
-      "reason": "Lifecycle verbs never run; a per-side script in the VM can invoke them on loopback and inspect the state directory and listening sockets."
+      "reason": "Remaining obligations: r3: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent."
     },
     {
       "id": "offline-members-stream",

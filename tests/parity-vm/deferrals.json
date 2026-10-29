@@ -7039,45 +7039,120 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Lifecycle verbs never run; a per-side script in the VM can invoke them on loopback and inspect the state directory and listening sockets.",
+      "current_reason": "Remaining obligations: r3: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Malformed init arguments (bad -p, unreadable/invalid -k key file) fail without starting a listener or writing state.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No init is ever invoked."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-argument-validation",
+              "assertion": "original 113 case: Malformed init and key inputs return the saved failure diagnostics, create no state, and leave no live listener in the retained child observations.",
+              "definition_sha256": "b72026f6296930fa4ae1b357d12218e63d13fb53e3f85805b258079668a8544c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-argument-validation-r2",
+              "assertion": "original 119 retention case: Malformed init and key inputs return the saved failure diagnostics, create no state, and leave no live listener in the retained child observations.",
+              "definition_sha256": "6b5aa3d056841e37dc3aa3f9a0a4eabb038954705dc511870c3f6290878478f1"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-key-syntax",
+              "assertion": "original 113 case: Malformed init and key inputs return the saved failure diagnostics, create no state, and leave no live listener in the retained child observations.",
+              "definition_sha256": "13217362daa1cededcd65475535800d0e4fb515bdedd4b942aca58ba4739d99f"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-key-syntax-r2",
+              "assertion": "original 119 retention case: Malformed init and key inputs return the saved failure diagnostics, create no state, and leave no live listener in the retained child observations.",
+              "definition_sha256": "0606204b51b14a8ba5c53600b914c359a49289784d1b799455818f32e802bfc0"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Malformed join (non-127.0.0.1 seed, missing -k) fails without listener or state.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-argument-validation",
+              "assertion": "original 113 case: Malformed join endpoints and keys fail without state or live children; the recorded decoy adds a no-network check.",
+              "definition_sha256": "b72026f6296930fa4ae1b357d12218e63d13fb53e3f85805b258079668a8544c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-argument-validation-r2",
+              "assertion": "original 119 retention case: Malformed join endpoints and keys fail without state or live children; the recorded decoy adds a no-network check.",
+              "definition_sha256": "6b5aa3d056841e37dc3aa3f9a0a4eabb038954705dc511870c3f6290878478f1"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-key-syntax",
+              "assertion": "original 113 case: Malformed join endpoints and keys fail without state or live children; the recorded decoy adds a no-network check.",
+              "definition_sha256": "13217362daa1cededcd65475535800d0e4fb515bdedd4b942aca58ba4739d99f"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-key-syntax-r2",
+              "assertion": "original 119 retention case: Malformed join endpoints and keys fail without state or live children; the recorded decoy adds a no-network check.",
+              "definition_sha256": "0606204b51b14a8ba5c53600b914c359a49289784d1b799455818f32e802bfc0"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Malformed ping target fails with status 1 and no network side effect.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-argument-validation",
+              "assertion": "original 113 case: Malformed ping targets produce status 1, and the VM review found no recorded decoy receive. Remaining gap: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
+              "definition_sha256": "b72026f6296930fa4ae1b357d12218e63d13fb53e3f85805b258079668a8544c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-argument-validation-r2",
+              "assertion": "original 119 retention case: Malformed ping targets produce status 1, and the VM review found no recorded decoy receive. Remaining gap: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
+              "definition_sha256": "6b5aa3d056841e37dc3aa3f9a0a4eabb038954705dc511870c3f6290878478f1"
+            }
+          ],
+          "gap": "The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent."
         },
         {
           "id": "r4",
           "behavior": "BASHCLUSTER_TIMEOUT_MS outside 50..5000 is rejected for lifecycle verbs as for members.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/cluster/offline-members-invalid-timeout",
               "assertion": "49 and 5001 rejected with status 1 for members only.",
               "definition_sha256": "31ed7dc2abd30f557d8121f58a20fee1afb523d9409f436f012d6f34b363742a"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-argument-validation",
+              "assertion": "original 113 case: Out-of-range timeout lifecycle calls are rejected; the existing legacy invalid-timeout reference remains untouched for members.",
+              "definition_sha256": "b72026f6296930fa4ae1b357d12218e63d13fb53e3f85805b258079668a8544c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-argument-validation-r2",
+              "assertion": "original 119 retention case: Out-of-range timeout lifecycle calls are rejected; the existing legacy invalid-timeout reference remains untouched for members.",
+              "definition_sha256": "6b5aa3d056841e37dc3aa3f9a0a4eabb038954705dc511870c3f6290878478f1"
             }
           ],
-          "gap": "Only the offline members verb is exercised."
+          "gap": ""
         }
       ],
-      "notes": "loadables/cluster.c:665-690 dispatch; :507-598 bc_start; timeout bounds documented in cluster_doc :694-702."
+      "notes": "loadables/cluster.c:665-690 dispatch; :507-598 bc_start; timeout bounds documented in cluster_doc :694-702. Primary220 reviews all36 original cluster clauses, unchanged113/119 sources, raw paired candidate observations and guest130/147 independent audits. Audit wrappers and the candidate basics case are supporting controls, not extra candidate coverage. All3062 prior evidence objects and the static119 heartbeat FAIL are retained. Historical147 cleanup is accepted as waited service plus clean poweroff and absent host scope; missing precollection guest-unit live-to-empty proof is not reconstructed, and the old overlay remains retained. r1: Malformed init and key inputs return the saved failure diagnostics, create no state, and leave no live listener in the retained child observations. r2: Malformed join endpoints and keys fail without state or live children; the recorded decoy adds a no-network check. r3: Malformed ping targets produce status 1, and the VM review found no recorded decoy receive. r4: Out-of-range timeout lifecycle calls are rejected; the existing legacy invalid-timeout reference remains untouched for members. "
     },
     {
       "topic": "cluster/authenticated-join",
@@ -7087,33 +7162,72 @@
         "purpose": "Verify a peer joins the seed using its key file, receives the seed cluster ID, and rejects a different valid key without changing either roster.",
         "reason": "Requires two persistent bash-os processes in a disposable Linux VM, distinct private state directories, and owned IPv4 loopback UDP peers. The future oracle should independently parse member rows and use a separately implemented keyed BLAKE2b-256 packet exchange; expected membership must not be read from candidate output alone."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No lifecycle operation is executed; two candidate shells and an independent BLAKE2b oracle can run inside one per-side script.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A peer joining 127.0.0.1:SEEDPORT with the seed's key file receives the seed's cluster ID.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No join run."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-authenticated-join",
+              "assertion": "original 113 case: Both saved init/join outputs have the same cluster ID, retained key bytes agree, and the VM checked the PONG MACs against retained keys.",
+              "definition_sha256": "866adcb9c4abc987334f01620c89f763a6fb31682209cbe1f79736f12f6f39f4"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-authenticated-join-r2",
+              "assertion": "original 119 retention case: Both saved init/join outputs have the same cluster ID, retained key bytes agree, and the VM checked the PONG MACs against retained keys.",
+              "definition_sha256": "db809986bd751c9506587c77efeaea28911d6a34d0260e5885791a1f555634ab"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Both rosters list both node IDs and endpoints after the join (independently parsed).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-authenticated-join",
+              "assertion": "original 113 case: The seed and peer members files and commands agree on the two independently parsed IDs and endpoints; corresponding received packets have VM-verified MAC matches.",
+              "definition_sha256": "866adcb9c4abc987334f01620c89f763a6fb31682209cbe1f79736f12f6f39f4"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-authenticated-join-r2",
+              "assertion": "original 119 retention case: The seed and peer members files and commands agree on the two independently parsed IDs and endpoints; corresponding received packets have VM-verified MAC matches.",
+              "definition_sha256": "db809986bd751c9506587c77efeaea28911d6a34d0260e5885791a1f555634ab"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "A join with a different valid key is rejected and neither roster changes.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-authenticated-join",
+              "assertion": "original 113 case: Both wrong-key joins return the handshake failure and the VM trace proofs compare unchanged seed and peer rosters.",
+              "definition_sha256": "866adcb9c4abc987334f01620c89f763a6fb31682209cbe1f79736f12f6f39f4"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-authenticated-join-r2",
+              "assertion": "original 119 retention case: Both wrong-key joins return the handshake failure and the VM trace proofs compare unchanged seed and peer rosters.",
+              "definition_sha256": "db809986bd751c9506587c77efeaea28911d6a34d0260e5885791a1f555634ab"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/cluster.c:238-252 keyed MAC; :245-252 receive requires loopback source and MAC match."
+      "notes": "loadables/cluster.c:238-252 keyed MAC; :245-252 receive requires loopback source and MAC match. Primary220 reviews all36 original cluster clauses, unchanged113/119 sources, raw paired candidate observations and guest130/147 independent audits. Audit wrappers and the candidate basics case are supporting controls, not extra candidate coverage. All3062 prior evidence objects and the static119 heartbeat FAIL are retained. Historical147 cleanup is accepted as waited service plus clean poweroff and absent host scope; missing precollection guest-unit live-to-empty proof is not reconstructed, and the old overlay remains retained. r1: Both saved init/join outputs have the same cluster ID, retained key bytes agree, and the VM checked the PONG MACs against retained keys. r2: The seed and peer members files and commands agree on the two independently parsed IDs and endpoints; corresponding received packets have VM-verified MAC matches. r3: Both wrong-key joins return the handshake failure and the VM trace proofs compare unchanged seed and peer rosters. "
     },
     {
       "topic": "cluster/leave-and-owner-lifecycle",
@@ -7123,40 +7237,92 @@
         "purpose": "Verify leave is repeatable, removes owned state while preserving unrelated fixture files, notifies the seed, and cleans up the listener when its owning shell exits.",
         "reason": "Requires an isolated disposable Linux VM with an owned shell, listener child, seed peer, and private temporary state directories. Observe only those fixture processes and paths; any forced termination must target a PID created and recorded by the fixture itself. Check roster convergence and socket release on loopback."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No lifecycle run exists; owner-exit is observable by the per-side script waiting on its own child shell and checking the recorded listener PID and port.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "leave removes the owned state files and preserves unrelated files in the state directory.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-leave-lifecycle",
+              "assertion": "original 113 case: Leave returns successfully, removes owned state, and before/after raw snapshots preserve the unrelated entries.",
+              "definition_sha256": "0a06c7c95fc7df09c75f8f6d63134e9539f8461e022f533932c2c2f8aec47772"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-leave-lifecycle-r2",
+              "assertion": "original 119 retention case: Leave returns successfully, removes owned state, and before/after raw snapshots preserve the unrelated entries.",
+              "definition_sha256": "88510863154f1db867e40a087e89b61a65336c894e51f407be74ad72ffa3f09b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "leave notifies the seed, which drops the member.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-leave-lifecycle",
+              "assertion": "original 113 case: The VM trace proof ties the peer leave to the seed roster change within the before-expiry bound.",
+              "definition_sha256": "0a06c7c95fc7df09c75f8f6d63134e9539f8461e022f533932c2c2f8aec47772"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-leave-lifecycle-r2",
+              "assertion": "original 119 retention case: The VM trace proof ties the peer leave to the seed roster change within the before-expiry bound.",
+              "definition_sha256": "88510863154f1db867e40a087e89b61a65336c894e51f407be74ad72ffa3f09b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "leave is repeatable (second leave succeeds/defined status).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-leave-lifecycle",
+              "assertion": "original 113 case: Repeated leave calls and the uninitialized leave return the documented success status.",
+              "definition_sha256": "0a06c7c95fc7df09c75f8f6d63134e9539f8461e022f533932c2c2f8aec47772"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-leave-lifecycle-r2",
+              "assertion": "original 119 retention case: Repeated leave calls and the uninitialized leave return the documented success status.",
+              "definition_sha256": "88510863154f1db867e40a087e89b61a65336c894e51f407be74ad72ffa3f09b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "When the owning shell exits, the listener child exits and the UDP port is released.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-leave-lifecycle",
+              "assertion": "original 113 case: Saved proc, alive and bind observations and the VM trace proof show owned listener exit and UDP port release for normal and killed owner shells.",
+              "definition_sha256": "0a06c7c95fc7df09c75f8f6d63134e9539f8461e022f533932c2c2f8aec47772"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-leave-lifecycle-r2",
+              "assertion": "original 119 retention case: Saved proc, alive and bind observations and the VM trace proof show owned listener exit and UDP port release for normal and killed owner shells.",
+              "definition_sha256": "88510863154f1db867e40a087e89b61a65336c894e51f407be74ad72ffa3f09b"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/cluster.c:636-660 leave path; :682-686 dispatch ('left cluster' also when no state exists); listener fork :560-580 (bc_close_inherited :381-397)."
+      "notes": "loadables/cluster.c:636-660 leave path; :682-686 dispatch ('left cluster' also when no state exists); listener fork :560-580 (bc_close_inherited :381-397). Primary220 reviews all36 original cluster clauses, unchanged113/119 sources, raw paired candidate observations and guest130/147 independent audits. Audit wrappers and the candidate basics case are supporting controls, not extra candidate coverage. All3062 prior evidence objects and the static119 heartbeat FAIL are retained. Historical147 cleanup is accepted as waited service plus clean poweroff and absent host scope; missing precollection guest-unit live-to-empty proof is not reconstructed, and the old overlay remains retained. r1: Leave returns successfully, removes owned state, and before/after raw snapshots preserve the unrelated entries. r2: The VM trace proof ties the peer leave to the seed roster change within the before-expiry bound. r3: Repeated leave calls and the uninitialized leave return the documented success status. r4: Saved proc, alive and bind observations and the VM trace proof show owned listener exit and UDP port release for normal and killed owner shells. "
     },
     {
       "topic": "cluster/packet-rejection",
@@ -7168,7 +7334,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: The 125 oversized attempt bytes are retained, but candidate receipt of each datagram is not proved; original 113/119 oversized payload bytes are missing.; r2: Not observed.; r3: Not observed.; r4: The later 125 response is captured, but candidate receipt of each preceding attempted packet is not proved; older combined oversized payload bytes are missing.",
+      "current_reason": "Remaining obligations: r1: The 125 oversized attempt bytes are retained, but candidate receipt of each datagram is not proved; original 113/119 oversized payload bytes are missing.; r4: The later 125 response is captured, but candidate receipt of each preceding attempted packet is not proved; older combined oversized payload bytes are missing.",
       "requirements": [
         {
           "id": "r1",
@@ -7199,16 +7365,42 @@
         {
           "id": "r2",
           "behavior": "A packet with a wrong-key MAC does not change the roster.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-packet-rejection",
+              "assertion": "The retained guest147 audit independently verifies the first packet MAC under a different key, rejects it under the intended group key and matches the intended cluster. Source-controlled send completion, subsequent valid loopback barrier, zero sampled queue drops and unchanged roster support accepting this controlled stimulus. Delivery is an inference; no individual candidate receive event or universal loss-free transport guarantee is claimed.",
+              "definition_sha256": "58982ed04717fad83746170b262af00cab2af6eaae42a7e5b9586b4e1754250f"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-packet-rejection-r2",
+              "assertion": "The retained guest147 audit independently verifies the first packet MAC under a different key, rejects it under the intended group key and matches the intended cluster. Source-controlled send completion, subsequent valid loopback barrier, zero sampled queue drops and unchanged roster support accepting this controlled stimulus. Delivery is an inference; no individual candidate receive event or universal loss-free transport guarantee is claimed.",
+              "definition_sha256": "203229d61d52905f6af5922743cf149b11b1efc50e712bd660c383dfeb45923c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Invalid row count (>32) and invalid node IDs are rejected.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-packet-rejection",
+              "assertion": "original 113 case: The saved corpus includes all requested invalid counts and node IDs; the VM reports the same keyed MAC fingerprint as the valid barrier and the roster stays unchanged. The saved corpus includes all requested invalid counts and node IDs; the VM reports the same keyed MAC fingerprint as the valid barrier and the roster stays unchanged. Send traces precede sendto and individual candidate receipts are not recorded; this proposal accepts the existing source-controlled exercise, barrier and drop observations rather than asserting each receipt.",
+              "definition_sha256": "58982ed04717fad83746170b262af00cab2af6eaae42a7e5b9586b4e1754250f"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-packet-rejection-r2",
+              "assertion": "original 119 retention case: The saved corpus includes all requested invalid counts and node IDs; the VM reports the same keyed MAC fingerprint as the valid barrier and the roster stays unchanged. The saved corpus includes all requested invalid counts and node IDs; the VM reports the same keyed MAC fingerprint as the valid barrier and the roster stays unchanged. Send traces precede sendto and individual candidate receipts are not recorded; this proposal accepts the existing source-controlled exercise, barrier and drop observations rather than asserting each receipt.",
+              "definition_sha256": "203229d61d52905f6af5922743cf149b11b1efc50e712bd660c383dfeb45923c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
@@ -7237,7 +7429,7 @@
           "gap": "The later 125 response is captured, but candidate receipt of each preceding attempted packet is not proved; older combined oversized payload bytes are missing."
         }
       ],
-      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain.  Oversized attempts lack successful-send or receive observations; rejection and subsequent-ping preconditions remain partial. Host-derived keyed conclusions from review120 are not used."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain.  Oversized attempts lack successful-send or receive observations; rejection and subsequent-ping preconditions remain partial. Host-derived keyed conclusions from review120 are not used. Primary220 reviews all36 original cluster clauses, unchanged113/119 sources, raw paired candidate observations and guest130/147 independent audits. Audit wrappers and the candidate basics case are supporting controls, not extra candidate coverage. All3062 prior evidence objects and the static119 heartbeat FAIL are retained. Historical147 cleanup is accepted as waited service plus clean poweroff and absent host scope; missing precollection guest-unit live-to-empty proof is not reconstructed, and the old overlay remains retained. r1: Keep the current 191 partial decision and prior 125/113/119 evidence; oversized bytes or receiver delivery remain unproved. r2: The retained guest147 audit independently verifies the first packet MAC under a different key, rejects it under the intended group key and matches the intended cluster. Source-controlled send completion, subsequent valid loopback barrier, zero sampled queue drops and unchanged roster support accepting this controlled stimulus. Delivery is an inference; no individual candidate receive event or universal loss-free transport guarantee is claimed. r3: The saved corpus includes all requested invalid counts and node IDs; the VM reports the same keyed MAC fingerprint as the valid barrier and the roster stays unchanged. Send traces precede sendto and individual candidate receipts are not recorded; this proposal accepts the existing source-controlled exercise, barrier and drop observations rather than asserting each receipt. r4: Keep the current 191 partial decision and prior 125/113/119 evidence; oversized bytes or receiver delivery remain unproved. "
     },
     {
       "topic": "cluster/ping-protocol",
@@ -7247,47 +7439,112 @@
         "purpose": "Verify ping by both node ID and numeric loopback endpoint, plus unknown-node and non-protocol timeout failures.",
         "reason": "Requires an owned protocol peer in an isolated disposable Linux VM. The peer must independently validate packet size, request nonce, cluster ID, and keyed MAC, and provide a bounded silent endpoint for timeout behavior. Use only 127.0.0.1 fixture sockets and a short documented timeout."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "No ping runs; the python3 protocol peer can validate and answer on loopback.",
+      "current_reason": "Remaining obligations: r3: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "ping NODE resolves a roster node and succeeds when the peer answers.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-ping-protocol",
+              "assertion": "original 113 case: The recorded node-ID ping succeeds with its exact expected output against the oracle and live listener.",
+              "definition_sha256": "d7bfb18f1f10af643279411f51183efa53551a81e44b6f726054987c08ad3fdb"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-ping-protocol-r2",
+              "assertion": "original 119 retention case: The recorded node-ID ping succeeds with its exact expected output against the oracle and live listener.",
+              "definition_sha256": "5cfa891d4907c3bae73bc4bd7279c51e8e084471f765450ecc89ce402f88de84"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "ping 127.0.0.1:PORT succeeds against a numeric endpoint.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-ping-protocol",
+              "assertion": "original 113 case: The recorded numeric endpoint ping succeeds with its exact expected output against the oracle and live listener.",
+              "definition_sha256": "d7bfb18f1f10af643279411f51183efa53551a81e44b6f726054987c08ad3fdb"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-ping-protocol-r2",
+              "assertion": "original 119 retention case: The recorded numeric endpoint ping succeeds with its exact expected output against the oracle and live listener.",
+              "definition_sha256": "5cfa891d4907c3bae73bc4bd7279c51e8e084471f765450ecc89ce402f88de84"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "ping of an unknown node ID fails without sending.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-ping-protocol",
+              "assertion": "original 113 case: The unknown-node status and diagnostic are saved, and the VM review found no recorded decoy receive. Remaining gap: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
+              "definition_sha256": "d7bfb18f1f10af643279411f51183efa53551a81e44b6f726054987c08ad3fdb"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-ping-protocol-r2",
+              "assertion": "original 119 retention case: The unknown-node status and diagnostic are saved, and the VM review found no recorded decoy receive. Remaining gap: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
+              "definition_sha256": "5cfa891d4907c3bae73bc4bd7279c51e8e084471f765450ecc89ce402f88de84"
+            }
+          ],
+          "gap": "The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent."
         },
         {
           "id": "r4",
           "behavior": "ping to a silent (non-protocol) endpoint times out within BASHCLUSTER_TIMEOUT_MS with failure status.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-ping-protocol",
+              "assertion": "original 113 case: Silent and non-protocol endpoint failures and bounded deadline observations are recorded, with a successful answering control.",
+              "definition_sha256": "d7bfb18f1f10af643279411f51183efa53551a81e44b6f726054987c08ad3fdb"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-ping-protocol-r2",
+              "assertion": "original 119 retention case: Silent and non-protocol endpoint failures and bounded deadline observations are recorded, with a successful answering control.",
+              "definition_sha256": "5cfa891d4907c3bae73bc4bd7279c51e8e084471f765450ecc89ce402f88de84"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "The request packet has the documented size, a fresh nonce, the cluster ID and a valid keyed MAC (independent validation).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No independent peer."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-ping-protocol",
+              "assertion": "original 113 case: The VM independently checked all six saved ping requests for size, nonce, cluster/node identity, source and keyed MAC on both builds.",
+              "definition_sha256": "d7bfb18f1f10af643279411f51183efa53551a81e44b6f726054987c08ad3fdb"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-ping-protocol-r2",
+              "assertion": "original 119 retention case: The VM independently checked all six saved ping requests for size, nonce, cluster/node identity, source and keyed MAC on both builds.",
+              "definition_sha256": "5cfa891d4907c3bae73bc4bd7279c51e8e084471f765450ecc89ce402f88de84"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/cluster.c:675-679 ping dispatch; packet layout :33-39; documented timeout range 50..5000 ms."
+      "notes": "loadables/cluster.c:675-679 ping dispatch; packet layout :33-39; documented timeout range 50..5000 ms. Primary220 reviews all36 original cluster clauses, unchanged113/119 sources, raw paired candidate observations and guest130/147 independent audits. Audit wrappers and the candidate basics case are supporting controls, not extra candidate coverage. All3062 prior evidence objects and the static119 heartbeat FAIL are retained. Historical147 cleanup is accepted as waited service plus clean poweroff and absent host scope; missing precollection guest-unit live-to-empty proof is not reconstructed, and the old overlay remains retained. r1: The recorded node-ID ping succeeds with its exact expected output against the oracle and live listener. r2: The recorded numeric endpoint ping succeeds with its exact expected output against the oracle and live listener. r3: The unknown-node status and diagnostic are saved, and the VM review found no recorded decoy receive. r4: Silent and non-protocol endpoint failures and bounded deadline observations are recorded, with a successful answering control. r5: The VM independently checked all six saved ping requests for size, nonce, cluster/node identity, source and keyed MAC on both builds. "
     },
     {
       "topic": "cluster/private-state-recovery",
@@ -7299,49 +7556,139 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Only offline snapshot reading is executed; all state-management obligations need init/listener runs, which are possible in a per-side VM script.",
+      "current_reason": "Remaining obligations: r5: The old listener was killed and scratch removal plus forged-PID safety were observed, but both frozen helpers overwrite listener_pid with a live sentinel before the next init. The literal dead listener_pid input at that init was not exercised.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "init refuses a state directory that is not owned/0700.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-state-private",
+              "assertion": "original 113 case: Mode-invalid directories are refused; independent 119 lstat fields establish a 0700 root-owned directory is refused by uid 2000 and unchanged.",
+              "definition_sha256": "a227cac4265bda7b6e88a2e12cade4ec6914a1ece70593dd11f5e9e3e1c67472"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-state-private-r2",
+              "assertion": "original 119 retention case: Mode-invalid directories are refused; independent 119 lstat fields establish a 0700 root-owned directory is refused by uid 2000 and unchanged.",
+              "definition_sha256": "02c8537bb85a7e85c6f962dfa836120c22e535be7dc105222c89d0541fca9453"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "State files are written 0600 atomically (temp + rename).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-state-private",
+              "assertion": "Original113 companion;119 supplies the retained positive evidence: The retained119 inotify data positively records temp-file close and rename events for the final state names, including multiple members replacements, and the retained snapshots show0600 final modes and no leftover scratch. This exercises atomic temp-plus-rename writes. The old trace encoder can drop events, so absence of an in-place write event is not a separately established no-loss guarantee.113 remains companion evidence.",
+              "definition_sha256": "a227cac4265bda7b6e88a2e12cade4ec6914a1ece70593dd11f5e9e3e1c67472"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-state-private-r2",
+              "assertion": "Original119 retained positive evidence: The retained119 inotify data positively records temp-file close and rename events for the final state names, including multiple members replacements, and the retained snapshots show0600 final modes and no leftover scratch. This exercises atomic temp-plus-rename writes. The old trace encoder can drop events, so absence of an in-place write event is not a separately established no-loss guarantee.113 remains companion evidence.",
+              "definition_sha256": "02c8537bb85a7e85c6f962dfa836120c22e535be7dc105222c89d0541fca9453"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Key-file syntax: exactly 64 lowercase hex digits accepted, others rejected.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-key-syntax",
+              "assertion": "original 113 case: Accepted and rejected key-file vectors and the independently verified protocol controls exercise the documented 64 lowercase hex syntax, with the documented optional final newline.",
+              "definition_sha256": "13217362daa1cededcd65475535800d0e4fb515bdedd4b942aca58ba4739d99f"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-key-syntax-r2",
+              "assertion": "original 119 retention case: Accepted and rejected key-file vectors and the independently verified protocol controls exercise the documented 64 lowercase hex syntax, with the documented optional final newline.",
+              "definition_sha256": "0606204b51b14a8ba5c53600b914c359a49289784d1b799455818f32e802bfc0"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "A second listener on the same state directory is refused (lock collision).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-state-private",
+              "assertion": "original 113 case: Two concurrent init attempts are refused while the original listener remains active; raw snapshots and children records are retained.",
+              "definition_sha256": "a227cac4265bda7b6e88a2e12cade4ec6914a1ece70593dd11f5e9e3e1c67472"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-state-private-r2",
+              "assertion": "original 119 retention case: Two concurrent init attempts are refused while the original listener remains active; raw snapshots and children records are retained.",
+              "definition_sha256": "02c8537bb85a7e85c6f962dfa836120c22e535be7dc105222c89d0541fca9453"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "A stale state (dead listener_pid, leftover temp files) is cleaned up/recovered on next init.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-state-private",
+              "assertion": "Guest147 completes two stale-init observations, but the saved next-init PID file names a living sentinel, not the dead listener.",
+              "definition_sha256": "a227cac4265bda7b6e88a2e12cade4ec6914a1ece70593dd11f5e9e3e1c67472"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-state-private-r2",
+              "assertion": "Guest147 completes two stale-init observations, but the saved next-init PID file names a living sentinel, not the dead listener.",
+              "definition_sha256": "02c8537bb85a7e85c6f962dfa836120c22e535be7dc105222c89d0541fca9453"
+            }
+          ],
+          "gap": "The old listener was killed and scratch removal plus forged-PID safety were observed, but both frozen helpers overwrite listener_pid with a live sentinel before the next init. The literal dead listener_pid input at that init was not exercised."
         },
         {
           "id": "r6",
           "behavior": "Unrelated files in the state directory are preserved.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-state-private",
+              "assertion": "original 113 case: Retained before/after snapshots preserve unrelated names, kind, mode, owner, inode, mtime, size and recorded content digest through recovery and leave.",
+              "definition_sha256": "a227cac4265bda7b6e88a2e12cade4ec6914a1ece70593dd11f5e9e3e1c67472"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-state-private-r2",
+              "assertion": "original 119 retention case: Retained before/after snapshots preserve unrelated names, kind, mode, owner, inode, mtime, size and recorded content digest through recovery and leave.",
+              "definition_sha256": "02c8537bb85a7e85c6f962dfa836120c22e535be7dc105222c89d0541fca9453"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-leave-lifecycle",
+              "assertion": "original 113 case: Retained before/after snapshots preserve unrelated names, kind, mode, owner, inode, mtime, size and recorded content digest through recovery and leave.",
+              "definition_sha256": "0a06c7c95fc7df09c75f8f6d63134e9539f8461e022f533932c2c2f8aec47772"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-leave-lifecycle-r2",
+              "assertion": "original 119 retention case: Retained before/after snapshots preserve unrelated names, kind, mode, owner, inode, mtime, size and recorded content digest through recovery and leave.",
+              "definition_sha256": "88510863154f1db867e40a087e89b61a65336c894e51f407be74ad72ffa3f09b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r7",
@@ -7370,7 +7717,7 @@
           "gap": ""
         }
       ],
-      "notes": "loadables/cluster.c:128-140 atomic write (O_NOFOLLOW, 0600, rename); :485-495 flock lock; :534-538 0700 check."
+      "notes": "loadables/cluster.c:128-140 atomic write (O_NOFOLLOW, 0600, rename); :485-495 flock lock; :534-538 0700 check. Primary220 reviews all36 original cluster clauses, unchanged113/119 sources, raw paired candidate observations and guest130/147 independent audits. Audit wrappers and the candidate basics case are supporting controls, not extra candidate coverage. All3062 prior evidence objects and the static119 heartbeat FAIL are retained. Historical147 cleanup is accepted as waited service plus clean poweroff and absent host scope; missing precollection guest-unit live-to-empty proof is not reconstructed, and the old overlay remains retained. r1: Mode-invalid directories are refused; independent 119 lstat fields establish a 0700 root-owned directory is refused by uid 2000 and unchanged. r2: The retained119 inotify data positively records temp-file close and rename events for the final state names, including multiple members replacements, and the retained snapshots show0600 final modes and no leftover scratch. This exercises atomic temp-plus-rename writes. The old trace encoder can drop events, so absence of an in-place write event is not a separately established no-loss guarantee.113 remains companion evidence. r3: Accepted and rejected key-file vectors and the independently verified protocol controls exercise the documented 64 lowercase hex syntax, with the documented optional final newline. r4: Two concurrent init attempts are refused while the original listener remains active; raw snapshots and children records are retained. r5: The old listener was killed, but next init reads the fixture-written live sentinel PID. Dead-listener-PID recovery is not exercised; preserve this partial clause and the retained observations. r6: Retained before/after snapshots preserve unrelated names, kind, mode, owner, inode, mtime, size and recorded content digest through recovery and leave. r7: Preserve the exact existing requirement and evidence. "
     },
     {
       "topic": "cluster/roster-heartbeats",
@@ -7380,23 +7727,49 @@
         "purpose": "Verify three-peer roster convergence after joins and leaves, heartbeat refresh, peer expiry, and leaf disconnection after seed loss.",
         "reason": "Requires three owned persistent shells and listeners in a disposable Linux VM with isolated loopback networking and private directories. Check exact node-to-endpoint sets from each peer, use a bounded deadline based on the documented timeout and heartbeat intervals, and terminate only owned fixture processes."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: Not observed.; r2: Not observed.; r4: Not observed.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Three peers converge to the same roster after joins.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-roster-heartbeats",
+              "assertion": "original 113 case: Three authenticated identities, all three members commands and saved members files agree on the three rows.",
+              "definition_sha256": "08266dfab93b364ca44a91047a474d0524c1ecb8f618ae533a37f7476c041969"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-roster-heartbeats-r2",
+              "assertion": "original 119 retention case: Three authenticated identities, all three members commands and saved members files agree on the three rows. The complete case is FAIL on static because the expiry predicate is no; this separate result is retained.",
+              "definition_sha256": "b3e9458be4b2ec4b2d4ecae138e9dd6e624659dadc134cd2a102c51ee666539f"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "A leaving peer is removed from all rosters.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-roster-heartbeats",
+              "assertion": "original 113 case: A successful leave and the VM trace proof show the seed and surviving peer drop the departed member.",
+              "definition_sha256": "08266dfab93b364ca44a91047a474d0524c1ecb8f618ae533a37f7476c041969"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-roster-heartbeats-r2",
+              "assertion": "original 119 retention case: A successful leave and the VM trace proof show the seed and surviving peer drop the departed member. The complete case is FAIL on static because the expiry predicate is no; this separate result is retained.",
+              "definition_sha256": "b3e9458be4b2ec4b2d4ecae138e9dd6e624659dadc134cd2a102c51ee666539f"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
@@ -7427,12 +7800,25 @@
         {
           "id": "r4",
           "behavior": "Leaves disconnect (report disconnected/stopped) after seed loss.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-roster-heartbeats",
+              "assertion": "original 113 case: After seed loss the saved leaf state and status show disconnected, self-only roster, then stopped after listener termination.",
+              "definition_sha256": "08266dfab93b364ca44a91047a474d0524c1ecb8f618ae533a37f7476c041969"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-roster-heartbeats-r2",
+              "assertion": "original 119 retention case: After seed loss the saved leaf state and status show disconnected, self-only roster, then stopped after listener termination. The complete case is FAIL on static because the expiry predicate is no; this separate result is retained.",
+              "definition_sha256": "b3e9458be4b2ec4b2d4ecae138e9dd6e624659dadc134cd2a102c51ee666539f"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. File-backed comparative samples show the silent member disappearing after the configured1.2s interval while the beating member remains, and later expiry after heartbeat calls stop. The original does not require an exact expiry instant or every beat receive. Static119 remains FAIL; its boundary-crossing sample bracket does not prove early expiry."
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain. File-backed comparative samples show the silent member disappearing after the configured1.2s interval while the beating member remains, and later expiry after heartbeat calls stop. The original does not require an exact expiry instant or every beat receive. Static119 remains FAIL; its boundary-crossing sample bracket does not prove early expiry. Primary220 reviews all36 original cluster clauses, unchanged113/119 sources, raw paired candidate observations and guest130/147 independent audits. Audit wrappers and the candidate basics case are supporting controls, not extra candidate coverage. All3062 prior evidence objects and the static119 heartbeat FAIL are retained. Historical147 cleanup is accepted as waited service plus clean poweroff and absent host scope; missing precollection guest-unit live-to-empty proof is not reconstructed, and the old overlay remains retained. r1: Three authenticated identities, all three members commands and saved members files agree on the three rows. r2: A successful leave and the VM trace proof show the seed and surviving peer drop the departed member. r3: Preserve prior191 coverage and all existing evidence. The static119 FAIL and dynamic119 PASS remain; polling bounds cross the documented threshold and do not establish an exact expiry instant. r4: After seed loss the saved leaf state and status show disconnected, self-only roster, then stopped after listener termination. "
     },
     {
       "topic": "cluster/seed-initialization",
@@ -7442,47 +7828,88 @@
         "purpose": "Verify seed startup, ephemeral loopback port selection, generated key and node IDs, initial one-member roster, private file modes, and listener ownership by a persistent shell.",
         "reason": "Requires a disposable Linux VM with a writable private 0700 fixture directory, loopback UDP, and an owned persistent bash-os shell/listener child. Use a fresh state directory and port 0; independently validate the documented output fields, 0600 state files, and roster format. Do not use a host service, host path, or real network peer."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No init has ever run; one candidate shell in a per-side script suffices.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "init with -p 0 selects an ephemeral loopback port and records it in ./port.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-seed-init",
+              "assertion": "original 113 case: The saved init status, ephemeral-range output, port file and VM-authenticated loopback PONG establish the recorded port.",
+              "definition_sha256": "3115c7ed62ce312e272eb9b8f138115f889f9fb6fe220da13e94c7295d6c5890"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Generated key and node IDs have the documented format (64/32 lowercase hex).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-seed-init",
+              "assertion": "original 113 case: The saved generated key and node/cluster identifiers have the required lowercase hexadecimal formats.",
+              "definition_sha256": "3115c7ed62ce312e272eb9b8f138115f889f9fb6fe220da13e94c7295d6c5890"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "The initial roster has exactly the seed node and endpoint.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-seed-init",
+              "assertion": "original 113 case: The original members bytes and command output contain exactly the seed node and endpoint.",
+              "definition_sha256": "3115c7ed62ce312e272eb9b8f138115f889f9fb6fe220da13e94c7295d6c5890"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "State files are 0600 in a 0700 directory.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-seed-init",
+              "assertion": "original 113 case: Saved seed directory mode is 0700 and every retained state file and lock mode is 0600; raw facts are checked separately.",
+              "definition_sha256": "3115c7ed62ce312e272eb9b8f138115f889f9fb6fe220da13e94c7295d6c5890"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "The listener is a child owned by the persistent shell and status reports running.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-cluster-seed-init",
+              "assertion": "original 113 case: Seed status records state=initialized for the live listener and state=stopped after its kill; separate 119 owner-kill raw proc and owned-shell signal observations establish a listener child.",
+              "definition_sha256": "3115c7ed62ce312e272eb9b8f138115f889f9fb6fe220da13e94c7295d6c5890"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-leave-lifecycle-r2",
+              "assertion": "original 119 retention case: Seed status records state=initialized for the live listener and state=stopped after its kill; separate 119 owner-kill raw proc and owned-shell signal observations establish a listener child.",
+              "definition_sha256": "88510863154f1db867e40a087e89b61a65336c894e51f407be74ad72ffa3f09b"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/cluster.c:507-598 bc_start; BC_FILES :30."
+      "notes": "loadables/cluster.c:507-598 bc_start; BC_FILES :30. Primary220 reviews all36 original cluster clauses, unchanged113/119 sources, raw paired candidate observations and guest130/147 independent audits. Audit wrappers and the candidate basics case are supporting controls, not extra candidate coverage. All3062 prior evidence objects and the static119 heartbeat FAIL are retained. Historical147 cleanup is accepted as waited service plus clean poweroff and absent host scope; missing precollection guest-unit live-to-empty proof is not reconstructed, and the old overlay remains retained. r1: The saved init status, ephemeral-range output, port file and VM-authenticated loopback PONG establish the recorded port. r2: The saved generated key and node/cluster identifiers have the required lowercase hexadecimal formats. r3: The original members bytes and command output contain exactly the seed node and endpoint. r4: Saved seed directory mode is 0700 and every retained state file and lock mode is 0600; raw facts are checked separately. r5: Seed status records state=initialized for the live listener and state=stopped after its kill; separate 119 owner-kill raw proc and owned-shell signal observations establish a listener child. "
     },
     {
       "topic": "coreutils/mknod-device-nodes-deferred",

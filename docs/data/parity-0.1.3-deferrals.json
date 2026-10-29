@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "fc06d66d9fdadb75b8f91323e33dd972bac4ace2543d6821929a356970b21d2d",
+  "ledger_sha256": "dc0e132a425e6c8d98565e62b97d74341ecde69155d9e55f29325ec319db0bc0",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
     "partial": 123,
-    "full": 351,
-    "none": 126
+    "full": 355,
+    "none": 122
   },
   "migrations": {
-    "deferred": 249,
-    "replacement": 351
+    "deferred": 245,
+    "replacement": 355
   },
   "pending_full_topics": [],
   "builds": {
@@ -4121,6 +4121,84 @@
             "forced_stop": false,
             "poweroff_request": 255,
             "stopped_at": 1793192869.5877542
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "cluster-204-113-static-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 7,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "bc668db4097949a4234a8044ed4516e2b47fd1f1b04f38ad4016bdf858c004ee",
+            "provenance.json": "3da394831d8414c2e463c82136fe0e0bc8bb56f26e3eb7c23981d15babd407e4",
+            "payload.tar": "9260858599217ea86f076b1240575fefb77120cdede51852c53a2f6a5caef719",
+            "evidence.tar": "77f3d9ea839bb16467d2010d9e88313c5f3dab776c59ce4ae4e56f4f84b00842"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793197586.2906432
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "cluster-204-119-static-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 6,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "8e5d81af9f0df937b02d38a78a5e2409af34d30bd1b5730bd7a322fceaedca1d",
+            "provenance.json": "420e0c92a29ea876e7f1d4a812a2baca3292bd836826da063656f9c205b96574",
+            "payload.tar": "c93f0a10add510a24b6eb1b0701b7064ff5f3ffff68a643722a6f37ec1a5f503",
+            "evidence.tar": "6da1b5b86a2cf3f61474bf873d5e3f585db988911d72c4dc5ef67178edd1075f"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793223080.4958127
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "cluster-204-static-candidate-basics-control-support",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "effae00f9e0715d623b999a331534e1955492f0a85626ee9292a5deb633379bb",
+            "provenance.json": "a1e2cbec06552b08facd8d8cf7457378c244acab921a3679dca47e6b11f5d3bd",
+            "payload.tar": "9260858599217ea86f076b1240575fefb77120cdede51852c53a2f6a5caef719",
+            "evidence.tar": "a71f502ec08aaee94897c01cdb3e177426f8283c640d9731f89b83fef3d2e716"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793197461.2476888
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -11427,126 +11505,292 @@
             {
               "id": "r1",
               "behavior": "Malformed init arguments (bad -p, unreadable/invalid -k key file) fail without starting a listener or writing state.",
-              "coverage": "missing",
-              "gap": "No init is ever invoked.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-argument-validation",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-argument-validation-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-key-syntax",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-key-syntax-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Malformed join (non-127.0.0.1 seed, missing -k) fails without listener or state.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-argument-validation",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-argument-validation-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-key-syntax",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-key-syntax-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Malformed ping target fails with status 1 and no network side effect.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-argument-validation",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-argument-validation-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "BASHCLUSTER_TIMEOUT_MS outside 50..5000 is rejected for lifecycle verbs as for members.",
-              "coverage": "partial",
-              "gap": "Only the offline members verb is exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/cluster/offline-members-invalid-timeout",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-argument-validation",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-argument-validation-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "cluster/authenticated-join",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A peer joining 127.0.0.1:SEEDPORT with the seed's key file receives the seed's cluster ID.",
-              "coverage": "missing",
-              "gap": "No join run.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-authenticated-join",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-authenticated-join-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Both rosters list both node IDs and endpoints after the join (independently parsed).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-authenticated-join",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-authenticated-join-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "A join with a different valid key is rejected and neither roster changes.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-authenticated-join",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-authenticated-join-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "cluster/leave-and-owner-lifecycle",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "leave removes the owned state files and preserves unrelated files in the state directory.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "leave notifies the seed, which drops the member.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "leave is repeatable (second leave succeeds/defined status).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "When the owning shell exits, the listener child exits and the UDP port is released.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -11588,20 +11832,46 @@
             {
               "id": "r2",
               "behavior": "A packet with a wrong-key MAC does not change the roster.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-packet-rejection",
+                  "status": "PASS",
+                  "run": "cluster-followup-static-113-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-packet-rejection-r2",
+                  "status": "PASS",
+                  "run": "cluster-retention-static-119-178-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Invalid row count (>32) and invalid node IDs are rejected.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-packet-rejection",
+                  "status": "PASS",
+                  "run": "cluster-followup-static-113-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-packet-rejection-r2",
+                  "status": "PASS",
+                  "run": "cluster-retention-static-119-178-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -11636,54 +11906,119 @@
         {
           "topic": "cluster/ping-protocol",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "ping NODE resolves a roster node and succeeds when the peer answers.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "ping 127.0.0.1:PORT succeeds against a numeric endpoint.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "ping of an unknown node ID fails without sending.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "ping to a silent (non-protocol) endpoint times out within BASHCLUSTER_TIMEOUT_MS with failure status.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "The request packet has the documented size, a fresh nonce, the cluster ID and a valid keyed MAC (independent validation).",
-              "coverage": "missing",
-              "gap": "No independent peer.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -11697,56 +12032,146 @@
             {
               "id": "r1",
               "behavior": "init refuses a state directory that is not owned/0700.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "State files are written 0600 atomically (temp + rename).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Key-file syntax: exactly 64 lowercase hex digits accepted, others rejected.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-key-syntax",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-key-syntax-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "A second listener on the same state directory is refused (lock collision).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "A stale state (dead listener_pid, leftover temp files) is cleaned up/recovered on next init.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The old listener was killed and scratch removal plus forged-PID safety were observed, but both frozen helpers overwrite listener_pid with a live sentinel before the next init. The literal dead listener_pid input at that init was not exercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r6",
               "behavior": "Unrelated files in the state directory are preserved.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r7",
@@ -11780,28 +12205,54 @@
         },
         {
           "topic": "cluster/roster-heartbeats",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Three peers converge to the same roster after joins.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats",
+                  "status": "PASS",
+                  "run": "cluster-followup-static-113-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats-r2",
+                  "status": "FAIL",
+                  "run": "cluster-retention-static-119-178-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "A leaving peer is removed from all rosters.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats",
+                  "status": "PASS",
+                  "run": "cluster-followup-static-113-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats-r2",
+                  "status": "FAIL",
+                  "run": "cluster-retention-static-119-178-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -11834,65 +12285,119 @@
             {
               "id": "r4",
               "behavior": "Leaves disconnect (report disconnected/stopped) after seed loss.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats",
+                  "status": "PASS",
+                  "run": "cluster-followup-static-113-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats-r2",
+                  "status": "FAIL",
+                  "run": "cluster-retention-static-119-178-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
         {
           "topic": "cluster/seed-initialization",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "init with -p 0 selects an ephemeral loopback port and records it in ./port.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-seed-init",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Generated key and node IDs have the documented format (64/32 lowercase hex).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-seed-init",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "The initial roster has exactly the seed node and endpoint.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-seed-init",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "State files are 0600 in a 0700 directory.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-seed-init",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "The listener is a child owned by the persistent shell and status reports running.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-seed-init",
+                  "status": "PASS",
+                  "run": "cluster-204-113-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-static-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -52368,9 +52873,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 249,
-        "FAIL": 171,
-        "PASS": 180
+        "UNRESOLVED": 245,
+        "FAIL": 172,
+        "PASS": 183
       },
       "migration_without_complete_evidence": []
     },
@@ -56481,6 +56986,84 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793196816.010091
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "cluster-204-113-dynamic-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 7,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "bd2de01c6d5b5607e89265f10bc5ae6ae779a795c84b73af0420a2994a81552c",
+            "provenance.json": "b6c0e0e0e94933441b1c286be33d4ba2222f85d37e1d36e5a5297f90ffe0cf18",
+            "payload.tar": "8097a4416f4e54f065be56603708b692ffcc2a49530c021756bba6e5ac07582b",
+            "evidence.tar": "cced9fe71550484df104aeb8964ca9cdf3ead1c88bcb08b07d37f162d9fae51d"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793197746.862737
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "cluster-204-119-dynamic-candidate",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 6,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "071076de2f534184c36bc37853227364ac509252f7580ba309e267eef185dc72",
+            "provenance.json": "3459766418b0a8f1f12527bec95169ba10b67f07be2d31f67e4b6aea7fee98eb",
+            "payload.tar": "529f40b4a587aeba2679745c7c80d051a5160e24b943b431d08cb373b9933774",
+            "evidence.tar": "512995b9a90033af4d35d146f3456ed289e812e452e7d47039519dc8c84b8e5f"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793223170.1442418
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "cluster-204-dynamic-candidate-basics-control-support",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "bd2de01c6d5b5607e89265f10bc5ae6ae779a795c84b73af0420a2994a81552c",
+            "provenance.json": "b6c0e0e0e94933441b1c286be33d4ba2222f85d37e1d36e5a5297f90ffe0cf18",
+            "payload.tar": "8097a4416f4e54f065be56603708b692ffcc2a49530c021756bba6e5ac07582b",
+            "evidence.tar": "cced9fe71550484df104aeb8964ca9cdf3ead1c88bcb08b07d37f162d9fae51d"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793197746.862737
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -63787,126 +64370,292 @@
             {
               "id": "r1",
               "behavior": "Malformed init arguments (bad -p, unreadable/invalid -k key file) fail without starting a listener or writing state.",
-              "coverage": "missing",
-              "gap": "No init is ever invoked.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-argument-validation",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-argument-validation-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-key-syntax",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-key-syntax-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Malformed join (non-127.0.0.1 seed, missing -k) fails without listener or state.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-argument-validation",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-argument-validation-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-key-syntax",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-key-syntax-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Malformed ping target fails with status 1 and no network side effect.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-argument-validation",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-argument-validation-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "BASHCLUSTER_TIMEOUT_MS outside 50..5000 is rejected for lifecycle verbs as for members.",
-              "coverage": "partial",
-              "gap": "Only the offline members verb is exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/cluster/offline-members-invalid-timeout",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-argument-validation",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-argument-validation-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "cluster/authenticated-join",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A peer joining 127.0.0.1:SEEDPORT with the seed's key file receives the seed's cluster ID.",
-              "coverage": "missing",
-              "gap": "No join run.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-authenticated-join",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-authenticated-join-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Both rosters list both node IDs and endpoints after the join (independently parsed).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-authenticated-join",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-authenticated-join-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "A join with a different valid key is rejected and neither roster changes.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-authenticated-join",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-authenticated-join-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "cluster/leave-and-owner-lifecycle",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "leave removes the owned state files and preserves unrelated files in the state directory.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "leave notifies the seed, which drops the member.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "leave is repeatable (second leave succeeds/defined status).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "When the owning shell exits, the listener child exits and the UDP port is released.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -63948,20 +64697,46 @@
             {
               "id": "r2",
               "behavior": "A packet with a wrong-key MAC does not change the roster.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-packet-rejection",
+                  "status": "PASS",
+                  "run": "cluster-followup-dynamic-113-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-packet-rejection-r2",
+                  "status": "PASS",
+                  "run": "cluster-retention-dynamic-119-178-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Invalid row count (>32) and invalid node IDs are rejected.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-packet-rejection",
+                  "status": "PASS",
+                  "run": "cluster-followup-dynamic-113-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-packet-rejection-r2",
+                  "status": "PASS",
+                  "run": "cluster-retention-dynamic-119-178-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -63996,54 +64771,119 @@
         {
           "topic": "cluster/ping-protocol",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "ping NODE resolves a roster node and succeeds when the peer answers.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "ping 127.0.0.1:PORT succeeds against a numeric endpoint.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "ping of an unknown node ID fails without sending.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r4",
               "behavior": "ping to a silent (non-protocol) endpoint times out within BASHCLUSTER_TIMEOUT_MS with failure status.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "The request packet has the documented size, a fresh nonce, the cluster ID and a valid keyed MAC (independent validation).",
-              "coverage": "missing",
-              "gap": "No independent peer.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-ping-protocol-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -64057,56 +64897,146 @@
             {
               "id": "r1",
               "behavior": "init refuses a state directory that is not owned/0700.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "State files are written 0600 atomically (temp + rename).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Key-file syntax: exactly 64 lowercase hex digits accepted, others rejected.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-key-syntax",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-key-syntax-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "A second listener on the same state directory is refused (lock collision).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "A stale state (dead listener_pid, leftover temp files) is cleaned up/recovered on next init.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The old listener was killed and scratch removal plus forged-PID safety were observed, but both frozen helpers overwrite listener_pid with a live sentinel before the next init. The literal dead listener_pid input at that init was not exercised.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r6",
               "behavior": "Unrelated files in the state directory are preserved.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-state-private-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r7",
@@ -64140,28 +65070,54 @@
         },
         {
           "topic": "cluster/roster-heartbeats",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Three peers converge to the same roster after joins.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats",
+                  "status": "PASS",
+                  "run": "cluster-followup-dynamic-113-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats-r2",
+                  "status": "PASS",
+                  "run": "cluster-retention-dynamic-119-178-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "A leaving peer is removed from all rosters.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats",
+                  "status": "PASS",
+                  "run": "cluster-followup-dynamic-113-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats-r2",
+                  "status": "PASS",
+                  "run": "cluster-retention-dynamic-119-178-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -64194,65 +65150,119 @@
             {
               "id": "r4",
               "behavior": "Leaves disconnect (report disconnected/stopped) after seed loss.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats",
+                  "status": "PASS",
+                  "run": "cluster-followup-dynamic-113-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats-r2",
+                  "status": "PASS",
+                  "run": "cluster-retention-dynamic-119-178-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "cluster/seed-initialization",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "init with -p 0 selects an ephemeral loopback port and records it in ./port.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-seed-init",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Generated key and node IDs have the documented format (64/32 lowercase hex).",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-seed-init",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "The initial roster has exactly the seed node and endpoint.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-seed-init",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "State files are 0600 in a 0700 directory.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-seed-init",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "The listener is a child owned by the persistent shell and status reports running.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-seed-init",
+                  "status": "PASS",
+                  "run": "cluster-204-113-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-leave-lifecycle-r2",
+                  "status": "PASS",
+                  "run": "cluster-204-119-dynamic-candidate"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -104728,9 +105738,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 249,
+        "UNRESOLVED": 245,
         "FAIL": 171,
-        "PASS": 180
+        "PASS": 184
       },
       "migration_without_complete_evidence": []
     }
