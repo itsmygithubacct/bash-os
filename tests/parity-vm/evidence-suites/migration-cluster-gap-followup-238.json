@@ -1,0 +1,99 @@
+{
+  "cases": [
+    {
+      "comparison": "Pin the original owned listener and its stopped parent; retain the listener as an unreaped zombie with the exact original on-disk PID and three known temporary files through the next init. Save the process births, PID bytes, command status and recovery observations. A live sentinel is separate.",
+      "covers": [
+        "cluster/private-state-recovery"
+      ],
+      "diagnostic_files": [
+        "cluster238-setup.json",
+        "cluster238-setup-events.jsonl",
+        "cluster238-result.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/cluster-gap-observer-238.py": "00c63508d0abd003c4a68fe029b861642b3c6cd22a60fb8ee297c126a2b76780"
+      },
+      "id": "migration-cluster-gap-dead-pid-238-r1",
+      "kind": "contract",
+      "loadable": "cluster",
+      "oracle": "Guest-only independent bounded controls and raw observations; the fixture never targets a non-loopback peer or a process it did not create and pin.",
+      "purpose": "Recover a state containing the actual dead owned listener PID and leftover temporary files on the next init.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238.py case stale \"$BASH\"",
+      "setup_script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238.py setup stale",
+      "setup_timeout": 50,
+      "stderr": "",
+      "stdout": "cluster238 stale=pass\n",
+      "timeout": 60
+    },
+    {
+      "comparison": "Full guest-generated packet bytes and completed sends, roster bytes, pinned listener and response-socket queues and drops, and authenticated barriers are retained. Failed barriers with pending traffic or socket loss are incomplete. Controlled loopback delivery is inferred, not a candidate-specific receive trace; replies are not forbidden.",
+      "covers": [
+        "cluster/packet-rejection"
+      ],
+      "diagnostic_files": [
+        "cluster238-setup.json",
+        "cluster238-setup-events.jsonl",
+        "cluster238-result.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/cluster-gap-observer-238.py": "00c63508d0abd003c4a68fe029b861642b3c6cd22a60fb8ee297c126a2b76780"
+      },
+      "id": "migration-cluster-gap-packet-rejection-238-r1",
+      "kind": "contract",
+      "loadable": "cluster",
+      "oracle": "Guest-only independent bounded controls and raw observations; the fixture never targets a non-loopback peer or a process it did not create and pin.",
+      "purpose": "Exercise malformed, truncated, oversized and wrong-key datagrams and a later valid independent ping against one owned listener.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238.py case packets \"$BASH\"",
+      "setup_script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238.py setup packets",
+      "setup_timeout": 50,
+      "stderr": "",
+      "stdout": "cluster238 packets=pass\n",
+      "timeout": 60
+    },
+    {
+      "comparison": "In private offline state, both owned wildcard decoys receive controls on 127.0.0.1 and 127.0.0.2. Complete captures, command status, bounded receive windows, pinned socket identity, queue and drop samples, and calibrated namespace UDP and loopback interface counters with explicit before/after brackets are retained. Ambiguous counter changes or missing loss accounting are incomplete.",
+      "covers": [
+        "cluster/ping-protocol",
+        "cluster/argument-and-timeout-validation"
+      ],
+      "diagnostic_files": [
+        "cluster238-setup.json",
+        "cluster238-setup-events.jsonl",
+        "cluster238-result.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/cluster-gap-observer-238.py": "00c63508d0abd003c4a68fe029b861642b3c6cd22a60fb8ee297c126a2b76780"
+      },
+      "id": "migration-cluster-gap-negative-ping-238-r1",
+      "kind": "contract",
+      "loadable": "cluster",
+      "oracle": "Guest-only independent bounded controls and raw observations; the fixture never targets a non-loopback peer or a process it did not create and pin.",
+      "purpose": "Observe invalid ping targets and unknown node IDs with owned wildcard decoy sockets and a bounded namespace UDP counter.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238.py case negative \"$BASH\"",
+      "setup_script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238.py setup negative",
+      "setup_timeout": 50,
+      "stderr": "",
+      "stdout": "cluster238 negative=pass\n",
+      "timeout": 60
+    }
+  ],
+  "schema": 1
+}

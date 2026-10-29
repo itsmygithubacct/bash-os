@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "dc0e132a425e6c8d98565e62b97d74341ecde69155d9e55f29325ec319db0bc0",
+  "ledger_sha256": "2d9f0980ca590324205f1a174de1491909fe189905ecedbf2c037e30e1f45da8",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 123,
-    "full": 355,
+    "partial": 120,
+    "full": 358,
     "none": 122
   },
   "migrations": {
-    "deferred": 245,
-    "replacement": 355
+    "deferred": 242,
+    "replacement": 358
   },
   "pending_full_topics": [],
   "builds": {
@@ -4204,6 +4204,354 @@
           "candidate_unchanged": true,
           "candidate_matches_guest": true,
           "prepared_unchanged": true
+        },
+        {
+          "name": "cluster282-negative-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-controller-v1",
+          "primary_receipt_sha256": "30518fc55e23ab31f447c1a9961ae34c19cee18844b40f3021bde20366ad1678",
+          "receipt_run": "negative-static",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash-static",
+          "case_definition_sha256": "c4745dd873fef194e7dae760dbc03cc68e8249c86a2dc48005e98edde60a2624",
+          "vm_uuid": "70f911bf-db9e-4299-805c-c3db63f4c9cc",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "artifacts_sha256": {
+            "candidate_raw_sha256": "fb0e7e1a11eb96b38e1f70ba567f1c8e22b3d714fc481004b4231952e61c368b",
+            "case_events_sha256": "8a1314796d7014cd9bef68a8bc07996f9ee9e66847e43358f9cf852c5fe245a3",
+            "case_result_sha256": "2a8ef886375e328b17a88edb3451f6d951541d4a6d0118df811a2a9713bfb752",
+            "compatibility_raw_sha256": "54c5e49f1158de8d7e40d7df69f69b9b40f697cf63378d9f30f9534cf9d3a539",
+            "evidence_tar_sha256": "615723ddb5cb5d6123e5a2fb297aea86826b301a768656d529f730376d07a8e6",
+            "handoff_sha256": "000a4a64cf8855a6231b64ae9f5ae3ed197ae7b3671cafd639d2e6ec712ca4c7",
+            "launch_sha256": "f3b7790a4de0556ca0adf2a4df386549cf99d1231202ae722f9b0b52b5661dc1",
+            "payload_sha256": "f4507f1f16b2a1c4636d1eecf497d2790e9ad361111873c5fb98392657ad241c",
+            "plan_sha256": "f0d0ca7361ff4c9f989fdfa42a04e87cbefa3cd3f27042fb150ab95781853d94",
+            "provenance_sha256": "a4309123e432651b8803d82400aadce5b17273573621f18c7f318ccf6507ad04",
+            "setup_events_sha256": "6e7c2dda2b579f44c55d86f708aeed3231b396ff31e5d069554a44c9d329a84c",
+            "setup_sha256": "1c5b3321f98c80b351c5cdf6c536792590b8920ba4276cd621dd93f0ec4d9832",
+            "summary_sha256": "e35b1cf443a1ba982fe6ce832a929b9aac6ba521226c1c0efb18dc7b95746069",
+            "teardown_sha256": "e57b5bfcecf58deb91e68ad8092ce04603b9d096065ddedef9f4583a6bbda1da"
+          },
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-70f911bf.service",
+              "proof_sha256": "8bda76064c3941471e1d28202f492ee7f22fac0d96bffff5940f44728b19dc17",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-70f911bf-reference.service",
+              "proof_sha256": "d733a85be56b2da2d967e75af9228ed554ab16569fd4d4d426706e423ec67370",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-70f911bf-db9e-4299-805c-c3db63f4c9cc.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-cluster-282/results/negative-static/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-70f911bf-db9e-4299-805c-c3db63f4c9cc.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-70f911bf-db9e-4299-805c-c3db63f4c9cc.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-70f911bf-db9e-4299-805c-c3db63f4c9cc.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-70f911bf-db9e-4299-805c-c3db63f4c9cc.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-70f911bf-db9e-4299-805c-c3db63f4c9cc.scope\nId=parity-vm-70f911bf-db9e-4299-805c-c3db63f4c9cc.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-70f911bf-db9e-4299-805c-c3db63f4c9cc.scope",
+                "id": "parity-vm-70f911bf-db9e-4299-805c-c3db63f4c9cc.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-70f911bf-db9e-4299-805c-c3db63f4c9cc.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-70f911bf-db9e-4299-805c-c3db63f4c9cc.scope",
+            "stopped_at": 1793251250.300211,
+            "vm_uuid": "70f911bf-db9e-4299-805c-c3db63f4c9cc",
+            "wrapper_pid": 2293498
+          },
+          "overlay_discarded": true
+        },
+        {
+          "name": "cluster282-packets-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-controller-v1",
+          "primary_receipt_sha256": "30518fc55e23ab31f447c1a9961ae34c19cee18844b40f3021bde20366ad1678",
+          "receipt_run": "packets-static",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash-static",
+          "case_definition_sha256": "d32207e16274d7ff902de9a49909e38667ee47423e8349b5a9eba910167ab00d",
+          "vm_uuid": "69a67163-d363-4134-bb33-0fe03f018cf6",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "artifacts_sha256": {
+            "candidate_raw_sha256": "b74b3e52fc6843e7cfed2b66eaea6d7a4de6b0b0a7235dd284aebb7b6719b877",
+            "case_events_sha256": "9d19af91ba7982483e8da2f67e36c9ff4a5b36e9bd8a5e08074feb7c02f7c4c3",
+            "case_result_sha256": "7a59046ac6890eb47801b3c00236273f3d601f5e83852cef641be911435509e3",
+            "compatibility_raw_sha256": "c2f753d9f0651bdcd077ca4b0b8a09b453d6a028d238514e87e85dcb70bd454f",
+            "evidence_tar_sha256": "0ccdf66113cfad18a718187b9619319ebb29d9086f34a081631ef57bcda3e568",
+            "handoff_sha256": "b5e83186e10483e83aac0399cd4a376c20478266802bd49c8e1566bacb6cca31",
+            "launch_sha256": "c731e90dde9181f3f7e16c2b1e4dd639161a7cfed75d178911c8ab9250cb030a",
+            "payload_sha256": "8c70ac633f23d5fbb6a166a70f9d865a70484d4d4a0f2cb7a16a1d0932e6a428",
+            "plan_sha256": "3ed1dfab851c16a2c433b6980283c244eae1ac80b24a3c8e1fbcc43d998d5661",
+            "provenance_sha256": "6a915dad862893d5e296c7fa1e17ca77647ed2a5a872c697064632d1c70ce424",
+            "setup_events_sha256": "4e3eff8363df1748d6fbe6e0330cc9e886c9f41a2f9b4f99a0c1a113fd92ec34",
+            "setup_sha256": "83753ea632fb021cdb4cf446ffd112d95327b8d7959dca0a7c920c55e0afab4b",
+            "summary_sha256": "b6a3d8d2e358992b224e5d184bec360f960b4776a6114dd36c2afb47afeba916",
+            "teardown_sha256": "a8344379c11de29b65bebcaf6639bdc7c9b82076ffab84593d2d9fa4fa2b9bf3"
+          },
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-69a67163.service",
+              "proof_sha256": "ee5f1c79ebaa8bebe1a33026261a67dcd8b0cd3195fbe7ce7ca1caf1c9245351",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-69a67163-reference.service",
+              "proof_sha256": "fa9cb5bd7c540f5b4eeb67589a4c0e06b96b162248575b5297e6beb8a3b04abe",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-69a67163-d363-4134-bb33-0fe03f018cf6.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-cluster-282/results/packets-static/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 255,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-69a67163-d363-4134-bb33-0fe03f018cf6.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-69a67163-d363-4134-bb33-0fe03f018cf6.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-69a67163-d363-4134-bb33-0fe03f018cf6.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-69a67163-d363-4134-bb33-0fe03f018cf6.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-69a67163-d363-4134-bb33-0fe03f018cf6.scope\nId=parity-vm-69a67163-d363-4134-bb33-0fe03f018cf6.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-69a67163-d363-4134-bb33-0fe03f018cf6.scope",
+                "id": "parity-vm-69a67163-d363-4134-bb33-0fe03f018cf6.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-69a67163-d363-4134-bb33-0fe03f018cf6.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-69a67163-d363-4134-bb33-0fe03f018cf6.scope",
+            "stopped_at": 1793252119.3509066,
+            "vm_uuid": "69a67163-d363-4134-bb33-0fe03f018cf6",
+            "wrapper_pid": 2352994
+          },
+          "overlay_discarded": true
+        },
+        {
+          "name": "cluster282-stale-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-controller-v1",
+          "primary_receipt_sha256": "30518fc55e23ab31f447c1a9961ae34c19cee18844b40f3021bde20366ad1678",
+          "receipt_run": "stale-static",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash-static",
+          "case_definition_sha256": "199b44ff9af2b2335d7a5894a676008e2359696bb3c4b7ab80130f29fee68301",
+          "vm_uuid": "696cf8cb-05b4-4c57-95cc-af23aac40530",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "artifacts_sha256": {
+            "candidate_raw_sha256": "03fa950571cba8c6683ae2170c6df60c0aa82676027b76030b43775b71fa269f",
+            "case_events_sha256": "b712866a3b6e1ec14c240bd382d1cb2364e3d0e32c71c10cabcac018b21f7990",
+            "case_result_sha256": "273f538ec30ae7c14975daad428f660a01e59804a53d05f2a415955b1d2d598d",
+            "compatibility_raw_sha256": "6c94326c9e3a3f7be9800b51fb3b03b7b0b2e29dd52f1b52e434e1694e7cbd84",
+            "evidence_tar_sha256": "0af8106a8a5c6391fda95e5d0447aad4004a5f4bf1dd2013dd0258b40b2b0c9b",
+            "handoff_sha256": "2552dce4515a5a28f0ac8e1fee6005c317d4b97bc6eb364c00284d4305193a45",
+            "launch_sha256": "733f911b13aebc2a0a5773b68091d4fa76272bf9d62a7fc99a251369b7e285fc",
+            "payload_sha256": "559408e8462a986f0975d2a4a2709a157b4cc43d7fafcac7e5542e3d17931bd6",
+            "plan_sha256": "0f07ca86985c77804ca7e8fdb9d057ba5d79bf9caabfc2316bd288fb98040484",
+            "provenance_sha256": "6058424698d21f072007337124c5fdd98c011735a0882d2dd4c5ddd3c13240cb",
+            "setup_events_sha256": "8f650bdc359178b4f59c27a301fda3151350c299303ba69e7d17615215df50d1",
+            "setup_sha256": "a0f3da44d1f8f2e80e2f7a68677d537686a310474ba349737348f7c2314d1dd3",
+            "summary_sha256": "6bef6971e0a38848a40d36f0313135f77d9d1e1139d3e928caa1cf26a9a5770c",
+            "teardown_sha256": "d70bb246535bc6a7277e0d4568dddc244756c1939c8231ac228844c4b9ad13f6"
+          },
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-696cf8cb.service",
+              "proof_sha256": "5beb702d857aaedd0c0d8e643f736e92c7ff6b431d3181fbe12f0dfdd732103f",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-696cf8cb-reference.service",
+              "proof_sha256": "8fa9ac93f6d17588a480957a74229dbf61bd37325bbd8b48248227b028b7b24e",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-696cf8cb-05b4-4c57-95cc-af23aac40530.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-cluster-282/results/stale-static/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-696cf8cb-05b4-4c57-95cc-af23aac40530.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-696cf8cb-05b4-4c57-95cc-af23aac40530.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-696cf8cb-05b4-4c57-95cc-af23aac40530.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-696cf8cb-05b4-4c57-95cc-af23aac40530.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-696cf8cb-05b4-4c57-95cc-af23aac40530.scope\nId=parity-vm-696cf8cb-05b4-4c57-95cc-af23aac40530.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-696cf8cb-05b4-4c57-95cc-af23aac40530.scope",
+                "id": "parity-vm-696cf8cb-05b4-4c57-95cc-af23aac40530.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-696cf8cb-05b4-4c57-95cc-af23aac40530.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-696cf8cb-05b4-4c57-95cc-af23aac40530.scope",
+            "stopped_at": 1793251819.7717726,
+            "vm_uuid": "696cf8cb-05b4-4c57-95cc-af23aac40530",
+            "wrapper_pid": 2331435
+          },
+          "overlay_discarded": true
         }
       ],
       "entries": [
@@ -11574,7 +11922,7 @@
               "id": "r3",
               "behavior": "Malformed ping target fails with status 1 and no network side effect.",
               "coverage": "partial",
-              "gap": "The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
+              "gap": "The bounded quiet decoys and calibrated counters establish no observed emitted UDP/loopback traffic; they do not establish every possible network side effect.",
               "evidence": [
                 {
                   "group": "shell",
@@ -11587,6 +11935,12 @@
                   "id": "migration-cluster-argument-validation-r2",
                   "status": "PASS",
                   "run": "cluster-204-119-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-gap-negative-ping-238-r1",
+                  "status": "PASS",
+                  "run": "cluster282-negative-static"
                 }
               ],
               "fully_exercised": false,
@@ -11796,16 +12150,16 @@
         },
         {
           "topic": "cluster/packet-rejection",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Malformed, truncated and oversized datagrams do not change the roster.",
-              "coverage": "partial",
-              "gap": "The 125 oversized attempt bytes are retained, but candidate receipt of each datagram is not proved; original 113/119 oversized payload bytes are missing.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -11824,10 +12178,16 @@
                   "id": "migration-cluster-packet-rejection-r2",
                   "status": "PASS",
                   "run": "cluster-retention-static-119-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-gap-packet-rejection-238-r1",
+                  "status": "PASS",
+                  "run": "cluster282-packets-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -11846,6 +12206,12 @@
                   "id": "migration-cluster-packet-rejection-r2",
                   "status": "PASS",
                   "run": "cluster-retention-static-119-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-gap-packet-rejection-238-r1",
+                  "status": "PASS",
+                  "run": "cluster282-packets-static"
                 }
               ],
               "fully_exercised": true,
@@ -11876,8 +12242,8 @@
             {
               "id": "r4",
               "behavior": "After rejected packets a valid ping still succeeds.",
-              "coverage": "partial",
-              "gap": "The later 125 response is captured, but candidate receipt of each preceding attempted packet is not proved; older combined oversized payload bytes are missing.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -11896,19 +12262,25 @@
                   "id": "migration-cluster-packet-rejection-r2",
                   "status": "PASS",
                   "run": "cluster-retention-static-119-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-gap-packet-rejection-238-r1",
+                  "status": "PASS",
+                  "run": "cluster282-packets-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "cluster/ping-protocol",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -11957,8 +12329,8 @@
             {
               "id": "r3",
               "behavior": "ping of an unknown node ID fails without sending.",
-              "coverage": "partial",
-              "gap": "The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -11971,10 +12343,16 @@
                   "id": "migration-cluster-ping-protocol-r2",
                   "status": "PASS",
                   "run": "cluster-204-119-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-gap-negative-ping-238-r1",
+                  "status": "PASS",
+                  "run": "cluster282-negative-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -12024,10 +12402,10 @@
         },
         {
           "topic": "cluster/private-state-recovery",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -12120,8 +12498,8 @@
             {
               "id": "r5",
               "behavior": "A stale state (dead listener_pid, leftover temp files) is cleaned up/recovered on next init.",
-              "coverage": "partial",
-              "gap": "The old listener was killed and scratch removal plus forged-PID safety were observed, but both frozen helpers overwrite listener_pid with a live sentinel before the next init. The literal dead listener_pid input at that init was not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -12134,10 +12512,16 @@
                   "id": "migration-cluster-state-private-r2",
                   "status": "PASS",
                   "run": "cluster-204-119-static-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-gap-dead-pid-238-r1",
+                  "status": "PASS",
+                  "run": "cluster282-stale-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
@@ -52873,9 +53257,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 245,
+        "UNRESOLVED": 242,
         "FAIL": 172,
-        "PASS": 183
+        "PASS": 186
       },
       "migration_without_complete_evidence": []
     },
@@ -57069,6 +57453,354 @@
           "candidate_unchanged": true,
           "candidate_matches_guest": true,
           "prepared_unchanged": true
+        },
+        {
+          "name": "cluster282-negative-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-controller-v1",
+          "primary_receipt_sha256": "30518fc55e23ab31f447c1a9961ae34c19cee18844b40f3021bde20366ad1678",
+          "receipt_run": "negative-dynamic",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash",
+          "case_definition_sha256": "c4745dd873fef194e7dae760dbc03cc68e8249c86a2dc48005e98edde60a2624",
+          "vm_uuid": "0cdb40e9-8ad5-4e62-8539-7f7a9f4dadea",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "artifacts_sha256": {
+            "candidate_raw_sha256": "daf0534ae2c8de2ab7eee4c058d72efa2836b2fc4497b843e6db73bc4e1b90ad",
+            "case_events_sha256": "5b19437ad8ecc9fcc71b6d86f91259658a713581d421197b2edcb30d9efd4962",
+            "case_result_sha256": "d8f8101b577489aafce2040529a6845b327b5390aad771f5d5e0be8e41c1bf9c",
+            "compatibility_raw_sha256": "2920daff08b17a60dfee01b89f82b772b0631870932c5586f9a2b88f0525340b",
+            "evidence_tar_sha256": "4932f448ebb04b962ef5468132f0e69bcd2227f4724669b1165f58594feee58b",
+            "handoff_sha256": "65b3e9cefc9a6ba58cc8b18066e8fde18ad87890273ceb565096bd607653dca3",
+            "launch_sha256": "406beefce6e42f5cedcc0253b861ad5a0d6d0dc5f84514a5051bcfce78415f35",
+            "payload_sha256": "a1f81209e81ac8a8e4b62433f9b145b3000973bcb15ab67877a51148252b0ac2",
+            "plan_sha256": "fd14db9510541da4cbc9f65cb5559004dc0bff0996e3d504ab285389e20da014",
+            "provenance_sha256": "39fed27b28e6a0792d95f334cf12fa6d6a92bca413a472b4415c4c186d175a96",
+            "setup_events_sha256": "86d08633fa4b09516c5279fc7eadb982a7e6ff6df1f8676b92d1649ee4c8e01b",
+            "setup_sha256": "d569035fbb7829155524b5556eb4bda01f8a283145f11b831fde41656952fa68",
+            "summary_sha256": "0207a389682832a5f2371cfc3abd97fecd487099dd5ea10f177d3e5bc6f01b8e",
+            "teardown_sha256": "92ed4e3e5f57c291f4d58f930e88984fc07ac280ccf09ea6a2304f28f0cfa9d7"
+          },
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-0cdb40e9.service",
+              "proof_sha256": "ace72187d9e862a67475b8f65797723654253a7a0d9fa9ceb430db1915380a87",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-0cdb40e9-reference.service",
+              "proof_sha256": "cd620e7a20051040b8c8247820abdce7a0829b93bc9cfeb5f80e233458e4a4aa",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-0cdb40e9-8ad5-4e62-8539-7f7a9f4dadea.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-cluster-282/results/negative-dynamic/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-0cdb40e9-8ad5-4e62-8539-7f7a9f4dadea.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-0cdb40e9-8ad5-4e62-8539-7f7a9f4dadea.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-0cdb40e9-8ad5-4e62-8539-7f7a9f4dadea.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-0cdb40e9-8ad5-4e62-8539-7f7a9f4dadea.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-0cdb40e9-8ad5-4e62-8539-7f7a9f4dadea.scope\nId=parity-vm-0cdb40e9-8ad5-4e62-8539-7f7a9f4dadea.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-0cdb40e9-8ad5-4e62-8539-7f7a9f4dadea.scope",
+                "id": "parity-vm-0cdb40e9-8ad5-4e62-8539-7f7a9f4dadea.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-0cdb40e9-8ad5-4e62-8539-7f7a9f4dadea.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-0cdb40e9-8ad5-4e62-8539-7f7a9f4dadea.scope",
+            "stopped_at": 1793251372.9515536,
+            "vm_uuid": "0cdb40e9-8ad5-4e62-8539-7f7a9f4dadea",
+            "wrapper_pid": 2301861
+          },
+          "overlay_discarded": true
+        },
+        {
+          "name": "cluster282-packets-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-controller-v1",
+          "primary_receipt_sha256": "30518fc55e23ab31f447c1a9961ae34c19cee18844b40f3021bde20366ad1678",
+          "receipt_run": "packets-dynamic",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash",
+          "case_definition_sha256": "d32207e16274d7ff902de9a49909e38667ee47423e8349b5a9eba910167ab00d",
+          "vm_uuid": "ac468229-643c-4b9c-86f1-3d87a8f85547",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "artifacts_sha256": {
+            "candidate_raw_sha256": "e88b2741d46db76b0a0b8a30263ba6a4e0099251c9c5d673bcbb1734f33284d8",
+            "case_events_sha256": "7c8c39300d4c459d290aecd87e7785782bf26b39b637e78a38f03e70f6dd1922",
+            "case_result_sha256": "3a00c801bf8fe10b2a2ed5621b68d88a0185fa221b2c31fd723fe9e134868224",
+            "compatibility_raw_sha256": "579b9317d59d99781bfddfff5062fa13933c45fad8798d73e16036fa55439cba",
+            "evidence_tar_sha256": "7ed39ace2c5f0f57611072d8b6ed0edeb0b67cb626c281689f1c494dbd11136c",
+            "handoff_sha256": "ad704a76399ccd5ad358e684855643d555e81a7a8338d05f76884bf974e7518c",
+            "launch_sha256": "88584035a69465bff4e884c38ee81791dd7e9545f0873263f437c1b8752ee35f",
+            "payload_sha256": "2bcb28c8bde17f62edb69919d1a71c501fd4a79d4f7f75e3f72eb47db6a52299",
+            "plan_sha256": "ddd79dd85d99b062258e1cabbf941c0334c9d65ddbf225035f1ce2ddc134d47f",
+            "provenance_sha256": "5bbe3da69614e5e62dd6e6e727bcdd952fda56456e35a21892e0976691e24a4b",
+            "setup_events_sha256": "26af6eac3a64c68e42ccff56655a05a43d053a3bc6fe96dc2d1b87fc9f0e745c",
+            "setup_sha256": "f927f7bcd4442a00746a5287ba0e3c1aabd5eedfc0f9fd40258a2c525c7f3bf5",
+            "summary_sha256": "97c8f06c691a5c165a334832b84989ee38db5eadd2e47bb84646f8b106e7aa85",
+            "teardown_sha256": "a5b4250eec293dcf8390f8aa0497ab186a2bb4913fac2987d783d47a30d7cf69"
+          },
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-ac468229.service",
+              "proof_sha256": "2f2e8d5cedb1e4cbd7052707c14fa920ced6a9865c45a042310206003976e175",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-ac468229-reference.service",
+              "proof_sha256": "62bc05ad1e424443d275d3f30ee383e6054e2124c10d72a41d54a93d9ec86bfe",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-ac468229-643c-4b9c-86f1-3d87a8f85547.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-cluster-282/results/packets-dynamic/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-ac468229-643c-4b9c-86f1-3d87a8f85547.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-ac468229-643c-4b9c-86f1-3d87a8f85547.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-ac468229-643c-4b9c-86f1-3d87a8f85547.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-ac468229-643c-4b9c-86f1-3d87a8f85547.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-ac468229-643c-4b9c-86f1-3d87a8f85547.scope\nId=parity-vm-ac468229-643c-4b9c-86f1-3d87a8f85547.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-ac468229-643c-4b9c-86f1-3d87a8f85547.scope",
+                "id": "parity-vm-ac468229-643c-4b9c-86f1-3d87a8f85547.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-ac468229-643c-4b9c-86f1-3d87a8f85547.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-ac468229-643c-4b9c-86f1-3d87a8f85547.scope",
+            "stopped_at": 1793252231.4668643,
+            "vm_uuid": "ac468229-643c-4b9c-86f1-3d87a8f85547",
+            "wrapper_pid": 2362105
+          },
+          "overlay_discarded": true
+        },
+        {
+          "name": "cluster282-stale-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-controller-v1",
+          "primary_receipt_sha256": "30518fc55e23ab31f447c1a9961ae34c19cee18844b40f3021bde20366ad1678",
+          "receipt_run": "stale-dynamic",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash",
+          "case_definition_sha256": "199b44ff9af2b2335d7a5894a676008e2359696bb3c4b7ab80130f29fee68301",
+          "vm_uuid": "40c8073d-10b6-4b2c-834a-9c1124ed23a3",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "artifacts_sha256": {
+            "candidate_raw_sha256": "70bf69b227a3bf284490c629281b7d77a914a4f506d90fce9727167d3f32a24b",
+            "case_events_sha256": "b77bc69316054d776bd0de5805cc4966eebb27aa26a3447d59522b37eb337fc3",
+            "case_result_sha256": "1ceab0419becb4f6d77597643345ffa4e00ec6a66d17de31ac0ed3416e1806e7",
+            "compatibility_raw_sha256": "c3b1f5696c164a8f72f12d93018c6a3b9fcd45e25a62ff01720495da511e36a2",
+            "evidence_tar_sha256": "9fb127b3ffd006c21c2a46bc53e1f026f65b126154cd7cf216c5df4da7ee3705",
+            "handoff_sha256": "d4d062082da282f515b316c9b38c85f3a519e294a0f0d962c03ebb9519683b99",
+            "launch_sha256": "7a954c5f048403aa26ec1c1b4255043e4c7d747ed8665fbb5b93443d21451f7b",
+            "payload_sha256": "d68cf874a5fbd844e62a2b1e7ebe4d9075313dd4c08df87f43cfdf1d864f91f7",
+            "plan_sha256": "00eacb889ed9eb023b3ea997b1de8564e6a348a891fad159555ed71f4a3c83f1",
+            "provenance_sha256": "f79c1991e86eb5c0eb5149c6e991001f1d1e54542b8c5465cad92f180313cb8b",
+            "setup_events_sha256": "1781216e67eec9eb0edf8efc62a81bbf291cfe1b48dac34d5cdd8f67b88eb172",
+            "setup_sha256": "0a889e89f0659e79191982fa055e65d477cd9bb04e1ac14a8c57e1c1f1a82e33",
+            "summary_sha256": "d86b0b8f1202d56cdfd1895c84059852c49bf201672b4b8af37c784f8d84ae8e",
+            "teardown_sha256": "f4ec49ca5281970e1f7567d8db80fb99ef5ecf434e9b00a70e34d03397c621d8"
+          },
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-40c8073d.service",
+              "proof_sha256": "d55979788ecc264f3794623c6ab404d484c4ea96b559b7a9705f7306529b62c9",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-40c8073d-reference.service",
+              "proof_sha256": "3078375f656cea0fb51dd0d14c286662a6f475c7cbd50634d596f86e1be9d617",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-40c8073d-10b6-4b2c-834a-9c1124ed23a3.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-cluster-282/results/stale-dynamic/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-40c8073d-10b6-4b2c-834a-9c1124ed23a3.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-40c8073d-10b6-4b2c-834a-9c1124ed23a3.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-40c8073d-10b6-4b2c-834a-9c1124ed23a3.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-40c8073d-10b6-4b2c-834a-9c1124ed23a3.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-40c8073d-10b6-4b2c-834a-9c1124ed23a3.scope\nId=parity-vm-40c8073d-10b6-4b2c-834a-9c1124ed23a3.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-40c8073d-10b6-4b2c-834a-9c1124ed23a3.scope",
+                "id": "parity-vm-40c8073d-10b6-4b2c-834a-9c1124ed23a3.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-40c8073d-10b6-4b2c-834a-9c1124ed23a3.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-40c8073d-10b6-4b2c-834a-9c1124ed23a3.scope",
+            "stopped_at": 1793251960.9553876,
+            "vm_uuid": "40c8073d-10b6-4b2c-834a-9c1124ed23a3",
+            "wrapper_pid": 2341680
+          },
+          "overlay_discarded": true
         }
       ],
       "entries": [
@@ -64439,7 +65171,7 @@
               "id": "r3",
               "behavior": "Malformed ping target fails with status 1 and no network side effect.",
               "coverage": "partial",
-              "gap": "The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
+              "gap": "The bounded quiet decoys and calibrated counters establish no observed emitted UDP/loopback traffic; they do not establish every possible network side effect.",
               "evidence": [
                 {
                   "group": "shell",
@@ -64452,6 +65184,12 @@
                   "id": "migration-cluster-argument-validation-r2",
                   "status": "PASS",
                   "run": "cluster-204-119-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-gap-negative-ping-238-r1",
+                  "status": "PASS",
+                  "run": "cluster282-negative-dynamic"
                 }
               ],
               "fully_exercised": false,
@@ -64661,16 +65399,16 @@
         },
         {
           "topic": "cluster/packet-rejection",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Malformed, truncated and oversized datagrams do not change the roster.",
-              "coverage": "partial",
-              "gap": "The 125 oversized attempt bytes are retained, but candidate receipt of each datagram is not proved; original 113/119 oversized payload bytes are missing.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -64689,10 +65427,16 @@
                   "id": "migration-cluster-packet-rejection-r2",
                   "status": "PASS",
                   "run": "cluster-retention-dynamic-119-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-gap-packet-rejection-238-r1",
+                  "status": "PASS",
+                  "run": "cluster282-packets-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -64711,6 +65455,12 @@
                   "id": "migration-cluster-packet-rejection-r2",
                   "status": "PASS",
                   "run": "cluster-retention-dynamic-119-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-gap-packet-rejection-238-r1",
+                  "status": "PASS",
+                  "run": "cluster282-packets-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -64741,8 +65491,8 @@
             {
               "id": "r4",
               "behavior": "After rejected packets a valid ping still succeeds.",
-              "coverage": "partial",
-              "gap": "The later 125 response is captured, but candidate receipt of each preceding attempted packet is not proved; older combined oversized payload bytes are missing.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -64761,19 +65511,25 @@
                   "id": "migration-cluster-packet-rejection-r2",
                   "status": "PASS",
                   "run": "cluster-retention-dynamic-119-178-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-gap-packet-rejection-238-r1",
+                  "status": "PASS",
+                  "run": "cluster282-packets-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "cluster/ping-protocol",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -64822,8 +65578,8 @@
             {
               "id": "r3",
               "behavior": "ping of an unknown node ID fails without sending.",
-              "coverage": "partial",
-              "gap": "The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -64836,10 +65592,16 @@
                   "id": "migration-cluster-ping-protocol-r2",
                   "status": "PASS",
                   "run": "cluster-204-119-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-gap-negative-ping-238-r1",
+                  "status": "PASS",
+                  "run": "cluster282-negative-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -64889,10 +65651,10 @@
         },
         {
           "topic": "cluster/private-state-recovery",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -64985,8 +65747,8 @@
             {
               "id": "r5",
               "behavior": "A stale state (dead listener_pid, leftover temp files) is cleaned up/recovered on next init.",
-              "coverage": "partial",
-              "gap": "The old listener was killed and scratch removal plus forged-PID safety were observed, but both frozen helpers overwrite listener_pid with a live sentinel before the next init. The literal dead listener_pid input at that init was not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -64999,10 +65761,16 @@
                   "id": "migration-cluster-state-private-r2",
                   "status": "PASS",
                   "run": "cluster-204-119-dynamic-candidate"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-cluster-gap-dead-pid-238-r1",
+                  "status": "PASS",
+                  "run": "cluster282-stale-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
@@ -105738,9 +106506,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 245,
+        "UNRESOLVED": 242,
         "FAIL": 171,
-        "PASS": 184
+        "PASS": 187
       },
       "migration_without_complete_evidence": []
     }

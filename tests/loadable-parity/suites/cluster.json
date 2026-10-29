@@ -82,15 +82,45 @@
     },
     {
       "id": "ping-protocol",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify ping by both node ID and numeric loopback endpoint, plus unknown-node and non-protocol timeout failures.",
-      "reason": "Remaining obligations: r3: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-cluster-gap-negative-ping-238-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-ping-protocol"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-ping-protocol-r2"
+        }
+      ]
     },
     {
       "id": "packet-rejection",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify malformed, truncated, oversized, wrong-key, invalid-count, and invalid-node packets do not add members or prevent a later valid ping.",
-      "reason": "Remaining obligations: r1: The 125 oversized attempt bytes are retained, but candidate receipt of each datagram is not proved; original 113/119 oversized payload bytes are missing.; r4: The later 125 response is captured, but candidate receipt of each preceding attempted packet is not proved; older combined oversized payload bytes are missing."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-cluster-gap-packet-rejection-238-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-packet-rejection"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-packet-rejection-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-retention-packet-rejection-125"
+        }
+      ]
     },
     {
       "id": "leave-and-owner-lifecycle",
@@ -109,15 +139,56 @@
     },
     {
       "id": "private-state-recovery",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify private-directory checks, 0600 state files, key-file syntax, lock collision behavior, atomic snapshot recovery, stale state cleanup, and preservation of unrelated files.",
-      "reason": "Remaining obligations: r5: The old listener was killed and scratch removal plus forged-PID safety were observed, but both frozen helpers overwrite listener_pid with a live sentinel before the next init. The literal dead listener_pid input at that init was not exercised."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/cluster/offline-members-binary-and-reuse"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/cluster/offline-members-path-and-timeout-bounds"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/cluster/offline-members-stream"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-gap-dead-pid-238-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-key-syntax"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-key-syntax-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-leave-lifecycle"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-leave-lifecycle-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-state-private"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-state-private-r2"
+        }
+      ]
     },
     {
       "id": "argument-and-timeout-validation",
       "kind": "deferred",
       "purpose": "Validate init/join/ping arguments and timeout handling in lifecycle contexts; the offline members parser is covered separately.",
-      "reason": "Remaining obligations: r3: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent."
+      "reason": "Remaining obligations: r3: The bounded quiet decoys and calibrated counters establish no observed emitted UDP/loopback traffic; they do not establish every possible network side effect."
     },
     {
       "id": "offline-members-stream",

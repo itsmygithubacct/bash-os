@@ -51,12 +51,15 @@ def key(reference):
 def definitions(repo):
     """Index individual definitions, so unrelated metadata cannot mask changes."""
     result, historical = {}, {}
-    for path in sorted((repo / "tests/parity-vm/suites").glob("*.json")):
-        for case in read(path)["cases"]:
-            schema.verify_helpers(case, repo / "tests/parity-vm")
-            name = (case["group"], case["id"])
-            check(name not in result, "duplicate fixture: " + str(name))
-            result[name] = case
+    # Evidence-only registrations preserve accepted definitions without
+    # selecting them in the generic guest runtime's ordinary suites.
+    for directory in ("suites", "evidence-suites"):
+        for path in sorted((repo / "tests/parity-vm" / directory).glob("*.json")):
+            for case in read(path)["cases"]:
+                schema.verify_helpers(case, repo / "tests/parity-vm")
+                name = (case["group"], case["id"])
+                check(name not in result, "duplicate fixture: " + str(name))
+                result[name] = case
     for path in sorted((repo / "tests/loadable-parity/suites").glob("*.json")):
         suite = read(path)
         for case in suite["cases"]:
@@ -65,6 +68,15 @@ def definitions(repo):
             if case["kind"] in {"parity", "contract"}:
                 result[("legacy", "legacy/" + topic)] = case
     return result, historical
+
+
+def reject_unqualified_evidence_only(selected, repo=REPO):
+    """Metadata-only definitions must not enter through the legacy reader."""
+    evidence_only = {key(case) for path in
+                     (repo / "tests/parity-vm/evidence-suites").glob("*.json")
+                     for case in read(path)["cases"]}
+    check(not any(key(item["record"]) in evidence_only for item in selected),
+          "evidence-only case requires a primary-qualified controller receipt")
 
 
 def reference_sources(repo):
@@ -305,7 +317,12 @@ def retained_overlay_cleanup(spec, directory, summary, provenance, expected_bina
             "selfcheck_ids": pin["selfcheck_ids"]}
 
 
-def load_run(spec, expected_binary, expected_build=None):
+def load_run(spec, expected_binary, expected_build=None, repo=REPO):
+    if "evidence_format" in spec:
+        check(spec["evidence_format"] == "primary-qualified-controller-v1",
+              "unsupported evidence format")
+        from primary_controller_evidence import load_qualified_run
+        return load_qualified_run(spec, expected_binary, expected_build)
     directory = Path(spec["path"])
     summary, provenance = read(directory / "summary.json"), read(directory / "provenance.json")
     check(provenance.get("status") == "completed", "incomplete VM run: " + directory.name)
@@ -352,6 +369,7 @@ def load_run(spec, expected_binary, expected_build=None):
         selected.append({"record": record, "definition": fixtures.get(key(record)), "sources": sources,
                          "run": spec.get("name", directory.name)})
     check(selected, "run selection is empty: " + directory.name)
+    reject_unqualified_evidence_only(selected, repo)
     metadata = {"name": spec.get("name", directory.name), "groups": spec["groups"],
                 "selected_records": len(selected), "candidate_sha256": expected_binary,
                 "prepared_sha256": provenance["prepared_sha256"],
@@ -405,7 +423,11 @@ def reconcile(ledger, configuration, repo=REPO):
         binary = file_digest(spec["binary"])
         evidence, runs = {}, []
         for run in spec["runs"]:
-            selected, metadata = load_run(run, binary, build)
+            if run.get("evidence_format") == "primary-qualified-controller-v1":
+                check(Path(spec["binary"]).is_absolute()
+                      and spec["binary"] == run.get("core_binary_path"),
+                      "controller evidence requires the configured recorded core binary")
+            selected, metadata = load_run(run, binary, build, repo)
             runs.append(metadata)
             for item in selected:
                 name = key(item["record"])

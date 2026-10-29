@@ -7039,7 +7039,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r3: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
+      "current_reason": "Remaining obligations: r3: The bounded quiet decoys and calibrated counters establish no observed emitted UDP/loopback traffic; they do not establish every possible network side effect.",
       "requirements": [
         {
           "id": "r1",
@@ -7121,9 +7121,15 @@
               "id": "migration-cluster-argument-validation-r2",
               "assertion": "original 119 retention case: Malformed ping targets produce status 1, and the VM review found no recorded decoy receive. Remaining gap: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
               "definition_sha256": "6b5aa3d056841e37dc3aa3f9a0a4eabb038954705dc511870c3f6290878478f1"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-gap-negative-ping-238-r1",
+              "assertion": "Both builds returned status 1 for the recorded malformed 127.0.0.2 target. The two calibrated owned decoys were quiet over the bounded observation and namespace UDP and loopback transmit/loss counters were unchanged; the records do not establish every possible network side effect or trace every attempted syscall.",
+              "definition_sha256": "c4745dd873fef194e7dae760dbc03cc68e8249c86a2dc48005e98edde60a2624"
             }
           ],
-          "gap": "The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent."
+          "gap": "The bounded quiet decoys and calibrated counters establish no observed emitted UDP/loopback traffic; they do not establish every possible network side effect."
         },
         {
           "id": "r4",
@@ -7152,7 +7158,7 @@
           "gap": ""
         }
       ],
-      "notes": "loadables/cluster.c:665-690 dispatch; :507-598 bc_start; timeout bounds documented in cluster_doc :694-702. Primary220 reviews all36 original cluster clauses, unchanged113/119 sources, raw paired candidate observations and guest130/147 independent audits. Audit wrappers and the candidate basics case are supporting controls, not extra candidate coverage. All3062 prior evidence objects and the static119 heartbeat FAIL are retained. Historical147 cleanup is accepted as waited service plus clean poweroff and absent host scope; missing precollection guest-unit live-to-empty proof is not reconstructed, and the old overlay remains retained. r1: Malformed init and key inputs return the saved failure diagnostics, create no state, and leave no live listener in the retained child observations. r2: Malformed join endpoints and keys fail without state or live children; the recorded decoy adds a no-network check. r3: Malformed ping targets produce status 1, and the VM review found no recorded decoy receive. r4: Out-of-range timeout lifecycle calls are rejected; the existing legacy invalid-timeout reference remains untouched for members. "
+      "notes": "loadables/cluster.c:665-690 dispatch; :507-598 bc_start; timeout bounds documented in cluster_doc :694-702. Primary220 reviews all36 original cluster clauses, unchanged113/119 sources, raw paired candidate observations and guest130/147 independent audits. Audit wrappers and the candidate basics case are supporting controls, not extra candidate coverage. All3062 prior evidence objects and the static119 heartbeat FAIL are retained. Historical147 cleanup is accepted as waited service plus clean poweroff and absent host scope; missing precollection guest-unit live-to-empty proof is not reconstructed, and the old overlay remains retained. r1: Malformed init and key inputs return the saved failure diagnostics, create no state, and leave no live listener in the retained child observations. r2: Malformed join endpoints and keys fail without state or live children; the recorded decoy adds a no-network check. r3: Malformed ping targets produce status 1, and the VM review found no recorded decoy receive. r4: Out-of-range timeout lifecycle calls are rejected; the existing legacy invalid-timeout reference remains untouched for members.  Integration preparation 312: the preceding notes, including then-partial decisions, describe the evidence known at primary220. The primary-accepted bounded 282 observations support the updated statuses shown here; the broader malformed-target side-effect clause remains partial."
     },
     {
       "topic": "cluster/authenticated-join",
@@ -7332,14 +7338,14 @@
         "purpose": "Verify malformed, truncated, oversized, wrong-key, invalid-count, and invalid-node packets do not add members or prevent a later valid ping.",
         "reason": "Requires an isolated disposable Linux VM with an owned UDP injector and a separately implemented Python packet encoder/MAC oracle. Send only to a fixture listener on 127.0.0.1, compare the roster before and after each rejected packet, then check a valid independent exchange. No host or external target may be used."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: The 125 oversized attempt bytes are retained, but candidate receipt of each datagram is not proved; original 113/119 oversized payload bytes are missing.; r4: The later 125 response is captured, but candidate receipt of each preceding attempted packet is not proved; older combined oversized payload bytes are missing.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Primary accepted the bounded cluster282 evidence together with the existing observations; recorded PASS and FAIL statuses remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Malformed, truncated and oversized datagrams do not change the roster.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -7358,9 +7364,15 @@
               "id": "migration-cluster-packet-rejection-r2",
               "assertion": "original 119 retention case: Malformed/truncated and oversized injection reached unchanged-roster and later-ping checks; eight oversized packets per build lack retained bytes. Remaining gap: The actual bytes of the oversized datagrams are missing in both retained traces; size and SHA alone do not independently identify the rejected corpus.",
               "definition_sha256": "203229d61d52905f6af5922743cf149b11b1efc50e712bd660c383dfeb45923c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-gap-packet-rejection-238-r1",
+              "assertion": "Both builds retained complete malformed, truncated and oversized packet bytes and successful loopback sends; owned listener/probe identity and queue/drop observations plus a later authenticated barrier support bounded delivery inference, not an individual candidate receive trace. The recorded roster remained unchanged after every reached vector.",
+              "definition_sha256": "d32207e16274d7ff902de9a49909e38667ee47423e8349b5a9eba910167ab00d"
             }
           ],
-          "gap": "The 125 oversized attempt bytes are retained, but candidate receipt of each datagram is not proved; original 113/119 oversized payload bytes are missing."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -7378,6 +7390,12 @@
               "id": "migration-cluster-packet-rejection-r2",
               "assertion": "The retained guest147 audit independently verifies the first packet MAC under a different key, rejects it under the intended group key and matches the intended cluster. Source-controlled send completion, subsequent valid loopback barrier, zero sampled queue drops and unchanged roster support accepting this controlled stimulus. Delivery is an inference; no individual candidate receive event or universal loss-free transport guarantee is claimed.",
               "definition_sha256": "203229d61d52905f6af5922743cf149b11b1efc50e712bd660c383dfeb45923c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-gap-packet-rejection-238-r1",
+              "assertion": "Both builds retained the wrong-key JOIN and guest-reported alternate-key controls, observed an unchanged roster and a later valid barrier. No host MAC was computed. Both builds retained complete malformed, truncated and oversized packet bytes and successful loopback sends; owned listener/probe identity and queue/drop observations plus a later authenticated barrier support bounded delivery inference, not an individual candidate receive trace.",
+              "definition_sha256": "d32207e16274d7ff902de9a49909e38667ee47423e8349b5a9eba910167ab00d"
             }
           ],
           "gap": ""
@@ -7405,7 +7423,7 @@
         {
           "id": "r4",
           "behavior": "After rejected packets a valid ping still succeeds.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -7424,12 +7442,18 @@
               "id": "migration-cluster-packet-rejection-r2",
               "assertion": "original 119 retention case: Later candidate and oracle pings succeed after the combined injection, while several oversized payloads in that combined corpus are absent. Remaining gap: The exact bytes of the oversized packets before the final ping are absent, so the complete recorded combined corpus cannot yet be independently qualified.",
               "definition_sha256": "203229d61d52905f6af5922743cf149b11b1efc50e712bd660c383dfeb45923c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-gap-packet-rejection-238-r1",
+              "assertion": "Both builds retained complete malformed, truncated and oversized packet bytes and successful loopback sends; owned listener/probe identity and queue/drop observations plus a later authenticated barrier support bounded delivery inference, not an individual candidate receive trace. A valid independent barrier reply was captured after each of the thirteen reached vectors.",
+              "definition_sha256": "d32207e16274d7ff902de9a49909e38667ee47423e8349b5a9eba910167ab00d"
             }
           ],
-          "gap": "The later 125 response is captured, but candidate receipt of each preceding attempted packet is not proved; older combined oversized payload bytes are missing."
+          "gap": ""
         }
       ],
-      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain.  Oversized attempts lack successful-send or receive observations; rejection and subsequent-ping preconditions remain partial. Host-derived keyed conclusions from review120 are not used. Primary220 reviews all36 original cluster clauses, unchanged113/119 sources, raw paired candidate observations and guest130/147 independent audits. Audit wrappers and the candidate basics case are supporting controls, not extra candidate coverage. All3062 prior evidence objects and the static119 heartbeat FAIL are retained. Historical147 cleanup is accepted as waited service plus clean poweroff and absent host scope; missing precollection guest-unit live-to-empty proof is not reconstructed, and the old overlay remains retained. r1: Keep the current 191 partial decision and prior 125/113/119 evidence; oversized bytes or receiver delivery remain unproved. r2: The retained guest147 audit independently verifies the first packet MAC under a different key, rejects it under the intended group key and matches the intended cluster. Source-controlled send completion, subsequent valid loopback barrier, zero sampled queue drops and unchanged roster support accepting this controlled stimulus. Delivery is an inference; no individual candidate receive event or universal loss-free transport guarantee is claimed. r3: The saved corpus includes all requested invalid counts and node IDs; the VM reports the same keyed MAC fingerprint as the valid barrier and the roster stays unchanged. Send traces precede sendto and individual candidate receipts are not recorded; this proposal accepts the existing source-controlled exercise, barrier and drop observations rather than asserting each receipt. r4: Keep the current 191 partial decision and prior 125/113/119 evidence; oversized bytes or receiver delivery remain unproved. "
+      "notes": "Primary reviewed exact original clauses, source bindings, paired saved VM records and controls. Coverage records exercise, not success; all existing evidence objects and PASS/FAIL outcomes remain.  Oversized attempts lack successful-send or receive observations; rejection and subsequent-ping preconditions remain partial. Host-derived keyed conclusions from review120 are not used. Primary220 reviews all36 original cluster clauses, unchanged113/119 sources, raw paired candidate observations and guest130/147 independent audits. Audit wrappers and the candidate basics case are supporting controls, not extra candidate coverage. All3062 prior evidence objects and the static119 heartbeat FAIL are retained. Historical147 cleanup is accepted as waited service plus clean poweroff and absent host scope; missing precollection guest-unit live-to-empty proof is not reconstructed, and the old overlay remains retained. r1: Keep the current 191 partial decision and prior 125/113/119 evidence; oversized bytes or receiver delivery remain unproved. r2: The retained guest147 audit independently verifies the first packet MAC under a different key, rejects it under the intended group key and matches the intended cluster. Source-controlled send completion, subsequent valid loopback barrier, zero sampled queue drops and unchanged roster support accepting this controlled stimulus. Delivery is an inference; no individual candidate receive event or universal loss-free transport guarantee is claimed. r3: The saved corpus includes all requested invalid counts and node IDs; the VM reports the same keyed MAC fingerprint as the valid barrier and the roster stays unchanged. Send traces precede sendto and individual candidate receipts are not recorded; this proposal accepts the existing source-controlled exercise, barrier and drop observations rather than asserting each receipt. r4: Keep the current 191 partial decision and prior 125/113/119 evidence; oversized bytes or receiver delivery remain unproved.  Integration preparation 312: the preceding notes, including then-partial decisions, describe the evidence known at primary220. The primary-accepted bounded 282 observations support the updated statuses shown here; the broader malformed-target side-effect clause remains partial."
     },
     {
       "topic": "cluster/ping-protocol",
@@ -7439,9 +7463,9 @@
         "purpose": "Verify ping by both node ID and numeric loopback endpoint, plus unknown-node and non-protocol timeout failures.",
         "reason": "Requires an owned protocol peer in an isolated disposable Linux VM. The peer must independently validate packet size, request nonce, cluster ID, and keyed MAC, and provide a bounded silent endpoint for timeout behavior. Use only 127.0.0.1 fixture sockets and a short documented timeout."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Primary accepted the bounded cluster282 evidence together with the existing observations; recorded PASS and FAIL statuses remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -7486,7 +7510,7 @@
         {
           "id": "r3",
           "behavior": "ping of an unknown node ID fails without sending.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -7499,9 +7523,15 @@
               "id": "migration-cluster-ping-protocol-r2",
               "assertion": "original 119 retention case: The unknown-node status and diagnostic are saved, and the VM review found no recorded decoy receive. Remaining gap: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
               "definition_sha256": "5cfa891d4907c3bae73bc4bd7279c51e8e084471f765450ecc89ce402f88de84"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-gap-negative-ping-238-r1",
+              "assertion": "Both builds returned status 1 for a node ID absent from the recorded roster. Over each bounded observation the two positively calibrated owned decoys received no packet and namespace UDP and loopback transmit/loss counters were unchanged; this is bounded no-emitted-traffic evidence, not a per-process syscall trace.",
+              "definition_sha256": "c4745dd873fef194e7dae760dbc03cc68e8249c86a2dc48005e98edde60a2624"
             }
           ],
-          "gap": "The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -7544,7 +7574,7 @@
           "gap": ""
         }
       ],
-      "notes": "loadables/cluster.c:675-679 ping dispatch; packet layout :33-39; documented timeout range 50..5000 ms. Primary220 reviews all36 original cluster clauses, unchanged113/119 sources, raw paired candidate observations and guest130/147 independent audits. Audit wrappers and the candidate basics case are supporting controls, not extra candidate coverage. All3062 prior evidence objects and the static119 heartbeat FAIL are retained. Historical147 cleanup is accepted as waited service plus clean poweroff and absent host scope; missing precollection guest-unit live-to-empty proof is not reconstructed, and the old overlay remains retained. r1: The recorded node-ID ping succeeds with its exact expected output against the oracle and live listener. r2: The recorded numeric endpoint ping succeeds with its exact expected output against the oracle and live listener. r3: The unknown-node status and diagnostic are saved, and the VM review found no recorded decoy receive. r4: Silent and non-protocol endpoint failures and bounded deadline observations are recorded, with a successful answering control. r5: The VM independently checked all six saved ping requests for size, nonce, cluster/node identity, source and keyed MAC on both builds. "
+      "notes": "loadables/cluster.c:675-679 ping dispatch; packet layout :33-39; documented timeout range 50..5000 ms. Primary220 reviews all36 original cluster clauses, unchanged113/119 sources, raw paired candidate observations and guest130/147 independent audits. Audit wrappers and the candidate basics case are supporting controls, not extra candidate coverage. All3062 prior evidence objects and the static119 heartbeat FAIL are retained. Historical147 cleanup is accepted as waited service plus clean poweroff and absent host scope; missing precollection guest-unit live-to-empty proof is not reconstructed, and the old overlay remains retained. r1: The recorded node-ID ping succeeds with its exact expected output against the oracle and live listener. r2: The recorded numeric endpoint ping succeeds with its exact expected output against the oracle and live listener. r3: The unknown-node status and diagnostic are saved, and the VM review found no recorded decoy receive. r4: Silent and non-protocol endpoint failures and bounded deadline observations are recorded, with a successful answering control. r5: The VM independently checked all six saved ping requests for size, nonce, cluster/node identity, source and keyed MAC on both builds.  Integration preparation 312: the preceding notes, including then-partial decisions, describe the evidence known at primary220. The primary-accepted bounded 282 observations support the updated statuses shown here; the broader malformed-target side-effect clause remains partial."
     },
     {
       "topic": "cluster/private-state-recovery",
@@ -7554,9 +7584,9 @@
         "purpose": "Verify private-directory checks, 0600 state files, key-file syntax, lock collision behavior, atomic snapshot recovery, stale state cleanup, and preservation of unrelated files.",
         "reason": "Requires a disposable Linux VM with relative fixture paths on a private writable filesystem and a controlled listener lifecycle. Seed deterministic key files and filesystem fault fixtures independently; verify exact file contents, modes, cleanup, and lock behavior without touching host paths."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r5: The old listener was killed and scratch removal plus forged-PID safety were observed, but both frozen helpers overwrite listener_pid with a live sentinel before the next init. The literal dead listener_pid input at that init was not exercised.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Primary accepted the bounded cluster282 evidence together with the existing observations; recorded PASS and FAIL statuses remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -7641,7 +7671,7 @@
         {
           "id": "r5",
           "behavior": "A stale state (dead listener_pid, leftover temp files) is cleaned up/recovered on next init.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -7654,9 +7684,15 @@
               "id": "migration-cluster-state-private-r2",
               "assertion": "Guest147 completes two stale-init observations, but the saved next-init PID file names a living sentinel, not the dead listener.",
               "definition_sha256": "02c8537bb85a7e85c6f962dfa836120c22e535be7dc105222c89d0541fca9453"
+            },
+            {
+              "group": "shell",
+              "id": "migration-cluster-gap-dead-pid-238-r1",
+              "assertion": "Both builds observed the original listener as a dead unreaped zombie with the same PID and birth held by its stopped parent; the same PID file and three stale temp files preceded the next init, which succeeded, removed those files and created a new owned listener and initialized state. PID reuse was excluded for this held-dead observation.",
+              "definition_sha256": "199b44ff9af2b2335d7a5894a676008e2359696bb3c4b7ab80130f29fee68301"
             }
           ],
-          "gap": "The old listener was killed and scratch removal plus forged-PID safety were observed, but both frozen helpers overwrite listener_pid with a live sentinel before the next init. The literal dead listener_pid input at that init was not exercised."
+          "gap": ""
         },
         {
           "id": "r6",
@@ -7717,7 +7753,7 @@
           "gap": ""
         }
       ],
-      "notes": "loadables/cluster.c:128-140 atomic write (O_NOFOLLOW, 0600, rename); :485-495 flock lock; :534-538 0700 check. Primary220 reviews all36 original cluster clauses, unchanged113/119 sources, raw paired candidate observations and guest130/147 independent audits. Audit wrappers and the candidate basics case are supporting controls, not extra candidate coverage. All3062 prior evidence objects and the static119 heartbeat FAIL are retained. Historical147 cleanup is accepted as waited service plus clean poweroff and absent host scope; missing precollection guest-unit live-to-empty proof is not reconstructed, and the old overlay remains retained. r1: Mode-invalid directories are refused; independent 119 lstat fields establish a 0700 root-owned directory is refused by uid 2000 and unchanged. r2: The retained119 inotify data positively records temp-file close and rename events for the final state names, including multiple members replacements, and the retained snapshots show0600 final modes and no leftover scratch. This exercises atomic temp-plus-rename writes. The old trace encoder can drop events, so absence of an in-place write event is not a separately established no-loss guarantee.113 remains companion evidence. r3: Accepted and rejected key-file vectors and the independently verified protocol controls exercise the documented 64 lowercase hex syntax, with the documented optional final newline. r4: Two concurrent init attempts are refused while the original listener remains active; raw snapshots and children records are retained. r5: The old listener was killed, but next init reads the fixture-written live sentinel PID. Dead-listener-PID recovery is not exercised; preserve this partial clause and the retained observations. r6: Retained before/after snapshots preserve unrelated names, kind, mode, owner, inode, mtime, size and recorded content digest through recovery and leave. r7: Preserve the exact existing requirement and evidence. "
+      "notes": "loadables/cluster.c:128-140 atomic write (O_NOFOLLOW, 0600, rename); :485-495 flock lock; :534-538 0700 check. Primary220 reviews all36 original cluster clauses, unchanged113/119 sources, raw paired candidate observations and guest130/147 independent audits. Audit wrappers and the candidate basics case are supporting controls, not extra candidate coverage. All3062 prior evidence objects and the static119 heartbeat FAIL are retained. Historical147 cleanup is accepted as waited service plus clean poweroff and absent host scope; missing precollection guest-unit live-to-empty proof is not reconstructed, and the old overlay remains retained. r1: Mode-invalid directories are refused; independent 119 lstat fields establish a 0700 root-owned directory is refused by uid 2000 and unchanged. r2: The retained119 inotify data positively records temp-file close and rename events for the final state names, including multiple members replacements, and the retained snapshots show0600 final modes and no leftover scratch. This exercises atomic temp-plus-rename writes. The old trace encoder can drop events, so absence of an in-place write event is not a separately established no-loss guarantee.113 remains companion evidence. r3: Accepted and rejected key-file vectors and the independently verified protocol controls exercise the documented 64 lowercase hex syntax, with the documented optional final newline. r4: Two concurrent init attempts are refused while the original listener remains active; raw snapshots and children records are retained. r5: The old listener was killed, but next init reads the fixture-written live sentinel PID. Dead-listener-PID recovery is not exercised; preserve this partial clause and the retained observations. r6: Retained before/after snapshots preserve unrelated names, kind, mode, owner, inode, mtime, size and recorded content digest through recovery and leave. r7: Preserve the exact existing requirement and evidence.  Integration preparation 312: the preceding notes, including then-partial decisions, describe the evidence known at primary220. The primary-accepted bounded 282 observations support the updated statuses shown here; the broader malformed-target side-effect clause remains partial."
     },
     {
       "topic": "cluster/roster-heartbeats",
