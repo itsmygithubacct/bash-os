@@ -164,59 +164,63 @@ execution without the matching VM marker, DMI identity and guest isolation.
 
 See [parity scope](parity-scope.md) for the full inventory and remaining work.
 
-## 0.1.3 evidence snapshot through batch 92
+## 0.1.3 evidence snapshot batch-220
 
-Migration remains in progress. The selected evidence contains 4,111 unique
-behavioral fixtures per build: 893 modern fixtures and 3,218 historical
-behavioral cases. Results are selected once per fixture ID and exact definition
-from 73 frozen runs per build.
+Migration remains in progress. The selected evidence contains 4,821 unique
+candidate case records per build: 4,798 executed cases and 23
+SKIP records. The selection contains 1,603 modern and 3,218 historical
+case records, selected once per case ID and current definition from
+158 qualified source selections per build. Those selections
+refer to 156 distinct saved runs for static and
+155 for dynamic; multiple selections can refer
+to the same saved run. The earlier batch 92 snapshot contained 4,111
+records; this snapshot adds 710 distinct candidate cases. Previously
+selected FAIL results remain in the counts.
 
 | Group | Static PASS | Static FAIL | Dynamic PASS | Dynamic FAIL | SKIP per build |
 |---|---:|---:|---:|---:|---:|
-| Shell and command contracts | 411 | 199 | 411 | 199 | 0 |
-| Terminal | 128 | 42 | 128 | 42 | 0 |
-| Network | 95 | 18 | 93 | 20 | 0 |
+| Shell and command contracts | 902 | 319 | 903 | 318 | 0 |
+| Terminal | 213 | 55 | 213 | 55 | 0 |
+| Network | 96 | 18 | 94 | 20 | 0 |
 | Historical behavior | 3,171 | 24 | 3,171 | 24 | 23 |
-| Total | 3,805 | 283 | 3,803 | 285 | 23 |
+| Total | 4,382 | 416 | 4,381 | 417 | 23 |
 
-The selected results contain zero harness errors. Two older DNS transport
-probes account for the build differences; their launch failures do not establish
-certificate validation. Later fixtures provide the relevant transport evidence.
-The authored inventory contains 907 modern fixtures, including 14 without
-selected evidence. They contribute no cases to these counts. Three (mv EXDEV,
-link cross-filesystem, and dd noerror) have excluded FAIL records because their
-definitions compare unpinned setup mtimes or elapsed-time output; real candidate
-differences were also observed. Their diagnostic history and exclusion reasons
-are listed in the validation record pending corrected definitions.
+The selected behavioral results have zero ERROR statuses. Two earlier DNS
+transport probes differ between builds; their launch failures do not establish
+certificate validation. Build-specific differences and all retained failures
+are listed in the validation record.
 
-The [deferral review](parity-deferrals.md) records 252 migrated topics (115 PASS,
-137 FAIL) and 348 unresolved topics. These summarize existing assertions and
-add no behavioral cases. The original legacy run's 600 DEFERRED metadata rows
-remain preserved; the current topic index records their migration state.
+The authored inventory contains 1,636 modern definitions:
+1,603 selected candidate cases, 9 selected support controls,
+and 24 without selected evidence. Separate native controls, guest
+selfchecks, archived-evidence audit wrappers, and topic metadata add no
+candidate cases. The selection includes 1 candidate-shell basics support control, which adds no candidate coverage. A membership-only projection of a fixture does not add an
+execution. Three unselected filesystem diagnostics retain excluded FAIL history
+and reasons in the [validation record](data/parity-0.1.3-validation.json).
 
-Every guest selfcheck recorded in the selected runs passes: 13 in the latest
-non-root runs and 14 in root-fixture runs. Corpus-only and job-control repeat
-runs record none. Each run retains its frozen payload hash. Runtime inventory remains
-`COLLECTED`. Schema, helper hashes, original-topic integrity and selected artifact
-and definition hashes were checked as data. The six original job-control
-fixtures retain their three successful repeats per build; repeats add no cases.
+The [deferral review](parity-deferrals.md) records 355 migrated topics
+(static 183 PASS and 172 FAIL; dynamic 184 PASS and 171 FAIL) and 245 unresolved topics per build. They
+summarize named checks and add no cases. All 600 original
+DEFERRED metadata rows and their original definitions remain recorded.
+
+All guest selfchecks recorded in the selected runs pass. Each run retains its
+frozen payload and evidence hashes and its recorded overlay disposition.
+Runtime inventory remains `COLLECTED`. The six original job-control fixtures
+retain their three successful repeats per build; repeats add no cases.
 
 Each build executes 9,331,283 planned normative assertions: 9,331,243 pass
 and 40 fail. The failures concern four non-starter composition exclusions in
-NFC/NFKC; they remain unfixed. At corpus-record level this is 33 PASS, one FAIL
-and four explicit SKIP records. The plan excludes NUL inputs, unavailable casing
-interfaces and unsupported RFC vectors as detailed in those records. Scalar
-sweeps, corpus records and ordinary
-fixture cases are different denominators.
+NFC/NFKC. At corpus-record level this is 33 PASS, one FAIL and four explicit
+SKIP records. The plan excludes NUL inputs, unavailable casing interfaces and
+unsupported RFC vectors as detailed in those records. Scalar sweeps, corpus
+records and ordinary fixture cases have different denominators.
 
-The [validation record](data/parity-0.1.3-validation.json) separates parity,
-contracts, selfchecks and metadata; lists every retained behavioral failure;
-and preserves the selected source runs, filters and artifact hashes.
-It records both sealed images, package versions, unchanged candidate hashes,
-root-fixture settings, clean teardown and overlay deletion. Private diagnostic
-and superseded runs remain outside the selected counts. Older definitions exist
-for 72 modern fixtures per build; their outcome changes are summarized in the
-record. The first image's original lock content is unavailable, though its hash
-and 413-package map remain; the committed lock describes the later image.
-The [scope inventory](data/parity-0.1.3-scope.json)
-keeps missing commands, unreviewed option forms and all deferrals visible.
+The [validation record](data/parity-0.1.3-validation.json) separates behavioral
+cases, support controls and metadata; lists retained behavioral failures; and
+preserves source-run filters and artifact hashes. It records the sealed images,
+package versions, unchanged candidate hashes and clean teardown. Private
+diagnostic and superseded runs remain outside the selected counts. The first
+image's original lock content is unavailable, though its hash and 413-package
+map remain; the committed lock describes the later image. The
+[scope inventory](data/parity-0.1.3-scope.json) keeps missing commands,
+unreviewed option forms and all deferrals visible.
