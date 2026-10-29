@@ -151,7 +151,7 @@
       "id": "native-protocol-requires-server",
       "kind": "deferred",
       "purpose": "Exercise rsync --native interoperability against a disposable stock rsync server process.",
-      "reason": "Remaining obligations: r2: The destination tree matches, but the candidate-side stock sender exits 12 while the candidate reports success; a clean native peer completion is not established.; r3: Not executed."
+      "reason": "Remaining obligations: r2: The destination tree matches, but the candidate-side stock sender exits 12 while the candidate reports success; a clean native peer completion is not established.; r3: Both fresh candidate transfers were literal-only despite an existing basis: no basis-block reference was observed on either build, so a successful candidate delta transfer is not established. Both clients also logged a remote-nonzero message although the proxy reported stock receiver status 0; the transport wait status was not separately captured."
     },
     {
       "id": "daemon-protocol-requires-server",

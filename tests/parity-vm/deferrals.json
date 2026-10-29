@@ -31678,7 +31678,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r2: The destination tree matches, but the candidate-side stock sender exits 12 while the candidate reports success; a clean native peer completion is not established.; r3: Not executed.",
+      "current_reason": "Remaining obligations: r2: The destination tree matches, but the candidate-side stock sender exits 12 while the candidate reports success; a clean native peer completion is not established.; r3: Both fresh candidate transfers were literal-only despite an existing basis: no basis-block reference was observed on either build, so a successful candidate delta transfer is not established. Both clients also logged a remote-nonzero message although the proxy reported stock receiver status 0; the transport wait status was not separately captured.",
       "requirements": [
         {
           "id": "r1",
@@ -31711,12 +31711,19 @@
         {
           "id": "r3",
           "behavior": "Delta transfer against an existing basis file yields byte-identical results.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-transfer-rsync-native-delta-wire-r1",
+              "assertion": "Original obligation: Delta transfer against an existing basis file yields byte-identical results. In both builds the fresh protocol-27 case recorded FAIL: the destination matched the source, but the complete receiver trace and retained client-to-server token slice contained zero basis-block references; the matched positive stock/reference transfers used 23. The candidate client also reported remote nonzero despite proxy-reported receiver status 0; that discrepancy remains unresolved.",
+              "definition_sha256": "3c0dc161ae52b88000bd696cc691fbfc502c4bbc4d9afc28a8bc688e25e29189"
+            }
+          ],
+          "gap": "Both fresh candidate transfers were literal-only despite an existing basis: no basis-block reference was observed on either build, so a successful candidate delta transfer is not established. Both clients also logged a remote-nonzero message although the proxy reported stock receiver status 0; the transport wait status was not separately captured."
         }
       ],
-      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review."
+      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review. The new 155 case is a reached FAIL on both builds and is proposed as partial evidence. Earlier 126 delta-observer FAIL and pull FAIL remain archived unchanged; the earlier absent diagnostic is not an algorithm diagnosis."
     },
     {
       "topic": "rsync/rsh-push-requires-peer",

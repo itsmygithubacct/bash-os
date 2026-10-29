@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "9642e5d13fa4f043397afc62371f9dbec66d8e7db9c98a6fd22f8557ea1342b6",
+  "ledger_sha256": "925407b5221990fcec9985901dc24663bd3e9e9b5f211c873f8b85c4d8cd1bd9",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
     "partial": 133,
@@ -3410,6 +3410,68 @@
           "candidate_unchanged": true,
           "candidate_matches_guest": true,
           "prepared_unchanged": true
+        },
+        {
+          "name": "transfer-delta-qualification-155-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "e1b8c1331d2f8639b7cb7d8ffe8894f22635261b73f4dedca6b981ff27b4d26d",
+            "provenance.json": "7a6a29a99fcb2fc81ffbae4e4b2705ebb6c24eb3a04b891ef5245cd1d394eb2f",
+            "payload.tar": "291970d18cd7c035f820cb96abbb35f45d28315898221afd44fa253e5a36e674",
+            "evidence.tar": "f6bf3220bc1be51a268b5b46fb1147839f96bb508975be18505fcb1152c620e7"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793229455.372578
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true,
+          "post_run_overlay_cleanup": {
+            "original_overlay_discarded": false,
+            "method": "pinned_post_run_quiescence",
+            "build": "static",
+            "vm_uuid": "cf86acd5-cadd-493d-b6df-cb529ce3749b",
+            "scope": "parity-vm-cf86acd5.scope",
+            "overlay_artifact": "overlay.qcow2",
+            "original_provenance_sha256": "7a6a29a99fcb2fc81ffbae4e4b2705ebb6c24eb3a04b891ef5245cd1d394eb2f",
+            "receipt": {
+              "artifact": "static-quiescence.json",
+              "sha256": "d8b478fce8dc7fd80055381fd001481ebcdd7685781f58f8aa261bbe6d14b5bf"
+            },
+            "handles": {
+              "artifact": "static-handles.json",
+              "sha256": "920ac3cbc9ad07e33dfb9f849ae5f6a97b72a372a67942d90c044a6369b12663"
+            },
+            "vm_sha256": "780b5ec74f98010db907673cad9c55dda42abf3d1e2218a14e5d23b98c40d88a",
+            "teardown_sha256": "7767723b3572b6ad70641eb302c28fef6e666ef6a9573516ac09c93d6a5867a9",
+            "summary_sha256": "e1b8c1331d2f8639b7cb7d8ffe8894f22635261b73f4dedca6b981ff27b4d26d",
+            "evidence_sha256": "f6bf3220bc1be51a268b5b46fb1147839f96bb508975be18505fcb1152c620e7",
+            "selfcheck_ids": [
+              "selfcheck-bounded-output",
+              "selfcheck-bounded-time",
+              "selfcheck-candidate-mismatch-is-fail",
+              "selfcheck-detached-orphan-cleanup",
+              "selfcheck-diagnostic-capture",
+              "selfcheck-file-size-allowance",
+              "selfcheck-invalid-oracle-is-error",
+              "selfcheck-migration-is-metadata",
+              "selfcheck-network-isolation",
+              "selfcheck-orphan-cleanup",
+              "selfcheck-scratch-isolation",
+              "selfcheck-setup-classification",
+              "selfcheck-syscall-sequence-observer"
+            ]
+          }
         }
       ],
       "entries": [
@@ -36006,9 +36068,16 @@
             {
               "id": "r3",
               "behavior": "Delta transfer against an existing basis file yields byte-identical results.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Both fresh candidate transfers were literal-only despite an existing basis: no basis-block reference was observed on either build, so a successful candidate delta transfer is not established. Both clients also logged a remote-nonzero message although the proxy reported stock receiver status 0; the transport wait status was not separately captured.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-transfer-rsync-native-delta-wire-r1",
+                  "status": "FAIL",
+                  "run": "transfer-delta-qualification-155-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -53958,6 +54027,68 @@
           "candidate_unchanged": true,
           "candidate_matches_guest": true,
           "prepared_unchanged": true
+        },
+        {
+          "name": "transfer-delta-qualification-155-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "ec0b233c2ae4f3e409f335dbe251e593f4dd79b8000d33f57749bb0727c1a3be",
+            "provenance.json": "a385876849bb63d1265071c8f5016e8bdddb82a83a0d9c96f339d27733dc0fe8",
+            "payload.tar": "1fff5ab1cf465bf30a6c7c81dc7f0f2408cd41e254ed1c8d4896fde0c0355668",
+            "evidence.tar": "d084ee3d7982f5130341280881b69987e050c9a2f0c18c5ce6708b74b1bc2610"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793229715.7372196
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true,
+          "post_run_overlay_cleanup": {
+            "original_overlay_discarded": false,
+            "method": "pinned_post_run_quiescence",
+            "build": "dynamic",
+            "vm_uuid": "f677cf56-1d94-406f-b7b7-8c9c8b84f2ec",
+            "scope": "parity-vm-f677cf56.scope",
+            "overlay_artifact": "overlay.qcow2",
+            "original_provenance_sha256": "a385876849bb63d1265071c8f5016e8bdddb82a83a0d9c96f339d27733dc0fe8",
+            "receipt": {
+              "artifact": "dynamic-quiescence.json",
+              "sha256": "13e2bc2be4830df828305d7f8c374c187595856148cd9a348024370a1a9bde5c"
+            },
+            "handles": {
+              "artifact": "dynamic-handles.json",
+              "sha256": "5e584de770860a5cee74e773f43e98dda26856c0ff64d699f00ac44c229729e8"
+            },
+            "vm_sha256": "824c4c98eb48e41f986fc3f264050358454f3e0867e5bd326be1a3d54f1707a6",
+            "teardown_sha256": "c0a1007ecdd4041e06d050e226393ee7d5fce64e6adc838e087737e85bd4524d",
+            "summary_sha256": "ec0b233c2ae4f3e409f335dbe251e593f4dd79b8000d33f57749bb0727c1a3be",
+            "evidence_sha256": "d084ee3d7982f5130341280881b69987e050c9a2f0c18c5ce6708b74b1bc2610",
+            "selfcheck_ids": [
+              "selfcheck-bounded-output",
+              "selfcheck-bounded-time",
+              "selfcheck-candidate-mismatch-is-fail",
+              "selfcheck-detached-orphan-cleanup",
+              "selfcheck-diagnostic-capture",
+              "selfcheck-file-size-allowance",
+              "selfcheck-invalid-oracle-is-error",
+              "selfcheck-migration-is-metadata",
+              "selfcheck-network-isolation",
+              "selfcheck-orphan-cleanup",
+              "selfcheck-scratch-isolation",
+              "selfcheck-setup-classification",
+              "selfcheck-syscall-sequence-observer"
+            ]
+          }
         }
       ],
       "entries": [
@@ -86554,9 +86685,16 @@
             {
               "id": "r3",
               "behavior": "Delta transfer against an existing basis file yields byte-identical results.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Both fresh candidate transfers were literal-only despite an existing basis: no basis-block reference was observed on either build, so a successful candidate delta transfer is not established. Both clients also logged a remote-nonzero message although the proxy reported stock receiver status 0; the transport wait status was not separately captured.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-transfer-rsync-native-delta-wire-r1",
+                  "status": "FAIL",
+                  "run": "transfer-delta-qualification-155-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
