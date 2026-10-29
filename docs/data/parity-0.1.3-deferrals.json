@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "6a95650c593753825fa6235ab4ab9f28b94bf5957699948d99fe6ecda78b421b",
+  "ledger_sha256": "58c80d6e9cf6b3174a03cb772cc58f2fc51a6ff59472790e484d30aef7bba277",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 101,
-    "full": 380,
+    "partial": 99,
+    "full": 382,
     "none": 119
   },
   "migrations": {
-    "deferred": 220,
-    "replacement": 380
+    "deferred": 218,
+    "replacement": 382
   },
   "pending_full_topics": [],
   "builds": {
@@ -7614,6 +7614,177 @@
             "stopped_at": 1793315347.4430509,
             "vm_uuid": "3d11311d-25c0-4d3c-bdc3-a3391a0d56b4",
             "wrapper_pid": 1139803
+          },
+          "overlay_discarded": true
+        },
+        {
+          "name": "modern-crypto-v5-static",
+          "groups": [
+            "terminal"
+          ],
+          "selected_records": 2,
+          "evidence_format": "primary-qualified-modern293-v1",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "504c633e-69fe-4fb9-8151-765e45de0e19",
+          "primary_receipt_sha256": "f10a597f80d7ff45c3fe5d820f94999e6e7f2e299ebc5af0a1ae4af04b87a763",
+          "receipt_run": "crypto-secret-static",
+          "provenance_sha256": "317a0f58bce85dc0b92c8e69f73f5ac9eb7aa6d1b216101635ca16745c367a99",
+          "evidence_sha256": "9a195ded3866a48c04ab4066eac902c960a1f71e294bc6f4b60417b13393690a",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-504c633e.service",
+              "proof_sha256": "3438c90ff45d5bebcd4c81ba4d5d9232806064651045eb032624fbe6494b8701",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-504c633e-reference.service",
+              "proof_sha256": "9e2fede178876c3a0ec8b721bbc513ed16a394dcb001f6ffd357570de93bb476",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-504c633e-69fe-4fb9-8151-765e45de0e19.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261029/primary-modern-crypto-secret-qualification-v5-001/results/crypto-secret-static/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-504c633e-69fe-4fb9-8151-765e45de0e19.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-504c633e-69fe-4fb9-8151-765e45de0e19.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-504c633e-69fe-4fb9-8151-765e45de0e19.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-504c633e-69fe-4fb9-8151-765e45de0e19.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-504c633e-69fe-4fb9-8151-765e45de0e19.scope\nId=parity-vm-504c633e-69fe-4fb9-8151-765e45de0e19.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-504c633e-69fe-4fb9-8151-765e45de0e19.scope",
+                "id": "parity-vm-504c633e-69fe-4fb9-8151-765e45de0e19.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-504c633e-69fe-4fb9-8151-765e45de0e19.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-504c633e-69fe-4fb9-8151-765e45de0e19.scope",
+            "stopped_at": 1793313861.0619931,
+            "vm_uuid": "504c633e-69fe-4fb9-8151-765e45de0e19",
+            "wrapper_pid": 1068837
+          },
+          "overlay_discarded": true
+        },
+        {
+          "name": "modern-pty-r4-static",
+          "groups": [
+            "shell",
+            "terminal"
+          ],
+          "selected_records": 2,
+          "evidence_format": "primary-qualified-modern293-v1",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "f67d6992-df65-4f04-8830-d132ec278496",
+          "primary_receipt_sha256": "91dd3f3afa73e13864817418bfa9ae6d0eb53468c636a22e6572f57ed66fa565",
+          "receipt_run": "pty-session-static",
+          "provenance_sha256": "5ee02464b6dae243059fa17f9a785627f4959582ddaecf52fabf70141715aeff",
+          "evidence_sha256": "9a125ba5106be338e145d1e90ddf0fab3699af8fe7853205a6161d207b708371",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-f67d6992.service",
+              "proof_sha256": "b65ec160682afb39e4b7640af79b91542fd4b2a7f35c8ca4c13448f92bde4a82",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-f67d6992-reference.service",
+              "proof_sha256": "99f6e43e86b77af33f6ba5151737581791de38b95e2a7398a36028979d3f841d",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-f67d6992-df65-4f04-8830-d132ec278496.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261029/primary-modern-pty-session-passive-r4-v1-001/results/pty-session-static/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-f67d6992-df65-4f04-8830-d132ec278496.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-f67d6992-df65-4f04-8830-d132ec278496.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-f67d6992-df65-4f04-8830-d132ec278496.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-f67d6992-df65-4f04-8830-d132ec278496.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-f67d6992-df65-4f04-8830-d132ec278496.scope\nId=parity-vm-f67d6992-df65-4f04-8830-d132ec278496.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-f67d6992-df65-4f04-8830-d132ec278496.scope",
+                "id": "parity-vm-f67d6992-df65-4f04-8830-d132ec278496.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-f67d6992-df65-4f04-8830-d132ec278496.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-f67d6992-df65-4f04-8830-d132ec278496.scope",
+            "stopped_at": 1793313591.724879,
+            "vm_uuid": "f67d6992-df65-4f04-8830-d132ec278496",
+            "wrapper_pid": 1056474
           },
           "overlay_discarded": true
         }
@@ -16729,10 +16900,10 @@
         },
         {
           "topic": "crypto/secret-read-terminal",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -16751,6 +16922,18 @@
                   "id": "trace-vm-crypto-secret-terminal-r1",
                   "status": "PASS",
                   "run": "qual-remote-canon-probe-composite-tracing-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terminal213-crypto-secret-lf-r3",
+                  "status": "PASS",
+                  "run": "modern-crypto-v5-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terminal213-crypto-secret-cr-r3",
+                  "status": "PASS",
+                  "run": "modern-crypto-v5-static"
                 }
               ],
               "fully_exercised": true,
@@ -16759,8 +16942,8 @@
             {
               "id": "r2",
               "behavior": "With --no-echo, ECHO is cleared on the terminal while it waits for input, and typed bytes are not echoed",
-              "coverage": "partial",
-              "gap": "The typed synthetic value is absent from the PTY screen, but the intermediate terminal flags at the blocking read were not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "terminal",
@@ -16773,16 +16956,28 @@
                   "id": "trace-vm-crypto-secret-terminal-r1",
                   "status": "PASS",
                   "run": "qual-remote-canon-probe-composite-tracing-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terminal213-crypto-secret-lf-r3",
+                  "status": "PASS",
+                  "run": "modern-crypto-v5-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terminal213-crypto-secret-cr-r3",
+                  "status": "PASS",
+                  "run": "modern-crypto-v5-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "The secret line, terminated by CR or LF, is stored as a handle in VARNAME, and secret-write-fd HANDLE FD emits exactly the typed bytes",
-              "coverage": "partial",
-              "gap": "The LF scenario stores and emits exact synthetic bytes; the CR reference timed out and was withheld.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "terminal",
@@ -16795,10 +16990,22 @@
                   "id": "trace-vm-crypto-secret-terminal-r1",
                   "status": "PASS",
                   "run": "qual-remote-canon-probe-composite-tracing-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terminal213-crypto-secret-lf-r3",
+                  "status": "PASS",
+                  "run": "modern-crypto-v5-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terminal213-crypto-secret-cr-r3",
+                  "status": "PASS",
+                  "run": "modern-crypto-v5-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -39905,26 +40112,32 @@
         },
         {
           "topic": "pty/pty-session-control-deferred",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "pty setsid makes the calling process a new session leader with no controlling terminal; it fails (EPERM) when the caller is already a group leader.",
-              "coverage": "partial",
-              "gap": "Candidate stderr was redirected and errno was not retained; status 1 alone does not establish EPERM.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-terra-local-pty-b01r2-session-setsid",
                   "status": "PASS",
                   "run": "saved198-candidate-qual-local-pty-b01-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-pty-session-setsid-errno-r3",
+                  "status": "PASS",
+                  "run": "modern-pty-r4-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -39983,18 +40196,24 @@
             {
               "id": "r5",
               "behavior": "pty foreground PGRP [FD] sets the terminal foreground process group.",
-              "coverage": "partial",
-              "gap": "The job PID supplied to pty foreground and a final restored tcgetpgrp value are not separately retained, so the sampled group cannot be independently tied to the requested PGRP.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "terminal",
                   "id": "migration-terra-local-pty-b01r2-session-foreground",
                   "status": "PASS",
                   "run": "saved198-candidate-qual-local-pty-b01-r2-static"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terminal213-pty-foreground-passive-r4",
+                  "status": "PASS",
+                  "run": "modern-pty-r4-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -56797,9 +57016,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 220,
-        "FAIL": 186,
-        "PASS": 194
+        "UNRESOLVED": 218,
+        "FAIL": 187,
+        "PASS": 195
       },
       "migration_without_complete_evidence": []
     },
@@ -64403,6 +64622,177 @@
             "stopped_at": 1793315543.691408,
             "vm_uuid": "a71a0a5b-ea49-4e5d-9562-7285bb473152",
             "wrapper_pid": 1144321
+          },
+          "overlay_discarded": true
+        },
+        {
+          "name": "modern-crypto-v5-dynamic",
+          "groups": [
+            "terminal"
+          ],
+          "selected_records": 2,
+          "evidence_format": "primary-qualified-modern293-v1",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "d94d5a23-d15e-466a-98b0-bb1998171981",
+          "primary_receipt_sha256": "f10a597f80d7ff45c3fe5d820f94999e6e7f2e299ebc5af0a1ae4af04b87a763",
+          "receipt_run": "crypto-secret-dynamic",
+          "provenance_sha256": "c0a8aa7599c0d560d9844c95cf8bdde7066d7b764d832ee3ddd478c66f23f334",
+          "evidence_sha256": "51e970c8164c792a2c215262303a572426cc45d28b9806d6e236c6d9e5bad4cf",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-d94d5a23.service",
+              "proof_sha256": "50b08e11c7140251689c36dc0721b4697ee4e34b12a9b7c50e5778ced5ffaa95",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-d94d5a23-reference.service",
+              "proof_sha256": "fe4dd042d4d04f11f0181878de656cab6bd9f97a6af692488d2b16c551a4ba38",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-d94d5a23-d15e-466a-98b0-bb1998171981.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261029/primary-modern-crypto-secret-qualification-v5-001/results/crypto-secret-dynamic/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-d94d5a23-d15e-466a-98b0-bb1998171981.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-d94d5a23-d15e-466a-98b0-bb1998171981.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-d94d5a23-d15e-466a-98b0-bb1998171981.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-d94d5a23-d15e-466a-98b0-bb1998171981.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-d94d5a23-d15e-466a-98b0-bb1998171981.scope\nId=parity-vm-d94d5a23-d15e-466a-98b0-bb1998171981.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-d94d5a23-d15e-466a-98b0-bb1998171981.scope",
+                "id": "parity-vm-d94d5a23-d15e-466a-98b0-bb1998171981.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-d94d5a23-d15e-466a-98b0-bb1998171981.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-d94d5a23-d15e-466a-98b0-bb1998171981.scope",
+            "stopped_at": 1793314289.9269304,
+            "vm_uuid": "d94d5a23-d15e-466a-98b0-bb1998171981",
+            "wrapper_pid": 1087986
+          },
+          "overlay_discarded": true
+        },
+        {
+          "name": "modern-pty-r4-dynamic",
+          "groups": [
+            "shell",
+            "terminal"
+          ],
+          "selected_records": 2,
+          "evidence_format": "primary-qualified-modern293-v1",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "cbecd893-fef0-4324-81f0-dfa621254e5a",
+          "primary_receipt_sha256": "91dd3f3afa73e13864817418bfa9ae6d0eb53468c636a22e6572f57ed66fa565",
+          "receipt_run": "pty-session-dynamic",
+          "provenance_sha256": "1a86db3bddb23cc909934c393f1eeba50192c5eb6354e4ff2ffabba1abca1f72",
+          "evidence_sha256": "93b54cd505d8c753b9af84e154776d53a52074555248c2209bf989e9acf12200",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-cbecd893.service",
+              "proof_sha256": "3d55542677ec99f766b9311f61ae078a430f6342f9cee7b93cf4a076b23449a5",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-cbecd893-reference.service",
+              "proof_sha256": "b824869b72367ae38f8c53b8a386c66f4f3ec5b490807170f9c1104d9d7f0a68",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-cbecd893-fef0-4324-81f0-dfa621254e5a.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261029/primary-modern-pty-session-passive-r4-v1-001/results/pty-session-dynamic/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-cbecd893-fef0-4324-81f0-dfa621254e5a.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-cbecd893-fef0-4324-81f0-dfa621254e5a.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-cbecd893-fef0-4324-81f0-dfa621254e5a.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-cbecd893-fef0-4324-81f0-dfa621254e5a.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-cbecd893-fef0-4324-81f0-dfa621254e5a.scope\nId=parity-vm-cbecd893-fef0-4324-81f0-dfa621254e5a.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-cbecd893-fef0-4324-81f0-dfa621254e5a.scope",
+                "id": "parity-vm-cbecd893-fef0-4324-81f0-dfa621254e5a.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-cbecd893-fef0-4324-81f0-dfa621254e5a.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-cbecd893-fef0-4324-81f0-dfa621254e5a.scope",
+            "stopped_at": 1793314226.3581924,
+            "vm_uuid": "cbecd893-fef0-4324-81f0-dfa621254e5a",
+            "wrapper_pid": 1086156
           },
           "overlay_discarded": true
         }
@@ -73518,10 +73908,10 @@
         },
         {
           "topic": "crypto/secret-read-terminal",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -73540,6 +73930,18 @@
                   "id": "trace-vm-crypto-secret-terminal-r1",
                   "status": "PASS",
                   "run": "qual-remote-canon-probe-composite-tracing-paired-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terminal213-crypto-secret-lf-r3",
+                  "status": "PASS",
+                  "run": "modern-crypto-v5-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terminal213-crypto-secret-cr-r3",
+                  "status": "PASS",
+                  "run": "modern-crypto-v5-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -73548,8 +73950,8 @@
             {
               "id": "r2",
               "behavior": "With --no-echo, ECHO is cleared on the terminal while it waits for input, and typed bytes are not echoed",
-              "coverage": "partial",
-              "gap": "The typed synthetic value is absent from the PTY screen, but the intermediate terminal flags at the blocking read were not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "terminal",
@@ -73562,16 +73964,28 @@
                   "id": "trace-vm-crypto-secret-terminal-r1",
                   "status": "PASS",
                   "run": "qual-remote-canon-probe-composite-tracing-paired-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terminal213-crypto-secret-lf-r3",
+                  "status": "PASS",
+                  "run": "modern-crypto-v5-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terminal213-crypto-secret-cr-r3",
+                  "status": "PASS",
+                  "run": "modern-crypto-v5-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "The secret line, terminated by CR or LF, is stored as a handle in VARNAME, and secret-write-fd HANDLE FD emits exactly the typed bytes",
-              "coverage": "partial",
-              "gap": "The LF scenario stores and emits exact synthetic bytes; the CR reference timed out and was withheld.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "terminal",
@@ -73584,10 +73998,22 @@
                   "id": "trace-vm-crypto-secret-terminal-r1",
                   "status": "PASS",
                   "run": "qual-remote-canon-probe-composite-tracing-paired-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terminal213-crypto-secret-lf-r3",
+                  "status": "PASS",
+                  "run": "modern-crypto-v5-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terminal213-crypto-secret-cr-r3",
+                  "status": "PASS",
+                  "run": "modern-crypto-v5-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -96694,26 +97120,32 @@
         },
         {
           "topic": "pty/pty-session-control-deferred",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "pty setsid makes the calling process a new session leader with no controlling terminal; it fails (EPERM) when the caller is already a group leader.",
-              "coverage": "partial",
-              "gap": "Candidate stderr was redirected and errno was not retained; status 1 alone does not establish EPERM.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-terra-local-pty-b01r2-session-setsid",
                   "status": "PASS",
                   "run": "saved198-candidate-qual-local-pty-b01-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-pty-session-setsid-errno-r3",
+                  "status": "PASS",
+                  "run": "modern-pty-r4-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -96772,18 +97204,24 @@
             {
               "id": "r5",
               "behavior": "pty foreground PGRP [FD] sets the terminal foreground process group.",
-              "coverage": "partial",
-              "gap": "The job PID supplied to pty foreground and a final restored tcgetpgrp value are not separately retained, so the sampled group cannot be independently tied to the requested PGRP.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "terminal",
                   "id": "migration-terra-local-pty-b01r2-session-foreground",
                   "status": "PASS",
                   "run": "saved198-candidate-qual-local-pty-b01-r2-dynamic"
+                },
+                {
+                  "group": "terminal",
+                  "id": "migration-terminal213-pty-foreground-passive-r4",
+                  "status": "PASS",
+                  "run": "modern-pty-r4-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -113586,9 +114024,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 220,
-        "FAIL": 185,
-        "PASS": 195
+        "UNRESOLVED": 218,
+        "FAIL": 186,
+        "PASS": 196
       },
       "migration_without_complete_evidence": []
     }

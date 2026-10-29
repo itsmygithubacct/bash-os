@@ -7,10 +7,14 @@ Only hashes placed in AUTHORIZED_RECEIPT_SHA256 by primary integration grant
 acceptance. A caller-supplied pin or plausible raw result is not authority.
 """
 import base64
+from contextlib import contextmanager
 import json
+import os
 import re
 import tarfile
 from pathlib import Path
+
+import primary_owned_pty_evidence as owned_pty
 
 from primary_controller_evidence import (CHECKS, artifact_inventory, canonical,
     deny_noncore, file_sha, option, pinned, require, safe_member, sha,
@@ -47,8 +51,22 @@ def load_qualified_modern_run(spec, expected_binary, expected_build):
             'modern selection must explicitly be core')
     receipt_spec = spec['primary_receipt']
     digest = receipt_spec['sha256']
-    require(digest in AUTHORIZED_RECEIPT_SHA256, 'modern receipt is not authorized in source')
-    receipt = obj(receipt_spec['path'], digest, 'modern primary receipt')
+    profile = spec.get('evidence_profile', 'modern13')
+    require(profile in ('modern13', 'owned-pty14'), 'unknown modern evidence profile')
+    if profile == 'modern13':
+        require(digest in AUTHORIZED_RECEIPT_SHA256 and digest not in owned_pty.OWNED_PTY_RECEIPT_BINDINGS,
+                'modern receipt is not authorized in source')
+    else:
+        require(digest in owned_pty.OWNED_PTY_RECEIPT_BINDINGS, 'owned PTY receipt is not source-authorized')
+    receipt_raw = pinned(receipt_spec['path'], digest, 'modern primary receipt')
+    receipt = json.loads(receipt_raw)
+    if profile == 'owned-pty14':
+        authorized = owned_pty.OWNED_PTY_RECEIPT_BINDINGS[digest]
+        require(isinstance(authorized, dict) and set(authorized) == {'runs'}
+                and isinstance(receipt.get('runs'), dict) and len(receipt['runs']) == 2
+                and set(authorized['runs']) == set(receipt['runs'])
+                and {run.get('build') for run in receipt['runs'].values()} == {'static','dynamic'},
+                'owned PTY paired receipt run set differs')
     deny_noncore(receipt, 'modern receipt')
     require(receipt.get('schema') == RECEIPT_SCHEMA and receipt.get('decision') == 'accept-reviewed-core-case-evidence'
             and receipt.get('ledger_scope') == 'core' and receipt.get('core_ledger_eligible') is True
@@ -166,9 +184,34 @@ def load_qualified_modern_run(spec, expected_binary, expected_build):
             require(name.startswith(('harness/','loadable-parity/')), 'unrecognized payload source')
             source = ('tests/parity-vm/'+name.removeprefix('harness/') if name.startswith('harness/') else 'tests/'+name)
             require(source in inventory and sha(safe_member(archive,name)) == inventory[source], 'payload source differs: '+name)
-    return _finish(spec, run, p, directory, uuid, ids, cases, definitions, fixture_raw, digest, expected_binary)
+    return _finish(spec, run, p, directory, uuid, ids, cases, definitions, fixture_raw, digest, expected_binary,
+                   profile=profile, receipt_raw=receipt_raw)
 
-def _finish(spec, run, p, directory, uuid, ids, cases, definitions, fixture_raw, receipt_hash, binary):
+@contextmanager
+def _owned_archive(directory, run, p, uuid, ids, definitions, fixture_raw, binary, summary_raw, receipt_raw, run_key):
+    # Hold the same no-follow descriptor for receipt binding, both side/observer
+    # validation and ledger extraction. Never reopen the path after binding.
+    stream, size = owned_pty.optional.open_single(directory/'evidence.tar', 512*1024**2)
+    with stream:
+        initial = os.fstat(stream.fileno())
+        digest = owned_pty.optional.stream_sha(stream)
+        require(digest == run['evidence_sha256'] == p['evidence_validation']['archive_sha256'],
+                'owned PTY opened archive differs from primary receipt')
+        selected = [definitions[cid] for cid in ids]
+        owned_pty.validate_optional_evidence(stream.fileno(), summary_raw, selected, sha(fixture_raw), binary,
+            p['reference_shell_sha256'], uuid, p['guest_exit_status'], terminal213=True,
+            owned_pty_receipt_raw=receipt_raw, owned_pty_run_key=run_key)
+        stream.seek(0)
+        with tarfile.open(fileobj=stream, mode='r:') as archive:
+            yield archive
+        stream.seek(0)
+        final_sha = owned_pty.optional.stream_sha(stream)
+        after = os.fstat(stream.fileno())
+        require(final_sha == digest and (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_nlink)
+                == (initial.st_dev, initial.st_ino, initial.st_size, initial.st_mtime_ns, initial.st_nlink),
+                'owned PTY archive changed during ledger reading')
+
+def _finish(spec, run, p, directory, uuid, ids, cases, definitions, fixture_raw, receipt_hash, binary, *, profile, receipt_raw):
     identity = p['identity']; readback = identity['attestation']['readback']
     token_hex = (uuid+'\n').encode('ascii').hex()
     require(identity.get('marker_matches') is True and identity.get('product_uuid_matches') is True
@@ -201,7 +244,9 @@ def _finish(spec, run, p, directory, uuid, ids, cases, definitions, fixture_raw,
     require(sha(summary_raw) == run['summary_sha256'] and (directory/'summary.json').read_bytes() == summary_raw,
             'modern summary copy differs')
     summary = json.loads(summary_raw)
-    checks = {'selfcheck-'+x for x in CHECKS}; rows = summary['cases']
+    checks = {'selfcheck-'+x for x in CHECKS}
+    if profile == 'owned-pty14': checks.add('selfcheck-owned-pty-observer')
+    rows = summary['cases']
     require(summary['vm_uuid'] == uuid and summary['binary_sha256'] == binary
             and summary['selected_case_ids'] == sorted(ids) and summary['root_fixtures_allowed'] is False
             and summary['isolation']['links'] == ['lo'] and summary['isolation']['vm_uuid_matches'] is True
@@ -216,7 +261,10 @@ def _finish(spec, run, p, directory, uuid, ids, cases, definitions, fixture_raw,
             and p['evidence_validation']['fixture_sha256'] == sha(fixture_raw)
             and p['guest_exit_status'] == (1 if counts['FAIL'] else 0), 'modern summary totals differ')
     output = []
-    with tarfile.open(directory/'evidence.tar','r:') as archive:
+    archive_context = (_owned_archive(directory, run, p, uuid, ids, definitions, fixture_raw, binary,
+                                      summary_raw, receipt_raw, spec['receipt_run'])
+                       if profile == 'owned-pty14' else tarfile.open(directory/'evidence.tar','r:'))
+    with archive_context as archive:
         tar_members(archive)
         require(safe_member(archive,'results/summary.json') == summary_raw, 'modern archived summary differs')
         for cid in checks:
@@ -230,10 +278,20 @@ def _finish(spec, run, p, directory, uuid, ids, cases, definitions, fixture_raw,
             raw = safe_member(archive,'results/'+cid+'/candidate.json')
             require(sha(raw) == accepted['raw_sha256'], 'modern raw case differs: '+cid)
             data = json.loads(raw)
-            require(data.get('error') is None and data.get('harness_error') is None
-                    and data.get('stray_processes') == [] and isinstance(data.get('status'),int)
-                    and data.get('setup',{}).get('status') == 0 and data['setup'].get('error') is None
-                    and data['setup'].get('stray_processes') == [], 'modern raw case incomplete: '+cid)
+            if profile == 'modern13':
+                require(data.get('error') is None and data.get('harness_error') is None
+                        and data.get('stray_processes') == [] and isinstance(data.get('status'),int)
+                        and data.get('setup',{}).get('status') == 0 and data['setup'].get('error') is None
+                        and data['setup'].get('stray_processes') == [], 'modern raw case incomplete: '+cid)
+            else:
+                # Both sides, declared/absent setup and action traces were checked
+                # by the receipt-bound owned reader on this exact descriptor.
+                require(data.get('harness_error') is None and data.get('stray_processes') == []
+                        and type(data.get('status')) is int, 'owned PTY raw case incomplete: '+cid)
+                if definitions[cid].get('kind', 'parity') == 'parity':
+                    reference_raw = safe_member(archive, 'results/'+cid+'/reference.json')
+                    require(sha(reference_raw) == accepted['reference_raw_sha256'],
+                            'owned PTY reference raw differs: '+cid)
             require(accepted['raw_status'] == data['status']
                     and p['case_evidence']['cases'][cid]['sides']['candidate']['raw_status'] == data['status'],
                     'modern raw process status differs: '+cid)

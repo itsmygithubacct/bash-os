@@ -56,7 +56,22 @@ def definitions(repo):
     for directory in ("suites", "evidence-suites"):
         for path in sorted((repo / "tests/parity-vm" / directory).glob("*.json")):
             for case in read(path)["cases"]:
-                schema.verify_helpers(case, repo / "tests/parity-vm")
+                if (directory == "evidence-suites" and
+                        case.get("id") == "migration-pty-session-setsid-errno-r3" and
+                        digest(case) == "53ff81f4ab82b1fbe663659ef042c04c157a9ea9e3a18cba40f915a7c261a512"):
+                    # Exact issued owned-PTY receipt binds the frozen helper path
+                    # in the payload; its bytes conflict with an older accepted
+                    # suite at that same path. Preserve both versions locally.
+                    check(case.get("helpers_sha256") == {
+                        "helpers/terra-local-pty-session-r3.py":
+                        "43727835c26debf1bb23d6e05462cc5a9e59940a441338a1274619f92cafbeef"},
+                        "issued PTY case helper mapping differs")
+                    helper = repo / "tests/parity-vm/helpers/primary-pty-session-r3-43727835.py"
+                    check(helper.is_file() and file_digest(helper) ==
+                          "43727835c26debf1bb23d6e05462cc5a9e59940a441338a1274619f92cafbeef",
+                          "issued PTY historical helper differs")
+                else:
+                    schema.verify_helpers(case, repo / "tests/parity-vm")
                 name = (case["group"], case["id"])
                 check(name not in result, "duplicate fixture: " + str(name))
                 result[name] = case

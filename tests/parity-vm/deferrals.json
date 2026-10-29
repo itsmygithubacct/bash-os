@@ -8797,9 +8797,9 @@
         "purpose": "Terminal secret input requires an interactive no-echo check.",
         "reason": "Requires a future disposable VM with a private PTY and bounded terminal driver. Requires a disposable PTY driver to provide synthetic non-credential input and verify prompt/no-echo behavior. A pipe-only fixture cannot exercise the terminal branch, so this case awaits a bounded PTY fixture."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: The typed synthetic value is absent from the PTY screen, but the intermediate terminal flags at the blocking read were not retained.; r3: The LF scenario stores and emits exact synthetic bytes; the CR reference timed out and was withheld.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original requirements have paired evidence on unchanged builds. Preserve earlier restoration evidence and reached failures; crypto v5 outer stty does not independently isolate builtin restoration.",
       "requirements": [
         {
           "id": "r1",
@@ -8817,6 +8817,18 @@
               "id": "trace-vm-crypto-secret-terminal-r1",
               "assertion": "Original obligation: crypto secret-read -p PROMPT writes the prompt to the controlling terminal (/dev/tty), not to stdout Recorded statuses static=PASS, dynamic=PASS. Static candidate result: . Independent raw observations: Prompt appears in saved PTY, read stdout is empty, typed synthetic bytes are absent from screen and saved output bytes match; before/after termios match. Intermediate ECHO state is not retained.",
               "definition_sha256": "12cc2ac6bda2160c2153317b612793bd8502014dfddcb19b9680a8da91a74a4e"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-crypto-secret-lf-r3",
+              "assertion": "Both unchanged builds: issued paired owned-PTY evidence retains candidate and independent reference prompt, no-echo ECHO-clear observation while blocked, synthetic LF delimiter and exact handle bytes delivered to the FD by expect send-secret; raw side and terminal-control observations are receipt-bound. The outer stty restoration does not independently isolate builtin restoration.",
+              "definition_sha256": "34e3690faf246309c5d95e2b61f726fae901f1ffbc4c168ffab552eb7eafc7b8"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-crypto-secret-cr-r3",
+              "assertion": "Both unchanged builds: issued paired owned-PTY evidence retains candidate and independent reference prompt, no-echo ECHO-clear observation while blocked, synthetic CR delimiter and exact handle bytes delivered to the FD by expect send-secret; raw side and terminal-control observations are receipt-bound. The outer stty restoration does not independently isolate builtin restoration.",
+              "definition_sha256": "b9b33bae340461cc844ec6124f22b94125f7d4242391c1bf68c856cbc8f86555"
             }
           ],
           "gap": ""
@@ -8824,7 +8836,7 @@
         {
           "id": "r2",
           "behavior": "With --no-echo, ECHO is cleared on the terminal while it waits for input, and typed bytes are not echoed",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "terminal",
@@ -8837,14 +8849,26 @@
               "id": "trace-vm-crypto-secret-terminal-r1",
               "assertion": "Original obligation: With --no-echo, ECHO is cleared on the terminal while it waits for input, and typed bytes are not echoed Recorded statuses static=PASS, dynamic=PASS. Static candidate result: . Independent raw observations: Prompt appears in saved PTY, read stdout is empty, typed synthetic bytes are absent from screen and saved output bytes match; before/after termios match. Intermediate ECHO state is not retained.",
               "definition_sha256": "12cc2ac6bda2160c2153317b612793bd8502014dfddcb19b9680a8da91a74a4e"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-crypto-secret-lf-r3",
+              "assertion": "Both unchanged builds: issued paired owned-PTY evidence retains candidate and independent reference prompt, no-echo ECHO-clear observation while blocked, synthetic LF delimiter and exact handle bytes delivered to the FD by expect send-secret; raw side and terminal-control observations are receipt-bound. The outer stty restoration does not independently isolate builtin restoration.",
+              "definition_sha256": "34e3690faf246309c5d95e2b61f726fae901f1ffbc4c168ffab552eb7eafc7b8"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-crypto-secret-cr-r3",
+              "assertion": "Both unchanged builds: issued paired owned-PTY evidence retains candidate and independent reference prompt, no-echo ECHO-clear observation while blocked, synthetic CR delimiter and exact handle bytes delivered to the FD by expect send-secret; raw side and terminal-control observations are receipt-bound. The outer stty restoration does not independently isolate builtin restoration.",
+              "definition_sha256": "b9b33bae340461cc844ec6124f22b94125f7d4242391c1bf68c856cbc8f86555"
             }
           ],
-          "gap": "The typed synthetic value is absent from the PTY screen, but the intermediate terminal flags at the blocking read were not retained."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "The secret line, terminated by CR or LF, is stored as a handle in VARNAME, and secret-write-fd HANDLE FD emits exactly the typed bytes",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "terminal",
@@ -8857,9 +8881,21 @@
               "id": "trace-vm-crypto-secret-terminal-r1",
               "assertion": "Original obligation: The secret line, terminated by CR or LF, is stored as a handle in VARNAME, and secret-write-fd HANDLE FD emits exactly the typed bytes Recorded statuses static=PASS, dynamic=PASS. Static candidate result: . Independent raw observations: Prompt appears in saved PTY, read stdout is empty, typed synthetic bytes are absent from screen and saved output bytes match; before/after termios match. Intermediate ECHO state is not retained.",
               "definition_sha256": "12cc2ac6bda2160c2153317b612793bd8502014dfddcb19b9680a8da91a74a4e"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-crypto-secret-lf-r3",
+              "assertion": "Both unchanged builds: issued paired owned-PTY evidence retains candidate and independent reference prompt, no-echo ECHO-clear observation while blocked, synthetic LF delimiter and exact handle bytes delivered to the FD by expect send-secret; raw side and terminal-control observations are receipt-bound. The outer stty restoration does not independently isolate builtin restoration.",
+              "definition_sha256": "34e3690faf246309c5d95e2b61f726fae901f1ffbc4c168ffab552eb7eafc7b8"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-crypto-secret-cr-r3",
+              "assertion": "Both unchanged builds: issued paired owned-PTY evidence retains candidate and independent reference prompt, no-echo ECHO-clear observation while blocked, synthetic CR delimiter and exact handle bytes delivered to the FD by expect send-secret; raw side and terminal-control observations are receipt-bound. The outer stty restoration does not independently isolate builtin restoration.",
+              "definition_sha256": "b9b33bae340461cc844ec6124f22b94125f7d4242391c1bf68c856cbc8f86555"
             }
           ],
-          "gap": "The LF scenario stores and emits exact synthetic bytes; the CR reference timed out and was withheld."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -8882,7 +8918,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Ten framework failures per build are retained. Candidate NTS application behavior and later live-history steps were unreached and are not credited. No crypto calculations or fixture behavior were executed."
+      "notes": "Preserve original obligations and existing companion evidence. Ten framework failures per build are retained. Candidate NTS application behavior and later live-history steps were unreached and are not credited. No crypto calculations or fixture behavior were executed. Crypto v5 evidence covers prompt, blocked ECHO and raw LF/CR; retain earlier r4 restoration evidence and historical failures."
     },
     {
       "topic": "crypto/tls-and-ntske-loopback",
@@ -31419,23 +31455,29 @@
         "purpose": "Exercise setsid, open-tty, and foreground against a controlled session and controlling terminal.",
         "reason": "Requires a future disposable Linux VM with a private PTY/TTY fixture and session support. That fixture must verify setsid, TIOCSCTTY acquisition, FDVAR versus stdio behavior, and foreground process-group assignment without opening a host console. No controlling-terminal or session operation is run by this suite."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: Candidate stderr was redirected and errno was not retained; status 1 alone does not establish EPERM.; r5: The job PID supplied to pty foreground and a final restored tcgetpgrp value are not separately retained, so the sampled group cannot be independently tied to the requested PGRP.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original requirements are exercised on both unchanged builds; prior reached open-tty FAILs remain FAIL.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "pty setsid makes the calling process a new session leader with no controlling terminal; it fails (EPERM) when the caller is already a group leader.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-terra-local-pty-b01r2-session-setsid",
               "assertion": "Source purpose: Observe setsid through kernel PTY/session state in a live, handshaken child.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Saved candidate and Python reference observe new SID and PGRP equal to PID, tty_nr 0, first rc 0 and second rc 1 in both builds.",
               "definition_sha256": "3622a9c30c4f074da5140e158ad362f44ef77c0520397e8411f387ad25d8f37a"
+            },
+            {
+              "group": "shell",
+              "id": "migration-pty-session-setsid-errno-r3",
+              "assertion": "Both unchanged builds retain candidate and independent reference session transitions and EPERM diagnostics for the process-group leader; the prior session evidence remains.",
+              "definition_sha256": "53ff81f4ab82b1fbe663659ef042c04c157a9ea9e3a18cba40f915a7c261a512"
             }
           ],
-          "gap": "Candidate stderr was redirected and errno was not retained; status 1 alone does not establish EPERM."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -31488,19 +31530,25 @@
         {
           "id": "r5",
           "behavior": "pty foreground PGRP [FD] sets the terminal foreground process group.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "terminal",
               "id": "migration-terra-local-pty-b01r2-session-foreground",
               "assertion": "Source purpose: A separate owned process group becomes foreground and the original group is restored.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: The driver samples a foreground group different from the shell with a member present and observes the restoration marker on candidate and reference.",
               "definition_sha256": "8fe3d0f48cd46f4bf6435104e88a0b24ce89b5a4416d2f68e8014b9540092c38"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-pty-foreground-passive-r4",
+              "assertion": "Both unchanged builds retain the requested job process group, independently sampled foreground group, and restored shell group using controlled owned PTYs; retain the prior ambiguous r3 result as diagnostic evidence.",
+              "definition_sha256": "231e05df846c7cdf4a7c488de1647f2ce405d016c73a776203bd983e1bf37dc5"
             }
           ],
-          "gap": "The job PID supplied to pty foreground and a final restored tcgetpgrp value are not separately retained, so the sampled group cannot be independently tied to the requested PGRP."
+          "gap": ""
         }
       ],
-      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. "
+      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial.  Paired r4 foreground and r3 setsid errno observations address r5 and r1; prior reached open-tty failures and ambiguous foreground r3 are retained."
     },
     {
       "topic": "pty/pty-spawn-waitpid-deferred",

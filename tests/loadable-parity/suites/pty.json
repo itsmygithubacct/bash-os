@@ -41,9 +41,42 @@
     },
     {
       "id": "pty-session-control-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise setsid, open-tty, and foreground against a controlled session and controlling terminal.",
-      "reason": "Remaining obligations: r1: Candidate stderr was redirected and errno was not retained; status 1 alone does not establish EPERM.; r5: The job PID supplied to pty foreground and a final restored tcgetpgrp value are not separately retained, so the sampled group cannot be independently tied to the requested PGRP."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-pty-session-setsid-errno-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-b01r2-session-reject-leader"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-b01r2-session-reject-nonleader"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-b01r2-session-setsid"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-b01r2-session-stdio"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-b01r3-session-fdvar"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal213-pty-foreground-passive-r4"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-pty-b01r2-session-foreground"
+        }
+      ]
     },
     {
       "id": "pty-terminal-io-deferred",

@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-pty-session-setsid-errno-r3",
+      "loadable": "pty",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Retain candidate diagnostic and independently recorded EPERM on a second setsid call by a session leader.",
+      "expected_status": 0,
+      "covers": [
+        "pty/pty-session-control-deferred"
+      ],
+      "timeout": 22,
+      "requires": [
+        "python3",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-pty-session-r3.py": "43727835c26debf1bb23d6e05462cc5a9e59940a441338a1274619f92cafbeef"
+      },
+      "oracle": "An independent Python os.setsid and Linux TIOCSCTTY participant supplies the reference; the parent verifies /proc descriptors, session IDs, controlling-device identity and tcgetpgrp on the fixture-owned PTYs.",
+      "comparison": "Handshake attributes session and process-group identity; native errno and candidate status/diagnostic are retained, plus full participant output.",
+      "reference_script": "[[ $EUID == 2000 && $UID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-session-r3.py setsid reference \"$BASH\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $UID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-pty-session-r3.py setsid candidate \"$BASH\"\n",
+      "diagnostic_files": [
+        "session-observation.json",
+        "setsid-error.raw"
+      ],
+      "stdout": "setsid-new-session=PASS\nsetsid-leader-eperm=PASS\nparticipant-exited=PASS\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-terminal213-pty-foreground-passive-r4",
+      "loadable": "pty",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Compare the requested owned foreground job and restored shell group using the independent PTY driver.",
+      "expected_status": 0,
+      "covers": [
+        "pty/pty-session-control-deferred"
+      ],
+      "timeout": 25,
+      "requires": [
+        "python3",
+        "systemd-detect-virt"
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "oracle": "Native tcsetpgrp control and the same independent PTY driver with live pidfd/birth/ancestry and sampled foreground group.",
+      "comparison": "Driver independently samples requested job and restored owner while each is held at a private FIFO; no foreground observer command runs after the candidate switch.",
+      "candidate_script": "[[ $EUID == 2000 && $UID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\numask 077\n/usr/bin/mkfifo \"$HOME/foreground-proof-gate\" || exit 98\nexec 8<>\"$HOME/foreground-proof-gate\" || exit 98\nset -m\n/usr/bin/sleep 12 &\njob=$!\nset +m\nprintf '%s\\n' \"$job\" >\"$HOME/foreground-request.raw\"\nprintf '%s\\n' \"$$\" >\"$HOME/foreground-owner.raw\"\ntrap 'kill \"$job\" 2>/dev/null || :; wait \"$job\" 2>/dev/null || :' EXIT\ntrap '' TTOU\nready=0\nfor ((i=0; i<100; i++)); do\n  if kill -0 -- \"-$job\" 2>/dev/null; then ready=1; break; fi\n  IFS= read -r -n 1 -t 0.02 -u 8 ignored || :\ndone\n(( ready == 1 )) || exit 98\nprintf 'FOREGROUND-ARMED\\n'\npty foreground \"$job\" 0 >\"$HOME/foreground-switch.out\" 2>\"$HOME/foreground-switch.err\"; rc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/foreground-switch-status.raw\"\n(( rc == 0 )) || exit 1\nprintf 'FOREGROUND-SWITCHED\\n'\nIFS= read -r -n 1 -u 8 gate || exit 98\n[[ $gate == G ]] || exit 98\npty foreground \"$$\" 0 >\"$HOME/foreground-restore.out\" 2>\"$HOME/foreground-restore.err\"; rc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/foreground-restore-status.raw\"\n(( rc == 0 )) || exit 1\nprintf 'FOREGROUND-RESTORED\\n'\nIFS= read -r -n 1 -u 8 gate || exit 98\n[[ $gate == G ]] || exit 98\n",
+      "reference_script": "[[ $EUID == 2000 && $UID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nexec /usr/bin/python3 -c '\nimport os, signal, subprocess\nsignal.signal(signal.SIGTTOU, signal.SIG_IGN)\nhome=os.environ[\"HOME\"]; path=home+\"/foreground-proof-gate\"\nos.mkfifo(path,0o600); gate=os.open(path,os.O_RDWR|os.O_CLOEXEC)\nchild=subprocess.Popen([\"/usr/bin/sleep\",\"12\"],preexec_fn=lambda:os.setpgid(0,0))\ndef write(name,value):\n with open(home+\"/\"+name,\"w\") as out: out.write(value)\ntry:\n write(\"foreground-request.raw\",str(child.pid)+\"\\n\")\n write(\"foreground-owner.raw\",str(os.getpgrp())+\"\\n\")\n print(\"FOREGROUND-ARMED\",flush=True)\n os.tcsetpgrp(0,child.pid);write(\"foreground-switch-status.raw\",\"0\\n\")\n print(\"FOREGROUND-SWITCHED\",flush=True)\n if os.read(gate,1)!=b\"G\": raise RuntimeError(\"first gate\")\n os.tcsetpgrp(0,os.getpgrp());write(\"foreground-restore-status.raw\",\"0\\n\")\n print(\"FOREGROUND-RESTORED\",flush=True)\n if os.read(gate,1)!=b\"G\": raise RuntimeError(\"second gate\")\nfinally:\n child.terminate();child.wait(timeout=3);os.close(gate)\n'\n",
+      "steps": [
+        {
+          "expect": "FOREGROUND-ARMED\\r?\\n"
+        },
+        {
+          "expect": "FOREGROUND-SWITCHED\\r?\\n"
+        },
+        {
+          "foreground_job": [
+            "SIGTERM"
+          ]
+        },
+        {
+          "expect": "FOREGROUND-RESTORED\\r?\\n"
+        },
+        {
+          "foreground_owner": true
+        }
+      ],
+      "diagnostic_files": [
+        "foreground-request.raw",
+        "foreground-owner.raw",
+        "foreground-switch.out",
+        "foreground-switch.err",
+        "foreground-switch-status.raw",
+        "foreground-restore.out",
+        "foreground-restore.err",
+        "foreground-restore-status.raw"
+      ],
+      "setup_script": ": > \"$HOME/foreground-request.raw\"\n: > \"$HOME/foreground-owner.raw\"\n: > \"$HOME/foreground-switch.out\"\n: > \"$HOME/foreground-switch.err\"\n: > \"$HOME/foreground-switch-status.raw\"\n: > \"$HOME/foreground-restore.out\"\n: > \"$HOME/foreground-restore.err\"\n: > \"$HOME/foreground-restore-status.raw\"\n"
+    }
+  ]
+}

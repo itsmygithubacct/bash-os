@@ -129,9 +129,26 @@
     },
     {
       "id": "secret-read-terminal",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Terminal secret input requires an interactive no-echo check.",
-      "reason": "Remaining obligations: r2: The typed synthetic value is absent from the PTY screen, but the intermediate terminal flags at the blocking read were not retained.; r3: The LF scenario stores and emits exact synthetic bytes; the CR reference timed out and was withheld."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "migration-terminal213-crypto-secret-cr-r3"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal213-crypto-secret-lf-r3"
+        },
+        {
+          "group": "terminal",
+          "id": "trace-vm-crypto-secret-raw-lf-r1"
+        },
+        {
+          "group": "terminal",
+          "id": "trace-vm-crypto-secret-terminal-r1"
+        }
+      ]
     },
     {
       "id": "aes-gcm-decrypt-known-vector",
