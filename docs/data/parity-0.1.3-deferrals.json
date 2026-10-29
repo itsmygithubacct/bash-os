@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "2d9f0980ca590324205f1a174de1491909fe189905ecedbf2c037e30e1f45da8",
+  "ledger_sha256": "6ac49dd8f22a7e23f9426219bce57eeda43f9ba49ab251422959ddaf677d467b",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 120,
-    "full": 358,
+    "partial": 118,
+    "full": 360,
     "none": 122
   },
   "migrations": {
-    "deferred": 242,
-    "replacement": 358
+    "deferred": 240,
+    "replacement": 360
   },
   "pending_full_topics": [],
   "builds": {
@@ -4552,6 +4552,1278 @@
             "wrapper_pid": 2331435
           },
           "overlay_discarded": true
+        },
+        {
+          "name": "clock342-static-migration-clock254-boundary-large-epoch",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "static-migration-clock254-boundary-large-epoch",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash-static",
+          "case_definition_sha256": "d5df1c3c354108a23654677cd55ac34dcb2d221ece039342b2c5e368ba9e938a",
+          "vm_uuid": "5d43e763-d8bc-4c66-b497-05f3479cb772",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/clock_domain_reads/r3",
+          "independent_review_sha256": "741316c4399097550a00f8b72b07e0c5ecbfc4bd80226b3707d345470f81c80d",
+          "result_sha256": "dd411260e31b7a5051bbba2e2f3443a00f6a37b930fa08fbdff7fab9f149ebfa",
+          "provenance_sha256": "8bab942317e6233ab52a9e4db5b61606bb122bf90bdcfff40c699763e2434ced",
+          "evidence_sha256": "1525f402639eb0551f0e378d669d375d89d400e1168ab41dad2895f113d928a5",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-5d43e763.service",
+              "proof_sha256": "07b2b06871747de07a62ecf8f44fbdc686670bb7b664787ddde0388fbdf02367",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-5d43e763-reference.service",
+              "proof_sha256": "571fea460a5a8fa3fe2bb3f735061e06413aedfbb43db00eac6a281fc51acf10",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-5d43e763-d8bc-4c66-b497-05f3479cb772.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/static-migration-clock254-boundary-large-epoch/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-5d43e763-d8bc-4c66-b497-05f3479cb772.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-5d43e763-d8bc-4c66-b497-05f3479cb772.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-5d43e763-d8bc-4c66-b497-05f3479cb772.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-5d43e763-d8bc-4c66-b497-05f3479cb772.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-5d43e763-d8bc-4c66-b497-05f3479cb772.scope\nId=parity-vm-5d43e763-d8bc-4c66-b497-05f3479cb772.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-5d43e763-d8bc-4c66-b497-05f3479cb772.scope",
+                "id": "parity-vm-5d43e763-d8bc-4c66-b497-05f3479cb772.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-5d43e763-d8bc-4c66-b497-05f3479cb772.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-5d43e763-d8bc-4c66-b497-05f3479cb772.scope",
+            "stopped_at": 1793255687.5846457,
+            "vm_uuid": "5d43e763-d8bc-4c66-b497-05f3479cb772",
+            "wrapper_pid": 2600169
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-static-migration-clock254-boundary-max-nanos",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "static-migration-clock254-boundary-max-nanos",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash-static",
+          "case_definition_sha256": "dc177b8411a346099e8762f9619079d4ee8c61d819ae46c23f96b1c8d2a572d1",
+          "vm_uuid": "116c498a-ee41-4778-8144-57a1d41b1c83",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/clock_domain_reads/r3",
+          "independent_review_sha256": "15e555a046127366754c378e15e23bf526b93aec805a2e01ae02a54bc38ae002",
+          "result_sha256": "557cb645088f1c2c320a5ad06a9830bd3ca4e0201b30eaf54ad0c65f146f6630",
+          "provenance_sha256": "42d6f988f2c88253a466aa9cabcebc71f1d669b964c69527f1e22a4b0baf286b",
+          "evidence_sha256": "290482f8964875dcd6c05323e539f6a38013045245165ac140ce0986451e9c9a",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-116c498a.service",
+              "proof_sha256": "28c10315ee458bdbeed538eab4ef66320b7452b7cfca73f955e097497d3587de",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-116c498a-reference.service",
+              "proof_sha256": "2cbf66b20a71f651375b53cd04cd1979fe6563ea828a4368fb37919761816534",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-116c498a-ee41-4778-8144-57a1d41b1c83.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/static-migration-clock254-boundary-max-nanos/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 255,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-116c498a-ee41-4778-8144-57a1d41b1c83.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-116c498a-ee41-4778-8144-57a1d41b1c83.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-116c498a-ee41-4778-8144-57a1d41b1c83.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-116c498a-ee41-4778-8144-57a1d41b1c83.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-116c498a-ee41-4778-8144-57a1d41b1c83.scope\nId=parity-vm-116c498a-ee41-4778-8144-57a1d41b1c83.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-116c498a-ee41-4778-8144-57a1d41b1c83.scope",
+                "id": "parity-vm-116c498a-ee41-4778-8144-57a1d41b1c83.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-116c498a-ee41-4778-8144-57a1d41b1c83.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-116c498a-ee41-4778-8144-57a1d41b1c83.scope",
+            "stopped_at": 1793255563.9947078,
+            "vm_uuid": "116c498a-ee41-4778-8144-57a1d41b1c83",
+            "wrapper_pid": 2591315
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-static-migration-clock254-boundary-negative-epoch",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "static-migration-clock254-boundary-negative-epoch",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash-static",
+          "case_definition_sha256": "b5729cd8b5b071332e22c26911a9334de9a489cc3234dcfd4b8961b815cc94b6",
+          "vm_uuid": "198b164d-b72b-4455-b7d1-041d3cd92b9b",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/clock_domain_reads/r3",
+          "independent_review_sha256": "100b6756e6fcdbd1e382f183222cd5e9284e32317c2ade9cad5a4eab9f907b81",
+          "result_sha256": "69bc08400d29989bdd0fe0577d3adb54747dccf75fc55de75a7a969440cf9834",
+          "provenance_sha256": "a36a11cd20f614f4331481ca412f858b5ccff0a039647efa51352ed5e4b79bcb",
+          "evidence_sha256": "7d4a1fdf70918073d93a0374fddff680787671425def2a2ef8cfe821082bb94b",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-198b164d.service",
+              "proof_sha256": "6ecf5ccdd4cc051311db5afa5e9c0d734451ffe785989626b7772e7428f6d45e",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-198b164d-reference.service",
+              "proof_sha256": "70214c649e895f608f6b70f5f35ab28789aa2e688b7b35e62ab07da5f41091db",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-198b164d-b72b-4455-b7d1-041d3cd92b9b.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/static-migration-clock254-boundary-negative-epoch/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-198b164d-b72b-4455-b7d1-041d3cd92b9b.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-198b164d-b72b-4455-b7d1-041d3cd92b9b.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-198b164d-b72b-4455-b7d1-041d3cd92b9b.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-198b164d-b72b-4455-b7d1-041d3cd92b9b.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-198b164d-b72b-4455-b7d1-041d3cd92b9b.scope\nId=parity-vm-198b164d-b72b-4455-b7d1-041d3cd92b9b.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-198b164d-b72b-4455-b7d1-041d3cd92b9b.scope",
+                "id": "parity-vm-198b164d-b72b-4455-b7d1-041d3cd92b9b.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-198b164d-b72b-4455-b7d1-041d3cd92b9b.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-198b164d-b72b-4455-b7d1-041d3cd92b9b.scope",
+            "stopped_at": 1793255456.9385176,
+            "vm_uuid": "198b164d-b72b-4455-b7d1-041d3cd92b9b",
+            "wrapper_pid": 2584350
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-static-migration-clock254-boundary-zero",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "static-migration-clock254-boundary-zero",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash-static",
+          "case_definition_sha256": "ac8727525923edb338c4dac70437a6c09148baf6610d54e5e3650f07a9e5aea6",
+          "vm_uuid": "631f7d74-f4e0-4042-a69b-76b138359886",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/clock_domain_reads/r3",
+          "independent_review_sha256": "5a6d37074b257ce9bf3854c4084153989497f7fd8a128b1b39016559bae4e529",
+          "result_sha256": "890cd0e2f78378f592edd315b2381271d5f2fa9faef664a05ad36c71e1b17ae9",
+          "provenance_sha256": "beef8036a00f396affff22c0f214f8095147b4573c39b3d51d9ba79525e4b515",
+          "evidence_sha256": "753b11fb492996a6a01aafcfbe211325737eb9e75ea0bf30b9f80cfc5a6ca73a",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-631f7d74.service",
+              "proof_sha256": "5a60eefed8dc2104cc7dfc595096c02e2432c9725b74111b87465445797e267c",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-631f7d74-reference.service",
+              "proof_sha256": "1657444d33b3937637e6fbc647adad8ff753929dace4274f2283c8016ee6fd10",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-631f7d74-f4e0-4042-a69b-76b138359886.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/static-migration-clock254-boundary-zero/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 255,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-631f7d74-f4e0-4042-a69b-76b138359886.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-631f7d74-f4e0-4042-a69b-76b138359886.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-631f7d74-f4e0-4042-a69b-76b138359886.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-631f7d74-f4e0-4042-a69b-76b138359886.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-631f7d74-f4e0-4042-a69b-76b138359886.scope\nId=parity-vm-631f7d74-f4e0-4042-a69b-76b138359886.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-631f7d74-f4e0-4042-a69b-76b138359886.scope",
+                "id": "parity-vm-631f7d74-f4e0-4042-a69b-76b138359886.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-631f7d74-f4e0-4042-a69b-76b138359886.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-631f7d74-f4e0-4042-a69b-76b138359886.scope",
+            "stopped_at": 1793255329.5851843,
+            "vm_uuid": "631f7d74-f4e0-4042-a69b-76b138359886",
+            "wrapper_pid": 2575508
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-static-migration-clock254-domain-boottime",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "static-migration-clock254-domain-boottime",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash-static",
+          "case_definition_sha256": "8e6ba82ed7ba879ce06c38fc6714d812da236ce1fbd47a8c1452f0f35d8132f4",
+          "vm_uuid": "2c1e6954-52fd-42cd-9fcd-8b37acc97585",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/clock_domain_reads/r1",
+          "independent_review_sha256": "da3c9d2d9b1c4fc82f88bfb86117c7b590dcc9f0c133952212814f01fd58da99",
+          "result_sha256": "690e9ee596d8cfe6fdc229ac5ad4b1dea3cbdf8a8168b25784e3cebab479c2ee",
+          "provenance_sha256": "74b07869e482a0677f308f5690cf731f8b713490ed1a47874ce8fb1d67746d1c",
+          "evidence_sha256": "c3031747dece1b4112ba33eeedfba79ff5036485c23a4eb34a3a902e71001ed1",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-2c1e6954.service",
+              "proof_sha256": "b9180a070574fb11c76ae9ee042f8a52a0a3fc1692cf4c76842df24a9e7dd5ae",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-2c1e6954-reference.service",
+              "proof_sha256": "aaf3a71fa0261084ec9b85ef07987d79b93b8e936b33575f523d0e5b43e97487",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-2c1e6954-52fd-42cd-9fcd-8b37acc97585.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/static-migration-clock254-domain-boottime/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-2c1e6954-52fd-42cd-9fcd-8b37acc97585.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-2c1e6954-52fd-42cd-9fcd-8b37acc97585.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-2c1e6954-52fd-42cd-9fcd-8b37acc97585.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-2c1e6954-52fd-42cd-9fcd-8b37acc97585.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-2c1e6954-52fd-42cd-9fcd-8b37acc97585.scope\nId=parity-vm-2c1e6954-52fd-42cd-9fcd-8b37acc97585.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-2c1e6954-52fd-42cd-9fcd-8b37acc97585.scope",
+                "id": "parity-vm-2c1e6954-52fd-42cd-9fcd-8b37acc97585.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-2c1e6954-52fd-42cd-9fcd-8b37acc97585.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-2c1e6954-52fd-42cd-9fcd-8b37acc97585.scope",
+            "stopped_at": 1793256221.1418366,
+            "vm_uuid": "2c1e6954-52fd-42cd-9fcd-8b37acc97585",
+            "wrapper_pid": 2635394
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-static-migration-clock254-domain-monotonic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "static-migration-clock254-domain-monotonic",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash-static",
+          "case_definition_sha256": "223e579a3238fdb8f4e281ed987d8e52292bc3dbc2fa730a0b51a12288b4103d",
+          "vm_uuid": "f94597ca-b6b4-4d61-84bd-cd4aae0a8a0a",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/clock_domain_reads/r1",
+          "independent_review_sha256": "989a2be96d98f493a45e2fada7203119139617c64bc9b8a8d987b25c0cef4948",
+          "result_sha256": "5a66ba625822c46c28f21cf29a2483d71739790ec0e83e738617ad8d2c969778",
+          "provenance_sha256": "b1b1ccf73733d665724e2f5ee3ab23fd5d75d3f5b20c418caf1a03741daba25a",
+          "evidence_sha256": "1af261e0b2fd62b1281ae7c49f25545a9e3417e66ce60c2bf206a4ccbb780c23",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-f94597ca.service",
+              "proof_sha256": "e56ce70a36df10d5bb01e4f61fca4a11a6c796e44a422b4cac66aaafb479d6a7",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-f94597ca-reference.service",
+              "proof_sha256": "44ccbf3466f6fd976c78827e21a7f17756422d72dd5de50f61fb366f14c264e3",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-f94597ca-b6b4-4d61-84bd-cd4aae0a8a0a.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/static-migration-clock254-domain-monotonic/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-f94597ca-b6b4-4d61-84bd-cd4aae0a8a0a.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-f94597ca-b6b4-4d61-84bd-cd4aae0a8a0a.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-f94597ca-b6b4-4d61-84bd-cd4aae0a8a0a.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-f94597ca-b6b4-4d61-84bd-cd4aae0a8a0a.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-f94597ca-b6b4-4d61-84bd-cd4aae0a8a0a.scope\nId=parity-vm-f94597ca-b6b4-4d61-84bd-cd4aae0a8a0a.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-f94597ca-b6b4-4d61-84bd-cd4aae0a8a0a.scope",
+                "id": "parity-vm-f94597ca-b6b4-4d61-84bd-cd4aae0a8a0a.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-f94597ca-b6b4-4d61-84bd-cd4aae0a8a0a.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-f94597ca-b6b4-4d61-84bd-cd4aae0a8a0a.scope",
+            "stopped_at": 1793256125.265243,
+            "vm_uuid": "f94597ca-b6b4-4d61-84bd-cd4aae0a8a0a",
+            "wrapper_pid": 2629227
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-static-migration-clock254-domain-realtime",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "static-migration-clock254-domain-realtime",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash-static",
+          "case_definition_sha256": "89125f3e02d6482fc72826833eafba9635acf43cee297c8c96a6cb9a6d7e3da0",
+          "vm_uuid": "78f1d68f-e5be-471f-ba4d-b9c89820b087",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/clock_domain_reads/r1",
+          "independent_review_sha256": "9567454d7c289fe5c6c0d1fb831a096dd4c717ef554b069352205afd80cf2210",
+          "result_sha256": "f367ba92671eee3d9cff02196039c8181ac28a9955791d61fdcdf6bd66bb6dc1",
+          "provenance_sha256": "d4ab0209ddf66fbbdab0cd7f9ed0a0372f4cfedbc3da05fde9f2f15322701698",
+          "evidence_sha256": "75948d3d77664d703673091a9e2f43e85e931ef2997bd7fd278da0108c06ffef",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-78f1d68f.service",
+              "proof_sha256": "078919afd69903938ebae822569855ad8c9964254b945cd2d99d0708700d6a6f",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-78f1d68f-reference.service",
+              "proof_sha256": "e0b305afa7e323cf698d5bc89555e8f40097db0d0f5b88fe6c35a68228120c6f",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-78f1d68f-e5be-471f-ba4d-b9c89820b087.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/static-migration-clock254-domain-realtime/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-78f1d68f-e5be-471f-ba4d-b9c89820b087.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-78f1d68f-e5be-471f-ba4d-b9c89820b087.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-78f1d68f-e5be-471f-ba4d-b9c89820b087.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-78f1d68f-e5be-471f-ba4d-b9c89820b087.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-78f1d68f-e5be-471f-ba4d-b9c89820b087.scope\nId=parity-vm-78f1d68f-e5be-471f-ba4d-b9c89820b087.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-78f1d68f-e5be-471f-ba4d-b9c89820b087.scope",
+                "id": "parity-vm-78f1d68f-e5be-471f-ba4d-b9c89820b087.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-78f1d68f-e5be-471f-ba4d-b9c89820b087.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-78f1d68f-e5be-471f-ba4d-b9c89820b087.scope",
+            "stopped_at": 1793255912.7518034,
+            "vm_uuid": "78f1d68f-e5be-471f-ba4d-b9c89820b087",
+            "wrapper_pid": 2615180
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-static-migration-clock254-since-borrow",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "static-migration-clock254-since-borrow",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash-static",
+          "case_definition_sha256": "8c5181c403586d0291619114b76b1a893917df6dac4c66a72f5efa8d3e15917a",
+          "vm_uuid": "49976356-130e-4530-83cf-c9274613de99",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/since_arithmetic/r2",
+          "independent_review_sha256": "b2a8ef3784dc171f081a343898712e9359901e4f69b3bd9de56c5ff205071bea",
+          "result_sha256": "9913c655788a54027e4263a78970fce34f1e9b7f9be6e3e3e1398c545546941b",
+          "provenance_sha256": "0e91dc734f077dc36706ea78092cd1a520e61de19e8d5bb30e520d4b080244e0",
+          "evidence_sha256": "a2e0359fc448c7211957a85a3aaebe9ef4ff9d780a6575a51779baed9f704ba3",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-49976356.service",
+              "proof_sha256": "d8cf5a5732ea299e899e06756ba21ed0ef079958b655f48de43876e83bfd285b",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-49976356-reference.service",
+              "proof_sha256": "693e1ab8b9d4aec554ee89103f304e31acba06937f856875f7a150fbf859dac5",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-49976356-130e-4530-83cf-c9274613de99.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/static-migration-clock254-since-borrow/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-49976356-130e-4530-83cf-c9274613de99.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-49976356-130e-4530-83cf-c9274613de99.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-49976356-130e-4530-83cf-c9274613de99.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-49976356-130e-4530-83cf-c9274613de99.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-49976356-130e-4530-83cf-c9274613de99.scope\nId=parity-vm-49976356-130e-4530-83cf-c9274613de99.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-49976356-130e-4530-83cf-c9274613de99.scope",
+                "id": "parity-vm-49976356-130e-4530-83cf-c9274613de99.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-49976356-130e-4530-83cf-c9274613de99.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-49976356-130e-4530-83cf-c9274613de99.scope",
+            "stopped_at": 1793254796.7208183,
+            "vm_uuid": "49976356-130e-4530-83cf-c9274613de99",
+            "wrapper_pid": 2538229
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-static-migration-clock254-since-clock-error",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "static-migration-clock254-since-clock-error",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash-static",
+          "case_definition_sha256": "52f5c967276fed02ebe9a254bf6b7ac73752e0325f9fc46a28990da5a952c3f1",
+          "vm_uuid": "f1203e3a-0b53-46c2-b647-2d65814b5f38",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/since_arithmetic/r5",
+          "independent_review_sha256": "888b1cbd0669e136ebc67c143718b4c83e83bc01f2945626ed01dc99c2fc6169",
+          "result_sha256": "d974114f667df41096e4136db2ca1b15b08623412440f20249169cd6cdff75bf",
+          "provenance_sha256": "74657bc76f91c9ef6788bba896fe9682c7d7f48631f5dcfc3e41e1f9dd69e048",
+          "evidence_sha256": "bacfb3f936deba5621762ca6afddf67f22520a251240982fb82d8fddd0d0b2c3",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-f1203e3a.service",
+              "proof_sha256": "547d175026822aec2ac33d0f755b6182b01b8aae7ca7ab8bfcdfd10914723fc8",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-f1203e3a-reference.service",
+              "proof_sha256": "f06e3275e47feca9d2968a69752d3750ac1561167c013e328b28f2eabf7d0908",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-f1203e3a-0b53-46c2-b647-2d65814b5f38.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/static-migration-clock254-since-clock-error/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 255,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-f1203e3a-0b53-46c2-b647-2d65814b5f38.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-f1203e3a-0b53-46c2-b647-2d65814b5f38.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-f1203e3a-0b53-46c2-b647-2d65814b5f38.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-f1203e3a-0b53-46c2-b647-2d65814b5f38.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-f1203e3a-0b53-46c2-b647-2d65814b5f38.scope\nId=parity-vm-f1203e3a-0b53-46c2-b647-2d65814b5f38.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-f1203e3a-0b53-46c2-b647-2d65814b5f38.scope",
+                "id": "parity-vm-f1203e3a-0b53-46c2-b647-2d65814b5f38.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-f1203e3a-0b53-46c2-b647-2d65814b5f38.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-f1203e3a-0b53-46c2-b647-2d65814b5f38.scope",
+            "stopped_at": 1793255032.8374617,
+            "vm_uuid": "f1203e3a-0b53-46c2-b647-2d65814b5f38",
+            "wrapper_pid": 2553178
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-static-migration-clock254-since-exact-zero",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "static-migration-clock254-since-exact-zero",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash-static",
+          "case_definition_sha256": "954ace00be183606439729e0e54a2a0aaf61cf68714dc0d2ada281223b105553",
+          "vm_uuid": "9328ed69-a1e4-43bb-861b-88abf573cbd4",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/since_arithmetic/r3",
+          "independent_review_sha256": "503a82aca1496895516aa90a454dae78e582f9be4f7e072cfdf12d7376a798fb",
+          "result_sha256": "a80108efa15e490a2729798f3c538a6a88988da1bdfaa0059a3d278ec6f30a32",
+          "provenance_sha256": "c29c555a2a438a618a832cea7202044c71c01a3d0b7e381cc5c57d3a8f2348a5",
+          "evidence_sha256": "746762d16b351f7db88290941e6ba9740ef0abdf954bc8eaa5f120f070534978",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-9328ed69.service",
+              "proof_sha256": "6ec78b70f16a5ce3fc7d1ec8d6bfae2275f39c52b36473aebcf868feb911729a",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-9328ed69-reference.service",
+              "proof_sha256": "f7d8165c6f89df7ee22528711f3b1056f5b82dafa178181212968df2f87e8d9b",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-9328ed69-a1e4-43bb-861b-88abf573cbd4.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/static-migration-clock254-since-exact-zero/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-9328ed69-a1e4-43bb-861b-88abf573cbd4.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-9328ed69-a1e4-43bb-861b-88abf573cbd4.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-9328ed69-a1e4-43bb-861b-88abf573cbd4.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-9328ed69-a1e4-43bb-861b-88abf573cbd4.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-9328ed69-a1e4-43bb-861b-88abf573cbd4.scope\nId=parity-vm-9328ed69-a1e4-43bb-861b-88abf573cbd4.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-9328ed69-a1e4-43bb-861b-88abf573cbd4.scope",
+                "id": "parity-vm-9328ed69-a1e4-43bb-861b-88abf573cbd4.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-9328ed69-a1e4-43bb-861b-88abf573cbd4.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-9328ed69-a1e4-43bb-861b-88abf573cbd4.scope",
+            "stopped_at": 1793254894.8912413,
+            "vm_uuid": "9328ed69-a1e4-43bb-861b-88abf573cbd4",
+            "wrapper_pid": 2545080
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-static-migration-clock254-since-future-fraction",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "static-migration-clock254-since-future-fraction",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash-static",
+          "case_definition_sha256": "f2bdeedc91fbcb191b9623541f63e35f40e6d208ba19eeb08066c28dea03d3c1",
+          "vm_uuid": "a5a45882-0efa-4397-ab34-a0ce5bc4d919",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/since_arithmetic/r3",
+          "independent_review_sha256": "e457707c67daaee0728ba1df2718bc6e5231d029513536bb33e3fbd5ce18d2ff",
+          "result_sha256": "eba9826213b8292d82703ae65b197375954c5629f355c28d82684785bbc02bcc",
+          "provenance_sha256": "39cd4a326503b7457893837d815496d7f1eacadbabd7db5c314eb59ae466cd4b",
+          "evidence_sha256": "f11148aa9cd7de86a342a4bc5fe153e3681236d6429cbc5cb245b71412abc9a6",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-a5a45882.service",
+              "proof_sha256": "399626942c874f8a370a5a992b6489dca7374b7efb3b8905a442c7ff65fccee0",
+              "transport_returncode": 1,
+              "stop_returncode": 0
+            },
+            "compatibility": {
+              "unit": "bashos-optional-a5a45882-reference.service",
+              "proof_sha256": "b388f674cba57d5d8efbbb3fa990892bbce35df86e6fd30296062f6e27332343",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-a5a45882-0efa-4397-ab34-a0ce5bc4d919.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/static-migration-clock254-since-future-fraction/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 255,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-a5a45882-0efa-4397-ab34-a0ce5bc4d919.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-a5a45882-0efa-4397-ab34-a0ce5bc4d919.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-a5a45882-0efa-4397-ab34-a0ce5bc4d919.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-a5a45882-0efa-4397-ab34-a0ce5bc4d919.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-a5a45882-0efa-4397-ab34-a0ce5bc4d919.scope\nId=parity-vm-a5a45882-0efa-4397-ab34-a0ce5bc4d919.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-a5a45882-0efa-4397-ab34-a0ce5bc4d919.scope",
+                "id": "parity-vm-a5a45882-0efa-4397-ab34-a0ce5bc4d919.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-a5a45882-0efa-4397-ab34-a0ce5bc4d919.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-a5a45882-0efa-4397-ab34-a0ce5bc4d919.scope",
+            "stopped_at": 1793254474.3419647,
+            "vm_uuid": "a5a45882-0efa-4397-ab34-a0ce5bc4d919",
+            "wrapper_pid": 2516222
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-static-migration-clock254-since-future-integer",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "static-migration-clock254-since-future-integer",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash-static",
+          "case_definition_sha256": "d4a5295f2bfecacc5edb4039349a7fab923fc14e941b2538b7f3ec5274c51033",
+          "vm_uuid": "035f0f2e-be51-4bb7-b1e1-2e93c03b9714",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/since_arithmetic/r3",
+          "independent_review_sha256": "c691a7e3f5f0992e8178f2bf1658a61b3ee72de4b37150ccca5bc239f7c96566",
+          "result_sha256": "e7e0dca2cbcf6c7facebc77f537c01a950847a708fc3983cadfca8fa6ca21c3e",
+          "provenance_sha256": "88049be2133bfb4dd062c7641a45187a117798d38635f798a5e2fb8f6294250c",
+          "evidence_sha256": "41faab63336c59db4b1de0b679a11e6966260248c8880acf92ce92b5bb4147f5",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-035f0f2e.service",
+              "proof_sha256": "03eb0f35ee055b87f4dc8231bcb0c303593089b96954bfadd5ff53f60601576c",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-035f0f2e-reference.service",
+              "proof_sha256": "bcc40399f3b86d409810cfd6998bd073fd2e0f9ea613b3d0e36bac95c536ec83",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-035f0f2e-be51-4bb7-b1e1-2e93c03b9714.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/static-migration-clock254-since-future-integer/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-035f0f2e-be51-4bb7-b1e1-2e93c03b9714.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-035f0f2e-be51-4bb7-b1e1-2e93c03b9714.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-035f0f2e-be51-4bb7-b1e1-2e93c03b9714.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-035f0f2e-be51-4bb7-b1e1-2e93c03b9714.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-035f0f2e-be51-4bb7-b1e1-2e93c03b9714.scope\nId=parity-vm-035f0f2e-be51-4bb7-b1e1-2e93c03b9714.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-035f0f2e-be51-4bb7-b1e1-2e93c03b9714.scope",
+                "id": "parity-vm-035f0f2e-be51-4bb7-b1e1-2e93c03b9714.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-035f0f2e-be51-4bb7-b1e1-2e93c03b9714.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-035f0f2e-be51-4bb7-b1e1-2e93c03b9714.scope",
+            "stopped_at": 1793254686.1569824,
+            "vm_uuid": "035f0f2e-be51-4bb7-b1e1-2e93c03b9714",
+            "wrapper_pid": 2530441
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
         }
       ],
       "entries": [
@@ -5533,26 +6805,44 @@
         },
         {
           "topic": "bashclock/clock_domain_reads",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "now/mono/boot read REALTIME/MONOTONIC/BOOTTIME respectively (domain identity).",
-              "coverage": "partial",
-              "gap": "In a live VM the monotonic and boottime clocks differ only by suspend time (none), so brackets cannot distinguish mono from boot; distinct domain offsets are not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/bashclock/read-only-clock-brackets",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-domain-boottime",
+                  "status": "PASS",
+                  "run": "clock342-static-migration-clock254-domain-boottime"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-domain-monotonic",
+                  "status": "PASS",
+                  "run": "clock342-static-migration-clock254-domain-monotonic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-domain-realtime",
+                  "status": "PASS",
+                  "run": "clock342-static-migration-clock254-domain-realtime"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -5579,20 +6869,45 @@
             {
               "id": "r3",
               "behavior": "Special timestamp boundaries (zero seconds, nanosecond 0 and 999999999, negative/large epochs).",
-              "coverage": "missing",
-              "gap": "Cannot be produced from live clocks; requires injected samples.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-boundary-large-epoch",
+                  "status": "PASS",
+                  "run": "clock342-static-migration-clock254-boundary-large-epoch"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-boundary-max-nanos",
+                  "status": "PASS",
+                  "run": "clock342-static-migration-clock254-boundary-max-nanos"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-boundary-negative-epoch",
+                  "status": "PASS",
+                  "run": "clock342-static-migration-clock254-boundary-negative-epoch"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-boundary-zero",
+                  "status": "PASS",
+                  "run": "clock342-static-migration-clock254-boundary-zero"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashclock/since_arithmetic",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -5613,20 +6928,46 @@
             {
               "id": "r2",
               "behavior": "Nanosecond borrow when the current nanoseconds are smaller than the start's.",
-              "coverage": "missing",
-              "gap": "Live samples reach a borrow only by chance; no forced case. Partially forceable: pass a START with .999999999 nanoseconds (since takes a START argument), which forces borrow on almost every live read.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-since-borrow",
+                  "status": "PASS",
+                  "run": "clock342-static-migration-clock254-since-borrow"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Exact zero and negative (START in the future) results.",
-              "coverage": "missing",
-              "gap": "A future START is forceable from a live mono reading plus an offset; exact zero needs injection.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-since-exact-zero",
+                  "status": "PASS",
+                  "run": "clock342-static-migration-clock254-since-exact-zero"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-since-future-fraction",
+                  "status": "FAIL",
+                  "run": "clock342-static-migration-clock254-since-future-fraction"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-since-future-integer",
+                  "status": "PASS",
+                  "run": "clock342-static-migration-clock254-since-future-integer"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -5653,11 +6994,18 @@
             {
               "id": "r5",
               "behavior": "clock_gettime failure is diagnosed.",
-              "coverage": "missing",
-              "gap": "Requires injection; the vDSO path cannot fail for valid clock ids.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-since-clock-error",
+                  "status": "PASS",
+                  "run": "clock342-static-migration-clock254-since-clock-error"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -53257,9 +54605,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 242,
-        "FAIL": 172,
-        "PASS": 186
+        "UNRESOLVED": 240,
+        "FAIL": 173,
+        "PASS": 187
       },
       "migration_without_complete_evidence": []
     },
@@ -57801,6 +59149,1278 @@
             "wrapper_pid": 2341680
           },
           "overlay_discarded": true
+        },
+        {
+          "name": "clock342-dynamic-migration-clock254-boundary-large-epoch",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "dynamic-migration-clock254-boundary-large-epoch",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash",
+          "case_definition_sha256": "d5df1c3c354108a23654677cd55ac34dcb2d221ece039342b2c5e368ba9e938a",
+          "vm_uuid": "2857858a-f186-4bd2-88c3-ff082620c624",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/clock_domain_reads/r3",
+          "independent_review_sha256": "9db97b072d24b6d2af49e73639843e1789de5f0b7eca17a94ec5dd46ebdb229b",
+          "result_sha256": "eaa04bf79b82283fff99ec7b8f7adb37324a7189f636be1c8f8b90ffa16bb748",
+          "provenance_sha256": "398ec8a101db069b0402afae9cede3e76fd9fa590a216cbc8d61dc0782676f2a",
+          "evidence_sha256": "d91a58a818c3d15f6ac9bf50509035ff27efb34f066c890f13509f8a97f1bbb2",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-2857858a.service",
+              "proof_sha256": "7b23de72c61683d7cca51efcb5d2fd62d0d2b17db2881c74ce40cafe846d9da3",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-2857858a-reference.service",
+              "proof_sha256": "9a32466bbae09f589249dc7905a2c732a3fa465b2bcc7e1004102b7850f2e453",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-2857858a-f186-4bd2-88c3-ff082620c624.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/dynamic-migration-clock254-boundary-large-epoch/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-2857858a-f186-4bd2-88c3-ff082620c624.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-2857858a-f186-4bd2-88c3-ff082620c624.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-2857858a-f186-4bd2-88c3-ff082620c624.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-2857858a-f186-4bd2-88c3-ff082620c624.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-2857858a-f186-4bd2-88c3-ff082620c624.scope\nId=parity-vm-2857858a-f186-4bd2-88c3-ff082620c624.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-2857858a-f186-4bd2-88c3-ff082620c624.scope",
+                "id": "parity-vm-2857858a-f186-4bd2-88c3-ff082620c624.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-2857858a-f186-4bd2-88c3-ff082620c624.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-2857858a-f186-4bd2-88c3-ff082620c624.scope",
+            "stopped_at": 1793255832.2048888,
+            "vm_uuid": "2857858a-f186-4bd2-88c3-ff082620c624",
+            "wrapper_pid": 2609825
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-dynamic-migration-clock254-boundary-max-nanos",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "dynamic-migration-clock254-boundary-max-nanos",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash",
+          "case_definition_sha256": "dc177b8411a346099e8762f9619079d4ee8c61d819ae46c23f96b1c8d2a572d1",
+          "vm_uuid": "45b39935-7f3f-4a57-9639-54a8402d9287",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/clock_domain_reads/r3",
+          "independent_review_sha256": "1ba02bcd533788f45197e5246228cf9c1fc0eec5b5159bc6d5ba3ab9e414f4c4",
+          "result_sha256": "c2d31a3d0290f8436f45500d9e4a79166cb57f9473356410c2cf3d5d88c4f3d5",
+          "provenance_sha256": "d4167a72e418f214e13e82ca9d4707f5a3188c06da73ef08ab63e3be1ddb2a09",
+          "evidence_sha256": "bdc971ed9d2ec2c0bac41d4d435a02b88a099c08bf7dff15bf5db2e08924a386",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-45b39935.service",
+              "proof_sha256": "74ebb049ced0466f4fabab6ee71cf5f9ab508ad5c813b0dfa510e11a233fd014",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-45b39935-reference.service",
+              "proof_sha256": "6be95e7913c03c103be03ec05a5549e791772dc3f0c4ca0be9fff0058d59f3db",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-45b39935-7f3f-4a57-9639-54a8402d9287.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/dynamic-migration-clock254-boundary-max-nanos/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-45b39935-7f3f-4a57-9639-54a8402d9287.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-45b39935-7f3f-4a57-9639-54a8402d9287.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-45b39935-7f3f-4a57-9639-54a8402d9287.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-45b39935-7f3f-4a57-9639-54a8402d9287.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-45b39935-7f3f-4a57-9639-54a8402d9287.scope\nId=parity-vm-45b39935-7f3f-4a57-9639-54a8402d9287.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-45b39935-7f3f-4a57-9639-54a8402d9287.scope",
+                "id": "parity-vm-45b39935-7f3f-4a57-9639-54a8402d9287.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-45b39935-7f3f-4a57-9639-54a8402d9287.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-45b39935-7f3f-4a57-9639-54a8402d9287.scope",
+            "stopped_at": 1793255615.8653188,
+            "vm_uuid": "45b39935-7f3f-4a57-9639-54a8402d9287",
+            "wrapper_pid": 2595102
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-dynamic-migration-clock254-boundary-negative-epoch",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "dynamic-migration-clock254-boundary-negative-epoch",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash",
+          "case_definition_sha256": "b5729cd8b5b071332e22c26911a9334de9a489cc3234dcfd4b8961b815cc94b6",
+          "vm_uuid": "218c3ac9-3aab-452d-beaa-802e3c19dfac",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/clock_domain_reads/r3",
+          "independent_review_sha256": "70981587f3845ac3d673169a6fd4358936d72cf1e2ec1a817092f36d90d479d6",
+          "result_sha256": "0ab6003618864f5329a29d653330f1c3501ea0f032fe992aaa36a5aa0f1d4c63",
+          "provenance_sha256": "a520edeebbc9a53f21b7e1a119d610dd3b0b8369f3b3bbf6e0d676f0879e2bc8",
+          "evidence_sha256": "722454cc17120e9cbe682e58cf16827edf970ef4f265d8c6bdb2d12d5f44fd3b",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-218c3ac9.service",
+              "proof_sha256": "20ba67d9705fe064f62154f82e873de7b3a8e485f59b2c15d0c7a5406105500d",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-218c3ac9-reference.service",
+              "proof_sha256": "77afb6b0f15b42feee5f4da34ed1f15d5eeda440262769f427b6c374555343b1",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-218c3ac9-3aab-452d-beaa-802e3c19dfac.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/dynamic-migration-clock254-boundary-negative-epoch/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-218c3ac9-3aab-452d-beaa-802e3c19dfac.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-218c3ac9-3aab-452d-beaa-802e3c19dfac.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-218c3ac9-3aab-452d-beaa-802e3c19dfac.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-218c3ac9-3aab-452d-beaa-802e3c19dfac.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-218c3ac9-3aab-452d-beaa-802e3c19dfac.scope\nId=parity-vm-218c3ac9-3aab-452d-beaa-802e3c19dfac.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-218c3ac9-3aab-452d-beaa-802e3c19dfac.scope",
+                "id": "parity-vm-218c3ac9-3aab-452d-beaa-802e3c19dfac.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-218c3ac9-3aab-452d-beaa-802e3c19dfac.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-218c3ac9-3aab-452d-beaa-802e3c19dfac.scope",
+            "stopped_at": 1793255506.5217388,
+            "vm_uuid": "218c3ac9-3aab-452d-beaa-802e3c19dfac",
+            "wrapper_pid": 2587873
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-dynamic-migration-clock254-boundary-zero",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "dynamic-migration-clock254-boundary-zero",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash",
+          "case_definition_sha256": "ac8727525923edb338c4dac70437a6c09148baf6610d54e5e3650f07a9e5aea6",
+          "vm_uuid": "7c3a8483-976c-45c7-b2c1-f0c24e6eb6a3",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/clock_domain_reads/r3",
+          "independent_review_sha256": "c11f7b9d1cf15f82563a163abf7973e4bdcfbf04b11078fd3af6bf80684a9942",
+          "result_sha256": "10b3ab19dc3bef7527a200d8bbba75b6a95679de9bedb21e4bb0b8e8355fff95",
+          "provenance_sha256": "770c5f5dd28d73b1abfed528f6de9f6f5d8019bbee9b5fc1df5925958d36858d",
+          "evidence_sha256": "b49dc9b7fb16d6a38ea4f5dfe59c2cc868ca6e57acce69b6f90744136442845b",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-7c3a8483.service",
+              "proof_sha256": "e08e438d57891a13520915bd2a235be0f46bf6bae10f8af5f953fe84bdc7fd2f",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-7c3a8483-reference.service",
+              "proof_sha256": "666b4db0c199705a0eb0d1ae89ac85e559c83b22abe12460a5800d35972ff230",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-7c3a8483-976c-45c7-b2c1-f0c24e6eb6a3.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/dynamic-migration-clock254-boundary-zero/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-7c3a8483-976c-45c7-b2c1-f0c24e6eb6a3.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-7c3a8483-976c-45c7-b2c1-f0c24e6eb6a3.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-7c3a8483-976c-45c7-b2c1-f0c24e6eb6a3.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-7c3a8483-976c-45c7-b2c1-f0c24e6eb6a3.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-7c3a8483-976c-45c7-b2c1-f0c24e6eb6a3.scope\nId=parity-vm-7c3a8483-976c-45c7-b2c1-f0c24e6eb6a3.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-7c3a8483-976c-45c7-b2c1-f0c24e6eb6a3.scope",
+                "id": "parity-vm-7c3a8483-976c-45c7-b2c1-f0c24e6eb6a3.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-7c3a8483-976c-45c7-b2c1-f0c24e6eb6a3.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-7c3a8483-976c-45c7-b2c1-f0c24e6eb6a3.scope",
+            "stopped_at": 1793255388.7786007,
+            "vm_uuid": "7c3a8483-976c-45c7-b2c1-f0c24e6eb6a3",
+            "wrapper_pid": 2578787
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-dynamic-migration-clock254-domain-boottime",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "dynamic-migration-clock254-domain-boottime",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash",
+          "case_definition_sha256": "8e6ba82ed7ba879ce06c38fc6714d812da236ce1fbd47a8c1452f0f35d8132f4",
+          "vm_uuid": "8c1589d2-3371-4096-8183-b3b4dd0a7611",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/clock_domain_reads/r1",
+          "independent_review_sha256": "3351356ade8dab542e2eb7f07755c0752c6708307f459bd06eb2b8028d4be8c3",
+          "result_sha256": "2f790b1fbc2a16ba51894a3472454c2d0eec35b9036c8330e7ab488b683a3c42",
+          "provenance_sha256": "3d5c225a0fa1bc1da030cb0407c5a514769d0340df215ac017151f5971b4c352",
+          "evidence_sha256": "9e6b0e1775eee41c07b0edb1aa0293dbe90737aacc1f9d7af885e5fec63a57d8",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-8c1589d2.service",
+              "proof_sha256": "4e87f7ee60d91c6eadf27bc74b3816e5a55692c82f31f8ce088e72ecfe0b6e7a",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-8c1589d2-reference.service",
+              "proof_sha256": "dfe058268dc3ef1f46a28232a50c2f5ce8d0abce9465d518667e72a0a6151c3c",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-8c1589d2-3371-4096-8183-b3b4dd0a7611.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/dynamic-migration-clock254-domain-boottime/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 255,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-8c1589d2-3371-4096-8183-b3b4dd0a7611.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-8c1589d2-3371-4096-8183-b3b4dd0a7611.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-8c1589d2-3371-4096-8183-b3b4dd0a7611.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-8c1589d2-3371-4096-8183-b3b4dd0a7611.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-8c1589d2-3371-4096-8183-b3b4dd0a7611.scope\nId=parity-vm-8c1589d2-3371-4096-8183-b3b4dd0a7611.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-8c1589d2-3371-4096-8183-b3b4dd0a7611.scope",
+                "id": "parity-vm-8c1589d2-3371-4096-8183-b3b4dd0a7611.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-8c1589d2-3371-4096-8183-b3b4dd0a7611.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-8c1589d2-3371-4096-8183-b3b4dd0a7611.scope",
+            "stopped_at": 1793256269.1541216,
+            "vm_uuid": "8c1589d2-3371-4096-8183-b3b4dd0a7611",
+            "wrapper_pid": 2638673
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-dynamic-migration-clock254-domain-monotonic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "dynamic-migration-clock254-domain-monotonic",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash",
+          "case_definition_sha256": "223e579a3238fdb8f4e281ed987d8e52292bc3dbc2fa730a0b51a12288b4103d",
+          "vm_uuid": "098b8955-106d-4534-97b6-8ebb5431d2a8",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/clock_domain_reads/r1",
+          "independent_review_sha256": "fad256a660da8a6cd719cde7f8537e9612e36a6b1774566363ddf4ccb44aedff",
+          "result_sha256": "fa0fa096683c4350ca8348592878ab4238536970a4ea03a5a08cf027616cde13",
+          "provenance_sha256": "6b2940d0d734ed49b12b8bfc345a48e8547d764d36ff20aec63246a6f5c30b3e",
+          "evidence_sha256": "11632f99b10d6f602f3ca1ca12e8229f2e84bafb26b27bad0068776ff2dc4690",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-098b8955.service",
+              "proof_sha256": "ae67bb08b782786b01992aa3ae2d487a060cd49d9d23b1318aca1e5e2f87860c",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-098b8955-reference.service",
+              "proof_sha256": "f828a0b5c775a192e571cfb0f7858ad456661128ed1b287a6c4ec5c42d546a24",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-098b8955-106d-4534-97b6-8ebb5431d2a8.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/dynamic-migration-clock254-domain-monotonic/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 255,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-098b8955-106d-4534-97b6-8ebb5431d2a8.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-098b8955-106d-4534-97b6-8ebb5431d2a8.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-098b8955-106d-4534-97b6-8ebb5431d2a8.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-098b8955-106d-4534-97b6-8ebb5431d2a8.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-098b8955-106d-4534-97b6-8ebb5431d2a8.scope\nId=parity-vm-098b8955-106d-4534-97b6-8ebb5431d2a8.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-098b8955-106d-4534-97b6-8ebb5431d2a8.scope",
+                "id": "parity-vm-098b8955-106d-4534-97b6-8ebb5431d2a8.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-098b8955-106d-4534-97b6-8ebb5431d2a8.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-098b8955-106d-4534-97b6-8ebb5431d2a8.scope",
+            "stopped_at": 1793256172.2586133,
+            "vm_uuid": "098b8955-106d-4534-97b6-8ebb5431d2a8",
+            "wrapper_pid": 2632345
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-dynamic-migration-clock254-domain-realtime",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "dynamic-migration-clock254-domain-realtime",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash",
+          "case_definition_sha256": "89125f3e02d6482fc72826833eafba9635acf43cee297c8c96a6cb9a6d7e3da0",
+          "vm_uuid": "429d0558-1910-4a00-8684-89969f2b6133",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/clock_domain_reads/r1",
+          "independent_review_sha256": "bbcc869dfa141bc68a62c6dcba510f6ddc186e4056b66500dc49364f2232b990",
+          "result_sha256": "ca532ca885b1149fa4ee62477afbf202368ab1286d4cb790b3da4b1c37f85d51",
+          "provenance_sha256": "e2ee71c4340f5081eec65a92aeb92de71cd7aec05ca140848c692e10bfbd07a8",
+          "evidence_sha256": "558c27b9a553505edcfa0a3321243767d8d86eb22561922a76dbb876ae49e9ff",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-429d0558.service",
+              "proof_sha256": "20b6c81c00a06de4ecbd982b7eed6ef27f3828eb62c475963c37421ec0b5ee51",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-429d0558-reference.service",
+              "proof_sha256": "38797bb15041669684b44844aa460ded74d3419c32e690431fe1e95c17ed4f72",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-429d0558-1910-4a00-8684-89969f2b6133.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/dynamic-migration-clock254-domain-realtime/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-429d0558-1910-4a00-8684-89969f2b6133.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-429d0558-1910-4a00-8684-89969f2b6133.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-429d0558-1910-4a00-8684-89969f2b6133.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-429d0558-1910-4a00-8684-89969f2b6133.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-429d0558-1910-4a00-8684-89969f2b6133.scope\nId=parity-vm-429d0558-1910-4a00-8684-89969f2b6133.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-429d0558-1910-4a00-8684-89969f2b6133.scope",
+                "id": "parity-vm-429d0558-1910-4a00-8684-89969f2b6133.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-429d0558-1910-4a00-8684-89969f2b6133.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-429d0558-1910-4a00-8684-89969f2b6133.scope",
+            "stopped_at": 1793255974.138227,
+            "vm_uuid": "429d0558-1910-4a00-8684-89969f2b6133",
+            "wrapper_pid": 2618526
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-dynamic-migration-clock254-since-borrow",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "dynamic-migration-clock254-since-borrow",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash",
+          "case_definition_sha256": "8c5181c403586d0291619114b76b1a893917df6dac4c66a72f5efa8d3e15917a",
+          "vm_uuid": "9b7cc9a4-cd75-495a-b52e-bc12650f3a0d",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/since_arithmetic/r2",
+          "independent_review_sha256": "f850d9689f76377ae35d7bd2beccf33daa82027764b07de574cf32c9aa3c948d",
+          "result_sha256": "ac127c5ee0d5c9db6195e0b5d72e8c71f4feb88763de7795bd26d3d386ac091b",
+          "provenance_sha256": "44da5acba107462b1b4185fcbe942f56d91a1938c75e87a02ec94ef82626d8fa",
+          "evidence_sha256": "c0919c1b1a6d1b0e7230ce04c4bda06f406b84087d50edf7c1e88fee7cd6a0a8",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-9b7cc9a4.service",
+              "proof_sha256": "a66726db4f5da7dda35a9987e4d0ab5bc1ce8f723af076b686c9bbf903cf57cc",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-9b7cc9a4-reference.service",
+              "proof_sha256": "7e336684c6bae2d3618eff4c597c7b521a7e510034e268abfcd7dc69e6d1a8d3",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-9b7cc9a4-cd75-495a-b52e-bc12650f3a0d.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/dynamic-migration-clock254-since-borrow/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 255,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-9b7cc9a4-cd75-495a-b52e-bc12650f3a0d.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-9b7cc9a4-cd75-495a-b52e-bc12650f3a0d.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-9b7cc9a4-cd75-495a-b52e-bc12650f3a0d.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-9b7cc9a4-cd75-495a-b52e-bc12650f3a0d.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-9b7cc9a4-cd75-495a-b52e-bc12650f3a0d.scope\nId=parity-vm-9b7cc9a4-cd75-495a-b52e-bc12650f3a0d.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-9b7cc9a4-cd75-495a-b52e-bc12650f3a0d.scope",
+                "id": "parity-vm-9b7cc9a4-cd75-495a-b52e-bc12650f3a0d.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-9b7cc9a4-cd75-495a-b52e-bc12650f3a0d.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-9b7cc9a4-cd75-495a-b52e-bc12650f3a0d.scope",
+            "stopped_at": 1793254845.4534426,
+            "vm_uuid": "9b7cc9a4-cd75-495a-b52e-bc12650f3a0d",
+            "wrapper_pid": 2541582
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-dynamic-migration-clock254-since-clock-error",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "dynamic-migration-clock254-since-clock-error",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash",
+          "case_definition_sha256": "52f5c967276fed02ebe9a254bf6b7ac73752e0325f9fc46a28990da5a952c3f1",
+          "vm_uuid": "0f480a30-06f6-4ef9-8bc1-b39981c94c3e",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/since_arithmetic/r5",
+          "independent_review_sha256": "aac97691db173aa4173ac45c8d95739254d197ddbfde81eb75f6108686f190be",
+          "result_sha256": "3fd5c7d8e8e4b4cdf912522d9864e13b370d62fed0728192578d5261a02ac16a",
+          "provenance_sha256": "6a551fcf5a86eb69931ad7b35f93f778120009b0b9ec540bed82dfcc95ed9b67",
+          "evidence_sha256": "7658eab36ee1b78eaf86d2d35c677986f5469e650b6a3fa153ddf10f3883dd5e",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-0f480a30.service",
+              "proof_sha256": "c30e49a120dd98ba6a7dce20e570cf8bd0caf898d8b93a1660971f312d270336",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-0f480a30-reference.service",
+              "proof_sha256": "aadd5fc46c423cdcb7ac70e87042d83ed6c434c64e6539dbc1c1c4e12ef0f7b8",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-0f480a30-06f6-4ef9-8bc1-b39981c94c3e.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/dynamic-migration-clock254-since-clock-error/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-0f480a30-06f6-4ef9-8bc1-b39981c94c3e.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-0f480a30-06f6-4ef9-8bc1-b39981c94c3e.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-0f480a30-06f6-4ef9-8bc1-b39981c94c3e.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-0f480a30-06f6-4ef9-8bc1-b39981c94c3e.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-0f480a30-06f6-4ef9-8bc1-b39981c94c3e.scope\nId=parity-vm-0f480a30-06f6-4ef9-8bc1-b39981c94c3e.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-0f480a30-06f6-4ef9-8bc1-b39981c94c3e.scope",
+                "id": "parity-vm-0f480a30-06f6-4ef9-8bc1-b39981c94c3e.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-0f480a30-06f6-4ef9-8bc1-b39981c94c3e.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-0f480a30-06f6-4ef9-8bc1-b39981c94c3e.scope",
+            "stopped_at": 1793255169.19871,
+            "vm_uuid": "0f480a30-06f6-4ef9-8bc1-b39981c94c3e",
+            "wrapper_pid": 2564387
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-dynamic-migration-clock254-since-exact-zero",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "dynamic-migration-clock254-since-exact-zero",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash",
+          "case_definition_sha256": "954ace00be183606439729e0e54a2a0aaf61cf68714dc0d2ada281223b105553",
+          "vm_uuid": "289c07d7-1682-438e-9823-c078b4018fdd",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/since_arithmetic/r3",
+          "independent_review_sha256": "894439db3e67c9a8d07e784d5f5623c3d60d379c95bb9ccf4edee6d7c4f56013",
+          "result_sha256": "27de17352507f3951bd560f061874e6e89c8a4e686b89d822700bcb32dc54e0e",
+          "provenance_sha256": "1d418b126c9fb76b725a63dd0627c9f187c6379e8fdbe48e90bcc03164dd69b0",
+          "evidence_sha256": "61603c4649045ffa50561750a5a49a937e70365b8699a5d07f85bb790206c613",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-289c07d7.service",
+              "proof_sha256": "192c6841c5bf8109f9709b285b80f4414fa33dfad5337a4e82227c035502bee2",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-289c07d7-reference.service",
+              "proof_sha256": "56cead22607dd866fe6f6e1d36fe09d3061686f524f55e2cd1d2ca2c0983390f",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-289c07d7-1682-438e-9823-c078b4018fdd.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/dynamic-migration-clock254-since-exact-zero/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 255,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-289c07d7-1682-438e-9823-c078b4018fdd.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-289c07d7-1682-438e-9823-c078b4018fdd.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-289c07d7-1682-438e-9823-c078b4018fdd.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-289c07d7-1682-438e-9823-c078b4018fdd.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-289c07d7-1682-438e-9823-c078b4018fdd.scope\nId=parity-vm-289c07d7-1682-438e-9823-c078b4018fdd.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-289c07d7-1682-438e-9823-c078b4018fdd.scope",
+                "id": "parity-vm-289c07d7-1682-438e-9823-c078b4018fdd.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-289c07d7-1682-438e-9823-c078b4018fdd.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-289c07d7-1682-438e-9823-c078b4018fdd.scope",
+            "stopped_at": 1793254954.710133,
+            "vm_uuid": "289c07d7-1682-438e-9823-c078b4018fdd",
+            "wrapper_pid": 2548644
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-dynamic-migration-clock254-since-future-fraction",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "dynamic-migration-clock254-since-future-fraction",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash",
+          "case_definition_sha256": "f2bdeedc91fbcb191b9623541f63e35f40e6d208ba19eeb08066c28dea03d3c1",
+          "vm_uuid": "0a6709d8-d805-4c63-a59c-c62d5a4b9bb2",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/since_arithmetic/r3",
+          "independent_review_sha256": "9b3e4d4643fd9091b144cd5eedf6810fb7ebed8fbcdc4a33f02d6e980b50d83c",
+          "result_sha256": "168acc88b10689b05348619a2394cfee00cf458757c2d1ba79e02989fbeee2d5",
+          "provenance_sha256": "460daebc94c742d3d325d6105dc6e0dd0cc68f7122c7fdf4783550abcabffbf7",
+          "evidence_sha256": "6503ef80bb12121b0bac73e8ab1498727214814d8ef4ccac3e72d8b9c46ce70d",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-0a6709d8.service",
+              "proof_sha256": "68a0c02a1338b4d93070c3064dcddba97bfbefd4459e1d121455d39654990a6c",
+              "transport_returncode": 1,
+              "stop_returncode": 0
+            },
+            "compatibility": {
+              "unit": "bashos-optional-0a6709d8-reference.service",
+              "proof_sha256": "01aee96907b3e4fbcde4a8873148a010ff61904add80520517fcb3bd894ba024",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-0a6709d8-d805-4c63-a59c-c62d5a4b9bb2.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/dynamic-migration-clock254-since-future-fraction/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-0a6709d8-d805-4c63-a59c-c62d5a4b9bb2.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-0a6709d8-d805-4c63-a59c-c62d5a4b9bb2.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-0a6709d8-d805-4c63-a59c-c62d5a4b9bb2.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-0a6709d8-d805-4c63-a59c-c62d5a4b9bb2.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-0a6709d8-d805-4c63-a59c-c62d5a4b9bb2.scope\nId=parity-vm-0a6709d8-d805-4c63-a59c-c62d5a4b9bb2.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-0a6709d8-d805-4c63-a59c-c62d5a4b9bb2.scope",
+                "id": "parity-vm-0a6709d8-d805-4c63-a59c-c62d5a4b9bb2.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-0a6709d8-d805-4c63-a59c-c62d5a4b9bb2.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-0a6709d8-d805-4c63-a59c-c62d5a4b9bb2.scope",
+            "stopped_at": 1793254634.1957583,
+            "vm_uuid": "0a6709d8-d805-4c63-a59c-c62d5a4b9bb2",
+            "wrapper_pid": 2526265
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
+        },
+        {
+          "name": "clock342-dynamic-migration-clock254-since-future-integer",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-clock342-v1",
+          "primary_receipt_sha256": "8f34d1fd8422734a55f533bc332025772eb68c55504df593224f5d48967ce0a0",
+          "receipt_run": "dynamic-migration-clock254-since-future-integer",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "core_binary_path": "/home/pleb/projects/bash-os/out/bash",
+          "case_definition_sha256": "d4a5295f2bfecacc5edb4039349a7fab923fc14e941b2538b7f3ec5274c51033",
+          "vm_uuid": "4a488ff9-78f2-469f-ba94-382e56104dbe",
+          "selfcheck_ids": [
+            "selfcheck-bounded-output",
+            "selfcheck-bounded-time",
+            "selfcheck-candidate-mismatch-is-fail",
+            "selfcheck-detached-orphan-cleanup",
+            "selfcheck-diagnostic-capture",
+            "selfcheck-file-size-allowance",
+            "selfcheck-invalid-oracle-is-error",
+            "selfcheck-migration-is-metadata-252",
+            "selfcheck-network-isolation",
+            "selfcheck-orphan-cleanup",
+            "selfcheck-scratch-isolation",
+            "selfcheck-setup-classification",
+            "selfcheck-syscall-sequence-observer"
+          ],
+          "requirement": "bashclock/since_arithmetic/r3",
+          "independent_review_sha256": "79f5f45265851d2c0526a2f4cb51e20786d120a4dad77115264b143799429d68",
+          "result_sha256": "5a371b376098e1928ab1f344873868925244b7fd20adde87206e94d8ac3c378d",
+          "provenance_sha256": "04a5ebf4ae1808b794c56a19d62b3fc4738b6e8e63c8c17bb28fb38bba3ac92c",
+          "evidence_sha256": "68a4da677666586fae83cc249e73fc54a1e86b45995555b14d94e6faedd93a86",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-4a488ff9.service",
+              "proof_sha256": "35d18c505b297fe51d74c69e5d2d1d7cbbca6f3e52c49f7793199ced4d18ec41",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-4a488ff9-reference.service",
+              "proof_sha256": "c9d8bea8b68563386dc5309287ceb3c0332044854a4dfef8355b95bb92ab7f72",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-4a488ff9-78f2-469f-ba94-382e56104dbe.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261028/primary-owned-131-clock-288/results/dynamic-migration-clock254-since-future-integer/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-4a488ff9-78f2-469f-ba94-382e56104dbe.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-4a488ff9-78f2-469f-ba94-382e56104dbe.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-4a488ff9-78f2-469f-ba94-382e56104dbe.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-4a488ff9-78f2-469f-ba94-382e56104dbe.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-4a488ff9-78f2-469f-ba94-382e56104dbe.scope\nId=parity-vm-4a488ff9-78f2-469f-ba94-382e56104dbe.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-4a488ff9-78f2-469f-ba94-382e56104dbe.scope",
+                "id": "parity-vm-4a488ff9-78f2-469f-ba94-382e56104dbe.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-4a488ff9-78f2-469f-ba94-382e56104dbe.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-4a488ff9-78f2-469f-ba94-382e56104dbe.scope",
+            "stopped_at": 1793254747.4900434,
+            "vm_uuid": "4a488ff9-78f2-469f-ba94-382e56104dbe",
+            "wrapper_pid": 2534078
+          },
+          "overlay_discarded": true,
+          "injection_scope": "synthetic callsite; not a kernel/vDSO/libc return"
         }
       ],
       "entries": [
@@ -58782,26 +61402,44 @@
         },
         {
           "topic": "bashclock/clock_domain_reads",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "now/mono/boot read REALTIME/MONOTONIC/BOOTTIME respectively (domain identity).",
-              "coverage": "partial",
-              "gap": "In a live VM the monotonic and boottime clocks differ only by suspend time (none), so brackets cannot distinguish mono from boot; distinct domain offsets are not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/bashclock/read-only-clock-brackets",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-domain-boottime",
+                  "status": "PASS",
+                  "run": "clock342-dynamic-migration-clock254-domain-boottime"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-domain-monotonic",
+                  "status": "PASS",
+                  "run": "clock342-dynamic-migration-clock254-domain-monotonic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-domain-realtime",
+                  "status": "PASS",
+                  "run": "clock342-dynamic-migration-clock254-domain-realtime"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -58828,20 +61466,45 @@
             {
               "id": "r3",
               "behavior": "Special timestamp boundaries (zero seconds, nanosecond 0 and 999999999, negative/large epochs).",
-              "coverage": "missing",
-              "gap": "Cannot be produced from live clocks; requires injected samples.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-boundary-large-epoch",
+                  "status": "PASS",
+                  "run": "clock342-dynamic-migration-clock254-boundary-large-epoch"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-boundary-max-nanos",
+                  "status": "PASS",
+                  "run": "clock342-dynamic-migration-clock254-boundary-max-nanos"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-boundary-negative-epoch",
+                  "status": "PASS",
+                  "run": "clock342-dynamic-migration-clock254-boundary-negative-epoch"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-boundary-zero",
+                  "status": "PASS",
+                  "run": "clock342-dynamic-migration-clock254-boundary-zero"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashclock/since_arithmetic",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -58862,20 +61525,46 @@
             {
               "id": "r2",
               "behavior": "Nanosecond borrow when the current nanoseconds are smaller than the start's.",
-              "coverage": "missing",
-              "gap": "Live samples reach a borrow only by chance; no forced case. Partially forceable: pass a START with .999999999 nanoseconds (since takes a START argument), which forces borrow on almost every live read.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-since-borrow",
+                  "status": "PASS",
+                  "run": "clock342-dynamic-migration-clock254-since-borrow"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Exact zero and negative (START in the future) results.",
-              "coverage": "missing",
-              "gap": "A future START is forceable from a live mono reading plus an offset; exact zero needs injection.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-since-exact-zero",
+                  "status": "PASS",
+                  "run": "clock342-dynamic-migration-clock254-since-exact-zero"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-since-future-fraction",
+                  "status": "FAIL",
+                  "run": "clock342-dynamic-migration-clock254-since-future-fraction"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-since-future-integer",
+                  "status": "PASS",
+                  "run": "clock342-dynamic-migration-clock254-since-future-integer"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -58902,11 +61591,18 @@
             {
               "id": "r5",
               "behavior": "clock_gettime failure is diagnosed.",
-              "coverage": "missing",
-              "gap": "Requires injection; the vDSO path cannot fail for valid clock ids.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-clock254-since-clock-error",
+                  "status": "PASS",
+                  "run": "clock342-dynamic-migration-clock254-since-clock-error"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -106506,9 +109202,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 242,
-        "FAIL": 171,
-        "PASS": 187
+        "UNRESOLVED": 240,
+        "FAIL": 172,
+        "PASS": 188
       },
       "migration_without_complete_evidence": []
     }

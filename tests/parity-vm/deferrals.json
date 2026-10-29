@@ -940,23 +940,41 @@
         "purpose": "Verify deterministic clock-domain sentinels and special timestamp boundaries using injected readings.",
         "reason": "Requires a disposable VM or reviewed clock_gettime mock returning distinct fixed REALTIME/MONOTONIC/BOOTTIME sentinels and boundary nanoseconds. Live domain reads execute with independent Python bounds separately; injected-sample results remain deferred."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "clock_gettime is served by the vDSO in both builds, so seccomp cannot intercept it; deterministic sample injection needs a build-time test hook or ptrace/vDSO interposition. A user+time namespace (unprivileged in the VM plain driver if user namespaces are enabled) can offset CLOCK_MONOTONIC and CLOCK_BOOTTIME by chosen amounts but not CLOCK_REALTIME. Domain identity is closable unprivileged with a time namespace; boundary sentinels need a clock-injection capability.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Primary accepted the bounded clock342 observations together with existing evidence; synthetic callsite inputs and recorded PASS/FAIL results retain their stated limits.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "now/mono/boot read REALTIME/MONOTONIC/BOOTTIME respectively (domain identity).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/bashclock/read-only-clock-brackets",
               "assertion": "each read lies between independent Python clock_gettime_ns samples of the documented domain",
               "definition_sha256": "5a4a6475d259c003156b2ebc1bb1d1a917edec250404e733bb949ff070afebfe"
+            },
+            {
+              "group": "shell",
+              "id": "migration-clock254-domain-boottime",
+              "assertion": "Requested clock ID 7 with synthetic timespec (67890, 333333333); bashclock boot must print 67890.333333333.",
+              "definition_sha256": "8e6ba82ed7ba879ce06c38fc6714d812da236ce1fbd47a8c1452f0f35d8132f4"
+            },
+            {
+              "group": "shell",
+              "id": "migration-clock254-domain-monotonic",
+              "assertion": "Requested clock ID 1 with synthetic timespec (12345, 222222222); bashclock mono must print 12345.222222222.",
+              "definition_sha256": "223e579a3238fdb8f4e281ed987d8e52292bc3dbc2fa730a0b51a12288b4103d"
+            },
+            {
+              "group": "shell",
+              "id": "migration-clock254-domain-realtime",
+              "assertion": "Requested clock ID 0 with synthetic timespec (1700000001, 111111111); bashclock now must print 1700000001.111111111.",
+              "definition_sha256": "89125f3e02d6482fc72826833eafba9635acf43cee297c8c96a6cb9a6d7e3da0"
             }
           ],
-          "gap": "In a live VM the monotonic and boottime clocks differ only by suspend time (none), so brackets cannot distinguish mono from boot; distinct domain offsets are not exercised."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -981,12 +999,37 @@
         {
           "id": "r3",
           "behavior": "Special timestamp boundaries (zero seconds, nanosecond 0 and 999999999, negative/large epochs).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Cannot be produced from live clocks; requires injected samples."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-clock254-boundary-large-epoch",
+              "assertion": "Requested clock ID 0 with synthetic timespec (4294967296, 999999999); bashclock now must print 4294967296.999999999.",
+              "definition_sha256": "d5df1c3c354108a23654677cd55ac34dcb2d221ece039342b2c5e368ba9e938a"
+            },
+            {
+              "group": "shell",
+              "id": "migration-clock254-boundary-max-nanos",
+              "assertion": "Requested clock ID 0 with synthetic timespec (0, 999999999); bashclock now must print 0.999999999.",
+              "definition_sha256": "dc177b8411a346099e8762f9619079d4ee8c61d819ae46c23f96b1c8d2a572d1"
+            },
+            {
+              "group": "shell",
+              "id": "migration-clock254-boundary-negative-epoch",
+              "assertion": "Requested clock ID 0 with synthetic timespec (-1, 0); bashclock now must print -1.000000000.",
+              "definition_sha256": "b5729cd8b5b071332e22c26911a9334de9a489cc3234dcfd4b8961b815cc94b6"
+            },
+            {
+              "group": "shell",
+              "id": "migration-clock254-boundary-zero",
+              "assertion": "Requested clock ID 0 with synthetic timespec (0, 0); bashclock now must print 0.000000000.",
+              "definition_sha256": "ac8727525923edb338c4dac70437a6c09148baf6610d54e5e3650f07a9e5aea6"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "bashclock.c:115 clock_gettime."
+      "notes": "bashclock.c:115 clock_gettime. Primary 342 accepted bounded synthetic callsite observations on both unchanged builds; these do not show values returned by the kernel, vDSO or libc. The fractional-future mismatch remains FAIL. The now-clock-error case is a supporting control and is not a requirement observation."
     },
     {
       "topic": "bashclock/since_arithmetic",
@@ -996,9 +1039,9 @@
         "purpose": "Force since subtraction boundary values and nanosecond borrow using injected monotonic samples; live independent bounds and ordinary argument errors execute separately.",
         "reason": "Requires a disposable VM or reviewed non-forwarding clock_gettime mock supplying fixed monotonic samples to force borrow, exact zero and clock-read errors. Live since arithmetic has separate independent bracket coverage; no injected-boundary result is claimed."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: Live samples reach a borrow only by chance; no forced case. Partially forceable: pass a START with .999999999 nanoseconds (since takes a START argument), which forces borrow on almost every live read.; r3: A future START is forceable from a live mono reading plus an offset; exact zero needs injection.; r5: Requires injection; the vDSO path cannot fail for valid clock ids.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Primary accepted the bounded clock342 observations together with existing evidence; synthetic callsite inputs and recorded PASS/FAIL results retain their stated limits.",
       "requirements": [
         {
           "id": "r1",
@@ -1017,16 +1060,42 @@
         {
           "id": "r2",
           "behavior": "Nanosecond borrow when the current nanoseconds are smaller than the start's.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Live samples reach a borrow only by chance; no forced case. Partially forceable: pass a START with .999999999 nanoseconds (since takes a START argument), which forces borrow on almost every live read."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-clock254-since-borrow",
+              "assertion": "Requested clock ID 1 with synthetic timespec (101, 100000001); bashclock since 100.900000000 must print 0.200000001.",
+              "definition_sha256": "8c5181c403586d0291619114b76b1a893917df6dac4c66a72f5efa8d3e15917a"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Exact zero and negative (START in the future) results.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "A future START is forceable from a live mono reading plus an offset; exact zero needs injection."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-clock254-since-exact-zero",
+              "assertion": "Requested clock ID 1 with synthetic timespec (100, 500000000); bashclock since 100.500000000 must print 0.000000000.",
+              "definition_sha256": "954ace00be183606439729e0e54a2a0aaf61cf68714dc0d2ada281223b105553"
+            },
+            {
+              "group": "shell",
+              "id": "migration-clock254-since-future-fraction",
+              "assertion": "Requested clock ID 1 with synthetic timespec (100, 100000000); bashclock since 100.200000000 must print -0.100000000.",
+              "definition_sha256": "f2bdeedc91fbcb191b9623541f63e35f40e6d208ba19eeb08066c28dea03d3c1"
+            },
+            {
+              "group": "shell",
+              "id": "migration-clock254-since-future-integer",
+              "assertion": "Requested clock ID 1 with synthetic timespec (100, 500000000); bashclock since 101.500000000 must print -1.000000000.",
+              "definition_sha256": "d4a5295f2bfecacc5edb4039349a7fab923fc14e941b2538b7f3ec5274c51033"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
@@ -1051,12 +1120,19 @@
         {
           "id": "r5",
           "behavior": "clock_gettime failure is diagnosed.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires injection; the vDSO path cannot fail for valid clock ids."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-clock254-since-clock-error",
+              "assertion": "Requested clock ID 1 with synthetic EIO at the compiled callsite; bashclock since 100.500000000 must exit 1 and diagnose clock_gettime.",
+              "definition_sha256": "52f5c967276fed02ebe9a254bf6b7ac73752e0325f9fc46a28990da5a952c3f1"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "bashclock.c:132 since computation. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The archived guest assertion compares since 0.987654321 against independently sampled monotonic brackets and reports PASS only on the specified subtraction condition. The original permits this live bracket. Accept the source-bound assertion; individual numeric samples were not separately retained and are not reconstructed."
+      "notes": "bashclock.c:132 since computation. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The archived guest assertion compares since 0.987654321 against independently sampled monotonic brackets and reports PASS only on the specified subtraction condition. The original permits this live bracket. Accept the source-bound assertion; individual numeric samples were not separately retained and are not reconstructed. Primary 342 accepted bounded synthetic callsite observations on both unchanged builds; these do not show values returned by the kernel, vDSO or libc. The fractional-future mismatch remains FAIL. The now-clock-error case is a supporting control and is not a requirement observation."
     },
     {
       "topic": "bashclock/sleep_interruption_errors",

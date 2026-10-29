@@ -7,9 +7,15 @@ reviewed requirements, evidence links and specific remaining gaps. The
 saved static and dynamic VM runs. The initial qualification tables in the VM
 guide describe the earlier fixture set.
 
-The current review covers 358 of the 600 topics on both builds: static 186 PASS / 172 FAIL;
-dynamic 187 PASS / 171 FAIL. The other 242 retain unresolved requirements. These are topic counts,
+The current review covers 360 of the 600 topics on both builds: static 187 PASS / 173 FAIL;
+dynamic 188 PASS / 172 FAIL. The other 240 retain unresolved requirements. These are topic counts,
 not additional behavioral test results.
+
+The clock review includes synthetic returns injected at compiled callsites;
+these observations do not establish what the kernel, vDSO or libc returned.
+The future-fraction case expected `-0.100000000` and failed on both builds,
+which printed `-1.900000000`. The `now-clock-error` case is a supporting
+control and is not counted as requirement evidence.
 
 A historical case becomes `MIGRATED` only when every requirement has an explicit
 assertion and valid execution evidence on both builds. Its replacement cases

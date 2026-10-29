@@ -70,15 +70,85 @@
     },
     {
       "id": "clock_domain_reads",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify deterministic clock-domain sentinels and special timestamp boundaries using injected readings.",
-      "reason": "clock_gettime is served by the vDSO in both builds, so seccomp cannot intercept it; deterministic sample injection needs a build-time test hook or ptrace/vDSO interposition. A user+time namespace (unprivileged in the VM plain driver if user namespaces are enabled) can offset CLOCK_MONOTONIC and CLOCK_BOOTTIME by chosen amounts but not CLOCK_REALTIME. Domain identity is closable unprivileged with a time namespace; boundary sentinels need a clock-injection capability."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/bashclock/monotonic-format-order"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/bashclock/read-only-clock-brackets"
+        },
+        {
+          "group": "shell",
+          "id": "migration-clock254-boundary-large-epoch"
+        },
+        {
+          "group": "shell",
+          "id": "migration-clock254-boundary-max-nanos"
+        },
+        {
+          "group": "shell",
+          "id": "migration-clock254-boundary-negative-epoch"
+        },
+        {
+          "group": "shell",
+          "id": "migration-clock254-boundary-zero"
+        },
+        {
+          "group": "shell",
+          "id": "migration-clock254-domain-boottime"
+        },
+        {
+          "group": "shell",
+          "id": "migration-clock254-domain-monotonic"
+        },
+        {
+          "group": "shell",
+          "id": "migration-clock254-domain-realtime"
+        }
+      ]
     },
     {
       "id": "since_arithmetic",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Force since subtraction boundary values and nanosecond borrow using injected monotonic samples; live independent bounds and ordinary argument errors execute separately.",
-      "reason": "Remaining obligations: r2: Live samples reach a borrow only by chance; no forced case. Partially forceable: pass a START with .999999999 nanoseconds (since takes a START argument), which forces borrow on almost every live read.; r3: A future START is forceable from a live mono reading plus an offset; exact zero needs injection.; r5: Requires injection; the vDSO path cannot fail for valid clock ids."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/bashclock/read-only-clock-brackets"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/bashclock/since-malformed"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/bashclock/since-missing"
+        },
+        {
+          "group": "shell",
+          "id": "migration-clock254-since-borrow"
+        },
+        {
+          "group": "shell",
+          "id": "migration-clock254-since-clock-error"
+        },
+        {
+          "group": "shell",
+          "id": "migration-clock254-since-exact-zero"
+        },
+        {
+          "group": "shell",
+          "id": "migration-clock254-since-future-fraction"
+        },
+        {
+          "group": "shell",
+          "id": "migration-clock254-since-future-integer"
+        }
+      ]
     },
     {
       "id": "sleep_interruption_errors",

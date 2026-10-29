@@ -319,6 +319,9 @@ def retained_overlay_cleanup(spec, directory, summary, provenance, expected_bina
 
 def load_run(spec, expected_binary, expected_build=None, repo=REPO):
     if "evidence_format" in spec:
+        if spec["evidence_format"] == "primary-qualified-clock342-v1":
+            from primary_clock_evidence import load_qualified_clock_run
+            return load_qualified_clock_run(spec, expected_binary, expected_build)
         check(spec["evidence_format"] == "primary-qualified-controller-v1",
               "unsupported evidence format")
         from primary_controller_evidence import load_qualified_run
@@ -423,7 +426,7 @@ def reconcile(ledger, configuration, repo=REPO):
         binary = file_digest(spec["binary"])
         evidence, runs = {}, []
         for run in spec["runs"]:
-            if run.get("evidence_format") == "primary-qualified-controller-v1":
+            if run.get("evidence_format") in ("primary-qualified-controller-v1", "primary-qualified-clock342-v1"):
                 check(Path(spec["binary"]).is_absolute()
                       and spec["binary"] == run.get("core_binary_path"),
                       "controller evidence requires the configured recorded core binary")

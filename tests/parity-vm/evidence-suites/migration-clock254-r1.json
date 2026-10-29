@@ -1,0 +1,434 @@
+{
+  "cases": [
+    {
+      "comparison": "Setup and control require protected guest identity and bounded ownership. No injected clock sample or bashclock invocation occurs.",
+      "covers": [],
+      "diagnostic_files": [
+        "clock254-control.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
+        "helpers/clock254_trace.py": "8ce345f12ccad61c1bfbb0776b0ce5c4430599edfc86388435ec1c692996758a"
+      },
+      "id": "migration-clock254-control-ptrace",
+      "kind": "contract",
+      "loadable": "bashclock",
+      "oracle": "Pinned candidate identity, direct child exec, seccomp filter, fixed code bytes and restored breakpoint bytes; control has no product coverage.",
+      "purpose": "Independently establish owned ptrace exec, targeted filter and all pinned callsite breakpoint round trips without invoking bashclock.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py control",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py",
+      "setup_timeout": 30,
+      "stderr": "",
+      "stdout": "clock254 control=pass\n",
+      "timeout": 30
+    },
+    {
+      "comparison": "The 224 VM guard and separate non-product ptrace control precede this case. A direct owned child executes the unchanged stock candidate; only its pinned callsite and private output memory are altered. The captured clock ID, output and exit are compared independently; unsupported tracing, guard, timeout or cleanup remains incomplete.",
+      "covers": [
+        "bashclock/clock_domain_reads"
+      ],
+      "diagnostic_files": [
+        "clock254-control.json",
+        "clock254-result.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
+        "helpers/clock254_trace.py": "8ce345f12ccad61c1bfbb0776b0ce5c4430599edfc86388435ec1c692996758a"
+      },
+      "id": "migration-clock254-boundary-large-epoch",
+      "kind": "contract",
+      "loadable": "bashclock",
+      "oracle": "Frozen requested clock ID, synthetic timespec or EIO, independently specified exact output/status, and raw owned tracee callsite/readback evidence.",
+      "purpose": "Exercise the independently specified bashclock/clock_domain_reads/r3 clock observation.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py case boundary-large-epoch",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py control",
+      "setup_timeout": 30,
+      "stderr": "",
+      "stdout": "clock254 case=pass\n",
+      "timeout": 30
+    },
+    {
+      "comparison": "The 224 VM guard and separate non-product ptrace control precede this case. A direct owned child executes the unchanged stock candidate; only its pinned callsite and private output memory are altered. The captured clock ID, output and exit are compared independently; unsupported tracing, guard, timeout or cleanup remains incomplete.",
+      "covers": [
+        "bashclock/clock_domain_reads"
+      ],
+      "diagnostic_files": [
+        "clock254-control.json",
+        "clock254-result.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
+        "helpers/clock254_trace.py": "8ce345f12ccad61c1bfbb0776b0ce5c4430599edfc86388435ec1c692996758a"
+      },
+      "id": "migration-clock254-boundary-max-nanos",
+      "kind": "contract",
+      "loadable": "bashclock",
+      "oracle": "Frozen requested clock ID, synthetic timespec or EIO, independently specified exact output/status, and raw owned tracee callsite/readback evidence.",
+      "purpose": "Exercise the independently specified bashclock/clock_domain_reads/r3 clock observation.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py case boundary-max-nanos",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py control",
+      "setup_timeout": 30,
+      "stderr": "",
+      "stdout": "clock254 case=pass\n",
+      "timeout": 30
+    },
+    {
+      "comparison": "The 224 VM guard and separate non-product ptrace control precede this case. A direct owned child executes the unchanged stock candidate; only its pinned callsite and private output memory are altered. The captured clock ID, output and exit are compared independently; unsupported tracing, guard, timeout or cleanup remains incomplete.",
+      "covers": [
+        "bashclock/clock_domain_reads"
+      ],
+      "diagnostic_files": [
+        "clock254-control.json",
+        "clock254-result.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
+        "helpers/clock254_trace.py": "8ce345f12ccad61c1bfbb0776b0ce5c4430599edfc86388435ec1c692996758a"
+      },
+      "id": "migration-clock254-boundary-negative-epoch",
+      "kind": "contract",
+      "loadable": "bashclock",
+      "oracle": "Frozen requested clock ID, synthetic timespec or EIO, independently specified exact output/status, and raw owned tracee callsite/readback evidence.",
+      "purpose": "Exercise the independently specified bashclock/clock_domain_reads/r3 clock observation.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py case boundary-negative-epoch",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py control",
+      "setup_timeout": 30,
+      "stderr": "",
+      "stdout": "clock254 case=pass\n",
+      "timeout": 30
+    },
+    {
+      "comparison": "The 224 VM guard and separate non-product ptrace control precede this case. A direct owned child executes the unchanged stock candidate; only its pinned callsite and private output memory are altered. The captured clock ID, output and exit are compared independently; unsupported tracing, guard, timeout or cleanup remains incomplete.",
+      "covers": [
+        "bashclock/clock_domain_reads"
+      ],
+      "diagnostic_files": [
+        "clock254-control.json",
+        "clock254-result.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
+        "helpers/clock254_trace.py": "8ce345f12ccad61c1bfbb0776b0ce5c4430599edfc86388435ec1c692996758a"
+      },
+      "id": "migration-clock254-boundary-zero",
+      "kind": "contract",
+      "loadable": "bashclock",
+      "oracle": "Frozen requested clock ID, synthetic timespec or EIO, independently specified exact output/status, and raw owned tracee callsite/readback evidence.",
+      "purpose": "Exercise the independently specified bashclock/clock_domain_reads/r3 clock observation.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py case boundary-zero",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py control",
+      "setup_timeout": 30,
+      "stderr": "",
+      "stdout": "clock254 case=pass\n",
+      "timeout": 30
+    },
+    {
+      "comparison": "The 224 VM guard and separate non-product ptrace control precede this case. A direct owned child executes the unchanged stock candidate; only its pinned callsite and private output memory are altered. The captured clock ID, output and exit are compared independently; unsupported tracing, guard, timeout or cleanup remains incomplete.",
+      "covers": [
+        "bashclock/clock_domain_reads"
+      ],
+      "diagnostic_files": [
+        "clock254-control.json",
+        "clock254-result.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
+        "helpers/clock254_trace.py": "8ce345f12ccad61c1bfbb0776b0ce5c4430599edfc86388435ec1c692996758a"
+      },
+      "id": "migration-clock254-domain-boottime",
+      "kind": "contract",
+      "loadable": "bashclock",
+      "oracle": "Frozen requested clock ID, synthetic timespec or EIO, independently specified exact output/status, and raw owned tracee callsite/readback evidence.",
+      "purpose": "Exercise the independently specified bashclock/clock_domain_reads/r1 clock observation.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py case domain-boottime",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py control",
+      "setup_timeout": 30,
+      "stderr": "",
+      "stdout": "clock254 case=pass\n",
+      "timeout": 30
+    },
+    {
+      "comparison": "The 224 VM guard and separate non-product ptrace control precede this case. A direct owned child executes the unchanged stock candidate; only its pinned callsite and private output memory are altered. The captured clock ID, output and exit are compared independently; unsupported tracing, guard, timeout or cleanup remains incomplete.",
+      "covers": [
+        "bashclock/clock_domain_reads"
+      ],
+      "diagnostic_files": [
+        "clock254-control.json",
+        "clock254-result.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
+        "helpers/clock254_trace.py": "8ce345f12ccad61c1bfbb0776b0ce5c4430599edfc86388435ec1c692996758a"
+      },
+      "id": "migration-clock254-domain-monotonic",
+      "kind": "contract",
+      "loadable": "bashclock",
+      "oracle": "Frozen requested clock ID, synthetic timespec or EIO, independently specified exact output/status, and raw owned tracee callsite/readback evidence.",
+      "purpose": "Exercise the independently specified bashclock/clock_domain_reads/r1 clock observation.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py case domain-monotonic",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py control",
+      "setup_timeout": 30,
+      "stderr": "",
+      "stdout": "clock254 case=pass\n",
+      "timeout": 30
+    },
+    {
+      "comparison": "The 224 VM guard and separate non-product ptrace control precede this case. A direct owned child executes the unchanged stock candidate; only its pinned callsite and private output memory are altered. The captured clock ID, output and exit are compared independently; unsupported tracing, guard, timeout or cleanup remains incomplete.",
+      "covers": [
+        "bashclock/clock_domain_reads"
+      ],
+      "diagnostic_files": [
+        "clock254-control.json",
+        "clock254-result.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
+        "helpers/clock254_trace.py": "8ce345f12ccad61c1bfbb0776b0ce5c4430599edfc86388435ec1c692996758a"
+      },
+      "id": "migration-clock254-domain-realtime",
+      "kind": "contract",
+      "loadable": "bashclock",
+      "oracle": "Frozen requested clock ID, synthetic timespec or EIO, independently specified exact output/status, and raw owned tracee callsite/readback evidence.",
+      "purpose": "Exercise the independently specified bashclock/clock_domain_reads/r1 clock observation.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py case domain-realtime",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py control",
+      "setup_timeout": 30,
+      "stderr": "",
+      "stdout": "clock254 case=pass\n",
+      "timeout": 30
+    },
+    {
+      "comparison": "The 224 VM guard and separate non-product ptrace control precede this case. A direct owned child executes the unchanged stock candidate; only its pinned callsite and private output memory are altered. The captured clock ID, output and exit are compared independently; unsupported tracing, guard, timeout or cleanup remains incomplete.",
+      "covers": [],
+      "diagnostic_files": [
+        "clock254-control.json",
+        "clock254-result.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
+        "helpers/clock254_trace.py": "8ce345f12ccad61c1bfbb0776b0ce5c4430599edfc86388435ec1c692996758a"
+      },
+      "id": "migration-clock254-now-clock-error",
+      "kind": "contract",
+      "loadable": "bashclock",
+      "oracle": "Frozen requested clock ID, synthetic timespec or EIO, independently specified exact output/status, and raw owned tracee callsite/readback evidence.",
+      "purpose": "Exercise the independently specified bashclock/clock_domain_reads/supporting-control clock observation.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py case now-clock-error",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py control",
+      "setup_timeout": 30,
+      "stderr": "",
+      "stdout": "clock254 case=pass\n",
+      "timeout": 30
+    },
+    {
+      "comparison": "The 224 VM guard and separate non-product ptrace control precede this case. A direct owned child executes the unchanged stock candidate; only its pinned callsite and private output memory are altered. The captured clock ID, output and exit are compared independently; unsupported tracing, guard, timeout or cleanup remains incomplete.",
+      "covers": [
+        "bashclock/since_arithmetic"
+      ],
+      "diagnostic_files": [
+        "clock254-control.json",
+        "clock254-result.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
+        "helpers/clock254_trace.py": "8ce345f12ccad61c1bfbb0776b0ce5c4430599edfc86388435ec1c692996758a"
+      },
+      "id": "migration-clock254-since-borrow",
+      "kind": "contract",
+      "loadable": "bashclock",
+      "oracle": "Frozen requested clock ID, synthetic timespec or EIO, independently specified exact output/status, and raw owned tracee callsite/readback evidence.",
+      "purpose": "Exercise the independently specified bashclock/since_arithmetic/r2 clock observation.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py case since-borrow",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py control",
+      "setup_timeout": 30,
+      "stderr": "",
+      "stdout": "clock254 case=pass\n",
+      "timeout": 30
+    },
+    {
+      "comparison": "The 224 VM guard and separate non-product ptrace control precede this case. A direct owned child executes the unchanged stock candidate; only its pinned callsite and private output memory are altered. The captured clock ID, output and exit are compared independently; unsupported tracing, guard, timeout or cleanup remains incomplete.",
+      "covers": [
+        "bashclock/since_arithmetic"
+      ],
+      "diagnostic_files": [
+        "clock254-control.json",
+        "clock254-result.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
+        "helpers/clock254_trace.py": "8ce345f12ccad61c1bfbb0776b0ce5c4430599edfc86388435ec1c692996758a"
+      },
+      "id": "migration-clock254-since-clock-error",
+      "kind": "contract",
+      "loadable": "bashclock",
+      "oracle": "Frozen requested clock ID, synthetic timespec or EIO, independently specified exact output/status, and raw owned tracee callsite/readback evidence.",
+      "purpose": "Exercise the independently specified bashclock/since_arithmetic/r5 clock observation.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py case since-clock-error",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py control",
+      "setup_timeout": 30,
+      "stderr": "",
+      "stdout": "clock254 case=pass\n",
+      "timeout": 30
+    },
+    {
+      "comparison": "The 224 VM guard and separate non-product ptrace control precede this case. A direct owned child executes the unchanged stock candidate; only its pinned callsite and private output memory are altered. The captured clock ID, output and exit are compared independently; unsupported tracing, guard, timeout or cleanup remains incomplete.",
+      "covers": [
+        "bashclock/since_arithmetic"
+      ],
+      "diagnostic_files": [
+        "clock254-control.json",
+        "clock254-result.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
+        "helpers/clock254_trace.py": "8ce345f12ccad61c1bfbb0776b0ce5c4430599edfc86388435ec1c692996758a"
+      },
+      "id": "migration-clock254-since-exact-zero",
+      "kind": "contract",
+      "loadable": "bashclock",
+      "oracle": "Frozen requested clock ID, synthetic timespec or EIO, independently specified exact output/status, and raw owned tracee callsite/readback evidence.",
+      "purpose": "Exercise the independently specified bashclock/since_arithmetic/r3 clock observation.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py case since-exact-zero",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py control",
+      "setup_timeout": 30,
+      "stderr": "",
+      "stdout": "clock254 case=pass\n",
+      "timeout": 30
+    },
+    {
+      "comparison": "The 224 VM guard and separate non-product ptrace control precede this case. A direct owned child executes the unchanged stock candidate; only its pinned callsite and private output memory are altered. The captured clock ID, output and exit are compared independently; unsupported tracing, guard, timeout or cleanup remains incomplete.",
+      "covers": [
+        "bashclock/since_arithmetic"
+      ],
+      "diagnostic_files": [
+        "clock254-control.json",
+        "clock254-result.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
+        "helpers/clock254_trace.py": "8ce345f12ccad61c1bfbb0776b0ce5c4430599edfc86388435ec1c692996758a"
+      },
+      "id": "migration-clock254-since-future-fraction",
+      "kind": "contract",
+      "loadable": "bashclock",
+      "oracle": "Frozen requested clock ID, synthetic timespec or EIO, independently specified exact output/status, and raw owned tracee callsite/readback evidence.",
+      "purpose": "Exercise the independently specified bashclock/since_arithmetic/r3 clock observation.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py case since-future-fraction",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py control",
+      "setup_timeout": 30,
+      "stderr": "",
+      "stdout": "clock254 case=pass\n",
+      "timeout": 30
+    },
+    {
+      "comparison": "The 224 VM guard and separate non-product ptrace control precede this case. A direct owned child executes the unchanged stock candidate; only its pinned callsite and private output memory are altered. The captured clock ID, output and exit are compared independently; unsupported tracing, guard, timeout or cleanup remains incomplete.",
+      "covers": [
+        "bashclock/since_arithmetic"
+      ],
+      "diagnostic_files": [
+        "clock254-control.json",
+        "clock254-result.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
+        "helpers/clock254_trace.py": "8ce345f12ccad61c1bfbb0776b0ce5c4430599edfc86388435ec1c692996758a"
+      },
+      "id": "migration-clock254-since-future-integer",
+      "kind": "contract",
+      "loadable": "bashclock",
+      "oracle": "Frozen requested clock ID, synthetic timespec or EIO, independently specified exact output/status, and raw owned tracee callsite/readback evidence.",
+      "purpose": "Exercise the independently specified bashclock/since_arithmetic/r3 clock observation.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py case since-future-integer",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_trace.py control",
+      "setup_timeout": 30,
+      "stderr": "",
+      "stdout": "clock254 case=pass\n",
+      "timeout": 30
+    }
+  ],
+  "schema": 1
+}
