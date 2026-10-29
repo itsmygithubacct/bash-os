@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-dns-authoritative-rrl-slip-r3",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-authoritative-service"
+      ],
+      "helpers_sha256": {
+        "helpers/dns-auth-rrl-observe-r3.py": "f5195462ec1614789bf3fc53bce888e2c6012300fa06c7f260fe2cb202228797",
+        "helpers/dns-auth-rrl-review-r3.py": "1f70fcb4220395fd7b949e7d54b732b019ccdebbadf6774d9c4eca4d3797d87e",
+        "helpers/dns-loopback-control-r1.py": "3d8a6102b0307253048e48f5d81ab9c44ee9c5474faf84201068bb3fef5c5aa2"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r product </run/bashos-parity-vm-identity || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && ${marker,,} == ${product,,} && $marker =~ ^[0-9a-fA-F-]{36}$ ]] || exit 125\ncat > \"$HOME/rrl.zone\" <<'ZONE'\n$ORIGIN example.test.\n$TTL 300\n@ IN SOA ns.example.test. hostmaster.example.test. 1 3600 600 86400 300\n@ IN NS ns.example.test.\nns IN A 192.0.2.53\nwww IN A 192.0.2.10\nZONE\n\n: > \"$HOME/rrl-control-reached-failures.jsonl\" || exit 125\n: > \"$HOME/rrl-limited-reached-failures.jsonl\" || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/dns-loopback-control-r1.py\n",
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r product </run/bashos-parity-vm-identity || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && ${marker,,} == ${product,,} && $marker =~ ^[0-9a-fA-F-]{36}$ ]] || exit 125\nset +e\n[[ $(type -t dns) == builtin ]] || exit 99\nrun_case() {\n  mode=$1; port=$2; opt=$3\n  dns auth-serve --zone \"$HOME/rrl.zone\" --listen 127.0.0.1 --port \"$port\" --max-queries 20 $opt </dev/null >\"$HOME/rrl-$mode.server.stdout\" 2>\"$HOME/rrl-$mode.server.log\" & srv=$!\n  /usr/bin/python3 /opt/bashos-parity/harness/helpers/dns-auth-rrl-observe-r3.py \"$mode\" \"$port\" \"$srv\"\n  obs=$?; pending=false; status=null\n  for ((i=0;i<100;i++)); do kill -0 \"$srv\" 2>/dev/null || break; /usr/bin/sleep 0.05; done\n  if kill -0 \"$srv\" 2>/dev/null; then pending=true; else wait \"$srv\"; status=$?; fi\n  printf '{\"observer_status\":%d,\"server_status\":%s,\"pending_cleanup\":%s}\\n' \"$obs\" \"$status\" \"$pending\" > \"$HOME/rrl-$mode-cleanup.json\"\n  [[ $pending == false ]]\n}\nif run_case control 21751 '--no-rrl'; then\n  run_case limited 21752 '--rrl-rps 1 --rrl-window 1 --rrl-slip 2'\nfi\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/dns-auth-rrl-review-r3.py\n",
+      "timeout": 45,
+      "expected_status": 0,
+      "stdout": "rrl=PASS control=PASS cadence=PASS\n",
+      "stderr": "",
+      "requires": [
+        "python3"
+      ],
+      "diagnostic_files": [
+        "rrl-control-events.jsonl",
+        "rrl-control-reached-failures.jsonl",
+        "rrl-control.server.log",
+        "rrl-control.server.stdout",
+        "rrl-control-cleanup.json",
+        "rrl-limited-events.jsonl",
+        "rrl-limited-reached-failures.jsonl",
+        "rrl-limited.server.log",
+        "rrl-limited.server.stdout",
+        "rrl-limited-cleanup.json",
+        "rrl-review.json",
+        "dns-loopback-control.json"
+      ],
+      "oracle": "Independent hand-encoded DNS queries and synthetic A zone. On a single loopback socket, 20 unique IDs test opt-out control and a bounded rps=1/window=1/slip=2 burst. Owned candidate TCP/UDP socket inodes, process starttime, send timestamps, server completion and raw datagrams are recorded. Positive control and candidate summary corroborate but cannot independently prove receipt or ordering of absent datagrams; review treats this as an explicit attribution limitation.",
+      "comparison": "Require a fully qualified no-RRL control with twenty valid non-truncated authoritative A responses. Compare the observed candidate response IDs and bounded cadence to the tuned burst; retain packet failures before review and separately record observer, server and pending cleanup. Unattributed packet loss, incomplete timing, process ownership or cleanup cannot support PASS. A live server at timeout is left to the generic owned-session cleanup; no stale numeric PID is signalled."
+    }
+  ]
+}

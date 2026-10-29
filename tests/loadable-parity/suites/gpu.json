@@ -105,9 +105,50 @@
     },
     {
       "id": "terminal-input-and-restoration",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate key, UTF-8, mouse, resize, and timeout event decoding plus restoration of terminal settings on return and failure.",
-      "reason": "Remaining obligations: r6: A readonly binding error was reached but incorrectly returned success, so a non-timeout error-return path is not established."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-input-bind-failure-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-input-invalid-continuation-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-input-keys-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-input-late-probe-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-input-mouse-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-input-resize-priority-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-input-timeout-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-input-utf8-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-reject-inline-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-gpu-reject-shm-audit121-r3"
+        }
+      ]
     },
     {
       "id": "gles-shader-and-dmabuf",

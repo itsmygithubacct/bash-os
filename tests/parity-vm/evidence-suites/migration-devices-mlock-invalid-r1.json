@@ -1,0 +1,155 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "devices-mlock-invalid-missing-r1",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Individually retain status and diagnostic for malformed try-lock size: missing.",
+      "covers": [
+        "mlock/try-lock-operation"
+      ],
+      "oracle": "Documented mlock try-lock size contract: usage status 2, no stdout, and the specified diagnostic.",
+      "comparison": "Each independent case retains the actual status, stdout, stderr; the script checks all three and preserves the observed status on assertion failure.",
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexpected='try-lock: SIZE argument required (bytes, 1..1048576)'\n[[ $(type -t mlock) == builtin ]] || exit 125\nmlock try-lock  >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\" || exit 125\ntext=$(<\"$HOME/operation.err\")\n[[ $rc == 2 && ! -s \"$HOME/operation.out\" && $text == *\"$expected\" ]] || exit 1\nprintf 'invalid missing ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "invalid missing ok\n",
+      "stderr": "",
+      "timeout": 15,
+      "diagnostic_files": [
+        "operation.status",
+        "operation.out",
+        "operation.err"
+      ],
+      "script": ":"
+    },
+    {
+      "id": "devices-mlock-invalid-empty-r1",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Individually retain status and diagnostic for malformed try-lock size: empty.",
+      "covers": [
+        "mlock/try-lock-operation"
+      ],
+      "oracle": "Documented mlock try-lock size contract: usage status 2, no stdout, and the specified diagnostic.",
+      "comparison": "Each independent case retains the actual status, stdout, stderr; the script checks all three and preserves the observed status on assertion failure.",
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexpected='try-lock: SIZE argument required (bytes, 1..1048576)'\n[[ $(type -t mlock) == builtin ]] || exit 125\nmlock try-lock '' >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\" || exit 125\ntext=$(<\"$HOME/operation.err\")\n[[ $rc == 2 && ! -s \"$HOME/operation.out\" && $text == *\"$expected\" ]] || exit 1\nprintf 'invalid empty ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "invalid empty ok\n",
+      "stderr": "",
+      "timeout": 15,
+      "diagnostic_files": [
+        "operation.status",
+        "operation.out",
+        "operation.err"
+      ],
+      "script": ":"
+    },
+    {
+      "id": "devices-mlock-invalid-negative-r1",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Individually retain status and diagnostic for malformed try-lock size: negative.",
+      "covers": [
+        "mlock/try-lock-operation"
+      ],
+      "oracle": "Documented mlock try-lock size contract: usage status 2, no stdout, and the specified diagnostic.",
+      "comparison": "Each independent case retains the actual status, stdout, stderr; the script checks all three and preserves the observed status on assertion failure.",
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexpected='try-lock: SIZE must be a non-negative decimal integer (got '\\''-1'\\'')'\n[[ $(type -t mlock) == builtin ]] || exit 125\nmlock try-lock '-1' >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\" || exit 125\ntext=$(<\"$HOME/operation.err\")\n[[ $rc == 2 && ! -s \"$HOME/operation.out\" && $text == *\"$expected\" ]] || exit 1\nprintf 'invalid negative ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "invalid negative ok\n",
+      "stderr": "",
+      "timeout": 15,
+      "diagnostic_files": [
+        "operation.status",
+        "operation.out",
+        "operation.err"
+      ],
+      "script": ":"
+    },
+    {
+      "id": "devices-mlock-invalid-text-r1",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Individually retain status and diagnostic for malformed try-lock size: text.",
+      "covers": [
+        "mlock/try-lock-operation"
+      ],
+      "oracle": "Documented mlock try-lock size contract: usage status 2, no stdout, and the specified diagnostic.",
+      "comparison": "Each independent case retains the actual status, stdout, stderr; the script checks all three and preserves the observed status on assertion failure.",
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexpected='try-lock: SIZE must be a non-negative decimal integer (got '\\''1x'\\'')'\n[[ $(type -t mlock) == builtin ]] || exit 125\nmlock try-lock '1x' >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\" || exit 125\ntext=$(<\"$HOME/operation.err\")\n[[ $rc == 2 && ! -s \"$HOME/operation.out\" && $text == *\"$expected\" ]] || exit 1\nprintf 'invalid text ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "invalid text ok\n",
+      "stderr": "",
+      "timeout": 15,
+      "diagnostic_files": [
+        "operation.status",
+        "operation.out",
+        "operation.err"
+      ],
+      "script": ":"
+    },
+    {
+      "id": "devices-mlock-invalid-zero-r1",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Individually retain status and diagnostic for malformed try-lock size: zero.",
+      "covers": [
+        "mlock/try-lock-operation"
+      ],
+      "oracle": "Documented mlock try-lock size contract: usage status 2, no stdout, and the specified diagnostic.",
+      "comparison": "Each independent case retains the actual status, stdout, stderr; the script checks all three and preserves the observed status on assertion failure.",
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexpected='try-lock: SIZE out of range (1..1048576, got 0)'\n[[ $(type -t mlock) == builtin ]] || exit 125\nmlock try-lock '0' >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\" || exit 125\ntext=$(<\"$HOME/operation.err\")\n[[ $rc == 2 && ! -s \"$HOME/operation.out\" && $text == *\"$expected\" ]] || exit 1\nprintf 'invalid zero ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "invalid zero ok\n",
+      "stderr": "",
+      "timeout": 15,
+      "diagnostic_files": [
+        "operation.status",
+        "operation.out",
+        "operation.err"
+      ],
+      "script": ":"
+    },
+    {
+      "id": "devices-mlock-invalid-large-r1",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Individually retain status and diagnostic for malformed try-lock size: large.",
+      "covers": [
+        "mlock/try-lock-operation"
+      ],
+      "oracle": "Documented mlock try-lock size contract: usage status 2, no stdout, and the specified diagnostic.",
+      "comparison": "Each independent case retains the actual status, stdout, stderr; the script checks all three and preserves the observed status on assertion failure.",
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexpected='try-lock: SIZE out of range (1..1048576, got 1048577)'\n[[ $(type -t mlock) == builtin ]] || exit 125\nmlock try-lock '1048577' >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\" || exit 125\ntext=$(<\"$HOME/operation.err\")\n[[ $rc == 2 && ! -s \"$HOME/operation.out\" && $text == *\"$expected\" ]] || exit 1\nprintf 'invalid large ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "invalid large ok\n",
+      "stderr": "",
+      "timeout": 15,
+      "diagnostic_files": [
+        "operation.status",
+        "operation.out",
+        "operation.err"
+      ],
+      "script": ":"
+    }
+  ]
+}

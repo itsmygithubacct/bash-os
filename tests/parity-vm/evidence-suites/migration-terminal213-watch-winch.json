@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "comparison": "A resize from 80 to 40 must redraw before the 6-second case deadline, strictly earlier than the 10-second polling interval; retain size ioctl, foreground group, byte chunks, timestamps and an independent guest SIGWINCH control.",
+      "covers": [
+        "watch/watch-terminal-parity"
+      ],
+      "driver": "pty",
+      "expected_status": 0,
+      "group": "terminal",
+      "id": "migration-terminal213-watch-winch",
+      "kind": "parity",
+      "loadable": "watch",
+      "oracle": "Pinned Debian procps 4.0.4 watch and procps watch(1): semantic screen positions and rendition, documented error text/status and terminal restoration. Hostname/time are patterned, never fixed to a host.",
+      "purpose": "Resize 80 columns to 40 and require the long output to wrap onto a second row.",
+      "requires": [
+        "watch",
+        "python3"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal213_guard.py || { printf \"TERMINAL213-INFRA\\n\" >&2; exit 90; }\nwatch -n 10 -t 'printf 01234567890123456789012345678901234567890123456789ENDMARK'",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^01234567890123456789012345678901234567890123456789ENDMARK$"
+            }
+          }
+        },
+        {
+          "resize": [
+            24,
+            40
+          ]
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^0123456789012345678901234567890123456789$",
+              "1": "^0123456789ENDMARK$"
+            }
+          }
+        },
+        {
+          "send_base64": "Aw=="
+        }
+      ],
+      "timeout": 6,
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal213_guard.py",
+      "restore_terminal": true,
+      "helpers_sha256": {
+        "helpers/terminal213_guard.py": "dea91736a54538ae758c4b416d0eb48b2fd4a4ba331af789967c2de0ccf769c6"
+      }
+    }
+  ]
+}

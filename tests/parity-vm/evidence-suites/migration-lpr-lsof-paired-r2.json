@@ -1,0 +1,145 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "comparison": "Preserve complete signal notification logs and post-operation private spool snapshots. Live: require backend parent identity, only SIGTERM directed to its backend, TERM handler witness, cancel status 0, submit status 3, unrelated witness alive and only unchanged sentinel in spool. Stale: dead unreaped owner is pinned against PID reuse, no candidate signal notification occurs, stale entries are removed, unrelated witness stays alive. Signal notification records attempts, not syscall results; the backend TERM event independently establishes delivery. Control failures, missing target identity, incomplete log or teardown are not candidate passes. Review reached failure independently from infrastructure outcome. Observer and reached signal logs are persisted before waiting; timeout cleanup signals only a private process group, and an owned backend pidfd guards bounded cleanup without PID reuse.",
+      "covers": [
+        "lpr/cancel_owned_child"
+      ],
+      "diagnostic_files": [
+        "lpr-signals-report.json",
+        "lpr-signal-control.jsonl",
+        "lpr-submit-signals.jsonl",
+        "lpr-cancel-signals.jsonl"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "features": [
+        "seccomp-notify"
+      ],
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/migration-lpr-signal-fixture-r2.py": "0ff21e9b0555178f14df553b9fc445a2686cb934167ca1c1e1805248281d1204",
+        "helpers/migration-lpr-signal-observer-r1.py": "3e0ef47a1152146e22626746decedcd70ea18cfef47f2fc9a95882b4c37f239c"
+      },
+      "id": "migration-lpr-signal-live-r2",
+      "kind": "contract",
+      "loadable": "lpr",
+      "oracle": "A seccomp user-notification observer independently logs and continues signal syscall attempts from candidate descendants, including caller ID and pidfd fdinfo. Positive signal-zero controls target only an owned child and calibrate all six observed syscalls. A held unrelated owned witness and live owned backend or unreaped stale zombie provide process identity controls.",
+      "purpose": "Track live cancellation signal syscall attempts and complete private spool cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/migration-lpr-signal-fixture-r2.py \"$BASH\" live",
+      "setup_script": ":",
+      "stderr": "",
+      "stdout": "signal_and_cleanup=yes\n",
+      "timeout": 60
+    },
+    {
+      "comparison": "Preserve complete signal notification logs and post-operation private spool snapshots. Live: require backend parent identity, only SIGTERM directed to its backend, TERM handler witness, cancel status 0, submit status 3, unrelated witness alive and only unchanged sentinel in spool. Stale: dead unreaped owner is pinned against PID reuse, no candidate signal notification occurs, stale entries are removed, unrelated witness stays alive. Signal notification records attempts, not syscall results; the backend TERM event independently establishes delivery. Control failures, missing target identity, incomplete log or teardown are not candidate passes. Review reached failure independently from infrastructure outcome. Observer and reached signal logs are persisted before waiting; timeout cleanup signals only a private process group, and an owned backend pidfd guards bounded cleanup without PID reuse.",
+      "covers": [
+        "lpr/cancel_owned_child"
+      ],
+      "diagnostic_files": [
+        "lpr-signals-report.json",
+        "lpr-signal-control.jsonl",
+        "lpr-submit-signals.jsonl",
+        "lpr-cancel-signals.jsonl"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "features": [
+        "seccomp-notify"
+      ],
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/migration-lpr-signal-fixture-r2.py": "0ff21e9b0555178f14df553b9fc445a2686cb934167ca1c1e1805248281d1204",
+        "helpers/migration-lpr-signal-observer-r1.py": "3e0ef47a1152146e22626746decedcd70ea18cfef47f2fc9a95882b4c37f239c"
+      },
+      "id": "migration-lpr-signal-stale-r2",
+      "kind": "contract",
+      "loadable": "lpr",
+      "oracle": "A seccomp user-notification observer independently logs and continues signal syscall attempts from candidate descendants, including caller ID and pidfd fdinfo. Positive signal-zero controls target only an owned child and calibrate all six observed syscalls. A held unrelated owned witness and live owned backend or unreaped stale zombie provide process identity controls.",
+      "purpose": "Track stale cancellation signal syscall attempts and complete private spool cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/migration-lpr-signal-fixture-r2.py \"$BASH\" stale",
+      "setup_script": ":",
+      "stderr": "",
+      "stdout": "signal_and_cleanup=yes\n",
+      "timeout": 60
+    },
+    {
+      "comparison": "A live owned witness holds a known regular file and is present in candidate and native unfiltered -p output. A visible root-owned process and the distinct uid-2000 witness are verified via procfs before and after. Candidate and native -u root and -u 0 must exclude the uid-2000 witness. Raw statuses, full output bytes and identities are retained. This checks exclusion of an independently observable other-UID process, not visibility of inaccessible root descriptors; missing positive controls are incomplete. Each completed probe is persisted atomically before any further action and bracketed by separately retained root/witness identity observations; timeout and cleanup are recorded as infrastructure outcomes, not a replacement for reached results.",
+      "covers": [
+        "lsof/deferred-user-filter"
+      ],
+      "diagnostic_files": [
+        "lsof-other-uid-observations.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/migration-lsof-other-uid-r2.py": "7675bc7e1dafba7052a9d3d0c15746b586c241cb9c4f0a587d21678f14d02e9e"
+      },
+      "id": "migration-lsof-other-uid-exclusion-r2",
+      "kind": "contract",
+      "loadable": "lsof",
+      "oracle": "Kernel procfs identity, uid and descriptor readlink; native lsof unfiltered and filtered selection, using only a private owned witness and existing guest account mapping.",
+      "purpose": "Compare -u root and -u 0 exclusion of a live, independently verified uid-2000 process with a stable descriptor.",
+      "requires": [
+        "python3",
+        "lsof"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/migration-lsof-other-uid-r2.py \"$BASH\"",
+      "setup_script": ": > \"$HOME/lsof-other-uid-observations.json\"",
+      "stderr": "",
+      "stdout": "other_uid_excluded=yes\n",
+      "timeout": 60
+    },
+    {
+      "comparison": "Assert successful submission, a 16-hex job ID, literal size/title and exact payload at the backend; record candidate stdout, stderr, status, backend argv/bytes, and the sorted entire post-delivery spool tree. Assert only the unchanged sentinel remains. This is the success-cleanup portion; retain prior timeout evidence and review all other requirements separately. The same backend is independently run in setup with PATH=/empty, literal argv and payload, checked through absolute guest tool paths; control outputs are retained. Placeholder files do not prove candidate backend reach.",
+      "covers": [
+        "lpr/submit_fixture_backend"
+      ],
+      "diagnostic_files": [
+        "lpr-submit-out",
+        "lpr-submit-err",
+        "lpr-submit-status",
+        "lpr-backend-argv",
+        "lpr-backend-bytes",
+        "lpr-spool-after",
+        "lpr-control-bytes",
+        "lpr-control-argv"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "files": {
+        "backend": "#!/bin/sh\nprintf \"%s\\n\" \"$1\" \"$2\" \"$3\" > \"$HOME/lpr-backend-argv\"\n/bin/cat > \"$HOME/lpr-backend-bytes\"\n",
+        "control-input": "hello print\n"
+      },
+      "group": "shell",
+      "id": "migration-lpr-success-spool-snapshot-r2",
+      "kind": "contract",
+      "loadable": "lpr",
+      "oracle": "The fixture backend records literal argv and input; the fixed payload is 12 bytes. Independent recursive find of the complete private spool tree and sentinel bytes defines cleanup.",
+      "purpose": "Capture a complete private spool tree after one successful fixture backend delivery, while preserving an unrelated sentinel.",
+      "requires": [
+        "find",
+        "sort",
+        "cmp",
+        "cat",
+        "mkdir",
+        "chmod"
+      ],
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport BASHLPR_SPOOL=\"$PWD/spool\" BASHLPR_BACKEND=\"$PWD/backend\" BASHLPR_TIMEOUT=5\n/usr/bin/mkdir -m 700 \"$BASHLPR_SPOOL\" || exit 125\nprintf sentinel > \"$BASHLPR_SPOOL/keep\"\nprintf 'hello print\\n' > 'document name'\nlpr submit 'document name' > \"$HOME/lpr-submit-out\" 2> \"$HOME/lpr-submit-err\"; rc=$?\nprintf '%s\\n' \"$rc\" > \"$HOME/lpr-submit-status\"\nset -o pipefail\n/usr/bin/find \"$BASHLPR_SPOOL\" -mindepth 1 -printf '%P %y\\n' | LC_ALL=C /usr/bin/sort > \"$HOME/lpr-spool-after\" || exit 125\nmapfile -t a < \"$HOME/lpr-backend-argv\" 2>/dev/null || a=()\nif [[ $rc == 0 && ${#a[@]} == 3 && ${a[0]} =~ ^[0-9a-f]{16}$ && ${a[1]} == 12 && ${a[2]} == 'document name' ]] && /usr/bin/cmp -s 'document name' \"$HOME/lpr-backend-bytes\"; then printf 'delivery=yes\\n'; else printf 'delivery=no\\n'; fi\nif [[ $(/bin/cat \"$HOME/lpr-spool-after\") == 'keep f' && $(/bin/cat \"$BASHLPR_SPOOL/keep\") == sentinel ]]; then printf 'cleanup=yes\\n'; else printf 'cleanup=no\\n'; fi\n",
+      "setup_script": "[[ -x /bin/cat && -x /usr/bin/env && -x /usr/bin/cmp && -x /usr/bin/chmod && -x /usr/bin/cp && -x /usr/bin/rm ]] || exit 98\n/usr/bin/chmod 700 backend\n/usr/bin/env -i PATH=/empty HOME=\"$HOME\" /bin/sh ./backend 0123456789abcdef 12 'document name' < control-input || exit 98\nprintf '0123456789abcdef\\n12\\ndocument name\\n' > \"$HOME/lpr-control-expected\"\n/usr/bin/cmp -s control-input \"$HOME/lpr-backend-bytes\" || exit 98\n/usr/bin/cmp -s \"$HOME/lpr-control-expected\" \"$HOME/lpr-backend-argv\" || exit 98\n/usr/bin/cp \"$HOME/lpr-backend-bytes\" \"$HOME/lpr-control-bytes\"\n/usr/bin/cp \"$HOME/lpr-backend-argv\" \"$HOME/lpr-control-argv\"\n/usr/bin/rm \"$HOME/lpr-backend-bytes\" \"$HOME/lpr-backend-argv\"\n: > \"$HOME/lpr-backend-bytes\"; : > \"$HOME/lpr-backend-argv\"; : > \"$HOME/lpr-spool-after\"\n",
+      "stderr": "",
+      "stdout": "delivery=yes\ncleanup=yes\n",
+      "timeout": 20
+    }
+  ]
+}

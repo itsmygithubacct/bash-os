@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "comparison": "A real procps reference and candidate must display the error, remain alive and quiet before the recorded x write, then exit with procps status 8; an early exit leaves the key step unreached.",
+      "covers": [
+        "watch/watch-terminal-parity"
+      ],
+      "driver": "pty",
+      "expected_status": 8,
+      "group": "terminal",
+      "helpers_sha256": {
+        "helpers/terminal213_guard.py": "dea91736a54538ae758c4b416d0eb48b2fd4a4ba331af789967c2de0ccf769c6"
+      },
+      "id": "migration-terminal213-watch-error-key",
+      "kind": "parity",
+      "loadable": "watch",
+      "oracle": "Pinned Debian procps 4.0.4 watch and procps watch(1): semantic screen positions and rendition, documented error text/status and terminal restoration. Hostname/time are patterned, never fixed to a host.",
+      "purpose": "-e displays the reference error text and waits for a key before returning procps 4.0.4 status 8.",
+      "requires": [
+        "watch",
+        "python3"
+      ],
+      "restore_terminal": true,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal213_guard.py || { printf \"TERMINAL213-INFRA\\n\" >&2; exit 90; }\nwatch -e 'exit 7'",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal213_guard.py",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "command exit with a non-zero status, press a key to exit"
+            ]
+          }
+        },
+        {
+          "quiet_ms": 300
+        },
+        {
+          "send": "x"
+        }
+      ],
+      "timeout": 8
+    }
+  ]
+}

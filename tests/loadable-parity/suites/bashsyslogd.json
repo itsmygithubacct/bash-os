@@ -81,9 +81,30 @@
     },
     {
       "id": "forwarding_queue_replay",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check sanitized UDP copies, lowercase-hex queue encoding, bounded admission, FIFO replay, malformed-record handling, and recovery after send failure.",
-      "reason": "Remaining obligations: r4: FIFO replay of three queued records was observed at startup. SIGHUP and periodic replay were each observed with one post-start queued record, so FIFO ordering of multiple records under those triggers was not independently exercised."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-system-client-followup-syslog-forward"
+        },
+        {
+          "group": "shell",
+          "id": "migration-system-client-followup-syslog-replay"
+        },
+        {
+          "group": "shell",
+          "id": "migration-system-client-followup-syslog-timed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-system-client-syslog-fifo-hup-231-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-system-client-syslog-fifo-periodic-231-r1"
+        }
+      ]
     },
     {
       "id": "socket_and_output_failures",

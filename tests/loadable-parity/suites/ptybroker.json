@@ -80,9 +80,26 @@
     },
     {
       "id": "bounded_io_errors",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify documented invalid-argument and FD failures, timeout status, and exact partial-output resumption without duplicate or missing bytes.",
-      "reason": "Remaining obligations: r3: Idle return 124 and maximum-parameter acceptance/over-limit rejection are exercised. External elapsed measurements include uncalibrated launch/scheduling overhead and do not exclude an early wait return; exact default/representative timeout behavior remains partial. A full 60,000 ms idle wait is not itself required.; r4: The 16,384-byte aggregate repeats four identical 4,096-byte blocks. A duplicated/reordered whole block with another omitted can match the aggregate; this fixture cannot establish the original no-duplicate/no-missing condition. No actual duplication is inferred."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-b02r3-errors"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-broker-256-timeout-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-b02r2-partial-output"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-broker-256-partial-r1"
+        }
+      ]
     }
   ]
 }

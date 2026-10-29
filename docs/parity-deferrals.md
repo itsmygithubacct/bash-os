@@ -7,9 +7,29 @@ reviewed requirements, evidence links and specific remaining gaps. The
 saved static and dynamic VM runs. The initial qualification tables in the VM
 guide describe the earlier fixture set.
 
-The current review covers 360 of the 600 topics on both builds: static 187 PASS / 173 FAIL;
-dynamic 188 PASS / 172 FAIL. The other 240 retain unresolved requirements. These are topic counts,
+The current review covers 375 of the 600 topics on both builds: static 193 PASS / 182 FAIL;
+dynamic 194 PASS / 181 FAIL. The other 225 retain unresolved requirements. These are topic counts,
 not additional behavioral test results.
+
+The syslog review adds bounded three-record FIFO observations for startup, SIGHUP and periodic replay on both builds. Sender attribution is inferred from pinned serial source and isolated networking; HUP was queued while the daemon was stopped.
+
+The broker review includes bounded default and 250 ms idle observations. Nominal durations fall within the measured brackets; strict nominal lower bounds and a 60,000 ms idle wait were not measured. Both builds also preserved four distinct blocks across partial writes.
+
+The SQLite review records a locking failure on both builds: the second candidate writer began while the first held its transaction. The explicit no-locking case passed. These observations do not establish concurrent-commit behavior or a numeric candidate SQLite error code.
+
+The scrub review adds seeded history pruning, explicit dropped counts, exact prompt-command restoration and private-history observations on both builds. Earlier reached failures remain visible. PTY writes establish delivered input; exact application read syscalls were not traced.
+
+The DNS review adds the missing response-rate-limit slip observation. Received truncated replies and server counters support the bounded result; packet ingress and ordering were not independently traced. Earlier zone-selection, TSIG and DoH failures remain visible.
+
+The mlock invalid-input review verifies nonzero status and stderr for all six cases on both builds. Existing invalid-input evidence remains, and this does not establish the separate all-operation requirements.
+
+The watch error review records early exit on both builds before the interactive prompt and key handling. The candidate failures retain the ptrace timing qualification; the reference waits and exits after a key. [Detailed scope](watch-terminal-error-evidence.md) explains the bounded acceptance.
+
+The top review records missing sort prompts on both builds, with later sort input unreached. Delay input and three FIFO redraw samples passed. The redraw interpretation is source-bound; timeout cleanup does not establish a natural-exit or terminal-restoration failure.
+
+The namespace review completes mount operations using native controls, recorded mount options and file effects inside a mapped user namespace. Bind-remount flags are source-bound. Future PID/time observations and the repeated PID request add partial unshare coverage; its other gaps remain.
+
+The LPR and LSOF review completes three topics. Cancellation passes with signal observations bounded to six monitored syscall forms during the filtered process lifetime. Explicit file and stdin submissions retain exact backend arguments and bytes; bare-form submission failures remain. LSOF adds exclusion of a visible witness owned by another UID. Earlier submission and filtering failures remain FAIL on both builds.
 
 The clock review includes synthetic returns injected at compiled callsites;
 these observations do not establish what the kernel, vDSO or libc returned.

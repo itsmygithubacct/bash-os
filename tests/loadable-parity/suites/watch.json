@@ -123,9 +123,50 @@
     },
     {
       "id": "watch-terminal-parity",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare real terminal rendering, interactive errors, and terminal interaction with Procps-ng watch.",
-      "reason": "Remaining obligations: r3: The candidate message, key wait and keyed exit were never reached. Preserve the existing legacy bounded-execution companion.; r6: A width 40 redraw follows resize, coincident with the ordinary one-second update. The data do not distinguish the named SIGWINCH path from periodic polling; retain partial without imposing an unstated exact-latency threshold."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/watch/watch-bounded-diff-capture"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/watch/watch-bounded-exec-failure"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-terminal-watch-header-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-terminal-watch-interrupt-r3"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal213-watch-error-key"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal213-watch-winch"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-watch-diff"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-watch-error-key"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-watch-no-title"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-watch-resize"
+        }
+      ]
     },
     {
       "id": "watch-exec-literal-argv",

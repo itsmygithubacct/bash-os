@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "sqlite",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "sqlite/concurrent-file-locking"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/migration-sqlite-locking-r1.py": "ce222672eecb39bce97e676546e8ee24f3225b90b6ff7656fd49ea5be5d7fb8d"
+      },
+      "timeout": 35,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "sqlite-lock-observations.json"
+      ],
+      "id": "migration-sqlite-locking-busy-r1",
+      "purpose": "Two synchronized writers must see lock contention and preserve the database.",
+      "oracle": "Independent Python sqlite3 control verifies numeric SQLITE_BUSY with two connections and successful writing after release; candidate uses two separate owned processes on a separate seeded database. SQLite integer row and integrity expectations are literal.",
+      "comparison": "A holds BEGIN IMMEDIATE and an inserted row at a file barrier until B returns. Both process status files, B stderr, the control result, and independent post-rollback SQLite integrity and rows are retained in HOME diagnostics. Candidate API reports shell status plus diagnostic, not numeric SQLite result codes. A missing barrier, failed control, premature process exit or missing outcome is incomplete, never evidence of a PASS. Busy case checks the diagnostic and final data; no-lock case checks two successful BEGIN IMMEDIATE calls. Raw results require primary review.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/migration-sqlite-locking-r1.py \"$BASH\" busy",
+      "stdout": "busy=yes integrity=yes\n",
+      "setup_script": ":"
+    },
+    {
+      "loadable": "sqlite",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "sqlite/concurrent-file-locking"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/migration-sqlite-locking-r1.py": "ce222672eecb39bce97e676546e8ee24f3225b90b6ff7656fd49ea5be5d7fb8d"
+      },
+      "timeout": 35,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "sqlite-lock-observations.json"
+      ],
+      "id": "migration-sqlite-locking-unix-none-r1",
+      "purpose": "Observe whether a second BEGIN IMMEDIATE succeeds while another writer holds its transaction.",
+      "oracle": "Independent Python sqlite3 control verifies numeric SQLITE_BUSY with two connections and successful writing after release; candidate uses two separate owned processes on a separate seeded database. SQLite integer row and integrity expectations are literal.",
+      "comparison": "A holds BEGIN IMMEDIATE and an inserted row at a file barrier until B returns. Both process status files, B stderr, the control result, and independent post-rollback SQLite integrity and rows are retained in HOME diagnostics. Candidate API reports shell status plus diagnostic, not numeric SQLite result codes. A missing barrier, failed control, premature process exit or missing outcome is incomplete, never evidence of a PASS. Busy case checks the diagnostic and final data; no-lock case checks two successful BEGIN IMMEDIATE calls. Raw results require primary review.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/migration-sqlite-locking-r1.py \"$BASH\" no-lock",
+      "stdout": "both_begin=yes\n",
+      "setup_script": ":"
+    }
+  ]
+}

@@ -1,0 +1,143 @@
+{
+  "cases": [
+    {
+      "comparison": "In one interactive command, clear history, read the private fixture history, retain the before snapshot and verify all three records before explicit prune. Then retain count and after snapshot and check removed and retained whole records. Missing preconditions exit 125 and are incomplete; expected count or after mismatch is a reached candidate FAIL. Placeholder diagnostics prevent absent-file rejection.",
+      "covers": [
+        "scrub/live-history-deferred"
+      ],
+      "diagnostic_files": [
+        "seed-before",
+        "seed-after"
+      ],
+      "driver": "pty",
+      "expected_files": {
+        "prune-count": "2\n",
+        "seed-check": "history ok\n"
+      },
+      "expected_status": 0,
+      "files": {
+        "history-seed": "private_secret_a\nprivate_secret_b\nsafe_anchor\n"
+      },
+      "group": "terminal",
+      "id": "migration-scrub-explicit-seeded-r3",
+      "interactive_shell": true,
+      "kind": "contract",
+      "loadable": "scrub",
+      "oracle": "Three literal history lines loaded from a fixture file with history -r; verify pre-prune entries, expected count 2, and exact whole-line post-prune observations.",
+      "purpose": "Check explicit prune count and retained benign history from a verified fixture file.",
+      "requires": [
+        "grep"
+      ],
+      "script": ":",
+      "setup_script": ": > \"$HOME/seed-before\"; : > \"$HOME/seed-after\"",
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125; IFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125; IFS= read -r u </etc/bashos-parity-vm || exit 125; [[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "scrub clear-patterns; scrub add-pattern '^private_secret_'; history -c || exit 125; history -r history-seed || exit 125; history > \"$HOME/seed-before\"; for x in private_secret_a private_secret_b safe_anchor; do /usr/bin/grep -Eq \"^[[:space:]]*[0-9]+[[:space:]]+$x$\" \"$HOME/seed-before\" || exit 125; done; scrub live prune > prune-count || exit 13; history > \"$HOME/seed-after\"; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+private_secret_[ab]$' \"$HOME/seed-after\" && exit 11; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+safe_anchor$' \"$HOME/seed-after\" || exit 12; printf 'history ok\\n' > seed-check; exit 0\r"
+        }
+      ],
+      "timeout": 25
+    },
+    {
+      "comparison": "Enable live pruning before history -r loads the three entries. Retain all entries before the next prompt; after the prompt event retain a second snapshot and assert both denied entries absent and benign anchor present. Missing pre-boundary seed is incomplete (125), while a post-boundary mismatch is a reached candidate FAIL. A pre-created diagnostic file remains available on early exit.",
+      "covers": [
+        "scrub/live-history-deferred"
+      ],
+      "diagnostic_files": [
+        "prompt-before",
+        "prompt-after"
+      ],
+      "driver": "pty",
+      "expected_files": {
+        "prompt-check": "history ok\n"
+      },
+      "expected_status": 0,
+      "files": {
+        "history-seed": "private_secret_a\nprivate_secret_b\nsafe_anchor\n"
+      },
+      "group": "terminal",
+      "id": "migration-scrub-prompt-boundary-seeded-r3",
+      "interactive_shell": true,
+      "kind": "contract",
+      "loadable": "scrub",
+      "oracle": "Private seeded history, full pre-boundary snapshot, post-boundary snapshot and PTY prompt event. The literal denylist matches only the two secret entries.",
+      "purpose": "Check denylisted and benign curated in-memory entries across an actual enabled prompt boundary.",
+      "requires": [
+        "grep"
+      ],
+      "script": ":",
+      "setup_script": ": > \"$HOME/prompt-before\"; : > \"$HOME/prompt-after\"",
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125; IFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125; IFS= read -r u </etc/bashos-parity-vm || exit 125; [[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "PROMPT_COMMAND=':'; scrub clear-patterns; scrub add-pattern '^private_secret_'; history -c || exit 125; scrub live enable || exit 13; history -r history-seed || exit 125; history > \"$HOME/prompt-before\"\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "history > \"$HOME/prompt-after\"; for x in private_secret_a private_secret_b safe_anchor; do /usr/bin/grep -Eq \"^[[:space:]]*[0-9]+[[:space:]]+$x$\" \"$HOME/prompt-before\" || exit 125; done; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+private_secret_[ab]$' \"$HOME/prompt-after\" && exit 11; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+safe_anchor$' \"$HOME/prompt-after\" || exit 12; printf 'history ok\\n' > prompt-check; exit 0\r"
+        }
+      ],
+      "timeout": 25
+    },
+    {
+      "comparison": "Each observation runs independently in a bounded interactive guest PTY; expected files hold exact output. A failed assertion remains a candidate failure.",
+      "covers": [
+        "scrub/live-history-deferred"
+      ],
+      "diagnostic_files": [],
+      "driver": "pty",
+      "expected_files": {
+        "histfile": "/dev/null\n",
+        "pc-enabled": "scrub live prune >/dev/null; :; printf prior >/dev/null\n",
+        "pc-restored": ":; printf prior >/dev/null\n"
+      },
+      "expected_status": 0,
+      "group": "terminal",
+      "id": "migration-scrub-live-restore-independent-r1",
+      "interactive_shell": true,
+      "kind": "contract",
+      "loadable": "scrub",
+      "oracle": "Bash interactive history semantics, an explicitly anchored synthetic denylist, a pre-existing colon prompt command and literal expected count/file bytes.",
+      "purpose": "Restore a prior prompt command and confine history to /dev/null in a bounded interactive session.",
+      "requires": [
+        "grep"
+      ],
+      "script": ":",
+      "setup_script": ":",
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125; IFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125; IFS= read -r u </etc/bashos-parity-vm || exit 125; [[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "[[ $HISTFILE == /dev/null ]] || exit 16; printf '%s\\n' \"$HISTFILE\" > histfile; PROMPT_COMMAND=':; printf prior >/dev/null'; scrub live enable; scrub live enable; printf '%s\\n' \"$PROMPT_COMMAND\" > pc-enabled; scrub live disable; printf '%s\\n' \"$PROMPT_COMMAND\" > pc-restored; [[ $HISTFILE == /dev/null ]] || exit 17; exit 0\r"
+        }
+      ],
+      "timeout": 25
+    }
+  ],
+  "schema": 1
+}

@@ -215,9 +215,82 @@
     },
     {
       "id": "dns-authoritative-service",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise authoritative UDP/TCP answers, zone selection, transfer/update policy, TSIG, and opt-in service features against clients.",
-      "reason": "Remaining obligations: r6: Response-rate-limit slip is not asserted. Control, notify, DoT and DoH HTTP/1.1 plus HTTP/2 message handling are now reached; HTTP/2 response header defects remain FAIL."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-also-notify"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-axfr-allowed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-axfr-cidr-source"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-axfr-default-denied"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-doh-cleartext"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-doh-h2c-plain-literals"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-doh-http1-cleartext"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-doh-http1-tls"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-doh-tls"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-dot-listener"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-rndc-control"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-tcp-answers"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-tsig-required"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-udp-answers"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-update-allowed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-update-default-denied"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-zone-selection"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-authoritative-rrl-slip-r3"
+        }
+      ]
     },
     {
       "id": "dns-recursive-service",

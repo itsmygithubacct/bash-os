@@ -28,13 +28,38 @@
       "id": "ns-unshare-namespaces",
       "kind": "deferred",
       "purpose": "Compare ns unshare for its supported namespace flags and the special for-children behavior of pid/time namespaces.",
-      "reason": "Remaining obligations: r1: The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required.; r2: No case.; r3: No case.; r5: The unprivileged UTS EPERM agrees with unshare; unsupported-namespace EINVAL was not exercised."
+      "reason": "Remaining obligations: r1: The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required.; r5: The unprivileged UTS EPERM agrees with unshare; unsupported-namespace EINVAL was not exercised."
     },
     {
       "id": "ns-spawn-child-exec",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check clone-based namespace setup, argv/environment forwarding, PID namespace child semantics, --no-new-privs, and propagation of the child exit status.",
-      "reason": "Remaining obligations: r6: Exit 37 and missing-exec 127 are recorded; signal-to-128+S propagation was not exercised."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-spawn-env-status-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-spawn-environment-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-spawn-pid-one-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-spawn-propagation-modes-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-spawn-unprivileged-pid-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ns-spawn-signal-status-r1"
+        }
+      ]
     },
     {
       "id": "ns-enter-namespace-fd",
@@ -75,9 +100,26 @@
     },
     {
       "id": "ns-mount-operations",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check private propagation, bind mounts, read-only bind remounts, and remount-readonly effects on fixture paths.",
-      "reason": "Remaining obligations: r2: No case.; r3: No case.; r4: No case.; r6: No case."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-mount-missing-source-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-mount-propagation-isolation-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-mount-unprivileged-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ns-mount-owned-r1"
+        }
+      ]
     },
     {
       "id": "ns-pivot-root",

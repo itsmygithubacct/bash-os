@@ -3252,9 +3252,9 @@
         "purpose": "Check sanitized UDP copies, lowercase-hex queue encoding, bounded admission, FIFO replay, malformed-record handling, and recovery after send failure.",
         "reason": "Requires a future disposable VM with a private loopback receiver and reviewed deterministic send/clock failure shims to exercise queue admission and replay without relying on real network failures. No forwarding operation is run here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r4: FIFO replay of three queued records was observed at startup. SIGHUP and periodic replay were each observed with one post-start queued record, so FIFO ordering of multiple records under those triggers was not independently exercised.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; the new FIFO observations use source-bound sender attribution.",
       "requirements": [
         {
           "id": "r1",
@@ -3301,7 +3301,7 @@
         {
           "id": "r4",
           "behavior": "Queued records replay in FIFO order at startup, on SIGHUP and every second once the destination works.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -3314,9 +3314,21 @@
               "id": "migration-system-client-followup-syslog-timed",
               "assertion": "Original obligation: Queued records replay in FIFO order at startup, on SIGHUP and every second once the destination works. Static framework PASS: Owned SIGHUP preceded replay, and periodic replay followed the seed by 1.002 s; frozen decoded record deferral-migration/resume-20261028/auth-system-evidence-review-138/decoded/static/migration-system-client-followup-syslog-timed.json. Dynamic framework PASS: Owned SIGHUP preceded replay, and periodic replay followed the seed by 1.002 s; frozen decoded record deferral-migration/resume-20261028/auth-system-evidence-review-138/decoded/dynamic/migration-system-client-followup-syslog-timed.json.",
               "definition_sha256": "546a605364a7972f905090a0ed891e31c304dba45510398c8dd47161ad6b0d7d"
+            },
+            {
+              "assertion": "Original obligation: Queued records replay in FIFO order at startup, on SIGHUP and every second once the destination works. In separate static and dynamic VMs, the saved observations contain three distinct startup queue records and three distinct HUP queue records in FIFO datagram order; HUP was sent by pidfd while the owned child was stopped, with a no-HUP continuation control and replay before the next periodic boundary. Sender attribution uses the pinned serial fixture and isolated VM network, not per-datagram credentials.",
+              "definition_sha256": "52ba1c642689ff2a382cc92c017b15ccf8aadbf87ee993504ef32545dd868a81",
+              "group": "shell",
+              "id": "migration-system-client-syslog-fifo-hup-231-r1"
+            },
+            {
+              "assertion": "Original obligation: Queued records replay in FIFO order at startup, on SIGHUP and every second once the destination works. In separate static and dynamic VMs, the saved observations contain three distinct startup queue records and three distinct periodic queue records in FIFO datagram order; their bounded warm-to-trigger intervals fall inside the selected 750\u20131,250 ms tolerance. Sender attribution uses the pinned serial fixture and isolated VM network, not per-datagram credentials.",
+              "definition_sha256": "722b6a690ee44bce0d1418142904562f764aaec9d271cff4dcb5959d6a50789c",
+              "group": "shell",
+              "id": "migration-system-client-syslog-fifo-periodic-231-r1"
             }
           ],
-          "gap": "FIFO replay of three queued records was observed at startup. SIGHUP and periodic replay were each observed with one post-start queued record, so FIFO ordering of multiple records under those triggers was not independently exercised."
+          "gap": ""
         },
         {
           "id": "r5",
@@ -3347,7 +3359,7 @@
           "gap": ""
         }
       ],
-      "notes": "loadables/bashsyslogd.c:589-602 forward with MSG_DONTWAIT; :608-626 queue line reader; :632-690 drain/rewrite; :400-450 forward socket. Original archived suite and complete four-case draft are preserved; no old companion is removed. Primary preparation 161 retains the original two case assertions but keeps r4 partial until multi-record FIFO at the HUP and periodic triggers is independently established or the primary explicitly accepts a supported compositional proof."
+      "notes": "loadables/bashsyslogd.c:589-602 forward with MSG_DONTWAIT; :608-626 queue line reader; :632-690 drain/rewrite; :400-450 forward socket. Original archived suite and complete four-case draft are preserved; no old companion is removed. Primary preparation 161 retains the original two case assertions but keeps r4 partial until multi-record FIFO at the HUP and periodic triggers is independently established or the primary explicitly accepts a supported compositional proof. Four syslog 309 observations cover three-record HUP and periodic FIFO on both builds; attribution relies on the pinned serial source and isolated network, and HUP was queued while stopped."
     },
     {
       "topic": "bashsyslogd/local_datagram_routing",
@@ -11256,9 +11268,9 @@
         "purpose": "Exercise authoritative UDP/TCP answers, zone selection, transfer/update policy, TSIG, and opt-in service features against clients.",
         "reason": "The auth-serve subcommand opens a network listener and requires client exchanges. A future disposable VM must isolate the listener to loopback, provide deterministic zone fixtures and independent DNS packet encoders, and verify answers, denied/allowed transfer behavior, and permitted update behavior without contacting any external peer."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r6: Response-rate-limit slip is not asserted. Control, notify, DoT and DoH HTTP/1.1 plus HTTP/2 message handling are now reached; HTTP/2 response header defects remain FAIL.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
@@ -11357,7 +11369,7 @@
         {
           "id": "r6",
           "behavior": "Opt-in features: --control rndc status/serial/stop, --also-notify, response-rate-limiting slip, DoT/DoH listeners",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -11406,12 +11418,18 @@
               "id": "migration-dns-auth-doh-h2c-plain-literals",
               "assertion": "HTTP/1.1 POST/GET and TLS chain/IP SAN/ALPN pass. Literal-header HTTP/2 reaches SETTINGS/headers/DATA and correct DNS AA answer, but response HPACK indexes give invalid content-type/content-length. Existing control, notify and DoT evidence remains.",
               "definition_sha256": "e0b7b5a2925e1e17eba150726a074987c0d7a592efb3b0d7be65c2a69a9dd4d9"
+            },
+            {
+              "group": "shell",
+              "id": "migration-dns-authoritative-rrl-slip-r3",
+              "assertion": "Both builds: the separate no-RRL loopback control received 20 full authoritative answers; the limited burst yielded a full answer and nine received truncated authoritative replies. Source-bound candidate listener, packet framing, timing and cleanup were retained. Missing packet ingress and ordering are not independently traced.",
+              "definition_sha256": "91098b961b8803ff85de1c9aba5f71b0300d889fc8edec176c85e44ab75d0e7b"
             }
           ],
-          "gap": "Response-rate-limit slip is not asserted. Control, notify, DoT and DoH HTTP/1.1 plus HTTP/2 message handling are now reached; HTTP/2 response header defects remain FAIL."
+          "gap": ""
         }
       ],
-      "notes": "Root independently reconciled saved records and original compound obligations. Covered requirements may have PASS or FAIL; a separate passing step in a failing case still qualifies. Early failure, unchanged mock output buffers, and unselected table rows do not prove later obligations. Source/fixture errors excluded."
+      "notes": "Root independently reconciled saved records and original compound obligations. Covered requirements may have PASS or FAIL; a separate passing step in a failing case still qualifies. Early failure, unchanged mock output buffers, and unselected table rows do not prove later obligations. Source/fixture errors excluded. Primary-qualified paired DNS slip fixture adds the missing r6 observation; prior r1-r5 and all eight r6 companion references remain unchanged. Previously reached FAILs, including zone selection, TSIG and DoH, remain FAIL; MIGRATED is metadata."
     },
     {
       "topic": "dns/dns-dot-doh",
@@ -15473,9 +15491,8 @@
         "purpose": "Validate key, UTF-8, mouse, resize, and timeout event decoding plus restoration of terminal settings on return and failure.",
         "reason": "A future disposable VM needs a PTY driver that sends deterministic event sequences and independently checks variable bindings, timeouts, and termios restoration. The current runner has no controllable terminal fixture."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r6: A readonly binding error was reached but incorrectly returned success, so a non-timeout error-return path is not established.",
+      "coverage": "full",
+      "migration": "replacement",
       "requirements": [
         {
           "id": "r1",
@@ -15562,7 +15579,7 @@
         {
           "id": "r6",
           "behavior": "termios is restored after every input call, both on return and on timeout or failure, and fullscreen stop restores the alternate screen, cursor and mouse modes",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -15625,10 +15642,10 @@
               "definition_sha256": "f2332c3200f0cbd2c7f41f8c0cedaa4ab7d54db985e8728ccbe686b61d9a32e7"
             }
           ],
-          "gap": "A readonly binding error was reached but incorrectly returned success, so a non-timeout error-return path is not established."
+          "gap": ""
         }
       ],
-      "notes": "Coverage means the original bounded obligation was reached and independently reviewed on both builds; retained FAIL outcomes remain FAIL. Existing legacy and earlier companions are preserved. See private raw review and explicit gaps."
+      "notes": "Coverage means the original bounded obligation was reached and independently reviewed on both builds; retained FAIL outcomes remain FAIL. Existing legacy and earlier companions are preserved. See private raw review and explicit gaps. Literal failure restoration is reached by the diagnosed readonly binding error on both builds; the input returned 0 instead of the expected 1, a retained FAIL. Requiring a non-timeout nonzero return in addition to the observed binding failure narrows the original restoration obligation."
     },
     {
       "topic": "halt/default_dispatch",
@@ -21831,9 +21848,9 @@
         "purpose": "Exercise stale-job cleanup and live cancellation through the control FIFO while proving cancellation affects only the submitter's fixture backend child.",
         "reason": "Requires a future disposable VM or reviewed process/FIFO mock with a private scratch spool, a fixture-owned submitter, and a fixture backend child. Verify stale metadata does not direct signals, the live control FIFO is used, only the owned child can receive termination, and spool entries are removed. Do not signal any host or unrelated process. No cancel operation is run in this suite."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: The recorded backend received TERM and one witness did not; there is no universal signal-syscall trace.; r3: Stale cleanup and an unsignalled witness were recorded, but every possible signal target was not independently traced.; r4: Slash-ID rejection and cleanup reports were recorded; no complete post-cancel spool snapshot was retained.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
@@ -21845,6 +21862,12 @@
               "id": "migration-services-lpr-cancel-live",
               "assertion": "Original obligation: lpr cancel ID terminates the live backend through the job's control FIFO. Recorded statuses static=PASS, dynamic=PASS. Static candidate result: witness=ready; ready=fifo-and-spool; list=active; cancel=0; submit=3; cancel-observation=ok; witness-status=0; witness-observation=ok. Saved backend events: start, signal.",
               "definition_sha256": "05c89bd0d449fc37cf65307de76c9676705f4b1a38931d7909f26d02d2412e6f"
+            },
+            {
+              "group": "shell",
+              "id": "migration-lpr-signal-live-r2",
+              "assertion": "Both builds reached the owned live-backend cancellation through the control FIFO; the backend recorded SIGTERM and cancellation completed.",
+              "definition_sha256": "b4bb59c730957c9b6a98c13e10b3cd488dff372946164d0965ce2cb3455a6f11"
             }
           ],
           "gap": ""
@@ -21852,21 +21875,27 @@
         {
           "id": "r2",
           "behavior": "Only the submitter's own backend child is signalled.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-services-lpr-cancel-live",
               "assertion": "Original obligation: Only the submitter's own backend child is signalled. Recorded statuses static=PASS, dynamic=PASS. Static candidate result: witness=ready; ready=fifo-and-spool; list=active; cancel=0; submit=3; cancel-observation=ok; witness-status=0; witness-observation=ok. Saved backend events: start, signal.",
               "definition_sha256": "05c89bd0d449fc37cf65307de76c9676705f4b1a38931d7909f26d02d2412e6f"
+            },
+            {
+              "group": "shell",
+              "id": "migration-lpr-signal-live-r2",
+              "assertion": "Both builds identify the submitter and its owned backend; a calibrated observer recorded a SIGTERM attempt for that backend and the backend recorded receipt. A separate witness survived. Signal absence is bounded to six monitored syscall forms during the filtered leader lifetime; notifications record attempts.",
+              "definition_sha256": "b4bb59c730957c9b6a98c13e10b3cd488dff372946164d0965ce2cb3455a6f11"
             }
           ],
-          "gap": "The recorded backend received TERM and one witness did not; there is no universal signal-syscall trace."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Stale metadata (dead submitter) does not direct signals; stale jobs are cleaned up.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -21879,14 +21908,20 @@
               "id": "migration-services-lpr-cancel-stale",
               "assertion": "Original obligation: Stale metadata (dead submitter) does not direct signals; stale jobs are cleaned up. Recorded statuses static=PASS, dynamic=PASS. Static candidate result: stale=0; cleanup=exact; slash=2; witness-status=0; witness-observation=ok.",
               "definition_sha256": "56d323f6f75e44badac0b6a6805e455e6dc73590fbd3d3a2c2d8b6a6978fd84b"
+            },
+            {
+              "group": "shell",
+              "id": "migration-lpr-signal-stale-r2",
+              "assertion": "Both builds observed stale metadata for a stable unreaped dead owner, no monitored signal attempts during the filtered canceller lifetime, a surviving witness, and complete stale-job cleanup. This observation is bounded to six monitored syscall forms.",
+              "definition_sha256": "010be564a421e1dd3c7ca442a32198591d31ad9353307c1084de3745fe3cba4a"
             }
           ],
-          "gap": "Stale cleanup and an unsignalled witness were recorded, but every possible signal target was not independently traced."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Spool entries are removed after cancel; IDs containing '/' are rejected.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -21899,12 +21934,24 @@
               "id": "migration-services-lpr-cancel-stale",
               "assertion": "Original obligation: Spool entries are removed after cancel; IDs containing '/' are rejected. Recorded statuses static=PASS, dynamic=PASS. Static candidate result: stale=0; cleanup=exact; slash=2; witness-status=0; witness-observation=ok.",
               "definition_sha256": "56d323f6f75e44badac0b6a6805e455e6dc73590fbd3d3a2c2d8b6a6978fd84b"
+            },
+            {
+              "group": "shell",
+              "id": "migration-lpr-signal-live-r2",
+              "assertion": "The retained complete post-cancel spool snapshot leaves only the sentinel on both builds; existing slash-ID rejection evidence remains attached.",
+              "definition_sha256": "b4bb59c730957c9b6a98c13e10b3cd488dff372946164d0965ce2cb3455a6f11"
+            },
+            {
+              "group": "shell",
+              "id": "migration-lpr-signal-stale-r2",
+              "assertion": "The retained complete post-cancel spool snapshot leaves only the sentinel on both builds; existing slash-ID rejection evidence remains attached.",
+              "definition_sha256": "010be564a421e1dd3c7ca442a32198591d31ad9353307c1084de3745fe3cba4a"
             }
           ],
-          "gap": "Slash-ID rejection and cleanup reports were recorded; no complete post-cancel spool snapshot was retained."
+          "gap": ""
         }
       ],
-      "notes": "Preserve existing companion evidence and original purpose, reason and requirements. Four reached failures remain visible. No password-hash or other crypto behavior was run in this review; guest subreaper cleanup is fixture cleanup, not candidate success."
+      "notes": "Preserve existing companion evidence and original purpose, reason and requirements. Four reached failures remain visible. No password-hash or other crypto behavior was run in this review; guest subreaper cleanup is fixture cleanup, not candidate success. The primary-receipted paired observations cover representative live and stale cancellation, with six-syscall and filtered-leader lifetime limits; notifications record attempts. The separate witness and observed backend termination are retained. Prior observations remain unchanged."
     },
     {
       "topic": "lpr/submit_fixture_backend",
@@ -21914,9 +21961,9 @@
         "purpose": "Exercise deterministic file and stdin submissions, literal backend argv, complete-byte acceptance, and spool cleanup without delivering a real print job.",
         "reason": "Requires a future disposable VM allowing a private absolute-path fixture backend, or a reviewed exec mock; this suite permits only relative fixture paths. The backend must record argv/input bytes without printer or network activity, covering full/partial acceptance and cleanup. No successful backend-delivery submit operation is run here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: Backend argv is recorded for explicit submit forms; both bare forms stop before backend invocation.; r3: The explicit submit forms retain the full 28 input bytes; both bare forms stop before backend invocation.; r5: Timeout failure is bounded and explicit submits succeed; no complete post-success spool snapshot was retained.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
@@ -21953,7 +22000,7 @@
         {
           "id": "r2",
           "behavior": "Literal backend argv: id format, byte count and title (basename of FILE or stdin title).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -21980,12 +22027,12 @@
               "definition_sha256": "001fece0eb1c08bf5c8799bcfa2d6667b4282808b7ebd30c6d31deca88c7f7bd"
             }
           ],
-          "gap": "Backend argv is recorded for explicit submit forms; both bare forms stop before backend invocation."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Complete-byte acceptance: the backend receives exactly the submitted bytes.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -22012,7 +22059,7 @@
               "definition_sha256": "001fece0eb1c08bf5c8799bcfa2d6667b4282808b7ebd30c6d31deca88c7f7bd"
             }
           ],
-          "gap": "The explicit submit forms retain the full 28 input bytes; both bare forms stop before backend invocation."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -22037,7 +22084,7 @@
         {
           "id": "r5",
           "behavior": "Spool cleanup after successful delivery; BASHLPR_TIMEOUT fails a hung backend.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -22056,9 +22103,15 @@
               "id": "migration-services-lpr-timeout",
               "assertion": "Original obligation: Spool cleanup after successful delivery; BASHLPR_TIMEOUT fails a hung backend. Recorded statuses static=PASS, dynamic=PASS. Static candidate result: status=1; timeout=bounded; timeout-observation=ok. Saved backend events: start, signal.",
               "definition_sha256": "d4543d048c415fdf15ef98777c4dee63932c6a04e978f07f61204562fac75941"
+            },
+            {
+              "group": "shell",
+              "id": "migration-lpr-success-spool-snapshot-r2",
+              "assertion": "Both builds retained a complete post-success spool snapshot containing only the sentinel, after explicit fixture backend delivery. Existing timeout evidence remains attached.",
+              "definition_sha256": "fb8937b1d8b2f9ab7832e22fe38f9a9be9252f0b1c2946a03bc7293b86d8bea2"
             }
           ],
-          "gap": "Timeout failure is bounded and explicit submits succeed; no complete post-success spool snapshot was retained."
+          "gap": ""
         },
         {
           "id": "r6",
@@ -22075,7 +22128,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve existing companion evidence and original purpose, reason and requirements. Four reached failures remain visible. No password-hash or other crypto behavior was run in this review; guest subreaper cleanup is fixture cleanup, not candidate success. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: Both literal bare file and stdin requests were issued after successful backend controls and each returned usage status 2; both framework FAILs remain. Separate documented submit FILE and submit - calls delivered exact 28-byte binary input and argv and remain PASS. The original ledger's bare syntax conflicts with the published custom submit API: coverage records these attempted vectors, not successful bare delivery or an unqualified violation of the published API. Preserve the literal text and the specification conflict."
+      "notes": "Preserve existing companion evidence and original purpose, reason and requirements. Four reached failures remain visible. No password-hash or other crypto behavior was run in this review; guest subreaper cleanup is fixture cleanup, not candidate success. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: Both literal bare file and stdin requests were issued after successful backend controls and each returned usage status 2; both framework FAILs remain. Separate documented submit FILE and submit - calls delivered exact 28-byte binary input and argv and remain PASS. The original ledger's bare syntax conflicts with the published custom submit API: coverage records these attempted vectors, not successful bare delivery or an unqualified violation of the published API. Preserve the literal text and the specification conflict. The paired previously accepted explicit file and stdin observations exercise the literal backend argv and exact-byte requirements. The bare forms failed before backend invocation; both reached FAILs remain attached and no successful bare delivery is claimed. The primary-receipted explicit-success snapshot supplies the cleanup observation."
     },
     {
       "topic": "lsattr/nonzero_attribute_bits",
@@ -22396,9 +22449,9 @@
         "purpose": "Qualify -u name and numeric-UID filtering across processes with distinct owners.",
         "reason": "Requires a disposable Linux VM or reviewed procfs mock with controlled passwd mappings and processes under at least two UIDs. Use GNU lsof as the reference and verify that only matching owners appear; no installed host accounts or credentials are used."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: Not executed. Two owners already exist in the guest PID namespace: the root controller and the uid-2000 fixture. No account provisioning is needed.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
@@ -22431,9 +22484,16 @@
         {
           "id": "r3",
           "behavior": "processes owned by other UIDs are excluded",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed. Two owners already exist in the guest PID namespace: the root controller and the uid-2000 fixture. No account provisioning is needed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-lsof-other-uid-exclusion-r2",
+              "assertion": "On both builds, candidate and native unfiltered probes independently see the same UID-2000 witness descriptor; root-name and numeric-root selectors exclude it during identity-bracketed observations. This does not claim visibility of inaccessible root-owned descriptors.",
+              "definition_sha256": "85e51307f257198813ac77ba45a647147ae79a50e66b4d983942c7f625664c18"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
@@ -22450,7 +22510,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r4: The fixture records the wrong OR selection and then independently attempts -a, which native lsof accepts and the candidate rejects. Both requested operations were exercised and both reached failures remain. No hidden AND branch or successful candidate intersection is claimed. The separate distinct-owner r3 remains missing because both owned fixture children map to UID 0."
+      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r4: The fixture records the wrong OR selection and then independently attempts -a, which native lsof accepts and the candidate rejects. Both requested operations were exercised and both reached failures remain. No hidden AND branch or successful candidate intersection is claimed. The separate distinct-owner r3 remains missing because both owned fixture children map to UID 0. A primary-receipted paired distinct-owner observation covers representative UID-2000 witness exclusion. The earlier reached OR and -a failures remain attached; inaccessible root descriptors are not claimed."
     },
     {
       "topic": "mail/dkim_contract_vectors",
@@ -23547,9 +23607,9 @@
         "purpose": "Exercise the bounded anonymous mapping probe on successful lock/unlock, the 1-byte and 1-MiB boundaries, malformed sizes, and an insufficient-limit failure with cleanup.",
         "reason": "Requires a disposable Linux VM or reviewed mmap/mlock/munlock/getrlimit syscall mock that can force both success and EAGAIN deterministically and verify mapping cleanup. No probe is run in this suite."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: All six malformed diagnostics were saved, but six individual invocation statuses were not retained.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
@@ -23586,16 +23646,52 @@
         {
           "id": "r2",
           "behavior": "Malformed sizes: missing, empty, \"-1\", \"1x\", \"0\", \"1048577\" -> usage status 2 with the documented messages",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "trace-vm-mlock-invalid-r1",
               "assertion": "Original obligation: Malformed sizes: missing, empty, \"-1\", \"1x\", \"0\", \"1048577\" -> usage status 2 with the documented messages Recorded statuses static=PASS, dynamic=PASS. Static candidate result: procfs cleanup checks ok; invalid sizes ok. Independent raw observations: Six malformed input diagnostics saved; individual invocation statuses were not independently retained.",
               "definition_sha256": "e752b5e938cecfc575503be167aa315eb246eb0379034bd055a5fbbc8a50578b"
+            },
+            {
+              "group": "shell",
+              "id": "devices-mlock-invalid-missing-r1",
+              "assertion": "The missing argument case independently retained candidate invocation status 2, empty stdout and documented usage diagnostic on both builds.",
+              "definition_sha256": "ac387d83513da9f7d17121ba8d1bf99844ee2e66a8eb3a43ded96db92816e46c"
+            },
+            {
+              "group": "shell",
+              "id": "devices-mlock-invalid-empty-r1",
+              "assertion": "The empty argument case independently retained candidate invocation status 2, empty stdout and documented usage diagnostic on both builds.",
+              "definition_sha256": "14cca20cc9e70ceca7246311f3d347c11518fa01fe0845ab1018b18b23b0d7d3"
+            },
+            {
+              "group": "shell",
+              "id": "devices-mlock-invalid-negative-r1",
+              "assertion": "The -1 case independently retained candidate invocation status 2, empty stdout and documented usage diagnostic on both builds.",
+              "definition_sha256": "f20e7408bd41060b27be2e58837b14d3857ab492710afe4bfb5aa216ad32ca7f"
+            },
+            {
+              "group": "shell",
+              "id": "devices-mlock-invalid-text-r1",
+              "assertion": "The 1x case independently retained candidate invocation status 2, empty stdout and documented usage diagnostic on both builds.",
+              "definition_sha256": "03fd444365a8eec7b6888ac143931859c90870df00b57296d7ac2a77a305c357"
+            },
+            {
+              "group": "shell",
+              "id": "devices-mlock-invalid-zero-r1",
+              "assertion": "The 0 case independently retained candidate invocation status 2, empty stdout and documented usage diagnostic on both builds.",
+              "definition_sha256": "8dfd59fe12c51718879f5439ec57c7bfd9d2d1f21910782b0e09fb1c48741c23"
+            },
+            {
+              "group": "shell",
+              "id": "devices-mlock-invalid-large-r1",
+              "assertion": "The 1048577 case independently retained candidate invocation status 2, empty stdout and documented usage diagnostic on both builds.",
+              "definition_sha256": "512a8b6c94e3535801ec705f204549f2677cd14baf0b6a4747743131f2f1a436"
             }
           ],
-          "gap": "All six malformed diagnostics were saved, but six individual invocation statuses were not retained."
+          "gap": ""
         },
         {
           "id": "r3",
@@ -23658,7 +23754,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Ten framework failures per build are retained. Candidate NTS application behavior and later live-history steps were unreached and are not credited. No crypto calculations or fixture behavior were executed."
+      "notes": "Preserve original obligations and existing companion evidence. Ten framework failures per build are retained. Candidate NTS application behavior and later live-history steps were unreached and are not credited. No crypto calculations or fixture behavior were executed. Paired primary-receipted cases independently retain all six invalid invocation statuses and diagnostics. Existing r1/r3/r4/r5 observations remain unchanged; no mlock all or future-page coverage is claimed."
     },
     {
       "topic": "mlock/unlock-operation",
@@ -25118,9 +25214,9 @@
         "purpose": "Exercise keyboard navigation, sorting, descent/ascent, and screen restoration in the interactive browser.",
         "reason": "Requires an isolated PTY driver with fixed terminal dimensions and a bounded key stream. The supplied runner starts fixtures with stdin disconnected and has no PTY fixture; run only in a future disposable VM or an independently reviewed PTY mock."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r5: No saved prior visible-screen baseline is available; alternate-screen exit does not independently prove prior visible content was restored.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original obligations have executed evidence on both unchanged builds; the reached Backspace failures remain FAIL.",
       "requirements": [
         {
           "id": "r1",
@@ -25229,7 +25325,7 @@
         {
           "id": "r5",
           "behavior": "q/ESC/^C exits and restores the screen and termios",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "terminal",
@@ -25248,12 +25344,30 @@
               "id": "migration-terra-local-terminal-ncdu-quit-q-r2",
               "assertion": "Source purpose: Quit by q restores the cursor, alternate screen, and original termios.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: The three q, ESC and Ctrl-C cases reach exits and record cursor-show, alternate-screen exit and equal initial/final termios.",
               "definition_sha256": "89bfb72e3e1469702ba1b9831f2651802766fe687efa4a094e82f83438ca7941"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-ncdu-visible-restore-q",
+              "assertion": "Both builds exit via the recorded key; independent replay compares seeded primary cells, reverse bits and cursor, and the terminal attributes match before and after. Full color rendition and an input-consumption syscall were not independently checked.",
+              "definition_sha256": "9a82a5ff8965ba213cbe972a553c737a357d39fa93286ef32db0bcfb96600c17"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-ncdu-visible-restore-escape",
+              "assertion": "Both builds exit via the recorded key; independent replay compares seeded primary cells, reverse bits and cursor, and the terminal attributes match before and after. Full color rendition and an input-consumption syscall were not independently checked.",
+              "definition_sha256": "c0bb431691e03a11e69a8ed725eddd5512e7cfa15d6a58b6d07d2118ec05ad25"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-ncdu-visible-restore-ctrl-c",
+              "assertion": "Both builds exit via the recorded key; independent replay compares seeded primary cells, reverse bits and cursor, and the terminal attributes match before and after. Full color rendition and an input-consumption syscall were not independently checked.",
+              "definition_sha256": "308d64bf8506ddc2639f453be0dd29f6c998fd893417ba014b465086bbfe3562"
             }
           ],
-          "gap": "No saved prior visible-screen baseline is available; alternate-screen exit does not independently prove prior visible content was restored."
+          "gap": ""
         }
       ],
-      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. Both descent keys and Left ascent were observed; each Backspace byte was written after the child frame and the parent-frame check timed out. This is a reached end-to-end failure of ascent, retained as FAIL. Application read location and successful ascent are not claimed; later q is not part of r4."
+      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. Both descent keys and Left ascent were observed; each Backspace byte was written after the child frame and the parent-frame check timed out. This is a reached end-to-end failure of ascent, retained as FAIL. Application read location and successful ascent are not claimed; later q is not part of r4. Proposed paired 294 restoration observations and 303 independent replay add q, Escape and Ctrl-C screen and termios evidence; direct input consumption and full color rendition were not separately recorded. The static poweroff request returned 255, with QEMU exit 0 and durable scope quiescence."
     },
     {
       "topic": "ncdu/one-filesystem-boundary",
@@ -26564,9 +26678,9 @@
         "purpose": "Check private propagation, bind mounts, read-only bind remounts, and remount-readonly effects on fixture paths.",
         "reason": "Requires CAP_SYS_ADMIN only inside a disposable mount namespace and a temporary filesystem created for that VM. Compare with util-linux mount behavior using relative fixture files/directories; verify propagation isolation, read/write bind behavior, and that a read-only bind rejects a fixture write. No mount operation was invoked here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: No case.; r3: No case.; r4: No case.; r6: No case.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; earlier candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -26585,23 +26699,44 @@
         {
           "id": "r2",
           "behavior": "ns bind SRC DST binds a fixture directory/file; reads/writes through DST reach SRC",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ns-mount-owned-r1",
+              "assertion": "Both builds record a writable directory bind and an independent write through the destination appearing in the source.",
+              "definition_sha256": "3b98a98c9864e0653fc1e321f308f9c8941ac26cb74d58f8d3fad0ddeeb830bb"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "ns bind SRC DST ro produces a read-only bind (second MS_REMOUNT|MS_BIND|MS_RDONLY); writes via DST fail EROFS while SRC stays writable",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ns-mount-owned-r1",
+              "assertion": "Both builds record a successful read-only bind, EROFS through the destination and a still-writable source. The candidate mount flag sequence is source-bound, not independently syscall traced.",
+              "definition_sha256": "3b98a98c9864e0653fc1e321f308f9c8941ac26cb74d58f8d3fad0ddeeb830bb"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "ns remount-readonly PATH makes an existing mount read-only (EROFS on write)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ns-mount-owned-r1",
+              "assertion": "Both builds record successful remount-readonly followed by a write returning EROFS.",
+              "definition_sha256": "3b98a98c9864e0653fc1e321f308f9c8941ac26cb74d58f8d3fad0ddeeb830bb"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
@@ -26626,12 +26761,19 @@
         {
           "id": "r6",
           "behavior": "Results agree with util-linux mount --bind / -o remount,bind,ro and findmnt",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ns-mount-owned-r1",
+              "assertion": "Native mount --bind and remount controls succeed on both builds; independently recorded findmnt option sets and mountinfo agree with the candidate fixtures.",
+              "definition_sha256": "3b98a98c9864e0653fc1e321f308f9c8941ac26cb74d58f8d3fad0ddeeb830bb"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior."
+      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary-receipted paired mount observations retain native controls and actual fixture effects; bind remount flags are source-bound, not syscall traced."
     },
     {
       "topic": "ns/ns-pivot-root",
@@ -26853,9 +26995,9 @@
         "purpose": "Check clone-based namespace setup, argv/environment forwarding, PID namespace child semantics, --no-new-privs, and propagation of the child exit status.",
         "reason": "Requires a disposable Linux VM with user and PID namespaces available and a harmless fixture executable. Compare ns spawn with an independently invoked util-linux unshare child; capture exact argv/environment and exit codes, verify the child PID-1 behavior for pid, and inspect no_new_privs in the disposable child. Never run this operation on the host."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r6: Exit 37 and missing-exec 127 are recorded; signal-to-128+S propagation was not exercised.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
@@ -26942,16 +27084,22 @@
         {
           "id": "r6",
           "behavior": "Child exit status propagates (exit N -> N; signal S -> 128+S); exec failure -> 127 with diagnostic",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-namespace-network-spawn-env-status-r1",
               "assertion": "Original obligation: Child exit status propagates (exit N -> N; signal S -> 128+S); exec failure -> 127 with diagnostic Recorded statuses static=PASS, dynamic=PASS. Static candidate result: plain=0 nnp=0 exit=37 exec=127 exec-diagnostic=expected parent-nnp=0; child-plain=verified; child-nnp=verified. Independent raw observations: Saved result files {'native.out': 'child-native=recorded\\n', 'native.err': '', 'native-check.out': 'child-native=verified\\n', 'plain.out': 'child-plain=recorded\\n', 'plain.err': '', 'nnp.out': 'child-nnp=recorded\\n', 'nnp.err': '', 'spawn-status.raw': 'plain=0 nnp=0 exit=37 exec=127\\n', 'exec.err': 'ns spawn: execvpe /opt/bashos-parity/absent-fixture-executable: No such file or directory\\n', 'exit.err': ''}; Saved exact argv and child NoNewPrivs 0/1; parent 0, normal exit 37, missing exec 127",
               "definition_sha256": "d653a48232561f27ad73f6975548832ac97ed5a057e3f93c513bfe074a2e5663"
+            },
+            {
+              "group": "shell",
+              "id": "migration-ns-spawn-signal-status-r1",
+              "assertion": "Both guest builds report signal-status 143 after a SIGTERM child; the native direct child also reports 143. Source and raw data bind this to FLAGS none; no PID or syscall trace, other signal or flags are claimed.",
+              "definition_sha256": "91f26f63ddb8cabc1d97599c362e146db31a42dccea0fb1a6cd26bf5a31f9bfb"
             }
           ],
-          "gap": "Exit 37 and missing-exec 127 are recorded; signal-to-128+S propagation was not exercised."
+          "gap": ""
         },
         {
           "id": "r7",
@@ -26968,7 +27116,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The no-flags and requested PID-namespace operations execute the owned command with exact argv including a two-word argument; saved child observations show PID 1 in the new namespace. The PID example supplies an actual FLAGS request; this does not claim every flag combination was run."
+      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The no-flags and requested PID-namespace operations execute the owned command with exact argv including a two-word argument; saved child observations show PID 1 in the new namespace. The PID example supplies an actual FLAGS request; this does not claim every flag combination was run. Signal 15 status is independently observed on both builds; other signal values and flags are not claimed."
     },
     {
       "topic": "ns/ns-unshare-namespaces",
@@ -26980,7 +27128,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required.; r2: No case.; r3: No case.; r5: The unprivileged UTS EPERM agrees with unshare; unsupported-namespace EINVAL was not exercised.",
+      "current_reason": "Remaining obligations: r1: The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required.; r5: The unprivileged UTS EPERM agrees with unshare; unsupported-namespace EINVAL was not exercised.",
       "requirements": [
         {
           "id": "r1",
@@ -27005,16 +27153,36 @@
         {
           "id": "r2",
           "behavior": "ns unshare pid / time affect only future children: caller's pid/time inode unchanged, pid_for_children/time_for_children changed, a child sees the new namespace (pid 1 for the first child)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ns-unshare-future-pid-r1",
+              "assertion": "Both builds record unchanged caller PID inode, changed pid_for_children and the held first child in that namespace as PID 1; native control is retained.",
+              "definition_sha256": "79f646a0feec609823bea4185395429eda1915bef3b5d805d02c14007cdc0b48"
+            },
+            {
+              "group": "shell",
+              "id": "migration-ns-unshare-future-time-r1",
+              "assertion": "Both builds record unchanged caller time inode, changed time_for_children and a child entering that namespace; native control is retained. One time request is made.",
+              "definition_sha256": "b14573cc26c7698bc6e69a00c5b12f1418ff9f7619416e26e2fd973d781bcdc8"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "A repeated pid request in the same shell is filtered as idempotent (pid_for_children already differs) and succeeds",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ns-unshare-future-pid-r1",
+              "assertion": "Both builds execute the second PID request in the same shell, record status 0 and unchanged before/after repeated-request inode snapshots.",
+              "definition_sha256": "79f646a0feec609823bea4185395429eda1915bef3b5d805d02c14007cdc0b48"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
@@ -27059,7 +27227,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required."
+      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required. Primary-receipted PID/time observations cover r2 and the actual repeated PID request r3. No repeated time request is claimed."
     },
     {
       "topic": "ntp/ntp-nts-ke-query",
@@ -31602,9 +31770,9 @@
         "purpose": "Verify documented invalid-argument and FD failures, timeout status, and exact partial-output resumption without duplicate or missing bytes.",
         "reason": "Requires a disposable Linux VM plus a reviewed private Unix SOCK_SEQPACKET protocol mock or equivalent controlled broker fixture, and bounded pipes with independently known payloads. The mock must stay local to the fixture; no host or external socket is permitted."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: Idle return 124 and maximum-parameter acceptance/over-limit rejection are exercised. External elapsed measurements include uncalibrated launch/scheduling overhead and do not exclude an early wait return; exact default/representative timeout behavior remains partial. A full 60,000 ms idle wait is not itself required.; r4: The 16,384-byte aggregate repeats four identical 4,096-byte blocks. A duplicated/reordered whole block with another omitted can match the aggregate; this fixture cannot establish the original no-duplicate/no-missing condition. No actual duplication is inferred.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original requirements have paired executed evidence; bounded timeout measurements retain their stated uncertainty.",
       "requirements": [
         {
           "id": "r1",
@@ -31637,33 +31805,45 @@
         {
           "id": "r3",
           "behavior": "receive with no pending output times out with status 124 after TIMEOUT_MS (default 100, maximum 60000; an over-limit value is rejected)",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-terra-local-pty-b02r3-errors",
               "assertion": "Source purpose: Check invalid arguments, closed and unwritable descriptors, timeout bounds and the idle default.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Saved default and explicit idle receives both return 124, 60000 is accepted for a queued attached event, and 60001 returns 2; timing.log records both elapsed values.",
               "definition_sha256": "d9f96165beb536d1a23d17231ec855dba722dc5eb2d3d1c8e0fea5437d9181a1"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-broker-256-timeout-r1",
+              "assertion": "Both builds returned 124 for idle default and 250 ms waits, with nominal durations within independently reviewed lower/upper timing brackets. Both accepted 60000 with queued output and rejected 60001. The bounds do not prove strict nominal lower duration or a 60000 ms idle wait.",
+              "definition_sha256": "d3577bc5b5da6f2b7c3c4ca7a791e8441600c4696e6eccf0be4e96cc1e08a8c0"
             }
           ],
-          "gap": "Idle return 124 and maximum-parameter acceptance/over-limit rejection are exercised. External elapsed measurements include uncalibrated launch/scheduling overhead and do not exclude an early wait return; exact default/representative timeout behavior remains partial. A full 60,000 ms idle wait is not itself required."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "A partial write to OUTFD keeps the remaining event bytes for the next receive, with no duplicate or missing bytes",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-terra-local-pty-b02r2-partial-output",
               "assertion": "Source purpose: Force three partial output timeouts and verify exact resumption of one 16384-byte event.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Four receive statuses are 124,124,124,0 with capacity 4096; combined 16384 captured bytes hash to the independent expected fixture digest.",
               "definition_sha256": "ac218f0ef56a68d1528f8fe518d533d3386b1a50505af54dd95aa12662871b84"
+            },
+            {
+              "group": "shell",
+              "id": "migration-terra-local-pty-broker-256-partial-r1",
+              "assertion": "Both builds preserve a distinct 16384-byte event over four ordered 4096-byte drains with statuses 124, 124, 124, 0 and no extra, missing, or duplicate bytes.",
+              "definition_sha256": "97299c38293066257e1d12da9412ea12b455b776a63beda1811becb16675afef"
             }
           ],
-          "gap": "The 16,384-byte aggregate repeats four identical 4,096-byte blocks. A duplicated/reordered whole block with another omitted can match the aggregate; this fixture cannot establish the original no-duplicate/no-missing condition. No actual duplication is inferred."
+          "gap": ""
         }
       ],
-      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. Idle return 124 and maximum-parameter acceptance/over-limit rejection are exercised. External elapsed measurements include uncalibrated launch/scheduling overhead and do not exclude an early wait return; exact default/representative timeout behavior remains partial. A full 60,000 ms idle wait is not itself required. The 16,384-byte aggregate repeats four identical 4,096-byte blocks. A duplicated/reordered whole block with another omitted can match the aggregate; this fixture cannot establish the original no-duplicate/no-missing condition. No actual duplication is inferred."
+      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. Idle return 124 and maximum-parameter acceptance/over-limit rejection are exercised. External elapsed measurements include uncalibrated launch/scheduling overhead and do not exclude an early wait return; exact default/representative timeout behavior remains partial. A full 60,000 ms idle wait is not itself required. The 16,384-byte aggregate repeats four identical 4,096-byte blocks. A duplicated/reordered whole block with another omitted can match the aggregate; this fixture cannot establish the original no-duplicate/no-missing condition. No actual duplication is inferred. Broker286 additionally observes bounded default and 250 ms idle waits and distinct-block partial-output resumption on both builds; strict nominal lower bounds and a 60000 ms idle wait were not measured. Frozen 285 may lose an already reached mismatch after a later probe or cleanup failure; these four complete matching observations remain PASS."
     },
     {
       "topic": "ptybroker/child_exit_and_cleanup",
@@ -35024,9 +35204,9 @@
         "kind": "deferred",
         "reason": "Requires a future disposable VM providing the following prerequisite: Requires a dedicated disposable PTY/readline harness with synthetic history and a bounded prompt cycle to verify pruning, dropped counts, and PROMPT_COMMAND save/restore. The declarative runner has no PTY interaction and must not touch a real login history."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: The saved history lacks benign safe_anchor_a, so the candidate exited 12; the mismatch is a reached failure.; r3: No fixture.; r4: No fixture.; r5: No fixture. The guest environment sets HISTFILE=/dev/null.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
@@ -35038,6 +35218,12 @@
               "id": "trace-vm-scrub-live-history-r1",
               "assertion": "Original obligation: scrub live enable installs 'scrub live prune >/dev/null' in PROMPT_COMMAND, prepended to an existing value and not duplicated Recorded statuses static=FAIL, dynamic=FAIL. Static candidate result: . Unreached: explicit prune count, disable restoration and later HISTFILE observations. Independent raw observations: Enable twice produced one prepended hook; saved prompt history contains safe_anchor_b but not safe_anchor_a, and exits 12 before later steps.",
               "definition_sha256": "066d4d6d6352f71067e712850295f8034b399610b0f11c662a490189c87dc73a"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-scrub-live-restore-independent-r1",
+              "assertion": "The saved enabled prompt-command value contains one prepended hook after two enable calls on each build; preserve the earlier reached framework FAIL.",
+              "definition_sha256": "6346811f4f73e2aece3f64645d04e8073865f3b07613006d337b034899163676"
             }
           ],
           "gap": ""
@@ -35045,40 +35231,67 @@
         {
           "id": "r2",
           "behavior": "At each prompt, in-memory history entries matching the denylist are removed and benign entries kept",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "terminal",
               "id": "trace-vm-scrub-live-history-r1",
               "assertion": "Original obligation: At each prompt, in-memory history entries matching the denylist are removed and benign entries kept Recorded statuses static=FAIL, dynamic=FAIL. Static candidate result: . Unreached: explicit prune count, disable restoration and later HISTFILE observations. Independent raw observations: Enable twice produced one prepended hook; saved prompt history contains safe_anchor_b but not safe_anchor_a, and exits 12 before later steps.",
               "definition_sha256": "066d4d6d6352f71067e712850295f8034b399610b0f11c662a490189c87dc73a"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-scrub-prompt-boundary-seeded-r3",
+              "assertion": "On each build the pre-prompt snapshot contains both seeded denied records and a benign anchor; after a recorded prompt boundary the denied records are absent and the benign anchor remains. Preserve the earlier reached framework FAIL.",
+              "definition_sha256": "22ccc3404bc77897bd31ab4733ae5b40134a4735a6ea8f2995645910fd1165c4"
             }
           ],
-          "gap": "The saved history lacks benign safe_anchor_a, so the candidate exited 12; the mismatch is a reached failure."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Dropped counts reported by an explicit 'scrub live prune'",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-scrub-explicit-seeded-r3",
+              "assertion": "Each build records two matching seeded records removed and an explicit prune count of 2; the benign anchor remains.",
+              "definition_sha256": "2aa607bfe18dd4d3150ea4edc1745b2342d2342e238df9bbbd4f2201d55e61b5"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "scrub live disable restores the previous PROMPT_COMMAND exactly",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-scrub-live-restore-independent-r1",
+              "assertion": "Each build records the exact prior PROMPT_COMMAND after live disable.",
+              "definition_sha256": "6346811f4f73e2aece3f64645d04e8073865f3b07613006d337b034899163676"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "No real login history is touched (HISTFILE is a private or /dev/null path)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No fixture. The guest environment sets HISTFILE=/dev/null."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "migration-scrub-live-restore-independent-r1",
+              "assertion": "Each build records HISTFILE=/dev/null before and after the bounded interactive sequence; the other cases use the pinned guest environment setting.",
+              "definition_sha256": "6346811f4f73e2aece3f64645d04e8073865f3b07613006d337b034899163676"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Ten framework failures per build are retained. Candidate NTS application behavior and later live-history steps were unreached and are not credited. No crypto calculations or fixture behavior were executed."
+      "notes": "Preserve original obligations and existing companion evidence. Ten framework failures per build are retained. Candidate NTS application behavior and later live-history steps were unreached and are not credited. No crypto calculations or fixture behavior were executed. Primary receipt accepts paired seeded PTY observations; prior reached r1/r2 framework failures remain FAIL. PTY writes are recorded, not exact child read syscalls."
     },
     {
       "topic": "sed/pty-canonical-eof-ordering",
@@ -36775,26 +36988,40 @@
         "purpose": "Record the unsupported concurrent-writer/lock-contention scenario without making concurrent writes to the unlocked VFS.",
         "reason": "Requires a future disposable VM with two explicitly synchronized writer processes and a lock-capable SQLite reference VFS or syscall-level SQLite VFS mock. The documented unix-none VFS supplies no interprocess locking, so this suite does not execute the scenario."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "This is an implementation limitation, not a missing driver: the candidate's SQLite build has no locking VFS. Executing concurrent writers would test documented non-support and risks corrupting only a private file.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Two synchronized writers on one database file observe lock contention (SQLITE_BUSY) rather than corrupting data.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The candidate is documented to use the unix-none VFS, which performs no interprocess locking (suite exclusions), so the scenario is unsupported by the implementation."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sqlite-locking-busy-r1",
+              "assertion": "Both builds: reached FAIL; source-bound separate writers both began and inserted while the first held its transaction, instead of observing contention. Post-rollback integrity and seed row checks passed; candidate numeric SQLite error and concurrent-commit outcome are not inferred.",
+              "definition_sha256": "24b5ad4e3ffd5ca6fe0ceb1f14b7a7659ab3b2c5534ab061118356d8b1bb5ff6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "The documented absence of locking is itself observable: concurrent BEGIN IMMEDIATE from two processes both succeed.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-sqlite-locking-unix-none-r1",
+              "assertion": "Both builds: reached PASS; source-bound separate writers both successfully began while the first transaction was held; retained statuses and barrier observations support the documented unix-none behavior.",
+              "definition_sha256": "fad171ac3599d295bf2a06a31062aeedd021cb9ed9368c9624d79d384fc23b35"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/sqlite*.c VFS selection (unix-none per suite reference)."
+      "notes": "loadables/sqlite*.c VFS selection (unix-none per suite reference). Primary SQLite receipt pins paired source-bound VM observations; process IDs and syscall traces were not retained, and no numeric candidate SQLITE_BUSY or concurrent commit outcome is claimed."
     },
     {
       "topic": "ss/deferred_netlink_protocol_errors",
@@ -42724,28 +42951,34 @@
         "kind": "deferred",
         "reason": "Requires a disposable VM or private PTY driver plus the same controlled proc snapshots. A cell decoder must independently interpret the emitted ECMA-48 subset; no real user's terminal or host process table may be used."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: Three load values occur in the stream with a bounded exit, but the final saved screen checkpoint is after alternate-screen exit. Exact count/cadence and the third visible checkpoint are not independently established; retain this bounded observation without complete coverage.; r2: Sort values and validation steps were never reached after the prompt timeout.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
           "behavior": "interactive mode redraws a bounded number of times at the -d delay (with -n count)",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "terminal",
               "id": "migration-terra-local-terminal-top-ui-redraw-count",
               "assertion": "Source purpose: -n 3 completes three timed redraws that see successive controlled load values.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Replayed raw frames show 0.25 and 0.50 loads, with 0.75 emitted before alternate-screen exit.",
               "definition_sha256": "ad888e2a17dbd646547ea7b7a3c3cb3f3dbdf0e9b361deb14abdfbb4a55b3107"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-top-fifo-redraw",
+              "assertion": "Both builds observed three frames and four source-bound samples with bounded intervals; primary accepted the stated FIFO limitation.",
+              "definition_sha256": "23d58dccac902c61f1eb1b60ed9e5c1cd9b19f7249eee66056b090b636fb7094"
             }
           ],
-          "gap": "Three load values occur in the stream with a bounded exit, but the final saved screen checkpoint is after alternate-screen exit. Exact count/cadence and the third visible checkpoint are not independently established; retain this bounded observation without complete coverage."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "n (delay) and o/O (sort) prompts accept and validate input",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "terminal",
@@ -42770,9 +43003,33 @@
               "id": "migration-terra-local-terminal-top-ui-sort-prompt-valid-r4",
               "assertion": "Source purpose: o opens a sort prompt and accepts mem.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: n prompt cases show accepted 3s and rejected 0; both o/O cases send their key and then time out before the sort prompt, a FAIL on each build.",
               "definition_sha256": "ece6ac8a32174a0ec67e9f6121725bad251e914592e4d5c2def19f0712cba7df"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-top-delay-invalid",
+              "assertion": "Both builds observed the n prompt, its input and accepted or rejected delay response; PASS.",
+              "definition_sha256": "e8d0bc82478b15ddaf3d740ee629e09ca1deae523cc4766f4ace7e3378ccff50"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-top-delay-valid",
+              "assertion": "Both builds observed the n prompt, its input and accepted or rejected delay response; PASS.",
+              "definition_sha256": "ca42d93685619c17b8b2b2d8e582209a2f62cb163df93dbbbdeb2cb44f7f0baa"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-top-sort-prompt-invalid",
+              "assertion": "Both builds reached the o/O prompt assertion and failed after the key was sent; sort inputs remain unreached and the raw timeout remains FAIL.",
+              "definition_sha256": "233da64e48840d91b70c4ac8822a2d548fb054006592ad2504dd6702151cb887"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-top-sort-prompt-valid",
+              "assertion": "Both builds reached the o/O prompt assertion and failed after the key was sent; sort inputs remain unreached and the raw timeout remains FAIL.",
+              "definition_sha256": "7d7f446a88e30f3556de445a01d6788059f1f005966c2b50256c7f8abf1c72da"
             }
           ],
-          "gap": "Sort values and validation steps were never reached after the prompt timeout."
+          "gap": ""
         },
         {
           "id": "r3",
@@ -42883,7 +43140,7 @@
           "gap": ""
         }
       ],
-      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. Three load values occur in the stream with a bounded exit, but the final saved screen checkpoint is after alternate-screen exit. Exact count/cadence and the third visible checkpoint are not independently established; retain this bounded observation without complete coverage."
+      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. Three load values occur in the stream with a bounded exit, but the final saved screen checkpoint is after alternate-screen exit. Exact count/cadence and the third visible checkpoint are not independently established; retain this bounded observation without complete coverage. Primary accepted bounded FIFO redraw observations and reached sort-prompt failures on both builds; source-bound sampling and unreached sort values remain explicit. Earlier evidence is retained."
     },
     {
       "topic": "top/mutation-prompts-mocked",
@@ -46143,9 +46400,9 @@
         "purpose": "Compare real terminal rendering, interactive errors, and terminal interaction with Procps-ng watch.",
         "reason": "Requires a reviewed bounded PTY driver and independent terminal-frame oracle. The current submit helper provides pipes rather than a PTY. Cadence and interactive signals are outside this review."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: The candidate message, key wait and keyed exit were never reached. Preserve the existing legacy bounded-execution companion.; r6: A width 40 redraw follows resize, coincident with the ordinary one-second update. The data do not distinguish the named SIGWINCH path from periodic polling; retain partial without imposing an unstated exact-latency threshold.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
@@ -46178,7 +46435,7 @@
         {
           "id": "r3",
           "behavior": "Interactive error: with -e, a failing command shows procps's error message and waits for a key before exiting with the documented status.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -46191,9 +46448,15 @@
               "id": "migration-terra-local-terminal-watch-error-key",
               "assertion": "Source purpose: -e displays the reference error text and waits for a key before returning procps 4.0.4 status 8.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: The procps side shows the error message, waits for 300 ms and exits 8 after its key event; the candidate exits 1 before the first screen step in both builds.",
               "definition_sha256": "86e577b8f2d967fdd764e3f1deceebde58e1a8080d37899d137225591796f6dd"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-watch-error-key",
+              "assertion": "Both builds enter the watch builtin, reap a child that exited 7, and exit 1 before displaying the interactive error prompt or receiving a key. The procps reference displays the message, waits, and exits 8 after a key. These reached failures retain the diagnostic ptrace timing qualification; candidate key handling remains unreached.",
+              "definition_sha256": "020a87eca1272d787379abf2ba1bc107359fa2464aa0bddf8c7d6b8b71a0aba4"
             }
           ],
-          "gap": "The candidate message, key wait and keyed exit were never reached. Preserve the existing legacy bounded-execution companion."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -46232,19 +46495,25 @@
         {
           "id": "r6",
           "behavior": "Resize redraw (SIGWINCH) re-renders at the new width.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "terminal",
               "id": "migration-terra-local-terminal-watch-resize",
               "assertion": "Source purpose: Resize 80 columns to 40 and require the long output to wrap onto a second row.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Both sides record a resize from width 80 to 40, then render 40 characters on row 0 and the remainder on row 1.",
               "definition_sha256": "3f2b79f64fb3ae5e34dc321e6a4bacd5eae446bff265efc4d3a89a369491fb3e"
+            },
+            {
+              "group": "terminal",
+              "id": "migration-terminal213-watch-winch",
+              "assertion": "Both builds reached 80-to-40 resize and failed to redraw before the six-second deadline; procps references and independent resize controls succeeded. Candidate status 137 reflects cleanup after the reached failure; direct per-process SIGWINCH delivery was not traced.",
+              "definition_sha256": "90d8f54e6546385232f1f260c017de6ccd949c1f3c2935877c78516b3e9597ec"
             }
           ],
-          "gap": "A width 40 redraw follows resize, coincident with the ordinary one-second update. The data do not distinguish the named SIGWINCH path from periodic polling; retain partial without imposing an unstated exact-latency threshold."
+          "gap": ""
         }
       ],
-      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. The validated PTY and procps reference show the full header and payload, while candidate output repeatedly contains only payload and reaches the first header assertion timeout. This exercises the original header contract as FAIL. Correct candidate host/time header parity and a later scripted interrupt are not claimed. A width 40 redraw follows resize, coincident with the ordinary one-second update. The data do not distinguish the named SIGWINCH path from periodic polling; retain partial without imposing an unstated exact-latency threshold."
+      "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. The validated PTY and procps reference show the full header and payload, while candidate output repeatedly contains only payload and reaches the first header assertion timeout. This exercises the original header contract as FAIL. Correct candidate host/time header parity and a later scripted interrupt are not claimed. A width 40 redraw follows resize, coincident with the ordinary one-second update. The data do not distinguish the named SIGWINCH path from periodic polling; retain partial without imposing an unstated exact-latency threshold. Primary accepted both reached watch-winch redraw failures on frozen builds; references and resize controls succeeded. Image identity digest field is affected by the controller variable-shadowing defect; separate prepared image checks support the receipt. Primary-receipted watch observations retain the early-exit FAIL on both builds, with ptrace timing qualification and no claim that candidate key handling was reached. The existing nonterminal companion and resize evidence remain."
     },
     {
       "topic": "wg/deferred-set-kernel-apply",

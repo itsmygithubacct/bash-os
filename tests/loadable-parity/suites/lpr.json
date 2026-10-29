@@ -56,9 +56,46 @@
     },
     {
       "id": "submit_fixture_backend",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise deterministic file and stdin submissions, literal backend argv, complete-byte acceptance, and spool cleanup without delivering a real print job.",
-      "reason": "Remaining obligations: r2: Backend argv is recorded for explicit submit forms; both bare forms stop before backend invocation.; r3: The explicit submit forms retain the full 28 input bytes; both bare forms stop before backend invocation.; r5: Timeout failure is bounded and explicit submits succeed; no complete post-success spool snapshot was retained."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/lpr/submit-without-backend"
+        },
+        {
+          "group": "shell",
+          "id": "migration-lpr-success-spool-snapshot-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-lpr-barefile"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-lpr-barestdin"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-lpr-failure"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-lpr-file"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-lpr-partial"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-lpr-stdin"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-lpr-timeout"
+        }
+      ]
     },
     {
       "id": "list-private-spool",
@@ -71,9 +108,30 @@
     },
     {
       "id": "cancel_owned_child",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise stale-job cleanup and live cancellation through the control FIFO while proving cancellation affects only the submitter's fixture backend child.",
-      "reason": "Remaining obligations: r2: The recorded backend received TERM and one witness did not; there is no universal signal-syscall trace.; r3: Stale cleanup and an unsignalled witness were recorded, but every possible signal target was not independently traced.; r4: Slash-ID rejection and cleanup reports were recorded; no complete post-cancel spool snapshot was retained."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/lpr/list-private-spool"
+        },
+        {
+          "group": "shell",
+          "id": "migration-lpr-signal-live-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-lpr-signal-stale-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-lpr-cancel-live"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-lpr-cancel-stale"
+        }
+      ]
     },
     {
       "id": "submit-without-backend",

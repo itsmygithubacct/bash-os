@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-system-client-syslog-fifo-hup-231-r1",
+      "loadable": "bashsyslogd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Three distinct queued records replay FIFO at startup and after an owned pidfd-delivered SIGHUP.",
+      "covers": [
+        "bashsyslogd/forwarding_queue_replay"
+      ],
+      "oracle": "Exact independently received loopback UDP bytes/order and kernel receive timestamps mapped to conservative monotonic intervals, compared with recorded queue bytes and owned process identity.",
+      "comparison": "Setup validates protected root attestation/PID-1 identity, uid/gid 2000, loopback UDP and kernel timestamps, queue bytes, pidfd controls and negative predicate controls. Three startup records precede a measured one-record periodic warm-up. The next queue contains three different records. The exact owned daemon is stopped by pidfd before the snapshot; a no-HUP continuation control observes the unchanged queue without UDP, then stops it again. HUP is queued through the owned pidfd after the snapshot; after a bounded hold the daemon is continued and its three datagrams must arrive before the next periodic boundary. Raw packets, queue states, kernel timestamps, clock samples, exit and stderr are retained. Timing/control/capture uncertainty is incomplete. A realtime marker sampled between the continuation-start monotonic sample and the SIGCONT call must precede each kernel receive timestamp. An armed nonblocking realtime timerfd with CANCEL_ON_SET is checked across the observation; setup brackets kernel timestamps by controlled UDP sends and checks expired timer and negative ordering controls. Padded monotonic intervals must remain after the HUP and before the periodic boundary. The marker precedes the SIGCONT syscall and is not proof of syscall entry or sender identity. The finish packet must follow a bracketed CLOCK_REALTIME sample taken after the local finish send returned; an armed cancellation fence covers the send, marker and packet observation, and the padded monotonic upper bound must meet the original deadline. Uncertain or equal ordering stays incomplete. Packet mismatches remain provisional until post-cleanup clock attribution. Loopback peer identity needs independent sender isolation evidence before packet-based pass or failure is credited. The nonroot helper binds its own namespace IDs to a root-created, mode-0444 namespace attestation. The active scratch tmpfs is bound to fdinfo mount IDs and refusal emits bounded mount observations only after protected guest checks; earlier refusal does not inspect scratch.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-syslog-fifo-231.py": "f01a34cb5da767bdeb3df72e92b90caf74daaec5bdbdc8bc6e2b61a122f304b3"
+      },
+      "setup_timeout": 25,
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/system-client-syslog-fifo-231.py setup hup",
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/system-client-syslog-fifo-231.py case hup \"$BASH\"",
+      "expected_status": 0,
+      "timeout": 45,
+      "stdout": "fifo169 hup=pass\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "fifo169-setup.json",
+        "fifo169-result.json"
+      ]
+    },
+    {
+      "id": "migration-system-client-syslog-fifo-periodic-231-r1",
+      "loadable": "bashsyslogd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Three distinct queued records replay FIFO at startup and on a later one-second periodic retry without signaling the daemon.",
+      "covers": [
+        "bashsyslogd/forwarding_queue_replay"
+      ],
+      "oracle": "Exact independently received loopback UDP bytes/order and kernel receive timestamps mapped to conservative monotonic intervals, compared with recorded queue bytes and owned process identity.",
+      "comparison": "Setup validates protected root attestation/PID-1 identity, uid/gid 2000, loopback UDP and kernel timestamps, queue bytes, pidfd controls and negative predicate controls. Three startup records precede a measured one-record periodic warm-up. The next queue contains three different records. No HUP or other trigger signal is sent to the daemon; all three datagrams must arrive in order within the next periodic retry window, and each warm-up-to-trigger interval must fit within 750\u20131,250 ms. Raw packets, queue states, kernel timestamps, clock samples, exit and stderr are retained. Timing/control/capture uncertainty is incomplete. The finish packet must follow a bracketed CLOCK_REALTIME sample taken after the local finish send returned; an armed cancellation fence covers the send, marker and packet observation, and the padded monotonic upper bound must meet the original deadline. Uncertain or equal ordering stays incomplete. Packet mismatches remain provisional until post-cleanup clock attribution. Loopback peer identity needs independent sender isolation evidence before packet-based pass or failure is credited. The nonroot helper binds its own namespace IDs to a root-created, mode-0444 namespace attestation. The active scratch tmpfs is bound to fdinfo mount IDs and refusal emits bounded mount observations only after protected guest checks; earlier refusal does not inspect scratch.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/system-client-syslog-fifo-231.py": "f01a34cb5da767bdeb3df72e92b90caf74daaec5bdbdc8bc6e2b61a122f304b3"
+      },
+      "setup_timeout": 25,
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/system-client-syslog-fifo-231.py setup periodic",
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/system-client-syslog-fifo-231.py case periodic \"$BASH\"",
+      "expected_status": 0,
+      "timeout": 45,
+      "stdout": "fifo169 periodic=pass\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "fifo169-setup.json",
+        "fifo169-result.json"
+      ]
+    }
+  ]
+}

@@ -319,6 +319,27 @@ def retained_overlay_cleanup(spec, directory, summary, provenance, expected_bina
 
 def load_run(spec, expected_binary, expected_build=None, repo=REPO):
     if "evidence_format" in spec:
+        if spec["evidence_format"] == "primary-qualified-broker286-v1":
+            from primary_broker_evidence import load_qualified_broker_run
+            return load_qualified_broker_run(spec, expected_binary, expected_build)
+        if spec["evidence_format"] == "primary-qualified-top371-v1":
+            from primary_top371_evidence import load_qualified_top371_run
+            return load_qualified_top371_run(spec, expected_binary, expected_build)
+        if spec["evidence_format"] == "primary-qualified-watch337-r3-v1":
+            from primary_watch337_evidence import load_qualified_watch337_run
+            return load_qualified_watch337_run(spec, expected_binary, expected_build)
+        if spec["evidence_format"] == "primary-qualified-watch293-v1":
+            from primary_watch_evidence import load_qualified_watch_run
+            return load_qualified_watch_run(spec, expected_binary, expected_build)
+        if spec["evidence_format"] == "primary-qualified-syslog309-v1":
+            from primary_syslog_evidence import load_qualified_syslog_run
+            return load_qualified_syslog_run(spec, expected_binary, expected_build)
+        if spec["evidence_format"] == "primary-qualified-ncdu294-v1":
+            from primary_ncdu_evidence import load_qualified_ncdu_run
+            return load_qualified_ncdu_run(spec, expected_binary, expected_build)
+        if spec["evidence_format"] == "primary-qualified-modern293-v1":
+            from primary_modern_evidence import load_qualified_modern_run
+            return load_qualified_modern_run(spec, expected_binary, expected_build)
         if spec["evidence_format"] == "primary-qualified-clock342-v1":
             from primary_clock_evidence import load_qualified_clock_run
             return load_qualified_clock_run(spec, expected_binary, expected_build)
@@ -426,7 +447,7 @@ def reconcile(ledger, configuration, repo=REPO):
         binary = file_digest(spec["binary"])
         evidence, runs = {}, []
         for run in spec["runs"]:
-            if run.get("evidence_format") in ("primary-qualified-controller-v1", "primary-qualified-clock342-v1"):
+            if run.get("evidence_format") in ("primary-qualified-controller-v1", "primary-qualified-clock342-v1", "primary-qualified-syslog309-v1", "primary-qualified-ncdu294-v1", "primary-qualified-broker286-v1", "primary-qualified-modern293-v1", "primary-qualified-watch293-v1", "primary-qualified-watch337-r3-v1", "primary-qualified-top371-v1"):
                 check(Path(spec["binary"]).is_absolute()
                       and spec["binary"] == run.get("core_binary_path"),
                       "controller evidence requires the configured recorded core binary")

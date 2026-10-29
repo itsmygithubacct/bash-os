@@ -113,9 +113,82 @@
     },
     {
       "id": "interactive-browser-pty",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise keyboard navigation, sorting, descent/ascent, and screen restoration in the interactive browser.",
-      "reason": "Remaining obligations: r5: No saved prior visible-screen baseline is available; alternate-screen exit does not independently prove prior visible content was restored."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terra-local-terminal-ncdu-descend-enter-backspace-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-terminal-ncdu-descend-right-backspace-r2"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal213-ncdu-visible-restore-ctrl-c"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal213-ncdu-visible-restore-escape"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal213-ncdu-visible-restore-q"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-ncdu-descend-enter-left-r2"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-ncdu-descend-right-left-r2"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-ncdu-down-r2"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-ncdu-end-r2"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-ncdu-home-r2"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-ncdu-initial-sort-r2"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-ncdu-quit-ctrl-c-r2"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-ncdu-quit-escape-r2"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-ncdu-quit-q-r2"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-ncdu-sort-apparent-r2"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-ncdu-sort-name-r2"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-ncdu-sort-size-r2"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-ncdu-up-r2"
+        }
+      ]
     },
     {
       "id": "one-filesystem-boundary",

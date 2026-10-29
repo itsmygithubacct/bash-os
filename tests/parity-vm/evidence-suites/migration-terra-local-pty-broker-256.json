@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "ptybroker",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ptybroker/bounded_io_errors"
+      ],
+      "expected_status": 0,
+      "timeout": 60,
+      "setup_timeout": 8,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/ptybroker256.py": "f019ee6ce086f51066e0e0280d6a36e6977c39cf04c4510bd629a0427cc7ed77"
+      },
+      "oracle": "Literal ptybroker contract and independently constructed seqpacket input and owned kernel observations; candidate output never defines the expected bytes or fixed poll control.",
+      "stderr": "",
+      "id": "migration-terra-local-pty-broker-256-timeout-r1",
+      "purpose": "Observe the default and explicit idle waits at the kernel syscall and check timeout parameter limits.",
+      "comparison": "Trace the owned peer-bound poll entry and exit, bound its blocked interval without process-start time, compare independent fixed 100 ms and early 10 ms controls, require idle status 124, queued-event acceptance of 60000 and rejection of 60001. Retain a completed result write before any supported poll witness so an attributable wrong or early status remains a failure.",
+      "setup_script": "exec /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/ptybroker256.py setup timeout\n",
+      "script": "exec /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/ptybroker256.py case timeout\n",
+      "stdout": "broker245 timeout=PASS\n",
+      "diagnostic_files": [
+        "broker245-setup.json",
+        "broker245-report.json"
+      ]
+    },
+    {
+      "loadable": "ptybroker",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ptybroker/bounded_io_errors"
+      ],
+      "expected_status": 0,
+      "timeout": 60,
+      "setup_timeout": 8,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/ptybroker256.py": "f019ee6ce086f51066e0e0280d6a36e6977c39cf04c4510bd629a0427cc7ed77"
+      },
+      "oracle": "Literal ptybroker contract and independently constructed seqpacket input and owned kernel observations; candidate output never defines the expected bytes or fixed poll control.",
+      "stderr": "",
+      "id": "migration-terra-local-pty-broker-256-partial-r1",
+      "purpose": "Retain four distinct partial-output blocks and the separately sent fixed frame.",
+      "comparison": "Force a 4096-byte pipe capacity, drain one raw block after each receive, compare all four retained blocks to an independent nonrepeating 16384-byte input, and retain swap, drop and duplication counterexamples. Retain and classify a reached wrong result or corrupted prefix without requiring unreached drains; an otherwise short prefix remains incomplete.",
+      "setup_script": "exec /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/ptybroker256.py setup partial\n",
+      "script": "exec /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/ptybroker256.py case partial\n",
+      "stdout": "broker245 partial=PASS\n",
+      "diagnostic_files": [
+        "broker245-setup.json",
+        "broker245-report.json",
+        "broker245-controls.json",
+        "broker245-expected.bin",
+        "broker245-peer-frame.bin",
+        "broker245-drain-1.bin",
+        "broker245-drain-2.bin",
+        "broker245-drain-3.bin",
+        "broker245-drain-4.bin"
+      ]
+    }
+  ]
+}

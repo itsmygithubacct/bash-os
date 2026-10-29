@@ -56,9 +56,70 @@
     },
     {
       "id": "try-lock-operation",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise the bounded anonymous mapping probe on successful lock/unlock, the 1-byte and 1-MiB boundaries, malformed sizes, and an insufficient-limit failure with cleanup.",
-      "reason": "Remaining obligations: r2: All six malformed diagnostics were saved, but six individual invocation statuses were not retained."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "devices-mlock-invalid-empty-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-mlock-invalid-large-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-mlock-invalid-missing-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-mlock-invalid-negative-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-mlock-invalid-text-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-mlock-invalid-zero-r1"
+        },
+        {
+          "group": "shell",
+          "id": "trace-vm-mlock-invalid-r1"
+        },
+        {
+          "group": "shell",
+          "id": "trace-vm-mlock-precheck-r1"
+        },
+        {
+          "group": "shell",
+          "id": "trace-vm-mlock-rounded-failure-r1"
+        },
+        {
+          "group": "shell",
+          "id": "trace-vm-mlock-success-1-r1"
+        },
+        {
+          "group": "shell",
+          "id": "trace-vm-mlock-success-1048576-r1"
+        },
+        {
+          "group": "shell",
+          "id": "trace-vm-mlock-syscalls-large-r2"
+        },
+        {
+          "group": "shell",
+          "id": "trace-vm-mlock-syscalls-precheck-r2"
+        },
+        {
+          "group": "shell",
+          "id": "trace-vm-mlock-syscalls-round-r2"
+        },
+        {
+          "group": "shell",
+          "id": "trace-vm-mlock-syscalls-small-r2"
+        }
+      ]
     },
     {
       "id": "ptrace-scope-operation",

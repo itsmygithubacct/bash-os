@@ -93,9 +93,18 @@
     },
     {
       "id": "concurrent-file-locking",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Record the unsupported concurrent-writer/lock-contention scenario without making concurrent writes to the unlocked VFS.",
-      "reason": "This is an implementation limitation, not a missing driver: the candidate's SQLite build has no locking VFS. Executing concurrent writers would test documented non-support and risks corrupting only a private file."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-sqlite-locking-busy-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sqlite-locking-unix-none-r1"
+        }
+      ]
     },
     {
       "id": "separate-databases-and-stale-handle",

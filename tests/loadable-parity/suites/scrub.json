@@ -104,8 +104,25 @@
     {
       "id": "live-history-deferred",
       "purpose": "Future coverage should verify pruning of curated in-memory history and PROMPT_COMMAND installation/restoration under a controlled prompt cycle.",
-      "kind": "deferred",
-      "reason": "Remaining obligations: r2: The saved history lacks benign safe_anchor_a, so the candidate exited 12; the mismatch is a reached failure.; r3: No fixture.; r4: No fixture.; r5: No fixture. The guest environment sets HISTFILE=/dev/null."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "migration-scrub-explicit-seeded-r3"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-scrub-live-restore-independent-r1"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-scrub-prompt-boundary-seeded-r3"
+        },
+        {
+          "group": "terminal",
+          "id": "trace-vm-scrub-live-history-r1"
+        }
+      ]
     },
     {
       "id": "empty-and-disabled-history",

@@ -85,8 +85,93 @@
     {
       "id": "interactive-pty-contract",
       "purpose": "Check bounded redraw count, delay and sort prompts, scrolling keys, resize behavior, empty-list recovery, exit keys, and terminal/shell trap restoration.",
-      "kind": "deferred",
-      "reason": "Remaining obligations: r1: Three load values occur in the stream with a bounded exit, but the final saved screen checkpoint is after alternate-screen exit. Exact count/cadence and the third visible checkpoint are not independently established; retain this bounded observation without complete coverage.; r2: Sort values and validation steps were never reached after the prompt timeout."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terra-local-terminal-top-ui-sort-prompt-invalid-r4"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-terminal-top-ui-sort-prompt-valid-r4"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal213-top-delay-invalid"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal213-top-delay-valid"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal213-top-fifo-redraw"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal213-top-sort-prompt-invalid"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terminal213-top-sort-prompt-valid"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-top-ui-delay-invalid"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-top-ui-delay-valid"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-top-ui-empty-recovers"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-top-ui-exit-Q"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-top-ui-exit-ctrl-c"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-top-ui-exit-q"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-top-ui-redraw-count"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-top-ui-resize"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-top-ui-scroll-down"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-top-ui-scroll-home-end"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-top-ui-scroll-page"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-top-ui-scroll-page-up"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-top-ui-scroll-up"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-terra-local-terminal-top-ui-shell-traps-r3"
+        }
+      ]
     },
     {
       "id": "mutation-prompts-mocked",

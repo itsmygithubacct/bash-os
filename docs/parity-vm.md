@@ -198,9 +198,10 @@ candidate cases. The selection includes 1 candidate-shell basics support control
 execution. Three unselected filesystem diagnostics retain excluded FAIL history
 and reasons in the [validation record](data/parity-0.1.3-validation.json).
 
-The [deferral review](parity-deferrals.md) records 355 migrated topics
-(static 183 PASS and 172 FAIL; dynamic 184 PASS and 171 FAIL) and 245 unresolved topics per build. They
-summarize named checks and add no cases. All 600 original
+At batch-220, the deferral review recorded 355 migrated topics
+(static 183 PASS and 172 FAIL; dynamic 184 PASS and 171 FAIL) and 245 unresolved topics per build.
+For the current topic counts, see the [deferral review](parity-deferrals.md).
+These summaries index named checks and add no cases. All 600 original
 DEFERRED metadata rows and their original definitions remain recorded.
 
 All guest selfchecks recorded in the selected runs pass. Each run retains its
