@@ -28,19 +28,19 @@
       "id": "ns-unshare-namespaces",
       "kind": "deferred",
       "purpose": "Compare ns unshare for its supported namespace flags and the special for-children behavior of pid/time namespaces.",
-      "reason": "Remaining obligations: r1: One case observes the user inode, and a separate case observes mount/net/ipc/uts/cgroup inodes in an owned namespace; their combined one-call request was not observed.; r2: No case.; r3: No case.; r5: The unprivileged UTS EPERM agrees with unshare; unsupported-namespace EINVAL was not exercised."
+      "reason": "Remaining obligations: r1: The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required.; r2: No case.; r3: No case.; r5: The unprivileged UTS EPERM agrees with unshare; unsupported-namespace EINVAL was not exercised."
     },
     {
       "id": "ns-spawn-child-exec",
       "kind": "deferred",
       "purpose": "Check clone-based namespace setup, argv/environment forwarding, PID namespace child semantics, --no-new-privs, and propagation of the child exit status.",
-      "reason": "Remaining obligations: r1: Exact argv is retained for none and PID namespace child cases; other namespace flag combinations were not independently compared.; r6: Exit 37 and missing-exec 127 are recorded; signal-to-128+S propagation was not exercised."
+      "reason": "Remaining obligations: r6: Exit 37 and missing-exec 127 are recorded; signal-to-128+S propagation was not exercised."
     },
     {
       "id": "ns-enter-namespace-fd",
       "kind": "deferred",
       "purpose": "Check setns using a descriptor for a controlled namespace, including ownership, invalid-descriptor, and permission behavior.",
-      "reason": "Remaining obligations: r1: No case.; r2: No case.; r4: The candidate and nsenter both receive EPERM on the saved descriptor; its owning initial user namespace is not independently established in the retained record.; r5: Same-descriptor candidate/nsenter denial is compared; successful entry and positive nsenter parity were not qualified."
+      "reason": "Remaining obligations: r1: No case.; r2: No case.; r4: The candidate and nsenter both receive EPERM on the saved descriptor; its owning initial user namespace is not independently established in the retained record."
     },
     {
       "id": "ns-id-mapping",

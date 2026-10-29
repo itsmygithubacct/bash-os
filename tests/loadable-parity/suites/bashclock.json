@@ -78,7 +78,7 @@
       "id": "since_arithmetic",
       "kind": "deferred",
       "purpose": "Force since subtraction boundary values and nanosecond borrow using injected monotonic samples; live independent bounds and ordinary argument errors execute separately.",
-      "reason": "Live brackets and argument errors execute. Borrow and future-START cases are forceable with crafted START values; exact zero and read errors need injection."
+      "reason": "Remaining obligations: r2: Live samples reach a borrow only by chance; no forced case. Partially forceable: pass a START with .999999999 nanoseconds (since takes a START argument), which forces borrow on almost every live read.; r3: A future START is forceable from a live mono reading plus an offset; exact zero needs injection.; r5: Requires injection; the vDSO path cannot fail for valid clock ids."
     },
     {
       "id": "sleep_interruption_errors",

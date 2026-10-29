@@ -107,7 +107,7 @@
       "id": "deferred-pid-deadline",
       "kind": "deferred",
       "purpose": "Exercise existing-PID/all-thread policy changes and SCHED_DEADLINE parameter validation only against an isolated target.",
-      "reason": "Remaining obligations: r2: Reached candidate divergence: Reference -a set all three threads to BATCH; candidate set only the main thread on both builds.; r4: Requires CAP_SYS_NICE (root) for the fixture side: an unprivileged task can never enter SCHED_DEADLINE."
+      "reason": "Remaining obligations: r4: Requires CAP_SYS_NICE (root) for the fixture side: an unprivileged task can never enter SCHED_DEADLINE."
     },
     {
       "id": "invalid-pid-with-priority",

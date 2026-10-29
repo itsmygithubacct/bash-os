@@ -38,7 +38,7 @@
       "id": "deferred-user-filter",
       "kind": "deferred",
       "purpose": "Qualify -u name and numeric-UID filtering across processes with distinct owners.",
-      "reason": "Remaining obligations: r3: Not executed. Two owners already exist in the guest PID namespace: the root controller and the uid-2000 fixture. No account provisioning is needed.; r4: Combined -u/-p selects only the specified PID where native lsof selects both owned children; -a is rejected as unknown."
+      "reason": "Remaining obligations: r3: Not executed. Two owners already exist in the guest PID namespace: the root controller and the uid-2000 fixture. No account provisioning is needed."
     },
     {
       "id": "deferred-process-scan",

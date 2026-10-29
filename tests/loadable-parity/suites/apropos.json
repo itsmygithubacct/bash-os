@@ -102,9 +102,58 @@
     },
     {
       "id": "man-db-query-reference-unavailable",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "After the reference dependency is available, compare GNU default regular-expression and OR semantics, -w alias matching, no-match status, and leading-dash queries against the same private whatis fixtures.",
-      "reason": "Remaining obligations: r1: Both saved regular-expression candidate queries failed against matching man-db output.; r2: The candidate OR query differed from man-db.; r3: The alias case passed but the glob/whole-name comparison failed.; r4: Candidate no-match exited 1 without the man-db diagnostic; reference exited 16."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/apropos/literal-substring-search"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/apropos/multiple-patterns-and"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/apropos/no-match-nonzero"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/apropos/word-alias-name"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/apropos/word-exact-name"
+        },
+        {
+          "group": "shell",
+          "id": "trace-vm-apropos-alias-r1"
+        },
+        {
+          "group": "shell",
+          "id": "trace-vm-apropos-dash-r1"
+        },
+        {
+          "group": "shell",
+          "id": "trace-vm-apropos-glob-r1"
+        },
+        {
+          "group": "shell",
+          "id": "trace-vm-apropos-no-match-r1"
+        },
+        {
+          "group": "shell",
+          "id": "trace-vm-apropos-or-r1"
+        },
+        {
+          "group": "shell",
+          "id": "trace-vm-apropos-regex-anchor-r1"
+        },
+        {
+          "group": "shell",
+          "id": "trace-vm-apropos-regex-dot-r1"
+        }
+      ]
     }
   ]
 }

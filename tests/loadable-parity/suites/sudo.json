@@ -64,7 +64,7 @@
       "id": "timestamp-validation-flows",
       "kind": "deferred",
       "purpose": "Verify -k, -K, -v, and -k COMMAND ordering, including that a failed reset prevents the requested action.",
-      "reason": "Remaining obligations: r1: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.; r2: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.; r3: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established."
+      "reason": "Remaining obligations: r1: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.; r2: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established."
     },
     {
       "id": "sudoedit-safe-copyback",
@@ -74,9 +74,22 @@
     },
     {
       "id": "policy-list-projection",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check -l, -ll, and --list against a caller-readable private policy snapshot, including digest binding and empty/no-match behavior, without treating listing as execution approval.",
-      "reason": "Remaining obligations: r1: Short/long/alias projections and mismatched digest rejection were observed with synthetic owner and authority responses; the digest was not recomputed and real authority binding is untested.; r4: Listing-with-command was rejected in the synthetic authority fixture; real authority approval enforcement remains untested."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-auth-client-sudo-policy-list-guarded-bootstrap-r1-stat-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-auth-policy-list-caller-projection"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sudo-list-delegate-only"
+        }
+      ]
     }
   ]
 }

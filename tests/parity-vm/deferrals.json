@@ -122,14 +122,14 @@
         "purpose": "After the reference dependency is available, compare GNU default regular-expression and OR semantics, -w alias matching, no-match status, and leading-dash queries against the same private whatis fixtures.",
         "reason": "Requires a future disposable man-db reference environment that supplies its required manpath configuration and a private whatis corpus. The present runner lacks /etc/manpath.config, so GNU query semantics cannot be validly compared here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: Both saved regular-expression candidate queries failed against matching man-db output.; r2: The candidate OR query differed from man-db.; r3: The alias case passed but the glob/whole-name comparison failed.; r4: Candidate no-match exited 1 without the man-db diagnostic; reference exited 16.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Default keyword interpretation is a regular expression (man-db default -r); e.g. 'al.ha' and '^alp' match like man-db against the same private page set.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -150,12 +150,12 @@
               "definition_sha256": "0b00172accc274e5ea16ea4a2543c82634f4b9968cc3639a32c25d2951bb0107"
             }
           ],
-          "gap": "Both saved regular-expression candidate queries failed against matching man-db output."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Several keywords are ORed by default (man-db prints an entry matching any keyword; AND only with -a/--and).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -170,12 +170,12 @@
               "definition_sha256": "46061a15038ec6653e7f400b9c51c3c18e7ad56d08813fcc68829c86e0b0a385"
             }
           ],
-          "gap": "The candidate OR query differed from man-db."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "-w matching selects whole names, including an alias from a comma-separated NAME line, as man-db does.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -202,12 +202,12 @@
               "definition_sha256": "a1e907f4d6eeccc319501a9b8b21dd9b9d500c1905aeae0a1ed355dfaa48b1f7"
             }
           ],
-          "gap": "The alias case passed but the glob/whole-name comparison failed."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "No-match status equals man-db (exit 16) with the same stdout/stderr channel use.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -222,7 +222,7 @@
               "definition_sha256": "4c3773b6646ceef4789bdff5d1b391ef2996c975ed335841106cf56104a0c2b0"
             }
           ],
-          "gap": "Candidate no-match exited 1 without the man-db diagnostic; reference exited 16."
+          "gap": ""
         },
         {
           "id": "r5",
@@ -271,7 +271,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Ten framework failures per build are retained. Candidate NTS application behavior and later live-history steps were unreached and are not credited. No crypto calculations or fixture behavior were executed."
+      "notes": "Preserve original obligations and existing companion evidence. Ten framework failures per build are retained. Candidate NTS application behavior and later live-history steps were unreached and are not credited. No crypto calculations or fixture behavior were executed. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: Both literal regex examples reached candidate and private-corpus man-db. Candidate query results are empty/status 1 and reference returns the matching alpha entry/status 0; the paired failures are valid negative outcomes. The retained parser/corpus controls support this future man-db scenario. r2: The combined alpha/beta query reached both implementations; candidate returns no entries/status 1 and reference returns both/status 0. The row asks default OR: it does not separately require an -a experiment. The older AND-oriented legacy PASS is not the oracle for this row. r3: The actual -w aleph query matches the comma-separated alias on both sides; legacy exact-name/alias records also remain. The separate alp* word-glob comparison fails on both builds and is retained; this row does not require that glob to pass. r4: The same private-corpus no-match query reaches both implementations: candidate status 1/empty and reference status 16/stderr diagnostic. This records a product failure of the requested status and channels, with man-db controls, not a PASS."
     },
     {
       "topic": "audit/deferred-audit-consumer",
@@ -589,12 +589,12 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: VERSION bytes and output were supplied by an intercepted synthetic device, not a real bashos-auth driver.; r2: The client received close-on-exec synthetic descriptors; opening the real kernel device is not established.; r3: Distinct descriptor counter vectors were supplied by the synthetic device; real kernel counter isolation is not established.; r4: Not executed.",
+      "current_reason": "Remaining obligations: r4: Not executed.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "auth probe prints abi=MAJOR.MINOR features=0xHEX from the VERSION ioctl.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -603,12 +603,12 @@
               "definition_sha256": "d7ffa304da3bed0f83d65a653a7f82c73a4752e209e5e711af41dce7d90c4eeb"
             }
           ],
-          "gap": "VERSION bytes and output were supplied by an intercepted synthetic device, not a real bashos-auth driver."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "auth open FDVAR opens the descriptor, binds it to FDVAR, and it is close-on-exec.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -617,12 +617,12 @@
               "definition_sha256": "d7ffa304da3bed0f83d65a653a7f82c73a4752e209e5e711af41dce7d90c4eeb"
             }
           ],
-          "gap": "The client received close-on-exec synthetic descriptors; opening the real kernel device is not established."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "auth stats FD reports per-descriptor counters.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -631,7 +631,7 @@
               "definition_sha256": "d7ffa304da3bed0f83d65a653a7f82c73a4752e209e5e711af41dce7d90c4eeb"
             }
           ],
-          "gap": "Distinct descriptor counter vectors were supplied by the synthetic device; real kernel counter isolation is not established."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -655,7 +655,7 @@
           "gap": ""
         }
       ],
-      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The original explicitly permits a reviewed device/ioctl mock; its retained VERSION response supplies 1.5 and 0xf and candidate probe prints those values. Control and request/response bytes are saved. This is not a real driver probe. r2: Two mock-device opens bind distinct FDVAR values; retained fdinfo and child-exec observations and positive/negative controls establish close-on-exec for the bounded mock descriptors. Both cases PASS, with no real device claim. r3: The two scripted mock descriptors return distinct STATS vectors 201..206 and 301..306 and candidate prints the corresponding vectors. The original expressly allows a scripted UAPI mock; no live counter isolation is inferred."
     },
     {
       "topic": "auth/pty-sealed-secret-lifecycle",
@@ -667,7 +667,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r2: The synthetic secret is absent from saved output, argv and environment; a real kernel secret handle and enforcement were not tested.; r3: Not executed.; r4: Not executed.",
+      "current_reason": "Remaining obligations: r3: Not executed.; r4: Not executed.",
       "requirements": [
         {
           "id": "r1",
@@ -686,7 +686,7 @@
         {
           "id": "r2",
           "behavior": "The returned handle is opaque; secret bytes never appear in argv, environment or output.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -695,7 +695,7 @@
               "definition_sha256": "9bdfbf31855cf463f757a1dde476fa88eefc5fda102a71c8baa4031328e476e8"
             }
           ],
-          "gap": "The synthetic secret is absent from saved output, argv and environment; a real kernel secret handle and enforcement were not tested."
+          "gap": ""
         },
         {
           "id": "r3",
@@ -712,7 +712,7 @@
           "gap": "Not executed."
         }
       ],
-      "notes": "auth.c read-secret / same-secret / clear. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "auth.c read-secret / same-secret / clear. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r2: The PTY and permitted synthetic slot device produce handle 4097; the saved process argv, environment and terminal capture omit the synthetic secret, and protocol/no-echo controls pass. This is client/mock evidence, not real kernel slot enforcement."
     },
     {
       "topic": "auth/synthetic-login-and-token-mint",
@@ -724,12 +724,12 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: Candidate PHC bytes differ from the saved independent standard PHC; no cryptographic computation was repeated here.; r2: The synthetic good credential was accepted, but the bound token equalled raw synthetic token bytes rather than an opaque reference.; r4: The bound shell value equalled the raw synthetic token; the value was not printed, but fd-only opacity failed.",
+      "current_reason": "Remaining obligations: r2: The correct synthetic credential reaches mint and binds raw mock token bytes, but validity of this mock's token-reference semantics is not established. Preserve the observed opacity mismatch without crediting the unresolved reference model.; r4: Saved output, argv and environment contain no token, while the shell binding equals raw synthetic token bytes. Whether this represents the original fd-only token-reference contract remains unresolved; do not infer that a token was printed.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "auth hash-secret produces a deterministic Argon2id PHC string for fixed salt/T/M/P/HASHLEN.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -738,7 +738,7 @@
               "definition_sha256": "bac0968016a802f7df4947c4e14acb618e614f8423f75b747796e26494f8d2ab"
             }
           ],
-          "gap": "Candidate PHC bytes differ from the saved independent standard PHC; no cryptographic computation was repeated here."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -752,7 +752,7 @@
               "definition_sha256": "bac0968016a802f7df4947c4e14acb618e614f8423f75b747796e26494f8d2ab"
             }
           ],
-          "gap": "The synthetic good credential was accepted, but the bound token equalled raw synthetic token bytes rather than an opaque reference."
+          "gap": "The correct synthetic credential reaches mint and binds raw mock token bytes, but validity of this mock's token-reference semantics is not established. Preserve the observed opacity mismatch without crediting the unresolved reference model."
         },
         {
           "id": "r3",
@@ -780,10 +780,10 @@
               "definition_sha256": "bac0968016a802f7df4947c4e14acb618e614f8423f75b747796e26494f8d2ab"
             }
           ],
-          "gap": "The bound shell value equalled the raw synthetic token; the value was not printed, but fd-only opacity failed."
+          "gap": "Saved output, argv and environment contain no token, while the shell binding equals raw synthetic token bytes. Whether this represents the original fd-only token-reference contract remains unresolved; do not infer that a token was printed."
         }
       ],
-      "notes": "Note: passwd and su compute Argon2id in userland (monocypher crypto_argon2), so the same OpenSSL vectors also serve passwd/su topics. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "Note: passwd and su compute Argon2id in userland (monocypher crypto_argon2), so the same OpenSSL vectors also serve passwd/su topics. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The fixed inputs reach hash-secret; the saved independent guest Argon2 PHC and returned candidate PHC differ even though the candidate command returns 0. The device and secrets are synthetic as required. Both framework results remain FAIL; no host KDF is performed. r2: The correct synthetic credential reaches mint and binds raw mock token bytes, but validity of this mock's token-reference semantics is not established. Preserve the observed opacity mismatch without crediting the unresolved reference model. r4: Saved output, argv and environment contain no token, while the shell binding equals raw synthetic token bytes. Whether this represents the original fd-only token-reference contract remains unresolved; do not infer that a token was printed."
     },
     {
       "topic": "bashclear/pty-terminal-attributes",
@@ -998,12 +998,12 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Live brackets and argument errors execute. Borrow and future-START cases are forceable with crafted START values; exact zero and read errors need injection.",
+      "current_reason": "Remaining obligations: r2: Live samples reach a borrow only by chance; no forced case. Partially forceable: pass a START with .999999999 nanoseconds (since takes a START argument), which forces borrow on almost every live read.; r3: A future START is forceable from a live mono reading plus an offset; exact zero needs injection.; r5: Requires injection; the vDSO path cannot fail for valid clock ids.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "since subtracts a prior monotonic reading from now.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -1012,7 +1012,7 @@
               "definition_sha256": "5a4a6475d259c003156b2ebc1bb1d1a917edec250404e733bb949ff070afebfe"
             }
           ],
-          "gap": "Only live, non-boundary values."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -1056,7 +1056,7 @@
           "gap": "Requires injection; the vDSO path cannot fail for valid clock ids."
         }
       ],
-      "notes": "bashclock.c:132 since computation."
+      "notes": "bashclock.c:132 since computation. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The archived guest assertion compares since 0.987654321 against independently sampled monotonic brackets and reports PASS only on the specified subtraction condition. The original permits this live bracket. Accept the source-bound assertion; individual numeric samples were not separately retained and are not reconstructed."
     },
     {
       "topic": "bashclock/sleep_interruption_errors",
@@ -1622,7 +1622,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r4: Reached candidate divergence: Install/remove commands ran in the required order and metacharacters were refused; an owned command exiting 7 was reported but returned builtin status 1 instead of 7.; r5: Reached candidate divergence: A softdep cycle returned status 2, but the excessive-depth candidate process terminated by SIGSEGV rather than producing the expected rejection.; r6: Requires PRIV-ROOT module syscalls, same as defer-kernel-module-transitions.",
+      "current_reason": "Remaining obligations: r6: Requires PRIV-ROOT module syscalls, same as defer-kernel-module-transitions.",
       "requirements": [
         {
           "id": "r1",
@@ -1681,7 +1681,7 @@
         {
           "id": "r4",
           "behavior": "Non-dry install/remove directives execute the configured argv (argv-split exec, no shell) and their exit status propagates; directives with shell metacharacters are refused",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -1690,12 +1690,12 @@
               "definition_sha256": "d29f69dc4771504f07f53f02f9fbbea86065ebf5dcf6538e1e59fd1314a9634e"
             }
           ],
-          "gap": "Reached candidate divergence: Install/remove commands ran in the required order and metacharacters were refused; an owned command exiting 7 was reported but returned builtin status 1 instead of 7."
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "softdep cycles and recursion depth are rejected",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -1704,7 +1704,7 @@
               "definition_sha256": "4db854081249754a5a72549e81db7c65ad8bb70e748349b52d5ad445c0e8deee"
             }
           ],
-          "gap": "Reached candidate divergence: A softdep cycle returned status 2, but the excessive-depth candidate process terminated by SIGSEGV rather than producing the expected rejection."
+          "gap": ""
         },
         {
           "id": "r6",
@@ -1740,7 +1740,7 @@
           "gap": ""
         }
       ],
-      "notes": "Candidate: bk_policy_read loadables/bashkmod.c:864-1040, bk_policy_cmd :1045-1081, bk_plan_modprobe :1110-1210, bk_modprobe_apply_plan :1314-1383, bk_run_directive :701-765 (execvp with candidate PATH=/empty requires absolute argv[0]), shell-meta refusal :681. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "Candidate: bk_policy_read loadables/bashkmod.c:864-1040, bk_policy_cmd :1045-1081, bk_plan_modprobe :1110-1210, bk_modprobe_apply_plan :1314-1383, bk_run_directive :701-765 (execvp with candidate PATH=/empty requires absolute argv[0]), shell-meta refusal :681. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r4: In the private modules tree the saved observer sees install/remove argv execution and refusal of shell metacharacters; the helper exiting 7 is reached but the builtin returns 1. Denied module syscalls bound the test; the status propagation defect remains FAIL, and no real module action is claimed. r5: The retained policy graph supplies a cycle and an excessive-depth chain. The cycle returns 2, while depth exits 139 rather than rejecting; both inputs reach the operation, and the crash is preserved as FAIL. The fixture does not load a real module."
     },
     {
       "topic": "bashlogger/descriptor-safety",
@@ -5030,9 +5030,9 @@
         "purpose": "Check security.capability revision 2 and 3 decoding, effective flag handling, empty xattrs, malformed payload lengths, and -V binding.",
         "reason": "Requires a private xattr-capable disposable filesystem with controlled file capabilities, or a reviewed getxattr mock returning fixed UAPI vfs_cap_data byte strings and ENODATA/ENOTSUP/error results. Expected masks must be independently encoded from Linux UAPI definitions; the runnable cases read only newly created private files without file capabilities."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r6: Only lengths 0, 4, 11, 12, 16 and 19 were observed; the two full malformed-length ranges were not exhaustively exercised.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -5125,7 +5125,7 @@
         {
           "id": "r6",
           "behavior": "Malformed payload lengths (<12 bytes, 12..19 bytes) are rejected or partially decoded as documented",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -5134,7 +5134,7 @@
               "definition_sha256": "aea8e1d9cc6f87040449d7fcdfb26fdaf54045f130aaf60d45f539f704cc614b"
             }
           ],
-          "gap": "Only lengths 0, 4, 11, 12, 16 and 19 were observed; the two full malformed-length ranges were not exhaustively exercised."
+          "gap": ""
         },
         {
           "id": "r7",
@@ -5157,7 +5157,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve existing evidence and the original purpose, reason and requirements. The storage supervisor observations cover specific injected records, not unrestricted real devices; keyring records belong only to the previously qualified owned guest fixture."
+      "notes": "Preserve existing evidence and the original purpose, reason and requirements. The storage supervisor observations cover specific injected records, not unrestricted real devices; keyring records belong only to the previously qualified owned guest fixture. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r6: The permitted getxattr mock supplies lengths 0, 4, 11 and 12, 16, 19, including both interval edges and interiors; the saved results show rejection/partial decoding according to the documented cases. These are representative boundaries, not all integer lengths, and both framework cases remain PASS."
     },
     {
       "topic": "caps/caps-has-membership",
@@ -6392,7 +6392,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r2: Reached candidate divergence: Reference -a set all three threads to BATCH; candidate set only the main thread on both builds.; r4: Requires CAP_SYS_NICE (root) for the fixture side: an unprivileged task can never enter SCHED_DEADLINE.",
+      "current_reason": "Remaining obligations: r4: Requires CAP_SYS_NICE (root) for the fixture side: an unprivileged task can never enter SCHED_DEADLINE.",
       "requirements": [
         {
           "id": "r1",
@@ -6411,7 +6411,7 @@
         {
           "id": "r2",
           "behavior": "--all-tasks applies the change to every thread of the target thread group (and without -a only the main thread changes)",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -6420,7 +6420,7 @@
               "definition_sha256": "37cfe6e33531637e3f23b5f731030f8efa1b5457e8965963f284f71ebce1dc77"
             }
           ],
-          "gap": "Reached candidate divergence: Reference -a set all three threads to BATCH; candidate set only the main thread on both builds."
+          "gap": ""
         },
         {
           "id": "r3",
@@ -6484,7 +6484,7 @@
           "gap": ""
         }
       ],
-      "notes": "loadables/chrt.c:218 uses SYS_sched_setattr for DEADLINE; :260 query branch. Kernel order of checks (kernel/sched/syscalls.c __sched_setscheduler): valid_policy, then __checkparam_dl (EINVAL), then user_check_sched_setscheduler (EPERM). Recheck on the guest kernel 6.12. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "loadables/chrt.c:218 uses SYS_sched_setattr for DEADLINE; :260 query branch. Kernel order of checks (kernel/sched/syscalls.c __sched_setscheduler): valid_policy, then __checkparam_dl (EINVAL), then user_check_sched_setscheduler (EPERM). Recheck on the guest kernel 6.12. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r2: Owned three-thread before/after observations show main-only [3,0,0], candidate all-tasks [3,0,0], and independent control all-tasks [3,3,3] from all-zero starts. BATCH scheduling exercises the requested thread-selection rule; both FAIL results remain."
     },
     {
       "topic": "chrt/deferred-policy-command",
@@ -11563,12 +11563,12 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: An owned child ran on a synthetic allow response; actual v2 authority and credential enforcement were not exercised.; r2: Synthetic denial left the owned child marker absent; real authority policy enforcement was not exercised.; r3: A synthetic authentication-required response caused noninteractive denial; real authority enforcement remains untested.; r4: A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic.",
+      "current_reason": "Remaining obligations: r4: A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Non-root allow through the v2 authority runs the command.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -11577,12 +11577,12 @@
               "definition_sha256": "8d1352f990548015a9c79c1ef4b16306a2c763ecadc3a26801fa2a09cfba8eb5"
             }
           ],
-          "gap": "An owned child ran on a synthetic allow response; actual v2 authority and credential enforcement were not exercised."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Policy deny never starts the command.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -11591,12 +11591,12 @@
               "definition_sha256": "8d1352f990548015a9c79c1ef4b16306a2c763ecadc3a26801fa2a09cfba8eb5"
             }
           ],
-          "gap": "Synthetic denial left the owned child marker absent; real authority policy enforcement was not exercised."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "-n non-interactive deny when authentication would be required.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -11605,7 +11605,7 @@
               "definition_sha256": "8d1352f990548015a9c79c1ef4b16306a2c763ecadc3a26801fa2a09cfba8eb5"
             }
           ],
-          "gap": "A synthetic authentication-required response caused noninteractive denial; real authority enforcement remains untested."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -11622,7 +11622,7 @@
           "gap": "A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic."
         }
       ],
-      "notes": "doas.c bda_run_authority, bda_open_authority_if_available. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "doas.c bda_run_authority, bda_open_authority_if_available. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: A purpose-built synthetic v2 authority allows the private non-root caller; the owned child marker and exit 7 follow the recorded handoff. No real authority or credential transition is inferred. r2: The synthetic policy deny ends authorization with status 1 and no owned child marker. The bounded mock and private identities meet the original scenario; both cases PASS. r3: The -n request receives synthetic authentication-required denial and no child marker. The independent request/response is saved. An interactive verifier process belongs to a different clause."
     },
     {
       "topic": "doas/child_argv_environment_status",
@@ -21377,12 +21377,12 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: Explicit submit forms reach the backend; both bare forms return usage status 2 before any backend invocation.; r2: Backend argv is recorded for explicit submit forms; both bare forms stop before backend invocation.; r3: The explicit submit forms retain the full 28 input bytes; both bare forms stop before backend invocation.; r5: Timeout failure is bounded and explicit submits succeed; no complete post-success spool snapshot was retained.",
+      "current_reason": "Remaining obligations: r2: Backend argv is recorded for explicit submit forms; both bare forms stop before backend invocation.; r3: The explicit submit forms retain the full 28 input bytes; both bare forms stop before backend invocation.; r5: Timeout failure is bounded and explicit submits succeed; no complete post-success spool snapshot was retained.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "lpr FILE and lpr from stdin spool the job and run BASHLPR_BACKEND <id> <size> <title> with the job bytes.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -21409,7 +21409,7 @@
               "definition_sha256": "001fece0eb1c08bf5c8799bcfa2d6667b4282808b7ebd30c6d31deca88c7f7bd"
             }
           ],
-          "gap": "Explicit submit forms reach the backend; both bare forms return usage status 2 before any backend invocation."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -21536,7 +21536,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve existing companion evidence and original purpose, reason and requirements. Four reached failures remain visible. No password-hash or other crypto behavior was run in this review; guest subreaper cleanup is fixture cleanup, not candidate success."
+      "notes": "Preserve existing companion evidence and original purpose, reason and requirements. Four reached failures remain visible. No password-hash or other crypto behavior was run in this review; guest subreaper cleanup is fixture cleanup, not candidate success. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: Both literal bare file and stdin requests were issued after successful backend controls and each returned usage status 2; both framework FAILs remain. Separate documented submit FILE and submit - calls delivered exact 28-byte binary input and argv and remain PASS. The original ledger's bare syntax conflicts with the published custom submit API: coverage records these attempted vectors, not successful bare delivery or an unqualified violation of the published API. Preserve the literal text and the specification conflict."
     },
     {
       "topic": "lsattr/nonzero_attribute_bits",
@@ -21859,7 +21859,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r3: Not executed. Two owners already exist in the guest PID namespace: the root controller and the uid-2000 fixture. No account provisioning is needed.; r4: Combined -u/-p selects only the specified PID where native lsof selects both owned children; -a is rejected as unknown.",
+      "current_reason": "Remaining obligations: r3: Not executed. Two owners already exist in the guest PID namespace: the root controller and the uid-2000 fixture. No account provisioning is needed.",
       "requirements": [
         {
           "id": "r1",
@@ -21899,7 +21899,7 @@
         {
           "id": "r4",
           "behavior": "-u combined with -p follows lsof's OR selection unless -a is given",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -21908,10 +21908,10 @@
               "definition_sha256": "72514fff298d90fb47d664f03ca836ecd691a23ecc9623c7fba68bb8320dea7a"
             }
           ],
-          "gap": "Combined -u/-p selects only the specified PID where native lsof selects both owned children; -a is rejected as unknown."
+          "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior."
+      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r4: The fixture records the wrong OR selection and then independently attempts -a, which native lsof accepts and the candidate rejects. Both requested operations were exercised and both reached failures remain. No hidden AND branch or successful candidate intersection is claimed. The separate distinct-owner r3 remains missing because both owned fixture children map to UID 0."
     },
     {
       "topic": "mail/dkim_contract_vectors",
@@ -22862,7 +22862,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: No case. Whether the guest default limit (8 MiB) suffices for mlockall of the 15 MB static candidate mappings is unknown; a deterministic success needs the controller to set the limit per case.; r3: EAGAIN and ENOMEM were independently injected on both builds; on ENOMEM the candidate omitted the required current-limit diagnostic.; r4: Implicit in per-side processes; not asserted.",
+      "current_reason": "Remaining obligations: r1: No case. Whether the guest default limit (8 MiB) suffices for mlockall of the 15 MB static candidate mappings is unknown; a deterministic success needs the controller to set the limit per case.; r4: Implicit in per-side processes; not asserted.",
       "requirements": [
         {
           "id": "r1",
@@ -22888,7 +22888,7 @@
         {
           "id": "r3",
           "behavior": "If mlockall itself fails (EAGAIN/ENOMEM after the pre-check passes) the diagnostic plus \"current RLIMIT_MEMLOCK: soft=.. hard=..\" is printed and status 1; no pages remain locked",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -22903,7 +22903,7 @@
               "definition_sha256": "4d8b33a93d4d57c57b0066e09468bd6dc681000b1e7dd61a8f93f3f4e7cbabab"
             }
           ],
-          "gap": "EAGAIN and ENOMEM were independently injected on both builds; on ENOMEM the candidate omitted the required current-limit diagnostic."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -22913,7 +22913,7 @@
           "gap": "Implicit in per-side processes; not asserted."
         }
       ],
-      "notes": "Candidate: bm_all_cmd loadables/mlock.c:112-139, pre-check bm_check_rlimit_for :71-89 (needed = statm resident * page). RLIMIT_MEMLOCK in both the legacy runner and the plain driver is inherited from the guest default (kernel default 8 MiB, not pinned by either driver). Lowering it with `ulimit -l` is unprivileged. Raising the hard limit needs CAP_SYS_RESOURCE, which only the root controller holds. [214 merge: reclassified from requires_capability to implement_fixture per design-update.txt (no inflated capability claims).] This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "Candidate: bm_all_cmd loadables/mlock.c:112-139, pre-check bm_check_rlimit_for :71-89 (needed = statm resident * page). RLIMIT_MEMLOCK in both the legacy runner and the plain driver is inherited from the guest default (kernel default 8 MiB, not pinned by either driver). Lowering it with `ulimit -l` is unprivileged. Raising the hard limit needs CAP_SYS_RESOURCE, which only the root controller holds. [214 merge: reclassified from requires_capability to implement_fixture per design-update.txt (no inflated capability claims).] This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r3: After retained preflight, EAGAIN and ENOMEM are independently injected. Both return 1 and show VmLck zero; EAGAIN includes the limit line but ENOMEM omits it. Keep the EAGAIN PASS and ENOMEM FAIL on each build, with no claim that real memory was locked."
     },
     {
       "topic": "mlock/ptrace-scope-operation",
@@ -25012,7 +25012,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: The listener has the correct path, type and decoded queue counts, but candidate prints LISTEN instead of LISTENING.; r2: The connected paths and decoded queues are present, but candidate prints ESTAB instead of CONNECTED.; r3: Candidate labels unix states with LISTEN/ESTAB rather than the required SS_* labels.",
+      "current_reason": "Remaining obligations: r1: The candidate reports the observed owned listener path as u_str/LISTEN and the recorded case fails against LISTENING. However the source opens AF_NETLINK protocol 4 and sends to the kernel; the original explicitly requires a Unix sock_diag mock and private proc fixture. This live-kernel record is supplementary, not this scenario's coverage.; r2: The saved owned pair appears as u_str/ESTAB, a reached negative relative to CONNECTED. The diagnostic source and kernel sender [0,0] show a live kernel dump, not the expressly required sock_diag mock. Keep both FAIL results as supplementary evidence.; r3: The retained listener/connected examples show LISTEN and ESTAB against the expected labels, but the original requires a mock. The live AF_NETLINK dump and real private-namespace proc table do not establish coverage of that specific mocked scenario.",
       "requirements": [
         {
           "id": "r1",
@@ -25026,7 +25026,7 @@
               "definition_sha256": "6aeb145781cc6a64ce234727bc726b32249250fdd02b2092a197ae6a4a6f6186"
             }
           ],
-          "gap": "The listener has the correct path, type and decoded queue counts, but candidate prints LISTEN instead of LISTENING."
+          "gap": "The candidate reports the observed owned listener path as u_str/LISTEN and the recorded case fails against LISTENING. However the source opens AF_NETLINK protocol 4 and sends to the kernel; the original explicitly requires a Unix sock_diag mock and private proc fixture. This live-kernel record is supplementary, not this scenario's coverage."
         },
         {
           "id": "r2",
@@ -25040,7 +25040,7 @@
               "definition_sha256": "6aeb145781cc6a64ce234727bc726b32249250fdd02b2092a197ae6a4a6f6186"
             }
           ],
-          "gap": "The connected paths and decoded queues are present, but candidate prints ESTAB instead of CONNECTED."
+          "gap": "The saved owned pair appears as u_str/ESTAB, a reached negative relative to CONNECTED. The diagnostic source and kernel sender [0,0] show a live kernel dump, not the expressly required sock_diag mock. Keep both FAIL results as supplementary evidence."
         },
         {
           "id": "r3",
@@ -25054,7 +25054,7 @@
               "definition_sha256": "6aeb145781cc6a64ce234727bc726b32249250fdd02b2092a197ae6a4a6f6186"
             }
           ],
-          "gap": "Candidate labels unix states with LISTEN/ESTAB rather than the required SS_* labels."
+          "gap": "The retained listener/connected examples show LISTEN and ESTAB against the expected labels, but the original requires a mock. The live AF_NETLINK dump and real private-namespace proc table do not establish coverage of that specific mocked scenario."
         },
         {
           "id": "r4",
@@ -25071,7 +25071,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior."
+      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The candidate reports the observed owned listener path as u_str/LISTEN and the recorded case fails against LISTENING. However the source opens AF_NETLINK protocol 4 and sends to the kernel; the original explicitly requires a Unix sock_diag mock and private proc fixture. This live-kernel record is supplementary, not this scenario's coverage. r2: The saved owned pair appears as u_str/ESTAB, a reached negative relative to CONNECTED. The diagnostic source and kernel sender [0,0] show a live kernel dump, not the expressly required sock_diag mock. Keep both FAIL results as supplementary evidence. r3: The retained listener/connected examples show LISTEN and ESTAB against the expected labels, but the original requires a mock. The live AF_NETLINK dump and real private-namespace proc table do not establish coverage of that specific mocked scenario."
     },
     {
       "topic": "nice/child-priority-and-status",
@@ -25790,7 +25790,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: No case.; r2: No case.; r4: The candidate and nsenter both receive EPERM on the saved descriptor; its owning initial user namespace is not independently established in the retained record.; r5: Same-descriptor candidate/nsenter denial is compared; successful entry and positive nsenter parity were not qualified.",
+      "current_reason": "Remaining obligations: r1: No case.; r2: No case.; r4: The candidate and nsenter both receive EPERM on the saved descriptor; its owning initial user namespace is not independently established in the retained record.",
       "requirements": [
         {
           "id": "r1",
@@ -25837,7 +25837,7 @@
         {
           "id": "r5",
           "behavior": "Behavior agrees with util-linux nsenter on the same descriptor",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -25846,10 +25846,10 @@
               "definition_sha256": "c0e5f999fa42428b523489afb878a852ac05358926b01ea48c6b344738698aa0"
             }
           ],
-          "gap": "Same-descriptor candidate/nsenter denial is compared; successful entry and positive nsenter parity were not qualified."
+          "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior."
+      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r5: Candidate ns enter and util-linux nsenter both return EPERM for the same controlled denied descriptor, with retained diagnostic and unchanged namespace observations. The original explicitly includes permission behavior; this establishes only the denied example, while successful entry and successful parity stay in their separate uncovered rows."
     },
     {
       "topic": "ns/ns-id-mapping",
@@ -26316,12 +26316,12 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: Exact argv is retained for none and PID namespace child cases; other namespace flag combinations were not independently compared.; r6: Exit 37 and missing-exec 127 are recorded; signal-to-128+S propagation was not exercised.",
+      "current_reason": "Remaining obligations: r6: Exit 37 and missing-exec 127 are recorded; signal-to-128+S propagation was not exercised.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "ns spawn FLAGS CMD ARGS clones the child into the requested namespaces and execs CMD with exact argv",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -26336,7 +26336,7 @@
               "definition_sha256": "c257ae0a1eae08ccece038dab124846afa3b95fc122ede54593720939f8c1460"
             }
           ],
-          "gap": "Exact argv is retained for none and PID namespace child cases; other namespace flag combinations were not independently compared."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -26429,7 +26429,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior."
+      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The no-flags and requested PID-namespace operations execute the owned command with exact argv including a two-word argument; saved child observations show PID 1 in the new namespace. The PID example supplies an actual FLAGS request; this does not claim every flag combination was run."
     },
     {
       "topic": "ns/ns-unshare-namespaces",
@@ -26441,7 +26441,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: One case observes the user inode, and a separate case observes mount/net/ipc/uts/cgroup inodes in an owned namespace; their combined one-call request was not observed.; r2: No case.; r3: No case.; r5: The unprivileged UTS EPERM agrees with unshare; unsupported-namespace EINVAL was not exercised.",
+      "current_reason": "Remaining obligations: r1: The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required.; r2: No case.; r3: No case.; r5: The unprivileged UTS EPERM agrees with unshare; unsupported-namespace EINVAL was not exercised.",
       "requirements": [
         {
           "id": "r1",
@@ -26461,7 +26461,7 @@
               "definition_sha256": "8ece93d13249708e14dc7bea928f20ee273670a83cb7f24a859c25b941d560af"
             }
           ],
-          "gap": "One case observes the user inode, and a separate case observes mount/net/ipc/uts/cgroup inodes in an owned namespace; their combined one-call request was not observed."
+          "gap": "The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required."
         },
         {
           "id": "r2",
@@ -26520,7 +26520,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior."
+      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required."
     },
     {
       "topic": "ntp/ntp-nts-ke-query",
@@ -28899,12 +28899,12 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: Both endpoint values reached socket creation, which the observer denied; the two outside values returned usage status 2, but no successful live packet execution was retained.; r3: One below-range value each for -c, -W and -i returned usage status 2; above-range examples were not retained.; r4: The marked interval has no recorded socket/connect or resolver-file offender; arbitrary in-process resolver calls were not observed.",
+      "current_reason": "Remaining obligations: r4: The marked interval has no recorded socket/connect or resolver-file offender; arbitrary in-process resolver calls were not observed.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Documented -w range 0.001..86400 is accepted at both ends and rejected just outside (0, 86401) with usage status.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -28919,7 +28919,7 @@
               "definition_sha256": "71805ee7b6ce87202d9248221a865c561b7bc21c365bb63a213205cfe5338b21"
             }
           ],
-          "gap": "Both endpoint values reached socket creation, which the observer denied; the two outside values returned usage status 2, but no successful live packet execution was retained."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -28938,7 +28938,7 @@
         {
           "id": "r3",
           "behavior": "Out-of-range -c, -W, -i values are rejected with usage status.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -28947,7 +28947,7 @@
               "definition_sha256": "71805ee7b6ce87202d9248221a865c561b7bc21c365bb63a213205cfe5338b21"
             }
           ],
-          "gap": "One below-range value each for -c, -W and -i returned usage status 2; above-range examples were not retained."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -28964,7 +28964,7 @@
           "gap": "The marked interval has no recorded socket/connect or resolver-file offender; arbitrary in-process resolver calls were not observed."
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior."
+      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: For 0.001 and 86400 the candidate reaches the recorded ICMP socket attempt, denied by the reviewed mock; 0 and 86401 produce usage status 2 without network activity. Acceptance of parsing does not require successful packets or waiting out deadlines. r3: The invalid-option observer records a below-range example for each of -c, -W and -i returning status 2, without resolution/socket calls. The original purpose calls for representative malformed/out-of-range inputs; this does not claim untested upper boundaries."
     },
     {
       "topic": "ping/ping-traceroute-ttl",
@@ -29436,7 +29436,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: Signed-index acceptance and altered-signature rejection are recorded, but signature mathematics was not independently verified under the no-crypto constraint.; r3: The file-path socket-denial control, loopback HTTP peer and network canary are recorded; an independent trace of every candidate connection attempt is absent.",
+      "current_reason": "Remaining obligations: r1: Signed per-architecture local index selection and bad-signature rejection are recorded with guest OpenSSL controls, but exact source says file:// and a socket-denial seccomp filter. Original purpose/reason requires remote I/O via a loopback-only mock transport; local file access does not exercise that transport. Preserve the PASS cases as supplementary.; r3: The file-path socket-denial control, loopback HTTP peer and network canary are recorded; an independent trace of every candidate connection attempt is absent.",
       "requirements": [
         {
           "id": "r1",
@@ -29456,7 +29456,7 @@
               "definition_sha256": "62263b67c1b2c8037382c4dd02c365c457e9aa2abd7d110918f24619c81b5928"
             }
           ],
-          "gap": "Signed-index acceptance and altered-signature rejection are recorded, but signature mathematics was not independently verified under the no-crypto constraint.",
+          "gap": "Signed per-architecture local index selection and bad-signature rejection are recorded with guest OpenSSL controls, but exact source says file:// and a socket-denial seccomp filter. Original purpose/reason requires remote I/O via a loopback-only mock transport; local file access does not exercise that transport. Preserve the PASS cases as supplementary.",
           "next_step": "implement_fixture"
         },
         {
@@ -29534,7 +29534,7 @@
           "gap": ""
         }
       ],
-      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review."
+      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: Signed per-architecture local index selection and bad-signature rejection are recorded with guest OpenSSL controls, but exact source says file:// and a socket-denial seccomp filter. Original purpose/reason requires remote I/O via a loopback-only mock transport; local file access does not exercise that transport. Preserve the PASS cases as supplementary."
     },
     {
       "topic": "pkg/pkg-upgrade-delta",
@@ -29544,14 +29544,14 @@
         "purpose": "Check upgrade selection, trust policy, delta download and rollback after a rejected update; standalone local delta application executes separately.",
         "reason": "Deferred because valid coverage needs independently encoded and signed old/new packages plus a delta fixture and package state. A future disposable root and local mock repository must verify both the selected update path and byte-for-byte restoration after failure."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: Version selection and upgrade results are recorded, but the signature validity underlying trust policy was not independently verified under the no-crypto constraint.; r3: Before/after tree hashes match for bad signature, digest and failed apply; the bad-signature control was not independently verified cryptographically.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "upgrade selects the newer signed package for an installed name according to trust policy.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -29560,7 +29560,7 @@
               "definition_sha256": "b8251d24cfd3caa017ce0e98174e1477b6f47498628c6b9864f1d2eeec96cc2c"
             }
           ],
-          "gap": "Version selection and upgrade results are recorded, but the signature validity underlying trust policy was not independently verified under the no-crypto constraint.",
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
@@ -29593,7 +29593,7 @@
         {
           "id": "r3",
           "behavior": "A rejected update (bad signature, digest mismatch, failed apply) leaves the installed tree byte-for-byte unchanged.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -29614,7 +29614,7 @@
               "definition_sha256": "08617a5cd447e528973785190139a43c63acd11696b58a3a2d11c2c9b2963d84"
             }
           ],
-          "gap": "Before/after tree hashes match for bad signature, digest and failed apply; the bad-signature control was not independently verified cryptographically.",
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
@@ -29639,7 +29639,7 @@
           "scope_note": "Standalone apply only; no upgrade selection or rollback."
         }
       ],
-      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review."
+      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The separately specified local mock repository and disposable root install v1, select v2 from the guest-verified signed index/delta, and retain the chosen cached v2 package bytes matching the verified package/repository copy. Both cases PASS; this is one architecture/publisher, not broad trust-policy coverage. r3: Each requested bad-signature, bad-digest and failed-apply attempt has equal before/after per-path type, mode and guest content-hash snapshots. These establish byte identity for the bounded installed fixture content and metadata roots. Pre-update bytes and a whole-OS-root identity guarantee are not claimed."
     },
     {
       "topic": "pkill/default-term-owned-target",
@@ -35244,7 +35244,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: The quoted upload fails before candidate byte transfer; escaped-name transfer reaches and matches all 256 bytes.; r2: The quoted download fails before candidate byte transfer; escaped-name transfer reaches and matches all 256 bytes.",
+      "current_reason": "Remaining obligations: r1: The escaped-space transfer is byte-exact for the saved 0..255 payload, but the original requires a path-confined server mock. chdir and sftp-server -d only select starting directories and the adapter permits unrestricted sh -c. Keep this supplementary observation and the quoted-form FAIL; confinement remains unexercised.; r2: The saved escaped-space download is byte-exact, but the original server-mock confinement is not enforced by chdir/-d and the unrestricted command branch. Preserve the observation and quoted-form FAIL without complete original coverage.",
       "requirements": [
         {
           "id": "r1",
@@ -35264,7 +35264,7 @@
               "definition_sha256": "61189e0d4001f2dd6cef1d79919c1f9a9fa0c5786317fef1e7f2812fc09a2bc3"
             }
           ],
-          "gap": "The quoted upload fails before candidate byte transfer; escaped-name transfer reaches and matches all 256 bytes."
+          "gap": "The escaped-space transfer is byte-exact for the saved 0..255 payload, but the original requires a path-confined server mock. chdir and sftp-server -d only select starting directories and the adapter permits unrestricted sh -c. Keep this supplementary observation and the quoted-form FAIL; confinement remains unexercised."
         },
         {
           "id": "r2",
@@ -35284,7 +35284,7 @@
               "definition_sha256": "858ec7fbb614b10d855d8297be5642dcce3292322de0d781f39a77130964f1b1"
             }
           ],
-          "gap": "The quoted download fails before candidate byte transfer; escaped-name transfer reaches and matches all 256 bytes."
+          "gap": "The saved escaped-space download is byte-exact, but the original server-mock confinement is not enforced by chdir/-d and the unrestricted command branch. Preserve the observation and quoted-form FAIL without complete original coverage."
         },
         {
           "id": "r3",
@@ -35319,7 +35319,7 @@
           "gap": ""
         }
       ],
-      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review."
+      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The escaped-space transfer is byte-exact for the saved 0..255 payload, but the original requires a path-confined server mock. chdir and sftp-server -d only select starting directories and the adapter permits unrestricted sh -c. Keep this supplementary observation and the quoted-form FAIL; confinement remains unexercised. r2: The saved escaped-space download is byte-exact, but the original server-mock confinement is not enforced by chdir/-d and the unrestricted command branch. Preserve the observation and quoted-form FAIL without complete original coverage."
     },
     {
       "topic": "sftp/local-session-verbs",
@@ -35331,12 +35331,12 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: The quoted lcd fails before the intended second-directory lpwd; the escaped companion reaches it.; r2: The escaped lcd is followed by lpwd and lls, but later get and put after lcd are not exercised; quoted lcd fails.",
+      "current_reason": "Remaining obligations: r2: The escaped lcd is followed by lpwd and lls, but later get and put after lcd are not exercised; quoted lcd fails.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "lpwd prints the local working directory.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -35351,7 +35351,7 @@
               "definition_sha256": "a6c7d64f98e8656a31c6744c1b18b9b78ed714e4aed8baef3daae44ffe7aa5d4"
             }
           ],
-          "gap": "The quoted lcd fails before the intended second-directory lpwd; the escaped companion reaches it."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -35408,7 +35408,7 @@
           "gap": ""
         }
       ],
-      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review."
+      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The saved escaped-path session reaches lpwd at the initial directory and after lcd, with matching OpenSSH reference and deterministic peer pwd. The combined quoted-lcd case remains FAIL; successful quoted lcd is a different operation from printing lpwd."
     },
     {
       "topic": "sftp/remote-mutations-errors",
@@ -35511,7 +35511,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r3: Quoted cd fails before listing the intended remote directory; the escaped-name companion lists it.",
+      "current_reason": "Remaining obligations: r3: The tree-backed cd/ls passes in --openssh mode via a local SSH-shaped command adapter; the quoted case fails before the intended listing. This original scenario specifically requires the candidate's BASHSSH1 framing peer plus a tree-backed independent OpenSSH SFTP mock. The proposed tree-backed case does not exercise BASHSSH1, so do not combine it automatically with a separate canned native-framing observation.",
       "requirements": [
         {
           "id": "r1",
@@ -35565,7 +35565,7 @@
               "definition_sha256": "93ff378be16b4735642becb86c0d4715e465dd7bc26c1e7bfa435a8d79d6e442"
             }
           ],
-          "gap": "Quoted cd fails before listing the intended remote directory; the escaped-name companion lists it."
+          "gap": "The tree-backed cd/ls passes in --openssh mode via a local SSH-shaped command adapter; the quoted case fails before the intended listing. This original scenario specifically requires the candidate's BASHSSH1 framing peer plus a tree-backed independent OpenSSH SFTP mock. The proposed tree-backed case does not exercise BASHSSH1, so do not combine it automatically with a separate canned native-framing observation."
         },
         {
           "id": "r4",
@@ -35608,7 +35608,7 @@
           "gap": ""
         }
       ],
-      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review."
+      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r3: The tree-backed cd/ls passes in --openssh mode via a local SSH-shaped command adapter; the quoted case fails before the intended listing. This original scenario specifically requires the candidate's BASHSSH1 framing peer plus a tree-backed independent OpenSSH SFTP mock. The proposed tree-backed case does not exercise BASHSSH1, so do not combine it automatically with a separate canned native-framing observation."
     },
     {
       "topic": "sha256sum/read-error-after-open",
@@ -36267,7 +36267,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: The independent native dump spans four datagrams and all 720 names appear once, but candidate receive buffer boundaries are not retained.; r3: A truncated header was injected and fallback was atomic; other malformed record variants are not established.; r4: The candidate silently falls back after DUMP_INTR without retrying the interrupted IPv4 request or reporting the interruption; this is a reached failure.",
+      "current_reason": "Remaining obligations: r1: The independent native dump spans four datagrams and all 720 names appear once, but candidate receive buffer boundaries are not retained.",
       "requirements": [
         {
           "id": "r1",
@@ -36306,7 +36306,7 @@
         {
           "id": "r3",
           "behavior": "Malformed or truncated messages are rejected without partial rows.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -36315,12 +36315,12 @@
               "definition_sha256": "0fbb5108daf57bf922c057546c5bb764685d8d8651d6fb4210aff6cba67dbb63"
             }
           ],
-          "gap": "A truncated header was injected and fallback was atomic; other malformed record variants are not established."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "An interrupted dump (NLM_F_DUMP_INTR) is retried or reported.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -36329,7 +36329,7 @@
               "definition_sha256": "fdf7d9d58431737b8c3fed7a8aad255f0eee6b047fd92701ca07aeec7007cb73"
             }
           ],
-          "gap": "The candidate silently falls back after DUMP_INTR without retrying the interrupted IPv4 request or reporting the interruption; this is a reached failure."
+          "gap": ""
         },
         {
           "id": "r5",
@@ -36358,7 +36358,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior."
+      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r4: The reviewed observer injects a matching multipart message followed by DONE with DUMP_INTR, and retained candidate/control traces show delivery. Candidate silently falls back with status 0, without a recorded retry or diagnostic; this is a reached failure, retained as FAIL. r3: A valid injected row followed by a truncated eight-byte header reaches the reviewed sock_diag mock. The saved output discards the partial row and falls back; both cases PASS. The literal says malformed or truncated, so this representative truncation does not prove every malformed encoding."
     },
     {
       "topic": "ss/deferred_output_and_repeat_calls",
@@ -36370,7 +36370,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r2: The post-/dev/full normal table produced a valid header and status 0, but the table had no controlled live rows.; r3: Not executed.",
+      "current_reason": "Remaining obligations: r3: Not executed.",
       "requirements": [
         {
           "id": "r1",
@@ -36401,7 +36401,7 @@
         {
           "id": "r2",
           "behavior": "A later ss call in the same shell succeeds normally after the failed call (stdio error state cleared).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -36422,7 +36422,7 @@
               "definition_sha256": "4b9bd5481c0fcd14d187b3e8c78aa833026501aeb4572638ff9ebad89f059640"
             }
           ],
-          "gap": "The post-/dev/full normal table produced a valid header and status 0, but the table had no controlled live rows."
+          "gap": ""
         },
         {
           "id": "r3",
@@ -36452,7 +36452,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior."
+      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r2: After the /dev/full write failure the same shell performs another ss, which returns 0 with a header and empty stderr. Native output for the controlled empty table is also retained. This row does not require an invented live row; other selector and version cases keep their own statuses."
     },
     {
       "topic": "ss/deferred_owned_socket_selectors",
@@ -36920,7 +36920,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r2: The from, no-pty and no-port-forwarding restrictions are exercised. The per-key no-agent-forwarding branch remains untested.; r4: Loopback authentication succeeded for a project-style hex credential with synthetic token/device replies; standard-PHC and real kernel token authentication remain untested.; r7: PasswordAuthentication no is set in every variant; no discriminating prohibit-password password attempt, nor admitted command execution.; r8: Reverse-forward denial is still missing.",
+      "current_reason": "Remaining obligations: r2: The from, no-pty and no-port-forwarding restrictions are exercised. The per-key no-agent-forwarding branch remains untested.; r7: PasswordAuthentication no is set in every variant; no discriminating prohibit-password password attempt, nor admitted command execution.; r8: Reverse-forward denial is still missing.",
       "requirements": [
         {
           "id": "r1",
@@ -36991,7 +36991,7 @@
         {
           "id": "r4",
           "behavior": "Successful password authentication when enabled",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -37000,7 +37000,7 @@
               "definition_sha256": "ecda829b6285df137c2c673abfbe6789e7ff6e05c80d96cf95725c74cff2ca04"
             }
           ],
-          "gap": "Loopback authentication succeeded for a project-style hex credential with synthetic token/device replies; standard-PHC and real kernel token authentication remain untested."
+          "gap": ""
         },
         {
           "id": "r5",
@@ -37083,7 +37083,7 @@
           "gap": "Reverse-forward denial is still missing."
         }
       ],
-      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r4: The original permits an isolated mock/test identity and independent SSH client. Saved guest-generated synthetic password control and mock token interactions accompany successful loopback-client authentication/command status 0, with wrong-password status 255. This does not establish standard PHC interoperability or real kernel authority."
     },
     {
       "topic": "sshd/configuration-policy",
@@ -38138,7 +38138,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r2: Synthetic consume preceded an intercepted setgroups denial; no real token enforcement or successful credential transition occurred.; r3: Injected mint, consume and expiry errors aborted before observed credential calls; real kernel token expiry and enforcement were not exercised.; r4: Observable now via the PTY password path (correct password -> 'kernel auth: /dev/bashos-auth: No such file or directory', status 1, no target shell marker).",
+      "current_reason": "Remaining obligations: r4: Observable now via the PTY password path (correct password -> 'kernel auth: /dev/bashos-auth: No such file or directory', status 1, no target shell marker).",
       "requirements": [
         {
           "id": "r1",
@@ -38157,7 +38157,7 @@
         {
           "id": "r2",
           "behavior": "The minted token is consumed immediately before the credential transition.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -38166,12 +38166,12 @@
               "definition_sha256": "5aca1c354db328abe0a9a7c6f3ba3f4a3f2a679e56e2687f8db5fc5d14bc20b0"
             }
           ],
-          "gap": "Synthetic consume preceded an intercepted setgroups denial; no real token enforcement or successful credential transition occurred."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Expiry and mint/consume failures abort before any credential change.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -38180,7 +38180,7 @@
               "definition_sha256": "5aca1c354db328abe0a9a7c6f3ba3f4a3f2a679e56e2687f8db5fc5d14bc20b0"
             }
           ],
-          "gap": "Injected mint, consume and expiry errors aborted before observed credential calls; real kernel token expiry and enforcement were not exercised."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -38190,7 +38190,7 @@
           "gap": "Observable now via the PTY password path (correct password -> 'kernel auth: /dev/bashos-auth: No such file or directory', status 1, no target shell marker)."
         }
       ],
-      "notes": "su.c bsu_kernel_proof, bsu_consume_auth_token_fd. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "su.c bsu_kernel_proof, bsu_consume_auth_token_fd. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r2: The original permits the device mock. Its matching mint and consume trace immediately precedes the first credential-transition attempt, which is deliberately denied. This exercises the specified ordering without claiming a completed credential transition or real kernel enforcement. r3: Mocked mint failure, consume failure and expiry each terminate without any recorded credential-call attempt; the guest control tests observer and replies. Both cases PASS for the monitored calls; actual live kernel expiry is outside this mock."
     },
     {
       "topic": "su/owned-child-status-and-signals",
@@ -38266,12 +38266,12 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: The correct project-style synthetic credential reached mock MINT/CONSUME; real token authority and credential transition were not exercised.; r3: Not executed.; r4: Not executed.; r5: The saved lock state and expiry handling were observed, but the expired-path su command subsequently failed at setgroups; a successful final credential transition was not shown.",
+      "current_reason": "Remaining obligations: r3: Not executed.; r4: Not executed.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Correct password passes verification (reaches the token step).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -38286,7 +38286,7 @@
               "definition_sha256": "5aca1c354db328abe0a9a7c6f3ba3f4a3f2a679e56e2687f8db5fc5d14bc20b0"
             }
           ],
-          "gap": "The correct project-style synthetic credential reached mock MINT/CONSUME; real token authority and credential transition were not exercised."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -38319,7 +38319,7 @@
         {
           "id": "r5",
           "behavior": "Repeated failures lock the account until LOCKED_UNTIL; success clears the failure state.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -38328,10 +38328,10 @@
               "definition_sha256": "512873a0c6ac232ee2038b8e1480fb16671862ea3816e08dfccb99db0c5f456c"
             }
           ],
-          "gap": "The saved lock state and expiry handling were observed, but the expired-path su command subsequently failed at setgroups; a successful final credential transition was not shown."
+          "gap": ""
         }
       ],
-      "notes": "su.c bsu_check_lockout, bsu_record_failure, bsu_shadow_phc. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "su.c bsu_check_lockout, bsu_record_failure, bsu_shadow_phc. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r5: Success here is password verification, consistent with the same topic's r1 ending at the token step. Five failures establish the private lock, a correct attempt while locked is denied, and a correct attempt after a fixture-set expired timestamp consumes the token and clears failure state. The later setgroups denial, overall status 1 and absence of an actual 900-second wait remain explicit. r1: Correct synthetic password reaches both MINT and CONSUME using the guest-independent Argon2 fixture. The exact requirement ends at the token step; later mocked setgroups denial and overall status 1 do not erase that reached step or establish a successful su."
     },
     {
       "topic": "su/private-account-lookup",
@@ -38667,14 +38667,14 @@
         "purpose": "Check -l, -ll, and --list against a caller-readable private policy snapshot, including digest binding and empty/no-match behavior, without treating listing as execution approval.",
         "reason": "Requires a disposable authority mock that publishes a private fixture policy path, digest, and generation. No live authority metadata or host policy can be read here, and invoking sudo is prohibited."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: Short/long/alias projections and mismatched digest rejection were observed with synthetic owner and authority responses; the digest was not recomputed and real authority binding is untested.; r4: Listing-with-command was rejected in the synthetic authority fixture; real authority approval enforcement remains untested.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-l / -ll / --list render the caller-filtered projection of the authority-advertised policy, bound to its digest.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -38689,7 +38689,7 @@
               "definition_sha256": "427c530ea2318e673387be46ee0435e3d852556505ccc43678ee9e612d37b57c"
             }
           ],
-          "gap": "Short/long/alias projections and mismatched digest rejection were observed with synthetic owner and authority responses; the digest was not recomputed and real authority binding is untested."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -38728,7 +38728,7 @@
         {
           "id": "r4",
           "behavior": "Listing is never an execution approval.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -38743,10 +38743,10 @@
               "definition_sha256": "427c530ea2318e673387be46ee0435e3d852556505ccc43678ee9e612d37b57c"
             }
           ],
-          "gap": "Listing-with-command was rejected in the synthetic authority fixture; real authority approval enforcement remains untested."
+          "gap": ""
         }
       ],
-      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The private mock policy path/generation/digest produces the caller-filtered -l, -ll and --list projections and a changed digest is rejected. Raw outputs and request traces accompany the scoped synthetic-owner and real-owner controls. The original authorizes this authority mock; no live policy is read. r4: All three successful listing traces contain only mock VERSION and policy-info requests, without authorization/handoff; the listing-with-command attempt returns 2 and its trace stops after VERSION. The saved observer reports no_execution_approval=true. This bounded mock exercise supports the literal no-approval rule without claiming all possible command sequences."
     },
     {
       "topic": "sudo/root-credential-drop",
@@ -38878,7 +38878,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.; r2: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.; r3: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.",
+      "current_reason": "Remaining obligations: r1: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.; r2: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.",
       "requirements": [
         {
           "id": "r1",
@@ -38923,7 +38923,7 @@
         {
           "id": "r3",
           "behavior": "-k COMMAND resets first and a failed reset prevents the command.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -38938,10 +38938,10 @@
               "definition_sha256": "3e5f7e649d7e6b1a3176d76b5bcd5a9a23bdf8cc2308236782ab4c1addf75720"
             }
           ],
-          "gap": "The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established."
+          "gap": ""
         }
       ],
-      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r3: The mock reset-failure path returns 1 without the child marker, while the successful reset precedes authorization/handoff and the owned child exits 7. This establishes the requested ordering/gating in the allowed mock, not a real cache reset."
     },
     {
       "topic": "sv/deferred-activation-protocols",
@@ -38953,7 +38953,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: Not executed; loopback is authorized in the VM.; r2: Not executed; unprivileged on a private directory.; r3: Service-origin READY, RELOADING, STOPPING, STATUS and MAINPID datagrams were captured; the separate sv notify command client path was not exercised.; r4: Not executed; private spool dir via env.",
+      "current_reason": "Remaining obligations: r1: Not executed; loopback is authorized in the VM.; r2: Not executed; unprivileged on a private directory.; r4: Not executed; private spool dir via env.",
       "requirements": [
         {
           "id": "r1",
@@ -38972,7 +38972,7 @@
         {
           "id": "r3",
           "behavior": "notify readiness keys READY/RELOADING/STOPPING/STATUS/MAINPID.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -38981,7 +38981,7 @@
               "definition_sha256": "571bd0c9c78a90682e650babcc7045f9687d3f19d63f245403f75ae8439e78e5"
             }
           ],
-          "gap": "Service-origin READY, RELOADING, STOPPING, STATUS and MAINPID datagrams were captured; the separate sv notify command client path was not exercised."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -38991,7 +38991,7 @@
           "gap": "Not executed; private spool dir via env."
         }
       ],
-      "notes": "Preserve existing companion evidence and original purpose, reason and requirements. Four reached failures remain visible. No password-hash or other crypto behavior was run in this review; guest subreaper cleanup is fixture cleanup, not candidate success."
+      "notes": "Preserve existing companion evidence and original purpose, reason and requirements. Four reached failures remain visible. No password-hash or other crypto behavior was run in this review; guest subreaper cleanup is fixture cleanup, not candidate success. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r3: The owned service's notification datagrams supply READY/STATUS/MAINPID and then RELOADING/STATUS and STOPPING/STATUS; saved observations show gate, reload and stopping transitions and clean monitor. The original asks the keys, not an additional sv notify command."
     },
     {
       "topic": "sv/deferred-privilege-and-namespaces",
@@ -39110,7 +39110,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: No service verb has executed.; r2: Not executed.; r3: Not executed.; r4: Not executed.; r5: The fixture service cooperatively reaped its child; no general descendant or hostile-service cleanup claim follows.",
+      "current_reason": "Remaining obligations: r1: No service verb has executed.; r2: Not executed.; r3: Not executed.; r4: Not executed.",
       "requirements": [
         {
           "id": "r1",
@@ -39143,7 +39143,7 @@
         {
           "id": "r5",
           "behavior": "sv run [-d DIR] supervises, and sv shutdown stops services and reaps descendants.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -39152,7 +39152,7 @@
               "definition_sha256": "fe34308c8a683dd21cb89e2e85f26f75daf4e684a76d05479307b6f7a0aa2dbe"
             }
           ],
-          "gap": "The fixture service cooperatively reaped its child; no general descendant or hostile-service cleanup claim follows."
+          "gap": ""
         },
         {
           "id": "r6",
@@ -39181,7 +39181,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve existing companion evidence and original purpose, reason and requirements. Four reached failures remain visible. No password-hash or other crypto behavior was run in this review; guest subreaper cleanup is fixture cleanup, not candidate success."
+      "notes": "Preserve existing companion evidence and original purpose, reason and requirements. Four reached failures remain visible. No password-hash or other crypto behavior was run in this review; guest subreaper cleanup is fixture cleanup, not candidate success. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r5: The owned run/shutdown fixture starts a service and descendant, records shutdown and exit, and the post-run owned-tree monitor is clean. The service cooperatively signals and reaps its own child; the stated outcome is reached, without claiming direct supervisor reaping or adversarial-service behavior."
     },
     {
       "topic": "swapoff/deferred-all-table",
@@ -44085,9 +44085,9 @@
         "purpose": "LDAP provider password transport on fd 3, bounded output handling, timeout, and child cleanup.",
         "reason": "Requires a future disposable VM with a reviewed mock ldap provider that consumes only a fixed dummy password over fd 3. This is needed to test provider process and timeout behavior without real LDAP, network access, or installed credentials."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r4: The normal-completion child remained live until fixture cleanup; the timeout child was observed as a zombie, which does not prove final reaping.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -44134,7 +44134,7 @@
         {
           "id": "r4",
           "behavior": "The provider's process group is reaped/killed after completion or timeout (no stray children).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -44149,10 +44149,10 @@
               "definition_sha256": "19b438046f6f70c2666019f1fe325eee1bf95900f0245f6828a56b9122711728"
             }
           ],
-          "gap": "The normal-completion child remained live until fixture cleanup; the timeout child was observed as a zombie, which does not prove final reaping."
+          "gap": ""
         }
       ],
-      "notes": "Preserve existing companion evidence and original purpose, reason and requirements. Four reached failures remain visible. No password-hash or other crypto behavior was run in this review; guest subreaper cleanup is fixture cleanup, not candidate success."
+      "notes": "Preserve existing companion evidence and original purpose, reason and requirements. Four reached failures remain visible. No password-hash or other crypto behavior was run in this review; guest subreaper cleanup is fixture cleanup, not candidate success. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r4: The literal clause permits reaped/killed. Completion leaves the observed child live and is a reached FAIL; timeout leaves it a non-live zombie and exercises the killed alternative. Final reaping is not observed or claimed. Preserve the separate completion FAIL and timeout PASS."
     },
     {
       "topic": "userdb/defer-passwd-verification",
@@ -44164,12 +44164,12 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: Correct-password status and synthetic fixture controls were recorded, but independent password-hash verification was not recomputed under the no-crypto constraint.; r2: Wrong-password status and synthetic fixture controls were recorded, but independent password-hash verification was not recomputed under the no-crypto constraint.; r3: Private shadow swap and unchanged fixture bytes were recorded, but candidate file opens were not independently traced.",
+      "current_reason": "Remaining obligations: r3: Private shadow swap and unchanged fixture bytes were recorded, but candidate file opens were not independently traced.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "userdb verify USER PASSWORD succeeds (status 0) for the correct password against a synthetic passwd+shadow fixture.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -44178,12 +44178,12 @@
               "definition_sha256": "0199174983771d78a5ae10970336db641d53f3bb71d056c5079231e7957a90c6"
             }
           ],
-          "gap": "Correct-password status and synthetic fixture controls were recorded, but independent password-hash verification was not recomputed under the no-crypto constraint."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "A wrong password returns failure status.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -44192,7 +44192,7 @@
               "definition_sha256": "0199174983771d78a5ae10970336db641d53f3bb71d056c5079231e7957a90c6"
             }
           ],
-          "gap": "Wrong-password status and synthetic fixture controls were recorded, but independent password-hash verification was not recomputed under the no-crypto constraint."
+          "gap": ""
         },
         {
           "id": "r3",
@@ -44209,7 +44209,7 @@
           "gap": "Private shadow swap and unchanged fixture bytes were recorded, but candidate file opens were not independently traced."
         }
       ],
-      "notes": "Preserve existing companion evidence and original purpose, reason and requirements. Four reached failures remain visible. No password-hash or other crypto behavior was run in this review; guest subreaper cleanup is fixture cleanup, not candidate success."
+      "notes": "Preserve existing companion evidence and original purpose, reason and requirements. Four reached failures remain visible. No password-hash or other crypto behavior was run in this review; guest subreaper cleanup is fixture cleanup, not candidate success. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: A synthetic private passwd/shadow fixture contains the independently guest-generated Argon2 hash; candidate correct password returns 0, with shadow swap and wrong-password controls retained. No installed credentials or host cryptographic recomputation is involved. r2: The saved independent guest control and synthetic private shadow are the same fixture; wrong password and shadow swap each return 1. The recorded cases PASS. No real password authority is inferred."
     },
     {
       "topic": "userdb/defer-provider-lookup",

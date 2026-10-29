@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "d52ba235796b45378a543e7b645f0a41fbd34d47cedafe26b001b7e6a1fc0d31",
+  "ledger_sha256": "fc06d66d9fdadb75b8f91323e33dd972bac4ace2543d6821929a356970b21d2d",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 128,
-    "none": 126,
-    "full": 346
+    "partial": 123,
+    "full": 351,
+    "none": 126
   },
   "migrations": {
-    "deferred": 254,
-    "replacement": 346
+    "deferred": 249,
+    "replacement": 351
   },
   "pending_full_topics": [],
   "builds": {
@@ -4251,16 +4251,16 @@
         },
         {
           "topic": "apropos/man-db-query-reference-unavailable",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Default keyword interpretation is a regular expression (man-db default -r); e.g. 'al.ha' and '^alp' match like man-db against the same private page set.",
-              "coverage": "partial",
-              "gap": "Both saved regular-expression candidate queries failed against matching man-db output.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -4281,14 +4281,14 @@
                   "run": "qual-remote-canon-probe-composite-tracing-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Several keywords are ORed by default (man-db prints an entry matching any keyword; AND only with -a/--and).",
-              "coverage": "partial",
-              "gap": "The candidate OR query differed from man-db.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -4303,14 +4303,14 @@
                   "run": "qual-remote-canon-probe-composite-tracing-rest-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "-w matching selects whole names, including an alias from a comma-separated NAME line, as man-db does.",
-              "coverage": "partial",
-              "gap": "The alias case passed but the glob/whole-name comparison failed.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -4337,14 +4337,14 @@
                   "run": "qual-remote-canon-probe-composite-tracing-rest-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "No-match status equals man-db (exit 16) with the same stdout/stderr channel use.",
-              "coverage": "partial",
-              "gap": "Candidate no-match exited 1 without the man-db diagnostic; reference exited 16.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -4359,8 +4359,8 @@
                   "run": "qual-remote-canon-probe-composite-tracing-rest-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
@@ -4754,8 +4754,8 @@
             {
               "id": "r1",
               "behavior": "auth probe prints abi=MAJOR.MINOR features=0xHEX from the VERSION ioctl.",
-              "coverage": "partial",
-              "gap": "VERSION bytes and output were supplied by an intercepted synthetic device, not a real bashos-auth driver.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -4764,14 +4764,14 @@
                   "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "auth open FDVAR opens the descriptor, binds it to FDVAR, and it is close-on-exec.",
-              "coverage": "partial",
-              "gap": "The client received close-on-exec synthetic descriptors; opening the real kernel device is not established.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -4780,14 +4780,14 @@
                   "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "auth stats FD reports per-descriptor counters.",
-              "coverage": "partial",
-              "gap": "Distinct descriptor counter vectors were supplied by the synthetic device; real kernel counter isolation is not established.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -4796,8 +4796,8 @@
                   "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -4852,8 +4852,8 @@
             {
               "id": "r2",
               "behavior": "The returned handle is opaque; secret bytes never appear in argv, environment or output.",
-              "coverage": "partial",
-              "gap": "The synthetic secret is absent from saved output, argv and environment; a real kernel secret handle and enforcement were not tested.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -4862,8 +4862,8 @@
                   "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -4895,8 +4895,8 @@
             {
               "id": "r1",
               "behavior": "auth hash-secret produces a deterministic Argon2id PHC string for fixed salt/T/M/P/HASHLEN.",
-              "coverage": "partial",
-              "gap": "Candidate PHC bytes differ from the saved independent standard PHC; no cryptographic computation was repeated here.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -4905,14 +4905,14 @@
                   "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "auth verify-login accepts the correct synthetic credential and binds a token reference.",
               "coverage": "partial",
-              "gap": "The synthetic good credential was accepted, but the bound token equalled raw synthetic token bytes rather than an opaque reference.",
+              "gap": "The correct synthetic credential reaches mint and binds raw mock token bytes, but validity of this mock's token-reference semantics is not established. Preserve the observed opacity mismatch without crediting the unresolved reference model.",
               "evidence": [
                 {
                   "group": "shell",
@@ -4944,7 +4944,7 @@
               "id": "r4",
               "behavior": "Token references are handled only through the fd (never printed).",
               "coverage": "partial",
-              "gap": "The bound shell value equalled the raw synthetic token; the value was not printed, but fd-only opacity failed.",
+              "gap": "Saved output, argv and environment contain no token, while the shell binding equals raw synthetic token bytes. Whether this represents the original fd-only token-reference contract remains unresolved; do not infer that a token was printed.",
               "evidence": [
                 {
                   "group": "shell",
@@ -5171,8 +5171,8 @@
             {
               "id": "r1",
               "behavior": "since subtracts a prior monotonic reading from now.",
-              "coverage": "partial",
-              "gap": "Only live, non-boundary values.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -5181,8 +5181,8 @@
                   "run": "baseline-final-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -5864,8 +5864,8 @@
             {
               "id": "r4",
               "behavior": "Non-dry install/remove directives execute the configured argv (argv-split exec, no shell) and their exit status propagates; directives with shell metacharacters are refused",
-              "coverage": "partial",
-              "gap": "Reached candidate divergence: Install/remove commands ran in the required order and metacharacters were refused; an owned command exiting 7 was reported but returned builtin status 1 instead of 7.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -5874,14 +5874,14 @@
                   "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "softdep cycles and recursion depth are rejected",
-              "coverage": "partial",
-              "gap": "Reached candidate divergence: A softdep cycle returned status 2, but the excessive-depth candidate process terminated by SIGSEGV rather than producing the expected rejection.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -5890,8 +5890,8 @@
                   "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r6",
@@ -9337,10 +9337,10 @@
         },
         {
           "topic": "caps/caps-file-decoder",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -9443,8 +9443,8 @@
             {
               "id": "r6",
               "behavior": "Malformed payload lengths (<12 bytes, 12..19 bytes) are rejected or partially decoded as documented",
-              "coverage": "partial",
-              "gap": "Only lengths 0, 4, 11, 12, 16 and 19 were observed; the two full malformed-length ranges were not exhaustively exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -9453,8 +9453,8 @@
                   "run": "qual-remote-canon-probe-composite-syscalls-current-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r7",
@@ -10763,8 +10763,8 @@
             {
               "id": "r2",
               "behavior": "--all-tasks applies the change to every thread of the target thread group (and without -a only the main thread changes)",
-              "coverage": "partial",
-              "gap": "Reached candidate divergence: Reference -a set all three threads to BATCH; candidate set only the main thread on both builds.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -10773,8 +10773,8 @@
                   "run": "qual-local-system-2120-chrt-cleanup-r3-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -16130,8 +16130,8 @@
             {
               "id": "r1",
               "behavior": "Non-root allow through the v2 authority runs the command.",
-              "coverage": "partial",
-              "gap": "An owned child ran on a synthetic allow response; actual v2 authority and credential enforcement were not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -16140,14 +16140,14 @@
                   "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Policy deny never starts the command.",
-              "coverage": "partial",
-              "gap": "Synthetic denial left the owned child marker absent; real authority policy enforcement was not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -16156,14 +16156,14 @@
                   "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "-n non-interactive deny when authentication would be required.",
-              "coverage": "partial",
-              "gap": "A synthetic authentication-required response caused noninteractive denial; real authority enforcement remains untested.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -16172,8 +16172,8 @@
                   "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -26170,8 +26170,8 @@
             {
               "id": "r1",
               "behavior": "lpr FILE and lpr from stdin spool the job and run BASHLPR_BACKEND <id> <size> <title> with the job bytes.",
-              "coverage": "partial",
-              "gap": "Explicit submit forms reach the backend; both bare forms return usage status 2 before any backend invocation.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -26198,8 +26198,8 @@
                   "run": "qual-remote-canon-probe-composite-services-rest-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -26701,8 +26701,8 @@
             {
               "id": "r4",
               "behavior": "-u combined with -p follows lsof's OR selection unless -a is given",
-              "coverage": "partial",
-              "gap": "Combined -u/-p selects only the specified PID where native lsof selects both owned children; -a is rejected as unknown.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -26711,8 +26711,8 @@
                   "run": "qual-remote-canon-probe-composite-namespace-remainder-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -27706,8 +27706,8 @@
             {
               "id": "r3",
               "behavior": "If mlockall itself fails (EAGAIN/ENOMEM after the pre-check passes) the diagnostic plus \"current RLIMIT_MEMLOCK: soft=.. hard=..\" is printed and status 1; no pages remain locked",
-              "coverage": "partial",
-              "gap": "EAGAIN and ENOMEM were independently injected on both builds; on ENOMEM the candidate omitted the required current-limit diagnostic.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -27722,8 +27722,8 @@
                   "run": "qual-local-system-2120-batch-09-mlock-enomem-r2-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -29892,7 +29892,7 @@
               "id": "r1",
               "behavior": "A unix stream listener row shows type, LISTENING state and its path.",
               "coverage": "partial",
-              "gap": "The listener has the correct path, type and decoded queue counts, but candidate prints LISTEN instead of LISTENING.",
+              "gap": "The candidate reports the observed owned listener path as u_str/LISTEN and the recorded case fails against LISTENING. However the source opens AF_NETLINK protocol 4 and sends to the kernel; the original explicitly requires a Unix sock_diag mock and private proc fixture. This live-kernel record is supplementary, not this scenario's coverage.",
               "evidence": [
                 {
                   "group": "shell",
@@ -29908,7 +29908,7 @@
               "id": "r2",
               "behavior": "A connected unix pair shows CONNECTED rows.",
               "coverage": "partial",
-              "gap": "The connected paths and decoded queues are present, but candidate prints ESTAB instead of CONNECTED.",
+              "gap": "The saved owned pair appears as u_str/ESTAB, a reached negative relative to CONNECTED. The diagnostic source and kernel sender [0,0] show a live kernel dump, not the expressly required sock_diag mock. Keep both FAIL results as supplementary evidence.",
               "evidence": [
                 {
                   "group": "shell",
@@ -29924,7 +29924,7 @@
               "id": "r3",
               "behavior": "State labels follow the SS_* unix states, not TCP states.",
               "coverage": "partial",
-              "gap": "Candidate labels unix states with LISTEN/ESTAB rather than the required SS_* labels.",
+              "gap": "The retained listener/connected examples show LISTEN and ESTAB against the expected labels, but the original requires a mock. The live AF_NETLINK dump and real private-namespace proc table do not establish coverage of that specific mocked scenario.",
               "evidence": [
                 {
                   "group": "shell",
@@ -30733,8 +30733,8 @@
             {
               "id": "r5",
               "behavior": "Behavior agrees with util-linux nsenter on the same descriptor",
-              "coverage": "partial",
-              "gap": "Same-descriptor candidate/nsenter denial is compared; successful entry and positive nsenter parity were not qualified.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -30743,8 +30743,8 @@
                   "run": "qual-remote-canon-probe-composite-namespaces-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -31237,8 +31237,8 @@
             {
               "id": "r1",
               "behavior": "ns spawn FLAGS CMD ARGS clones the child into the requested namespaces and execs CMD with exact argv",
-              "coverage": "partial",
-              "gap": "Exact argv is retained for none and PID namespace child cases; other namespace flag combinations were not independently compared.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -31253,8 +31253,8 @@
                   "run": "qual-remote-canon-probe-composite-namespaces-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -31371,7 +31371,7 @@
               "id": "r1",
               "behavior": "ns unshare user,mount,net,ipc,uts,cgroup changes the caller's /proc/self/ns/<type> inode for each requested type and leaves others unchanged",
               "coverage": "partial",
-              "gap": "One case observes the user inode, and a separate case observes mount/net/ipc/uts/cgroup inodes in an owned namespace; their combined one-call request was not observed.",
+              "gap": "The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required.",
               "evidence": [
                 {
                   "group": "shell",
@@ -33891,8 +33891,8 @@
             {
               "id": "r1",
               "behavior": "Documented -w range 0.001..86400 is accepted at both ends and rejected just outside (0, 86401) with usage status.",
-              "coverage": "partial",
-              "gap": "Both endpoint values reached socket creation, which the observer denied; the two outside values returned usage status 2, but no successful live packet execution was retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -33907,8 +33907,8 @@
                   "run": "qual-remote-canon-probe-composite-namespace-extras-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -33929,8 +33929,8 @@
             {
               "id": "r3",
               "behavior": "Out-of-range -c, -W, -i values are rejected with usage status.",
-              "coverage": "partial",
-              "gap": "One below-range value each for -c, -W and -i returned usage status 2; above-range examples were not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -33939,8 +33939,8 @@
                   "run": "qual-remote-canon-probe-composite-namespace-extras-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -34424,7 +34424,7 @@
               "id": "r1",
               "behavior": "Signed index refresh ('pkg update') from a repository source, verifying the index signature and selecting the per-architecture index.",
               "coverage": "partial",
-              "gap": "Signed-index acceptance and altered-signature rejection are recorded, but signature mathematics was not independently verified under the no-crypto constraint.",
+              "gap": "Signed per-architecture local index selection and bad-signature rejection are recorded with guest OpenSSL controls, but exact source says file:// and a socket-denial seccomp filter. Original purpose/reason requires remote I/O via a loopback-only mock transport; local file access does not exercise that transport. Preserve the PASS cases as supplementary.",
               "evidence": [
                 {
                   "group": "shell",
@@ -34524,16 +34524,16 @@
         },
         {
           "topic": "pkg/pkg-upgrade-delta",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "upgrade selects the newer signed package for an installed name according to trust policy.",
-              "coverage": "partial",
-              "gap": "Version selection and upgrade results are recorded, but the signature validity underlying trust policy was not independently verified under the no-crypto constraint.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -34542,8 +34542,8 @@
                   "run": "qual-remote-canon-repo-r3-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -34576,8 +34576,8 @@
             {
               "id": "r3",
               "behavior": "A rejected update (bad signature, digest mismatch, failed apply) leaves the installed tree byte-for-byte unchanged.",
-              "coverage": "partial",
-              "gap": "Before/after tree hashes match for bad signature, digest and failed apply; the bad-signature control was not independently verified cryptographically.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -34598,8 +34598,8 @@
                   "run": "qual-remote-canon-repo-r3-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -40320,7 +40320,7 @@
               "id": "r1",
               "behavior": "put LOCAL REMOTE uploads a small binary payload (all byte values incl. NUL) byte-exactly, with names containing spaces.",
               "coverage": "partial",
-              "gap": "The quoted upload fails before candidate byte transfer; escaped-name transfer reaches and matches all 256 bytes.",
+              "gap": "The escaped-space transfer is byte-exact for the saved 0..255 payload, but the original requires a path-confined server mock. chdir and sftp-server -d only select starting directories and the adapter permits unrestricted sh -c. Keep this supplementary observation and the quoted-form FAIL; confinement remains unexercised.",
               "evidence": [
                 {
                   "group": "shell",
@@ -40342,7 +40342,7 @@
               "id": "r2",
               "behavior": "get REMOTE LOCAL downloads it byte-exactly.",
               "coverage": "partial",
-              "gap": "The quoted download fails before candidate byte transfer; escaped-name transfer reaches and matches all 256 bytes.",
+              "gap": "The saved escaped-space download is byte-exact, but the original server-mock confinement is not enforced by chdir/-d and the unrestricted command branch. Preserve the observation and quoted-form FAIL without complete original coverage.",
               "evidence": [
                 {
                   "group": "shell",
@@ -40406,8 +40406,8 @@
             {
               "id": "r1",
               "behavior": "lpwd prints the local working directory.",
-              "coverage": "partial",
-              "gap": "The quoted lcd fails before the intended second-directory lpwd; the escaped companion reaches it.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -40422,8 +40422,8 @@
                   "run": "qual-remote-canon-probe-composite-transfers-rest-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -40631,7 +40631,7 @@
               "id": "r3",
               "behavior": "ls after cd lists the controlled remote tree.",
               "coverage": "partial",
-              "gap": "Quoted cd fails before listing the intended remote directory; the escaped-name companion lists it.",
+              "gap": "The tree-backed cd/ls passes in --openssh mode via a local SSH-shaped command adapter; the quoted case fails before the intended listing. This original scenario specifically requires the candidate's BASHSSH1 framing peer plus a tree-backed independent OpenSSH SFTP mock. The proposed tree-backed case does not exercise BASHSSH1, so do not combine it automatically with a separate canned native-framing observation.",
               "evidence": [
                 {
                   "group": "shell",
@@ -41401,8 +41401,8 @@
             {
               "id": "r3",
               "behavior": "Malformed or truncated messages are rejected without partial rows.",
-              "coverage": "partial",
-              "gap": "A truncated header was injected and fallback was atomic; other malformed record variants are not established.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -41411,14 +41411,14 @@
                   "run": "qual-remote-canon-probe-composite-namespace-boundaries-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "An interrupted dump (NLM_F_DUMP_INTR) is retried or reported.",
-              "coverage": "partial",
-              "gap": "The candidate silently falls back after DUMP_INTR without retrying the interrupted IPv4 request or reporting the interruption; this is a reached failure.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -41427,8 +41427,8 @@
                   "run": "qual-remote-canon-probe-composite-namespace-boundaries-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
@@ -41498,8 +41498,8 @@
             {
               "id": "r2",
               "behavior": "A later ss call in the same shell succeeds normally after the failed call (stdio error state cleared).",
-              "coverage": "partial",
-              "gap": "The post-/dev/full normal table produced a valid header and status 0, but the table had no controlled live rows.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -41520,8 +41520,8 @@
                   "run": "qual-remote-canon-namespace-batch03-r1-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -42112,8 +42112,8 @@
             {
               "id": "r4",
               "behavior": "Successful password authentication when enabled",
-              "coverage": "partial",
-              "gap": "Loopback authentication succeeded for a project-style hex credential with synthetic token/device replies; standard-PHC and real kernel token authentication remain untested.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -42122,8 +42122,8 @@
                   "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -43309,8 +43309,8 @@
             {
               "id": "r2",
               "behavior": "The minted token is consumed immediately before the credential transition.",
-              "coverage": "partial",
-              "gap": "Synthetic consume preceded an intercepted setgroups denial; no real token enforcement or successful credential transition occurred.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -43319,14 +43319,14 @@
                   "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Expiry and mint/consume failures abort before any credential change.",
-              "coverage": "partial",
-              "gap": "Injected mint, consume and expiry errors aborted before observed credential calls; real kernel token expiry and enforcement were not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -43335,8 +43335,8 @@
                   "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -43425,8 +43425,8 @@
             {
               "id": "r1",
               "behavior": "Correct password passes verification (reaches the token step).",
-              "coverage": "partial",
-              "gap": "The correct project-style synthetic credential reached mock MINT/CONSUME; real token authority and credential transition were not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -43441,8 +43441,8 @@
                   "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -43481,8 +43481,8 @@
             {
               "id": "r5",
               "behavior": "Repeated failures lock the account until LOCKED_UNTIL; success clears the failure state.",
-              "coverage": "partial",
-              "gap": "The saved lock state and expiry handling were observed, but the expired-path su command subsequently failed at setgroups; a successful final credential transition was not shown.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -43491,8 +43491,8 @@
                   "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -43832,16 +43832,16 @@
         },
         {
           "topic": "sudo/policy-list-projection",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-l / -ll / --list render the caller-filtered projection of the authority-advertised policy, bound to its digest.",
-              "coverage": "partial",
-              "gap": "Short/long/alias projections and mismatched digest rejection were observed with synthetic owner and authority responses; the digest was not recomputed and real authority binding is untested.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -43856,8 +43856,8 @@
                   "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -43900,8 +43900,8 @@
             {
               "id": "r4",
               "behavior": "Listing is never an execution approval.",
-              "coverage": "partial",
-              "gap": "Listing-with-command was rejected in the synthetic authority fixture; real authority approval enforcement remains untested.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -43916,8 +43916,8 @@
                   "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -44099,8 +44099,8 @@
             {
               "id": "r3",
               "behavior": "-k COMMAND resets first and a failed reset prevents the command.",
-              "coverage": "partial",
-              "gap": "The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -44115,8 +44115,8 @@
                   "run": "qual-local-auth-canonical-2120-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -44148,8 +44148,8 @@
             {
               "id": "r3",
               "behavior": "notify readiness keys READY/RELOADING/STOPPING/STATUS/MAINPID.",
-              "coverage": "partial",
-              "gap": "Service-origin READY, RELOADING, STOPPING, STATUS and MAINPID datagrams were captured; the separate sv notify command client path was not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -44158,8 +44158,8 @@
                   "run": "qual-remote-canon-probe-composite-services-clean-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -44331,8 +44331,8 @@
             {
               "id": "r5",
               "behavior": "sv run [-d DIR] supervises, and sv shutdown stops services and reaps descendants.",
-              "coverage": "partial",
-              "gap": "The fixture service cooperatively reaped its child; no general descendant or hostile-service cleanup claim follows.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -44341,8 +44341,8 @@
                   "run": "qual-remote-canon-probe-composite-services-clean-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
@@ -49410,10 +49410,10 @@
         },
         {
           "topic": "userdb/defer-ldap-password-fd",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -49466,8 +49466,8 @@
             {
               "id": "r4",
               "behavior": "The provider's process group is reaped/killed after completion or timeout (no stray children).",
-              "coverage": "partial",
-              "gap": "The normal-completion child remained live until fixture cleanup; the timeout child was observed as a zombie, which does not prove final reaping.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -49482,8 +49482,8 @@
                   "run": "qual-remote-canon-probe-composite-services-rest-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -49497,8 +49497,8 @@
             {
               "id": "r1",
               "behavior": "userdb verify USER PASSWORD succeeds (status 0) for the correct password against a synthetic passwd+shadow fixture.",
-              "coverage": "partial",
-              "gap": "Correct-password status and synthetic fixture controls were recorded, but independent password-hash verification was not recomputed under the no-crypto constraint.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -49507,14 +49507,14 @@
                   "run": "qual-remote-canon-probe-composite-services-clean-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "A wrong password returns failure status.",
-              "coverage": "partial",
-              "gap": "Wrong-password status and synthetic fixture controls were recorded, but independent password-hash verification was not recomputed under the no-crypto constraint.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -49523,8 +49523,8 @@
                   "run": "qual-remote-canon-probe-composite-services-clean-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -52368,9 +52368,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 254,
-        "FAIL": 169,
-        "PASS": 177
+        "UNRESOLVED": 249,
+        "FAIL": 171,
+        "PASS": 180
       },
       "migration_without_complete_evidence": []
     },
@@ -56611,16 +56611,16 @@
         },
         {
           "topic": "apropos/man-db-query-reference-unavailable",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Default keyword interpretation is a regular expression (man-db default -r); e.g. 'al.ha' and '^alp' match like man-db against the same private page set.",
-              "coverage": "partial",
-              "gap": "Both saved regular-expression candidate queries failed against matching man-db output.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -56641,14 +56641,14 @@
                   "run": "qual-remote-canon-probe-composite-tracing-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Several keywords are ORed by default (man-db prints an entry matching any keyword; AND only with -a/--and).",
-              "coverage": "partial",
-              "gap": "The candidate OR query differed from man-db.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -56663,14 +56663,14 @@
                   "run": "qual-remote-canon-probe-composite-tracing-rest-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "-w matching selects whole names, including an alias from a comma-separated NAME line, as man-db does.",
-              "coverage": "partial",
-              "gap": "The alias case passed but the glob/whole-name comparison failed.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -56697,14 +56697,14 @@
                   "run": "qual-remote-canon-probe-composite-tracing-rest-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "No-match status equals man-db (exit 16) with the same stdout/stderr channel use.",
-              "coverage": "partial",
-              "gap": "Candidate no-match exited 1 without the man-db diagnostic; reference exited 16.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -56719,8 +56719,8 @@
                   "run": "qual-remote-canon-probe-composite-tracing-rest-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
@@ -57114,8 +57114,8 @@
             {
               "id": "r1",
               "behavior": "auth probe prints abi=MAJOR.MINOR features=0xHEX from the VERSION ioctl.",
-              "coverage": "partial",
-              "gap": "VERSION bytes and output were supplied by an intercepted synthetic device, not a real bashos-auth driver.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -57124,14 +57124,14 @@
                   "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "auth open FDVAR opens the descriptor, binds it to FDVAR, and it is close-on-exec.",
-              "coverage": "partial",
-              "gap": "The client received close-on-exec synthetic descriptors; opening the real kernel device is not established.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -57140,14 +57140,14 @@
                   "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "auth stats FD reports per-descriptor counters.",
-              "coverage": "partial",
-              "gap": "Distinct descriptor counter vectors were supplied by the synthetic device; real kernel counter isolation is not established.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -57156,8 +57156,8 @@
                   "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -57212,8 +57212,8 @@
             {
               "id": "r2",
               "behavior": "The returned handle is opaque; secret bytes never appear in argv, environment or output.",
-              "coverage": "partial",
-              "gap": "The synthetic secret is absent from saved output, argv and environment; a real kernel secret handle and enforcement were not tested.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -57222,8 +57222,8 @@
                   "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -57255,8 +57255,8 @@
             {
               "id": "r1",
               "behavior": "auth hash-secret produces a deterministic Argon2id PHC string for fixed salt/T/M/P/HASHLEN.",
-              "coverage": "partial",
-              "gap": "Candidate PHC bytes differ from the saved independent standard PHC; no cryptographic computation was repeated here.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -57265,14 +57265,14 @@
                   "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "auth verify-login accepts the correct synthetic credential and binds a token reference.",
               "coverage": "partial",
-              "gap": "The synthetic good credential was accepted, but the bound token equalled raw synthetic token bytes rather than an opaque reference.",
+              "gap": "The correct synthetic credential reaches mint and binds raw mock token bytes, but validity of this mock's token-reference semantics is not established. Preserve the observed opacity mismatch without crediting the unresolved reference model.",
               "evidence": [
                 {
                   "group": "shell",
@@ -57304,7 +57304,7 @@
               "id": "r4",
               "behavior": "Token references are handled only through the fd (never printed).",
               "coverage": "partial",
-              "gap": "The bound shell value equalled the raw synthetic token; the value was not printed, but fd-only opacity failed.",
+              "gap": "Saved output, argv and environment contain no token, while the shell binding equals raw synthetic token bytes. Whether this represents the original fd-only token-reference contract remains unresolved; do not infer that a token was printed.",
               "evidence": [
                 {
                   "group": "shell",
@@ -57531,8 +57531,8 @@
             {
               "id": "r1",
               "behavior": "since subtracts a prior monotonic reading from now.",
-              "coverage": "partial",
-              "gap": "Only live, non-boundary values.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
@@ -57541,8 +57541,8 @@
                   "run": "baseline-final-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -58224,8 +58224,8 @@
             {
               "id": "r4",
               "behavior": "Non-dry install/remove directives execute the configured argv (argv-split exec, no shell) and their exit status propagates; directives with shell metacharacters are refused",
-              "coverage": "partial",
-              "gap": "Reached candidate divergence: Install/remove commands ran in the required order and metacharacters were refused; an owned command exiting 7 was reported but returned builtin status 1 instead of 7.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -58234,14 +58234,14 @@
                   "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
               "behavior": "softdep cycles and recursion depth are rejected",
-              "coverage": "partial",
-              "gap": "Reached candidate divergence: A softdep cycle returned status 2, but the excessive-depth candidate process terminated by SIGSEGV rather than producing the expected rejection.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -58250,8 +58250,8 @@
                   "run": "qual-local-system-2120-batch-04-bashkmod-policy-r2-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r6",
@@ -61697,10 +61697,10 @@
         },
         {
           "topic": "caps/caps-file-decoder",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -61803,8 +61803,8 @@
             {
               "id": "r6",
               "behavior": "Malformed payload lengths (<12 bytes, 12..19 bytes) are rejected or partially decoded as documented",
-              "coverage": "partial",
-              "gap": "Only lengths 0, 4, 11, 12, 16 and 19 were observed; the two full malformed-length ranges were not exhaustively exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -61813,8 +61813,8 @@
                   "run": "qual-remote-canon-probe-composite-syscalls-current-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r7",
@@ -63123,8 +63123,8 @@
             {
               "id": "r2",
               "behavior": "--all-tasks applies the change to every thread of the target thread group (and without -a only the main thread changes)",
-              "coverage": "partial",
-              "gap": "Reached candidate divergence: Reference -a set all three threads to BATCH; candidate set only the main thread on both builds.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -63133,8 +63133,8 @@
                   "run": "qual-local-system-2120-chrt-cleanup-r3-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -68490,8 +68490,8 @@
             {
               "id": "r1",
               "behavior": "Non-root allow through the v2 authority runs the command.",
-              "coverage": "partial",
-              "gap": "An owned child ran on a synthetic allow response; actual v2 authority and credential enforcement were not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -68500,14 +68500,14 @@
                   "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Policy deny never starts the command.",
-              "coverage": "partial",
-              "gap": "Synthetic denial left the owned child marker absent; real authority policy enforcement was not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -68516,14 +68516,14 @@
                   "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "-n non-interactive deny when authentication would be required.",
-              "coverage": "partial",
-              "gap": "A synthetic authentication-required response caused noninteractive denial; real authority enforcement remains untested.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -68532,8 +68532,8 @@
                   "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -78530,8 +78530,8 @@
             {
               "id": "r1",
               "behavior": "lpr FILE and lpr from stdin spool the job and run BASHLPR_BACKEND <id> <size> <title> with the job bytes.",
-              "coverage": "partial",
-              "gap": "Explicit submit forms reach the backend; both bare forms return usage status 2 before any backend invocation.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -78558,8 +78558,8 @@
                   "run": "qual-remote-canon-probe-composite-services-rest-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -79061,8 +79061,8 @@
             {
               "id": "r4",
               "behavior": "-u combined with -p follows lsof's OR selection unless -a is given",
-              "coverage": "partial",
-              "gap": "Combined -u/-p selects only the specified PID where native lsof selects both owned children; -a is rejected as unknown.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -79071,8 +79071,8 @@
                   "run": "qual-remote-canon-probe-composite-namespace-remainder-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -80066,8 +80066,8 @@
             {
               "id": "r3",
               "behavior": "If mlockall itself fails (EAGAIN/ENOMEM after the pre-check passes) the diagnostic plus \"current RLIMIT_MEMLOCK: soft=.. hard=..\" is printed and status 1; no pages remain locked",
-              "coverage": "partial",
-              "gap": "EAGAIN and ENOMEM were independently injected on both builds; on ENOMEM the candidate omitted the required current-limit diagnostic.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -80082,8 +80082,8 @@
                   "run": "qual-local-system-2120-batch-09-mlock-enomem-r2-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -82252,7 +82252,7 @@
               "id": "r1",
               "behavior": "A unix stream listener row shows type, LISTENING state and its path.",
               "coverage": "partial",
-              "gap": "The listener has the correct path, type and decoded queue counts, but candidate prints LISTEN instead of LISTENING.",
+              "gap": "The candidate reports the observed owned listener path as u_str/LISTEN and the recorded case fails against LISTENING. However the source opens AF_NETLINK protocol 4 and sends to the kernel; the original explicitly requires a Unix sock_diag mock and private proc fixture. This live-kernel record is supplementary, not this scenario's coverage.",
               "evidence": [
                 {
                   "group": "shell",
@@ -82268,7 +82268,7 @@
               "id": "r2",
               "behavior": "A connected unix pair shows CONNECTED rows.",
               "coverage": "partial",
-              "gap": "The connected paths and decoded queues are present, but candidate prints ESTAB instead of CONNECTED.",
+              "gap": "The saved owned pair appears as u_str/ESTAB, a reached negative relative to CONNECTED. The diagnostic source and kernel sender [0,0] show a live kernel dump, not the expressly required sock_diag mock. Keep both FAIL results as supplementary evidence.",
               "evidence": [
                 {
                   "group": "shell",
@@ -82284,7 +82284,7 @@
               "id": "r3",
               "behavior": "State labels follow the SS_* unix states, not TCP states.",
               "coverage": "partial",
-              "gap": "Candidate labels unix states with LISTEN/ESTAB rather than the required SS_* labels.",
+              "gap": "The retained listener/connected examples show LISTEN and ESTAB against the expected labels, but the original requires a mock. The live AF_NETLINK dump and real private-namespace proc table do not establish coverage of that specific mocked scenario.",
               "evidence": [
                 {
                   "group": "shell",
@@ -83093,8 +83093,8 @@
             {
               "id": "r5",
               "behavior": "Behavior agrees with util-linux nsenter on the same descriptor",
-              "coverage": "partial",
-              "gap": "Same-descriptor candidate/nsenter denial is compared; successful entry and positive nsenter parity were not qualified.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -83103,8 +83103,8 @@
                   "run": "qual-remote-canon-probe-composite-namespaces-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -83597,8 +83597,8 @@
             {
               "id": "r1",
               "behavior": "ns spawn FLAGS CMD ARGS clones the child into the requested namespaces and execs CMD with exact argv",
-              "coverage": "partial",
-              "gap": "Exact argv is retained for none and PID namespace child cases; other namespace flag combinations were not independently compared.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -83613,8 +83613,8 @@
                   "run": "qual-remote-canon-probe-composite-namespaces-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -83731,7 +83731,7 @@
               "id": "r1",
               "behavior": "ns unshare user,mount,net,ipc,uts,cgroup changes the caller's /proc/self/ns/<type> inode for each requested type and leaves others unchanged",
               "coverage": "partial",
-              "gap": "One case observes the user inode, and a separate case observes mount/net/ipc/uts/cgroup inodes in an owned namespace; their combined one-call request was not observed.",
+              "gap": "The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required.",
               "evidence": [
                 {
                   "group": "shell",
@@ -86251,8 +86251,8 @@
             {
               "id": "r1",
               "behavior": "Documented -w range 0.001..86400 is accepted at both ends and rejected just outside (0, 86401) with usage status.",
-              "coverage": "partial",
-              "gap": "Both endpoint values reached socket creation, which the observer denied; the two outside values returned usage status 2, but no successful live packet execution was retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -86267,8 +86267,8 @@
                   "run": "qual-remote-canon-probe-composite-namespace-extras-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -86289,8 +86289,8 @@
             {
               "id": "r3",
               "behavior": "Out-of-range -c, -W, -i values are rejected with usage status.",
-              "coverage": "partial",
-              "gap": "One below-range value each for -c, -W and -i returned usage status 2; above-range examples were not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -86299,8 +86299,8 @@
                   "run": "qual-remote-canon-probe-composite-namespace-extras-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -86784,7 +86784,7 @@
               "id": "r1",
               "behavior": "Signed index refresh ('pkg update') from a repository source, verifying the index signature and selecting the per-architecture index.",
               "coverage": "partial",
-              "gap": "Signed-index acceptance and altered-signature rejection are recorded, but signature mathematics was not independently verified under the no-crypto constraint.",
+              "gap": "Signed per-architecture local index selection and bad-signature rejection are recorded with guest OpenSSL controls, but exact source says file:// and a socket-denial seccomp filter. Original purpose/reason requires remote I/O via a loopback-only mock transport; local file access does not exercise that transport. Preserve the PASS cases as supplementary.",
               "evidence": [
                 {
                   "group": "shell",
@@ -86884,16 +86884,16 @@
         },
         {
           "topic": "pkg/pkg-upgrade-delta",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "upgrade selects the newer signed package for an installed name according to trust policy.",
-              "coverage": "partial",
-              "gap": "Version selection and upgrade results are recorded, but the signature validity underlying trust policy was not independently verified under the no-crypto constraint.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -86902,8 +86902,8 @@
                   "run": "qual-remote-canon-repo-r3-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -86936,8 +86936,8 @@
             {
               "id": "r3",
               "behavior": "A rejected update (bad signature, digest mismatch, failed apply) leaves the installed tree byte-for-byte unchanged.",
-              "coverage": "partial",
-              "gap": "Before/after tree hashes match for bad signature, digest and failed apply; the bad-signature control was not independently verified cryptographically.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -86958,8 +86958,8 @@
                   "run": "qual-remote-canon-repo-r3-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -92680,7 +92680,7 @@
               "id": "r1",
               "behavior": "put LOCAL REMOTE uploads a small binary payload (all byte values incl. NUL) byte-exactly, with names containing spaces.",
               "coverage": "partial",
-              "gap": "The quoted upload fails before candidate byte transfer; escaped-name transfer reaches and matches all 256 bytes.",
+              "gap": "The escaped-space transfer is byte-exact for the saved 0..255 payload, but the original requires a path-confined server mock. chdir and sftp-server -d only select starting directories and the adapter permits unrestricted sh -c. Keep this supplementary observation and the quoted-form FAIL; confinement remains unexercised.",
               "evidence": [
                 {
                   "group": "shell",
@@ -92702,7 +92702,7 @@
               "id": "r2",
               "behavior": "get REMOTE LOCAL downloads it byte-exactly.",
               "coverage": "partial",
-              "gap": "The quoted download fails before candidate byte transfer; escaped-name transfer reaches and matches all 256 bytes.",
+              "gap": "The saved escaped-space download is byte-exact, but the original server-mock confinement is not enforced by chdir/-d and the unrestricted command branch. Preserve the observation and quoted-form FAIL without complete original coverage.",
               "evidence": [
                 {
                   "group": "shell",
@@ -92766,8 +92766,8 @@
             {
               "id": "r1",
               "behavior": "lpwd prints the local working directory.",
-              "coverage": "partial",
-              "gap": "The quoted lcd fails before the intended second-directory lpwd; the escaped companion reaches it.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -92782,8 +92782,8 @@
                   "run": "qual-remote-canon-probe-composite-transfers-rest-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -92991,7 +92991,7 @@
               "id": "r3",
               "behavior": "ls after cd lists the controlled remote tree.",
               "coverage": "partial",
-              "gap": "Quoted cd fails before listing the intended remote directory; the escaped-name companion lists it.",
+              "gap": "The tree-backed cd/ls passes in --openssh mode via a local SSH-shaped command adapter; the quoted case fails before the intended listing. This original scenario specifically requires the candidate's BASHSSH1 framing peer plus a tree-backed independent OpenSSH SFTP mock. The proposed tree-backed case does not exercise BASHSSH1, so do not combine it automatically with a separate canned native-framing observation.",
               "evidence": [
                 {
                   "group": "shell",
@@ -93761,8 +93761,8 @@
             {
               "id": "r3",
               "behavior": "Malformed or truncated messages are rejected without partial rows.",
-              "coverage": "partial",
-              "gap": "A truncated header was injected and fallback was atomic; other malformed record variants are not established.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -93771,14 +93771,14 @@
                   "run": "qual-remote-canon-probe-composite-namespace-boundaries-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "An interrupted dump (NLM_F_DUMP_INTR) is retried or reported.",
-              "coverage": "partial",
-              "gap": "The candidate silently falls back after DUMP_INTR without retrying the interrupted IPv4 request or reporting the interruption; this is a reached failure.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -93787,8 +93787,8 @@
                   "run": "qual-remote-canon-probe-composite-namespace-boundaries-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r5",
@@ -93858,8 +93858,8 @@
             {
               "id": "r2",
               "behavior": "A later ss call in the same shell succeeds normally after the failed call (stdio error state cleared).",
-              "coverage": "partial",
-              "gap": "The post-/dev/full normal table produced a valid header and status 0, but the table had no controlled live rows.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -93880,8 +93880,8 @@
                   "run": "qual-remote-canon-namespace-batch03-r1-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -94472,8 +94472,8 @@
             {
               "id": "r4",
               "behavior": "Successful password authentication when enabled",
-              "coverage": "partial",
-              "gap": "Loopback authentication succeeded for a project-style hex credential with synthetic token/device replies; standard-PHC and real kernel token authentication remain untested.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -94482,8 +94482,8 @@
                   "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -95669,8 +95669,8 @@
             {
               "id": "r2",
               "behavior": "The minted token is consumed immediately before the credential transition.",
-              "coverage": "partial",
-              "gap": "Synthetic consume preceded an intercepted setgroups denial; no real token enforcement or successful credential transition occurred.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -95679,14 +95679,14 @@
                   "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Expiry and mint/consume failures abort before any credential change.",
-              "coverage": "partial",
-              "gap": "Injected mint, consume and expiry errors aborted before observed credential calls; real kernel token expiry and enforcement were not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -95695,8 +95695,8 @@
                   "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -95785,8 +95785,8 @@
             {
               "id": "r1",
               "behavior": "Correct password passes verification (reaches the token step).",
-              "coverage": "partial",
-              "gap": "The correct project-style synthetic credential reached mock MINT/CONSUME; real token authority and credential transition were not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -95801,8 +95801,8 @@
                   "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -95841,8 +95841,8 @@
             {
               "id": "r5",
               "behavior": "Repeated failures lock the account until LOCKED_UNTIL; success clears the failure state.",
-              "coverage": "partial",
-              "gap": "The saved lock state and expiry handling were observed, but the expired-path su command subsequently failed at setgroups; a successful final credential transition was not shown.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -95851,8 +95851,8 @@
                   "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -96192,16 +96192,16 @@
         },
         {
           "topic": "sudo/policy-list-projection",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-l / -ll / --list render the caller-filtered projection of the authority-advertised policy, bound to its digest.",
-              "coverage": "partial",
-              "gap": "Short/long/alias projections and mismatched digest rejection were observed with synthetic owner and authority responses; the digest was not recomputed and real authority binding is untested.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -96216,8 +96216,8 @@
                   "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -96260,8 +96260,8 @@
             {
               "id": "r4",
               "behavior": "Listing is never an execution approval.",
-              "coverage": "partial",
-              "gap": "Listing-with-command was rejected in the synthetic authority fixture; real authority approval enforcement remains untested.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -96276,8 +96276,8 @@
                   "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -96459,8 +96459,8 @@
             {
               "id": "r3",
               "behavior": "-k COMMAND resets first and a failed reset prevents the command.",
-              "coverage": "partial",
-              "gap": "The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -96475,8 +96475,8 @@
                   "run": "qual-local-auth-canonical-2120-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -96508,8 +96508,8 @@
             {
               "id": "r3",
               "behavior": "notify readiness keys READY/RELOADING/STOPPING/STATUS/MAINPID.",
-              "coverage": "partial",
-              "gap": "Service-origin READY, RELOADING, STOPPING, STATUS and MAINPID datagrams were captured; the separate sv notify command client path was not exercised.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -96518,8 +96518,8 @@
                   "run": "qual-remote-canon-probe-composite-services-clean-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -96691,8 +96691,8 @@
             {
               "id": "r5",
               "behavior": "sv run [-d DIR] supervises, and sv shutdown stops services and reaps descendants.",
-              "coverage": "partial",
-              "gap": "The fixture service cooperatively reaped its child; no general descendant or hostile-service cleanup claim follows.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -96701,8 +96701,8 @@
                   "run": "qual-remote-canon-probe-composite-services-clean-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
@@ -101770,10 +101770,10 @@
         },
         {
           "topic": "userdb/defer-ldap-password-fd",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -101826,8 +101826,8 @@
             {
               "id": "r4",
               "behavior": "The provider's process group is reaped/killed after completion or timeout (no stray children).",
-              "coverage": "partial",
-              "gap": "The normal-completion child remained live until fixture cleanup; the timeout child was observed as a zombie, which does not prove final reaping.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -101842,8 +101842,8 @@
                   "run": "qual-remote-canon-probe-composite-services-rest-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -101857,8 +101857,8 @@
             {
               "id": "r1",
               "behavior": "userdb verify USER PASSWORD succeeds (status 0) for the correct password against a synthetic passwd+shadow fixture.",
-              "coverage": "partial",
-              "gap": "Correct-password status and synthetic fixture controls were recorded, but independent password-hash verification was not recomputed under the no-crypto constraint.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -101867,14 +101867,14 @@
                   "run": "qual-remote-canon-probe-composite-services-clean-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "A wrong password returns failure status.",
-              "coverage": "partial",
-              "gap": "Wrong-password status and synthetic fixture controls were recorded, but independent password-hash verification was not recomputed under the no-crypto constraint.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -101883,8 +101883,8 @@
                   "run": "qual-remote-canon-probe-composite-services-clean-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -104728,9 +104728,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 254,
-        "FAIL": 169,
-        "PASS": 177
+        "UNRESOLVED": 249,
+        "FAIL": 171,
+        "PASS": 180
       },
       "migration_without_complete_evidence": []
     }

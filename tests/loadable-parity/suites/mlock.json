@@ -35,7 +35,7 @@
       "id": "all-operation",
       "kind": "deferred",
       "purpose": "Validate mlockall(MCL_CURRENT|MCL_FUTURE) success and its RLIMIT_MEMLOCK failure path, including whether failure leaves process state unchanged.",
-      "reason": "Remaining obligations: r1: No case. Whether the guest default limit (8 MiB) suffices for mlockall of the 15 MB static candidate mappings is unknown; a deterministic success needs the controller to set the limit per case.; r3: EAGAIN and ENOMEM were independently injected on both builds; on ENOMEM the candidate omitted the required current-limit diagnostic.; r4: Implicit in per-side processes; not asserted."
+      "reason": "Remaining obligations: r1: No case. Whether the guest default limit (8 MiB) suffices for mlockall of the 15 MB static candidate mappings is unknown; a deterministic success needs the controller to set the limit per case.; r4: Implicit in per-side processes; not asserted."
     },
     {
       "id": "unlock-operation",

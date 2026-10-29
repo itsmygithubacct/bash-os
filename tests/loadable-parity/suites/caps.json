@@ -183,9 +183,38 @@
     },
     {
       "id": "caps-file-decoder",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check security.capability revision 2 and 3 decoding, effective flag handling, empty xattrs, malformed payload lengths, and -V binding.",
-      "reason": "Remaining obligations: r6: Only lengths 0, 4, 11, 12, 16 and 19 were observed; the two full malformed-length ranges were not exhaustively exercised."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/caps/missing-private-file"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/caps/private-file-without-capabilities"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-file-absent-unsupported"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-file-revisions"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-getxattr-errors"
+        },
+        {
+          "group": "shell",
+          "id": "migration-caps-getxattr-injected"
+        },
+        {
+          "group": "shell",
+          "id": "migration-device-storage-caps-r3"
+        }
+      ]
     },
     {
       "id": "caps-input-validation",

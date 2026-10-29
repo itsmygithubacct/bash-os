@@ -120,7 +120,7 @@
       "id": "defer-policy-command-effects",
       "kind": "deferred",
       "purpose": "modprobe policy can select soft dependencies and may execute configured install/remove argv while applying module actions.",
-      "reason": "Remaining obligations: r4: Reached candidate divergence: Install/remove commands ran in the required order and metacharacters were refused; an owned command exiting 7 was reported but returned builtin status 1 instead of 7.; r5: Reached candidate divergence: A softdep cycle returned status 2, but the excessive-depth candidate process terminated by SIGSEGV rather than producing the expected rejection.; r6: Requires PRIV-ROOT module syscalls, same as defer-kernel-module-transitions."
+      "reason": "Remaining obligations: r6: Requires PRIV-ROOT module syscalls, same as defer-kernel-module-transitions."
     },
     {
       "id": "weak-modules-usable-relative-links",

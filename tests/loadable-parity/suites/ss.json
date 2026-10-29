@@ -63,13 +63,13 @@
       "id": "deferred_netlink_protocol_errors",
       "purpose": "Future operation comparison should cover multipart sock_diag replies, ACK/EINTR/unmatched sequences, malformed and truncated messages, interrupted dumps, and atomic fallback after an invalid family dump.",
       "kind": "deferred",
-      "reason": "Remaining obligations: r1: The independent native dump spans four datagrams and all 720 names appear once, but candidate receive buffer boundaries are not retained.; r3: A truncated header was injected and fallback was atomic; other malformed record variants are not established.; r4: The candidate silently falls back after DUMP_INTR without retrying the interrupted IPv4 request or reporting the interruption; this is a reached failure."
+      "reason": "Remaining obligations: r1: The independent native dump spans four datagrams and all 720 names appear once, but candidate receive buffer boundaries are not retained."
     },
     {
       "id": "deferred_output_and_repeat_calls",
       "purpose": "Future operation comparison should check buffered output failures, recovery on a later call in the same shell, repeated invocations with different selectors, and --version status when its sock_diag probe or output fails.",
       "kind": "deferred",
-      "reason": "Remaining obligations: r2: The post-/dev/full normal table produced a valid header and status 0, but the table had no controlled live rows.; r3: Not executed."
+      "reason": "Remaining obligations: r3: Not executed."
     }
   ]
 }

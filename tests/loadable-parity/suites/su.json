@@ -52,13 +52,13 @@
       "id": "password-and-lockout-flow",
       "kind": "deferred",
       "purpose": "Check correct and incorrect passwords, locked or malformed shadow entries, bounded password input, failure lockout, and success cleanup.",
-      "reason": "Remaining obligations: r1: The correct project-style synthetic credential reached mock MINT/CONSUME; real token authority and credential transition were not exercised.; r3: Not executed.; r4: Not executed.; r5: The saved lock state and expiry handling were observed, but the expired-path su command subsequently failed at setgroups; a successful final credential transition was not shown."
+      "reason": "Remaining obligations: r3: Not executed.; r4: Not executed."
     },
     {
       "id": "kernel-token-protocol",
       "kind": "deferred",
       "purpose": "Check token mint/consume request fields, expiry, failure handling, and request cleanup before any credential transition.",
-      "reason": "Remaining obligations: r2: Synthetic consume preceded an intercepted setgroups denial; no real token enforcement or successful credential transition occurred.; r3: Injected mint, consume and expiry errors aborted before observed credential calls; real kernel token expiry and enforcement were not exercised.; r4: Observable now via the PTY password path (correct password -> 'kernel auth: /dev/bashos-auth: No such file or directory', status 1, no target shell marker)."
+      "reason": "Remaining obligations: r4: Observable now via the PTY password path (correct password -> 'kernel auth: /dev/bashos-auth: No such file or directory', status 1, no target shell marker)."
     },
     {
       "id": "credential-transition",

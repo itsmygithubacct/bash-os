@@ -58,7 +58,7 @@
       "id": "ping-option-boundaries",
       "kind": "deferred",
       "purpose": "Exercise documented minimum/maximum numeric values and representative malformed or out-of-range -c, -W, -w, and -i arguments, checking usage status and that invalid values do not proceed to resolution or socket creation.",
-      "reason": "Remaining obligations: r1: Both endpoint values reached socket creation, which the observer denied; the two outside values returned usage status 2, but no successful live packet execution was retained.; r3: One below-range value each for -c, -W and -i returned usage status 2; above-range examples were not retained.; r4: The marked interval has no recorded socket/connect or resolver-file offender; arbitrary in-process resolver calls were not observed."
+      "reason": "Remaining obligations: r4: The marked interval has no recorded socket/connect or resolver-file offender; arbitrary in-process resolver calls were not observed."
     },
     {
       "id": "ping-traceroute-ttl",

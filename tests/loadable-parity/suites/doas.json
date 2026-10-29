@@ -45,7 +45,7 @@
       "id": "authority_policy_and_verification",
       "kind": "deferred",
       "purpose": "Exercise non-root allow, deny, non-interactive deny, and interactive verification behavior at the authority boundary.",
-      "reason": "Remaining obligations: r1: An owned child ran on a synthetic allow response; actual v2 authority and credential enforcement were not exercised.; r2: Synthetic denial left the owned child marker absent; real authority policy enforcement was not exercised.; r3: A synthetic authentication-required response caused noninteractive denial; real authority enforcement remains untested.; r4: A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic."
+      "reason": "Remaining obligations: r4: A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic."
     },
     {
       "id": "external_delegate_fallback",

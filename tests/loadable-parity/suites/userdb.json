@@ -74,7 +74,7 @@
       "id": "defer-passwd-verification",
       "kind": "deferred",
       "purpose": "Built-in passwd-backed userdb verification, including success and wrong-password results.",
-      "reason": "Remaining obligations: r1: Correct-password status and synthetic fixture controls were recorded, but independent password-hash verification was not recomputed under the no-crypto constraint.; r2: Wrong-password status and synthetic fixture controls were recorded, but independent password-hash verification was not recomputed under the no-crypto constraint.; r3: Private shadow swap and unchanged fixture bytes were recorded, but candidate file opens were not independently traced."
+      "reason": "Remaining obligations: r3: Private shadow swap and unchanged fixture bytes were recorded, but candidate file opens were not independently traced."
     },
     {
       "id": "defer-provider-lookup",
@@ -108,9 +108,26 @@
     },
     {
       "id": "defer-ldap-password-fd",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "LDAP provider password transport on fd 3, bounded output handling, timeout, and child cleanup.",
-      "reason": "Remaining obligations: r4: The normal-completion child remained live until fixture cleanup; the timeout child was observed as a zombie, which does not prove final reaping."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-services-userdb-ldap-complete"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-userdb-ldap-normal"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-userdb-ldap-oversize"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-userdb-ldap-timeout"
+        }
+      ]
     },
     {
       "id": "lookup-private-record-selection",

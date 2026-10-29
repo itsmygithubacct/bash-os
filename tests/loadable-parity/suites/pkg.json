@@ -172,13 +172,46 @@
       "id": "pkg-repository-io",
       "kind": "deferred",
       "purpose": "Cover signed remote index refresh, download and fetch against a mock transport; local INDEX search executes separately.",
-      "reason": "Remaining obligations: r1: Signed-index acceptance and altered-signature rejection are recorded, but signature mathematics was not independently verified under the no-crypto constraint.; r3: The file-path socket-denial control, loopback HTTP peer and network canary are recorded; an independent trace of every candidate connection attempt is absent."
+      "reason": "Remaining obligations: r1: Signed per-architecture local index selection and bad-signature rejection are recorded with guest OpenSSL controls, but exact source says file:// and a socket-denial seccomp filter. Original purpose/reason requires remote I/O via a loopback-only mock transport; local file access does not exercise that transport. Preserve the PASS cases as supplementary.; r3: The file-path socket-denial control, loopback HTTP peer and network canary are recorded; an independent trace of every candidate connection attempt is absent."
     },
     {
       "id": "pkg-upgrade-delta",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check upgrade selection, trust policy, delta download and rollback after a rejected update; standalone local delta application executes separately.",
-      "reason": "Remaining obligations: r1: Version selection and upgrade results are recorded, but the signature validity underlying trust policy was not independently verified under the no-crypto constraint.; r3: Before/after tree hashes match for bad signature, digest and failed apply; the bad-signature control was not independently verified cryptographically."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/pkg/pkg-delta-independent-apply"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-delta-independent-apply-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-delta-wrong-base-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-delta-wrong-output-hash-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-repo-upgrade-bad-delta-signature-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-repo-upgrade-bad-digest-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-repo-upgrade-delta-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-transfer-pkg-repo-upgrade-failed-apply-r3"
+        }
+      ]
     },
     {
       "id": "pkg-load-unload",

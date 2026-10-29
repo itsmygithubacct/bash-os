@@ -55,7 +55,7 @@
       "id": "defer-unix-sockets",
       "kind": "deferred",
       "purpose": "Compare Unix listener and connected rows, legacy state labels, and queue fields using an independently encoded Unix diagnostic fixture.",
-      "reason": "Remaining obligations: r1: The listener has the correct path, type and decoded queue counts, but candidate prints LISTEN instead of LISTENING.; r2: The connected paths and decoded queues are present, but candidate prints ESTAB instead of CONNECTED.; r3: Candidate labels unix states with LISTEN/ESTAB rather than the required SS_* labels."
+      "reason": "Remaining obligations: r1: The candidate reports the observed owned listener path as u_str/LISTEN and the recorded case fails against LISTENING. However the source opens AF_NETLINK protocol 4 and sends to the kernel; the original explicitly requires a Unix sock_diag mock and private proc fixture. This live-kernel record is supplementary, not this scenario's coverage.; r2: The saved owned pair appears as u_str/ESTAB, a reached negative relative to CONNECTED. The diagnostic source and kernel sender [0,0] show a live kernel dump, not the expressly required sock_diag mock. Keep both FAIL results as supplementary evidence.; r3: The retained listener/connected examples show LISTEN and ESTAB against the expected labels, but the original requires a mock. The live AF_NETLINK dump and real private-namespace proc table do not establish coverage of that specific mocked scenario."
     },
     {
       "id": "defer-process-ownership",
