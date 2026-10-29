@@ -1,0 +1,100 @@
+{
+  "cases": [
+    {
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/migration-mlock-limits-exit-r1.py \"$BASH\" future-unlock\n",
+      "comparison": "The exact resident-size assertion is recorded before subsequent operations and is never weakened. The process continues to record allocation, future lock growth and unlock even when resident-size fails; reached failures take precedence over later incomplete observations. Native and candidate effective soft/hard limits are independently recorded. Review each step separately, preserving prior static failure.",
+      "covers": [
+        "mlock/all-operation",
+        "mlock/unlock-operation"
+      ],
+      "diagnostic_files": [
+        "candidate-pid",
+        "candidate-limits",
+        "before",
+        "locked",
+        "future",
+        "unlocked",
+        "all.out",
+        "all.err",
+        "all.status",
+        "unlock.out",
+        "unlock.err",
+        "unlock.status",
+        "mlock-observer.json",
+        "mlock-positive-control.json",
+        "mlock-assertions"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "files": {
+        "mlock-future-unlock.sh": "[[ $(type -t mlock) == builtin ]] || exit 125\nprintf '%s\\n' \"$$\" > \"$HOME/candidate-pid\"\nwhile IFS= read -r line; do printf '%s\\n' \"$line\"; done < \"/proc/$$/limits\" > \"$HOME/candidate-limits\" || exit 125\nprintf 'ready\\n' > \"$HOME/candidate-preflight-ready\"\nIFS= read -r token || exit 125\n[[ $token == go ]] || exit 125\nsnapshot() {\n  local line key val unit lck= rss= size=\n  while read -r key val unit; do\n    case $key in VmLck:) lck=$val;; VmRSS:) rss=$val;; VmSize:) size=$val;; esac\n  done <\"/proc/$$/status\"\n  [[ $lck =~ ^[0-9]+$ && $rss =~ ^[0-9]+$ && $size =~ ^[0-9]+$ ]] || return 1\n  printf '%s %s %s\\n' \"$lck\" \"$rss\" \"$size\" >\"$HOME/$1\"\n}\nsnapshot before || exit 125\nread -r before_lck before_rss before_size <\"$HOME/before\"\n# Leave room for allocation and shell overhead. Failure here invalidates setup.\n(( before_size < 32768 )) || exit 125\nmlock all >\"$HOME/all.out\" 2>\"$HOME/all.err\"; rc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/all.status\"\n(( rc == 0 )) || exit 11\nsnapshot locked || exit 125\nread -r locked_lck locked_rss locked_size <\"$HOME/locked\"\npositive=0; resident=0; future_known=0; growth=0; unlocked_known=0; unlocked_zero=0\n(( locked_lck > 0 )) && positive=1\n(( locked_lck >= locked_rss )) && resident=1\nprintf 'locked_lck_kb=%s\\nlocked_rss_kb=%s\\nlocked_positive=%s\\nresident_requirement=%s\\n' \"$locked_lck\" \"$locked_rss\" \"$positive\" \"$resident\" >> \"$HOME/mlock-assertions\" || exit 125\n# Continue after a reached r1 mismatch so later obligations have their own records.\nprintf -v allocation '%*s' 2097152 ''; allocation_rc=$?\nprintf 'allocation_status=%s\\n' \"$allocation_rc\" >> \"$HOME/mlock-assertions\" || exit 125\nif (( allocation_rc == 0 )); then\n  if snapshot future; then\n    read -r future_lck future_rss future_size < \"$HOME/future\"\n    future_known=1; (( future_lck > locked_lck )) && growth=1\n    printf 'future_lck_kb=%s\\nfuture_rss_kb=%s\\nfuture_size_kb=%s\\n' \"$future_lck\" \"$future_rss\" \"$future_size\" >> \"$HOME/mlock-assertions\" || exit 125\n  fi\nfi\nprintf 'future_snapshot_recorded=%s\\nfuture_growth=%s\\n' \"$future_known\" \"$growth\" >> \"$HOME/mlock-assertions\" || exit 125\nmlock unlock > \"$HOME/unlock.out\" 2> \"$HOME/unlock.err\"; unlock_rc=$?\nprintf '%s\\n' \"$unlock_rc\" > \"$HOME/unlock.status\"\nprintf 'unlock_status=%s\\n' \"$unlock_rc\" >> \"$HOME/mlock-assertions\" || exit 125\nif snapshot unlocked; then\n  read -r unlocked_lck unlocked_rss unlocked_size < \"$HOME/unlocked\"\n  unlocked_known=1; (( unlocked_lck == 0 )) && unlocked_zero=1\n  printf 'unlocked_lck_kb=%s\\n' \"$unlocked_lck\" >> \"$HOME/mlock-assertions\" || exit 125\nfi\nprintf 'unlocked_snapshot_recorded=%s\\nunlocked_zero=%s\\n' \"$unlocked_known\" \"$unlocked_zero\" >> \"$HOME/mlock-assertions\" || exit 125\n# Reached candidate failures take precedence; partial diagnostics remain explicit.\n(( positive == 1 && resident == 1 )) || exit 12\n(( unlock_rc == 0 )) || exit 14\n(( unlocked_known == 1 )) || exit 125\n(( unlocked_zero == 1 )) || exit 15\n(( allocation_rc == 0 && future_known == 1 )) || exit 125\n(( growth == 1 )) || exit 13\nexit 0\n",
+        "mlock-positive-control-r2.py": "#!/usr/bin/python3\n\"\"\"Independent guest mlockall, future-map and munlockall qualification.\"\"\"\nimport ctypes,json,mmap,os,resource,sys,uuid\nfrom pathlib import Path\nH=Path('/tmp/parity-home');C=Path('/tmp/parity-case')\nif os.getuid()!=2000 or os.geteuid()!=2000 or Path.cwd()!=C or os.environ.get('HOME')!=str(H): raise SystemExit(125)\nif Path('/sys/class/dmi/id/sys_vendor').read_text().strip()!='QEMU': raise SystemExit(125)\ntry: uuid.UUID(Path('/etc/bashos-parity-vm').read_text().strip())\nexcept (OSError,ValueError): raise SystemExit(125)\nsoft,hard=resource.getrlimit(resource.RLIMIT_MEMLOCK)\npre_limit={'soft':soft,'hard':hard}\nif hard!=resource.RLIM_INFINITY and hard<64*1024*1024:\n    (H/'mlock-positive-control.json').write_text(json.dumps({'error':'hard limit too low','effective_before':pre_limit})+'\\n');raise SystemExit(125)\nresource.setrlimit(resource.RLIMIT_MEMLOCK,(64*1024*1024,hard))\npost_soft,post_hard=resource.getrlimit(resource.RLIMIT_MEMLOCK)\ndef locked():\n    for line in Path('/proc/self/status').read_text().splitlines():\n        if line.startswith('VmLck:'):return int(line.split()[1])\n    raise RuntimeError('VmLck unavailable')\nlib=ctypes.CDLL(None,use_errno=True);result={'pid':os.getpid(),'effective_before':pre_limit,'effective_after':{'soft':post_soft,'hard':post_hard},'proc_self_limits':Path('/proc/self/limits').read_text()}\ntry:\n    result['before_kb']=locked();ctypes.set_errno(0);result['all_rc']=lib.mlockall(3);result['all_errno']=ctypes.get_errno();result['locked_kb']=locked()\n    if result['all_rc']==0:\n        m=mmap.mmap(-1,1024*1024);result['future_kb']=locked();m.close();result['unlock_rc']=lib.munlockall();result['after_kb']=locked()\n    result['ok']=(post_soft==64*1024*1024 and post_hard==hard and result.get('all_rc')==0 and result.get('locked_kb',0)>0 and result.get('future_kb',0)>result['locked_kb'] and result.get('unlock_rc')==0 and result.get('after_kb')==0)\nfinally:\n    (H/'mlock-positive-control.json').write_text(json.dumps(result,sort_keys=True)+'\\n')\nif not result.get('ok'): sys.exit(125)\n"
+      },
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/migration-mlock-limits-exit-r1.py": "6ad2709cd2646cb238bad2847abade590595f07e85d8873c0f8fe1900c32ed34"
+      },
+      "id": "migration-mlock-effective-future-unlock-r2",
+      "kind": "contract",
+      "loadable": "mlock",
+      "oracle": "Native process getrlimit before/after and procfs plus independent successful mlockall, future mmap and munlockall control; supervisor prlimit on the exact live owned candidate, candidate /proc/self limits/status, and pidfd identity/wait for exit.",
+      "purpose": "Record resident-size assertion, continue future allocation and unlock, then aggregate each outcome with effective limits.",
+      "requires": [
+        "python3"
+      ],
+      "script": ":",
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nh=$(ulimit -H -l)\n[[ $h == unlimited || $h =~ ^[0-9]+$ && $h -ge 65536 ]] || { echo 'SETUP-INVALID memlock hard limit below 64 MiB' >&2; exit 125; }\n\n/usr/bin/python3 /tmp/parity-case/mlock-positive-control-r2.py\n\nfor f in candidate-pid candidate-limits before locked future unlocked all.out all.err all.status unlock.out unlock.err unlock.status mlock-observer.json mlock-assertions; do : > \"$HOME/$f\"; done\n",
+      "stderr": "",
+      "stdout": "future_unlock=observed\n",
+      "timeout": 45
+    },
+    {
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/migration-mlock-limits-exit-r1.py \"$BASH\" exit-held\n",
+      "comparison": "Resident-size comparison is recorded independently but does not gate this r4 observation. Successful all and positive VmLck are required before holding the owned process; the supervisor captures actual limits, pidfd, held state, WNOWAIT zombie and owned reap. Last live held state and kernel task teardown are bounded observations; physical unpinning and every intervening syscall are not directly traced.",
+      "covers": [
+        "mlock/all-operation"
+      ],
+      "diagnostic_files": [
+        "candidate-pid",
+        "candidate-limits",
+        "before",
+        "locked",
+        "future",
+        "unlocked",
+        "all.out",
+        "all.err",
+        "all.status",
+        "unlock.out",
+        "unlock.err",
+        "unlock.status",
+        "mlock-observer.json",
+        "mlock-positive-control.json",
+        "mlock-assertions"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "files": {
+        "mlock-exit-held.sh": "[[ $(type -t mlock) == builtin ]] || exit 125\nprintf '%s\\n' \"$$\" > \"$HOME/candidate-pid\"\nwhile IFS= read -r line; do printf '%s\\n' \"$line\"; done < \"/proc/$$/limits\" > \"$HOME/candidate-limits\" || exit 125\nprintf 'ready\\n' > \"$HOME/candidate-preflight-ready\"\nIFS= read -r token || exit 125\n[[ $token == go ]] || exit 125\nsnapshot() {\n  local line key val unit lck= rss= size=\n  while read -r key val unit; do\n    case $key in VmLck:) lck=$val;; VmRSS:) rss=$val;; VmSize:) size=$val;; esac\n  done <\"/proc/$$/status\"\n  [[ $lck =~ ^[0-9]+$ && $rss =~ ^[0-9]+$ && $size =~ ^[0-9]+$ ]] || return 1\n  printf '%s %s %s\\n' \"$lck\" \"$rss\" \"$size\" >\"$HOME/$1\"\n}\nsnapshot before || exit 125\nread -r before_lck before_rss before_size <\"$HOME/before\"\n# Leave room for allocation and shell overhead. Failure here invalidates setup.\n(( before_size < 32768 )) || exit 125\nmlock all >\"$HOME/all.out\" 2>\"$HOME/all.err\"; rc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/all.status\"\n(( rc == 0 )) || exit 11\nsnapshot locked || exit 125\nread -r locked_lck locked_rss locked_size <\"$HOME/locked\"\npositive=0; resident=0\n(( locked_lck > 0 )) && positive=1\n(( locked_lck >= locked_rss )) && resident=1\nprintf 'locked_lck_kb=%s\\nlocked_rss_kb=%s\\nlocked_positive=%s\\nresident_requirement=%s\\n' \"$locked_lck\" \"$locked_rss\" \"$positive\" \"$resident\" >> \"$HOME/mlock-assertions\" || exit 125\n(( positive == 1 )) || exit 12\nprintf 'held\\n' > \"$HOME/candidate-held-ready\"\nIFS= read -r token || exit 125\n[[ $token == exit ]] || exit 125\nexit 0\n",
+        "mlock-positive-control-r2.py": "#!/usr/bin/python3\n\"\"\"Independent guest mlockall, future-map and munlockall qualification.\"\"\"\nimport ctypes,json,mmap,os,resource,sys,uuid\nfrom pathlib import Path\nH=Path('/tmp/parity-home');C=Path('/tmp/parity-case')\nif os.getuid()!=2000 or os.geteuid()!=2000 or Path.cwd()!=C or os.environ.get('HOME')!=str(H): raise SystemExit(125)\nif Path('/sys/class/dmi/id/sys_vendor').read_text().strip()!='QEMU': raise SystemExit(125)\ntry: uuid.UUID(Path('/etc/bashos-parity-vm').read_text().strip())\nexcept (OSError,ValueError): raise SystemExit(125)\nsoft,hard=resource.getrlimit(resource.RLIMIT_MEMLOCK)\npre_limit={'soft':soft,'hard':hard}\nif hard!=resource.RLIM_INFINITY and hard<64*1024*1024:\n    (H/'mlock-positive-control.json').write_text(json.dumps({'error':'hard limit too low','effective_before':pre_limit})+'\\n');raise SystemExit(125)\nresource.setrlimit(resource.RLIMIT_MEMLOCK,(64*1024*1024,hard))\npost_soft,post_hard=resource.getrlimit(resource.RLIMIT_MEMLOCK)\ndef locked():\n    for line in Path('/proc/self/status').read_text().splitlines():\n        if line.startswith('VmLck:'):return int(line.split()[1])\n    raise RuntimeError('VmLck unavailable')\nlib=ctypes.CDLL(None,use_errno=True);result={'pid':os.getpid(),'effective_before':pre_limit,'effective_after':{'soft':post_soft,'hard':post_hard},'proc_self_limits':Path('/proc/self/limits').read_text()}\ntry:\n    result['before_kb']=locked();ctypes.set_errno(0);result['all_rc']=lib.mlockall(3);result['all_errno']=ctypes.get_errno();result['locked_kb']=locked()\n    if result['all_rc']==0:\n        m=mmap.mmap(-1,1024*1024);result['future_kb']=locked();m.close();result['unlock_rc']=lib.munlockall();result['after_kb']=locked()\n    result['ok']=(post_soft==64*1024*1024 and post_hard==hard and result.get('all_rc')==0 and result.get('locked_kb',0)>0 and result.get('future_kb',0)>result['locked_kb'] and result.get('unlock_rc')==0 and result.get('after_kb')==0)\nfinally:\n    (H/'mlock-positive-control.json').write_text(json.dumps(result,sort_keys=True)+'\\n')\nif not result.get('ok'): sys.exit(125)\n"
+      },
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/migration-mlock-limits-exit-r1.py": "6ad2709cd2646cb238bad2847abade590595f07e85d8873c0f8fe1900c32ed34"
+      },
+      "id": "migration-mlock-effective-held-exit-r2",
+      "kind": "contract",
+      "loadable": "mlock",
+      "oracle": "Native process getrlimit before/after and procfs plus independent successful mlockall, future mmap and munlockall control; supervisor prlimit on the exact live owned candidate, candidate /proc/self limits/status, and pidfd identity/wait for exit.",
+      "purpose": "Observe a candidate with successful mlock all and positive VmLck at a held gate and its subsequent exit without explicit unlock.",
+      "requires": [
+        "python3"
+      ],
+      "script": ":",
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nh=$(ulimit -H -l)\n[[ $h == unlimited || $h =~ ^[0-9]+$ && $h -ge 65536 ]] || { echo 'SETUP-INVALID memlock hard limit below 64 MiB' >&2; exit 125; }\n\n/usr/bin/python3 /tmp/parity-case/mlock-positive-control-r2.py\n\nfor f in candidate-pid candidate-limits before locked future unlocked all.out all.err all.status unlock.out unlock.err unlock.status mlock-observer.json mlock-assertions; do : > \"$HOME/$f\"; done\n",
+      "stderr": "",
+      "stdout": "held_exit=observed\n",
+      "timeout": 45
+    }
+  ],
+  "schema": 1
+}

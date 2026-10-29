@@ -1,0 +1,135 @@
+{
+  "cases": [
+    {
+      "comparison": "Exact candidate status/diagnostics and per-table raw observation, no synthetic success; absent controls or attribution are incomplete.",
+      "covers": [
+        "netstat/defer-transport-errors"
+      ],
+      "diagnostic_files": [
+        "probe.json",
+        "control-fallback-events.jsonl",
+        "control-fallback-verified.json",
+        "control-fallback.out",
+        "control-fallback.err",
+        "control-fallback-status.json",
+        "fallback-events.jsonl",
+        "fallback-trace.json",
+        "fallback-observations.json",
+        "fallback.out",
+        "fallback.err",
+        "fallback-status.json",
+        "candidate.err",
+        "target-pid",
+        "fixture.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "features": [
+        "seccomp-notify"
+      ],
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/netstat-controls.py": "6d1bc4f030c864278df34472ec6767bb22200ee78360fcd08b0cd962fae547ec",
+        "helpers/netstat-observer.py": "6b404513c9f9b17415ffbd7a529cc3d351d66c6c112946ba758da44dc5ffbd1b"
+      },
+      "id": "migration-netstat-transport-fallback-r1",
+      "kind": "contract",
+      "loadable": "netstat",
+      "oracle": "Nonroot owned sockets, independently recorded inode/proc rows, decoded same-PID notification records, and pre-candidate controlled syscalls.",
+      "purpose": "Deny sock_diag, retain same-shell proc accesses and compare owned rows from all five tables.",
+      "requires": [
+        "python3",
+        "systemd-detect-virt"
+      ],
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/netstat-controls.py\n/usr/bin/python3 \"$H\" fallback \"$BASH\"\n",
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/netstat-controls.py\n/usr/bin/python3 \"$H\" control-fallback\n",
+      "setup_timeout": 45,
+      "stderr": "",
+      "stdout": "fallback=verified\n",
+      "timeout": 45
+    },
+    {
+      "comparison": "Exact candidate status/diagnostics and per-table raw observation, no synthetic success; absent controls or attribution are incomplete.",
+      "covers": [
+        "netstat/defer-transport-errors"
+      ],
+      "diagnostic_files": [
+        "probe.json",
+        "control-denied-events.jsonl",
+        "control-denied-verified.json",
+        "control-denied.out",
+        "control-denied.err",
+        "control-denied-status.json",
+        "denied-events.jsonl",
+        "denied-trace.json",
+        "denied-observations.json",
+        "denied.out",
+        "denied.err",
+        "denied-status.json",
+        "candidate.err",
+        "target-pid",
+        "fixture.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "features": [
+        "seccomp-notify"
+      ],
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/netstat-controls.py": "6d1bc4f030c864278df34472ec6767bb22200ee78360fcd08b0cd962fae547ec",
+        "helpers/netstat-observer.py": "6b404513c9f9b17415ffbd7a529cc3d351d66c6c112946ba758da44dc5ffbd1b"
+      },
+      "id": "migration-netstat-transport-denied-r1",
+      "kind": "contract",
+      "loadable": "netstat",
+      "oracle": "Nonroot owned sockets, independently recorded inode/proc rows, decoded same-PID notification records, and pre-candidate controlled syscalls.",
+      "purpose": "Deny sock_diag and exact proc table opens, verify status and diagnostic.",
+      "requires": [
+        "python3",
+        "systemd-detect-virt"
+      ],
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/netstat-controls.py\n/usr/bin/python3 \"$H\" denied \"$BASH\"\n",
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/netstat-controls.py\n/usr/bin/python3 \"$H\" control-denied\n",
+      "setup_timeout": 45,
+      "stderr": "",
+      "stdout": "denied=verified\n",
+      "timeout": 45
+    },
+    {
+      "comparison": "Guest setup verifies a real failed write; retain each candidate status and each available raw diagnostic; later failures do not erase reached outcomes.",
+      "covers": [
+        "netstat/defer-transport-errors"
+      ],
+      "diagnostic_files": [
+        "full-control.err",
+        "full-control.out",
+        "full-control.status",
+        "before.out",
+        "before.err",
+        "full.err",
+        "after.out",
+        "after.err",
+        "netstat.status"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "id": "migration-netstat-full-recovery-r1",
+      "kind": "contract",
+      "loadable": "netstat",
+      "oracle": "Independent /dev/full rejection control; exact netstat call statuses, captured output and same-shell recovery.",
+      "purpose": "Observe failure and same-shell recovery after an actual netstat table write to /dev/full.",
+      "requires": [
+        "python3"
+      ],
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ -c /dev/full ]] || exit 125\n[[ $(type -t netstat) == builtin ]] || exit 125\n# Capture each actual call separately; the third must run in the same shell.\nnetstat -t >\"$HOME/before.out\" 2>\"$HOME/before.err\"; before=$?\nnetstat -t >/dev/full 2>\"$HOME/full.err\"; full=$?\nnetstat -t >\"$HOME/after.out\" 2>\"$HOME/after.err\"; after=$?\nprintf 'before=%s full=%s after=%s\\n' \"$before\" \"$full\" \"$after\" >\"$HOME/netstat.status\" || exit 125\n[[ $before == 0 && $full == 1 && $after == 0 && -s $HOME/before.out && -s $HOME/after.out ]] || exit 1\nprintf 'netstat-full-recovery=verified\\n'\n",
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ -c /dev/full ]] || exit 125\n# Positive control: the actual guest /dev/full rejects writes; verify this\n# independently, before candidate execution, using the same unprivileged shell.\n: >\"$HOME/full-control.err\" || exit 125\nif printf 'control\\n' >/dev/full 2>\"$HOME/full-control.err\"; then full=0; else full=$?; fi\nprintf 'control-ok\\n' >\"$HOME/full-control.out\"; next=$?\nprintf 'full=%s next=%s\\n' \"$full\" \"$next\" >\"$HOME/full-control.status\" || exit 125\n(( full != 0 && next == 0 )) && [[ -s $HOME/full-control.err ]] || exit 125\n",
+      "setup_timeout": 15,
+      "stderr": "",
+      "stdout": "netstat-full-recovery=verified\n",
+      "timeout": 30
+    }
+  ],
+  "schema": 1
+}

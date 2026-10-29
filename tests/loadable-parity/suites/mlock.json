@@ -33,15 +33,49 @@
     },
     {
       "id": "all-operation",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate mlockall(MCL_CURRENT|MCL_FUTURE) success and its RLIMIT_MEMLOCK failure path, including whether failure leaves process state unchanged.",
-      "reason": "Remaining obligations: r1: No case. Whether the guest default limit (8 MiB) suffices for mlockall of the 15 MB static candidate mappings is unknown; a deterministic success needs the controller to set the limit per case.; r4: Implicit in per-side processes; not asserted."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-mlock-effective-future-unlock-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-mlock-effective-held-exit-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-system-client-followup-mlock-all-eagain-guard-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-system-client-followup-mlock-all-enomem-guard-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-system-client-followup-mlock-all-low-guard-r2"
+        }
+      ]
     },
     {
       "id": "unlock-operation",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify munlockall releases a known locked mapping and does not leave locked pages after the call.",
-      "reason": "Remaining obligations: r1: No case; seeding the lock depends on the mlock all success path."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-mlock-effective-future-unlock-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-system-client-followup-mlock-unlock-eio-guard-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-system-client-followup-mlock-unlock-ok-guard-r2"
+        }
+      ]
     },
     {
       "id": "check-operation",

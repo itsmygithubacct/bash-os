@@ -65,9 +65,30 @@
     },
     {
       "id": "defer-transport-errors",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise malformed and interrupted sock_diag dumps, per-family proc fallback, denied transports, and output-write failure recovery while checking exact status and rows.",
-      "reason": "Remaining obligations: r2: Not exercised.; r3: Not exercised.; r4: Not exercised; no capability needed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-netstat-netlink-interrupt-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-netstat-netlink-malformed-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-netstat-full-recovery-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-netstat-transport-denied-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-netstat-transport-fallback-r1"
+        }
+      ]
     }
   ]
 }

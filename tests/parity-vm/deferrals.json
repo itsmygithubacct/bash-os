@@ -23459,16 +23459,23 @@
         "purpose": "Validate mlockall(MCL_CURRENT|MCL_FUTURE) success and its RLIMIT_MEMLOCK failure path, including whether failure leaves process state unchanged.",
         "reason": "Requires a disposable Linux VM or reviewed mlockall/getrlimit syscall mock with a controlled RLIMIT_MEMLOCK, observable VmLck before and after, and guaranteed process teardown. The operation locks the shell's current and future pages, so it is not invoked by this fixture suite."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: No case. Whether the guest default limit (8 MiB) suffices for mlockall of the 15 MB static candidate mappings is unknown; a deterministic success needs the controller to set the limit per case.; r4: Implicit in per-side processes; not asserted.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "mlock all with a sufficient RLIMIT_MEMLOCK succeeds (status 0) and VmLck becomes > 0 and >= resident set; later allocations are locked (MCL_FUTURE)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case. Whether the guest default limit (8 MiB) suffices for mlockall of the 15 MB static candidate mappings is unknown; a deterministic success needs the controller to set the limit per case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-mlock-effective-future-unlock-r2",
+              "assertion": "Both builds reached mlock all status 0 and positive VmLck under independently verified actual 64 MiB soft/hard limits; the literal VmLck >= VmRSS comparison failed on both. Subsequent allocation reached increased VmLck on both builds. Aggregate case FAIL is retained, together with earlier static r1 FAIL.",
+              "definition_sha256": "08dc6d1a2cc4d3c70c06b8293ddd9eb6fba597f441280c2e53b1d7e2f2f3f42d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
@@ -23507,12 +23514,19 @@
         {
           "id": "r4",
           "behavior": "Process teardown releases the locks (side exits)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Implicit in per-side processes; not asserted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-mlock-effective-held-exit-r2",
+              "assertion": "Both builds observed the owned candidate with positive VmLck at a held gate, then the same PID/birth zombie via pidfd/WNOWAIT and owned reap. Primary accepts this bounded side-exit inference; absent zombie VmLck is not a measured zero, and no direct physical page-unpin or complete intervening-syscall trace is claimed.",
+              "definition_sha256": "a73bad5ba1f080ee7e2f686147f2017e5fe460902365932786a0a3d91f31c049"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Candidate: bm_all_cmd loadables/mlock.c:112-139, pre-check bm_check_rlimit_for :71-89 (needed = statm resident * page). RLIMIT_MEMLOCK in both the legacy runner and the plain driver is inherited from the guest default (kernel default 8 MiB, not pinned by either driver). Lowering it with `ulimit -l` is unprivileged. Raising the hard limit needs CAP_SYS_RESOURCE, which only the root controller holds. [214 merge: reclassified from requires_capability to implement_fixture per design-update.txt (no inflated capability claims).] This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r3: After retained preflight, EAGAIN and ENOMEM are independently injected. Both return 1 and show VmLck zero; EAGAIN includes the limit line but ENOMEM omits it. Keep the EAGAIN PASS and ENOMEM FAIL on each build, with no claim that real memory was locked."
+      "notes": "Candidate: bm_all_cmd loadables/mlock.c:112-139, pre-check bm_check_rlimit_for :71-89 (needed = statm resident * page). RLIMIT_MEMLOCK in both the legacy runner and the plain driver is inherited from the guest default (kernel default 8 MiB, not pinned by either driver). Lowering it with `ulimit -l` is unprivileged. Raising the hard limit needs CAP_SYS_RESOURCE, which only the root controller holds. [214 merge: reclassified from requires_capability to implement_fixture per design-update.txt (no inflated capability claims).] This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r3: After retained preflight, EAGAIN and ENOMEM are independently injected. Both return 1 and show VmLck zero; EAGAIN includes the limit line but ENOMEM omits it. Keep the EAGAIN PASS and ENOMEM FAIL on each build, with no claim that real memory was locked. Primary mlock r2 accepted paired static/dynamic observations: actual 64 MiB soft/hard limits, all status 0 and positive VmLck, followed by a reached literal VmLck >= VmRSS FAIL on both builds; preserve the earlier static r1 resident-size FAIL and existing EAGAIN/ENOMEM evidence, including both-build ENOMEM FAIL. Future allocation reached increased VmLck on both builds and unlock reached status 0 with VmLck 0. Held-exit records the same owned process at a positive-VmLck gate, then its pidfd-observed same-birth zombie and reap; primary accepts this bounded inference for original side-exit r4, without claiming a physical page-unpin measurement or complete intervening-syscall trace."
     },
     {
       "topic": "mlock/ptrace-scope-operation",
@@ -23764,16 +23778,23 @@
         "purpose": "Verify munlockall releases a known locked mapping and does not leave locked pages after the call.",
         "reason": "Requires a disposable Linux VM or reviewed mmap/mlock/munlockall mock that seeds a known locked region and observes lock accounting before and after. The operation changes process-wide memory-lock state; it is not invoked here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: No case; seeding the lock depends on the mlock all success path.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "After a known locked state (mlock all succeeded, VmLck > 0), mlock unlock returns 0 and VmLck becomes 0",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; seeding the lock depends on the mlock all success path."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-mlock-effective-future-unlock-r2",
+              "assertion": "Both builds reached unlock status 0 and VmLck 0 after successful all with positive VmLck. The case aggregate is FAIL because of a distinct VmLck >= VmRSS mismatch, not an unlock malfunction.",
+              "definition_sha256": "08dc6d1a2cc4d3c70c06b8293ddd9eb6fba597f441280c2e53b1d7e2f2f3f42d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
@@ -23804,7 +23825,7 @@
           "gap": ""
         }
       ],
-      "notes": "Candidate: bm_unlock_cmd loadables/mlock.c:141-151. [214 merge: reclassified from requires_capability to implement_fixture per design-update.txt (no inflated capability claims).] This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "Candidate: bm_unlock_cmd loadables/mlock.c:141-151. [214 merge: reclassified from requires_capability to implement_fixture per design-update.txt (no inflated capability claims).] This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary mlock r2 accepted paired observations: after successful all and positive VmLck, unlock returned status 0 and VmLck became 0 on both builds. The combined future-unlock framework case remains FAIL solely for the separate literal resident-size comparison; that aggregate FAIL does not mean unlock malfunction. Preserve previous evidence and all reached failures."
     },
     {
       "topic": "more/interactive_pty_navigation",
@@ -25607,9 +25628,9 @@
         "purpose": "Exercise malformed and interrupted sock_diag dumps, per-family proc fallback, denied transports, and output-write failure recovery while checking exact status and rows.",
         "reason": "Requires a future disposable VM with an independently reviewed syscall/proc mock and controlled failing-output fixture. These paths invoke the live backend and are not run under the current safety restrictions."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: Not exercised.; r3: Not exercised.; r4: Not exercised; no capability needed.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -25634,26 +25655,47 @@
         {
           "id": "r2",
           "behavior": "When sock_diag is unavailable, each family falls back to /proc/net/* and still prints correct rows.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-netstat-transport-fallback-r1",
+              "assertion": "On both builds, native denial controls and same-candidate-PID notifications verified five NETLINK_SOCK_DIAG refusals followed by proc access; owned IPv4/IPv6 TCP, UDP and Unix socket rows were retained. The Unix listener is LISTEN, not required LISTENING, a reached literal fallback FAIL. The live proc fallback is not the separate Unix sock_diag-mock requirement.",
+              "definition_sha256": "ed1207f9bcf26095bc9b0446298174944c25c2d09a4d66f3e563f46e9bf488ba"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "A denied transport (no sock_diag, unreadable proc table) gives failure status with a diagnostic.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-netstat-transport-denied-r1",
+              "assertion": "On both builds, independently controlled same-candidate-PID sock_diag and all five proc paths were denied; candidate returned status 1 but candidate stderr was empty, a reached diagnostic FAIL. Observer stderr and helper assertion traceback are not candidate diagnostics.",
+              "definition_sha256": "97c97ee91c1bfea6fb0acc0b1d59820aa0e23e4074346b7db8d4d73867badeb3"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "An output write failure (e.g. stdout to /dev/full) returns failure and does not leave stdio errors for the next call.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised; no capability needed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-netstat-full-recovery-r1",
+              "assertion": "On both builds the independent /dev/full control rejected a write and the same candidate shell recorded netstat statuses before=0, full=1, after=0 with normal output before and after, satisfying output failure and recovery.",
+              "definition_sha256": "6403d2ba30a3a250d8552f506f887bede9384bbb5a72d67ee88689a6e1e5fd41"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior."
+      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary accepted paired netstat r3: fallback Unix listener rendered LISTEN rather than LISTENING and denied transport lacked a diagnostic, both FAIL; full-device write recovery PASS. Preserve original r1 observations and all prior reached failures. Live proc fallback is not the separate Unix sock_diag-mock requirement."
     },
     {
       "topic": "netstat/defer-unix-sockets",
@@ -36081,9 +36123,9 @@
         "purpose": "Exercise lpwd, lcd, and lls against private relative fixture directories after establishing a session.",
         "reason": "Although these verbs act locally, sftp first requires a successful remote pwd, so they cannot be reached safely without a peer. A future disposable mock must provide deterministic pwd and keep lls/lcd paths inside the fixture tree, with OpenSSH batch-mode output as the independent reference."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r2: The escaped lcd is followed by lpwd and lls, but later get and put after lcd are not exercised; quoted lcd fails.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -36108,7 +36150,7 @@
         {
           "id": "r2",
           "behavior": "lcd PATH changes the local directory for later lls/get/put.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -36121,9 +36163,21 @@
               "id": "migration-transfer-sftp-local-verbs-r4",
               "assertion": "Original obligation: lcd PATH changes the local directory for later lls/get/put. Both builds record FAIL; static candidate status=0; lpwd-root=1; lpwd-after-lcd=0; lls-twice=0; peer-stage=observed; reference status=0; lpwd-root=1; lpwd-after-lcd=1; lls-twice=1; peer-stage=observed; no captured tree difference. Client diagnostic: /opt/bashos-parity/candidate: line 4: ls: cannot access '\"local': No such file or directory; /opt/bashos-parity/candidate: line 4: sftp: lcd \"local: No such file or directory.",
               "definition_sha256": "a6c7d64f98e8656a31c6744c1b18b9b78ed714e4aed8baef3daae44ffe7aa5d4"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sftp-local-lcd-put-r1",
+              "assertion": "Primary-receipted paired static/dynamic PASS: relative lcd followed by put uses the selected private directory; separate OpenSSH control and wrong-directory sentinel retained. Prior lls observations and quoted-lcd FAIL remain.",
+              "definition_sha256": "fa829b6e01eec5b2b94a6ea87012f7321ee4ffda0419709e0d90bbe7642ffba7"
+            },
+            {
+              "group": "shell",
+              "id": "migration-sftp-local-lcd-get-r1",
+              "assertion": "Primary-receipted paired static/dynamic PASS: relative lcd followed by get uses the selected private directory; separate OpenSSH control and wrong-directory sentinel retained. Prior lls observations and quoted-lcd FAIL remain.",
+              "definition_sha256": "ecd858b5ee5af3b066b2c0cc8af7e8c60ad235caf4d01c1f9e21e4b76ab8b282"
             }
           ],
-          "gap": "The escaped lcd is followed by lpwd and lls, but later get and put after lcd are not exercised; quoted lcd fails."
+          "gap": ""
         },
         {
           "id": "r3",
@@ -36160,7 +36214,7 @@
           "gap": ""
         }
       ],
-      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The saved escaped-path session reaches lpwd at the initial directory and after lcd, with matching OpenSSH reference and deterministic peer pwd. The combined quoted-lcd case remains FAIL; successful quoted lcd is a different operation from printing lpwd."
+      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The saved escaped-path session reaches lpwd at the initial directory and after lcd, with matching OpenSSH reference and deterministic peer pwd. The combined quoted-lcd case remains FAIL; successful quoted lcd is a different operation from printing lpwd. Primary SFTP29 accepted bounded lcd then put/get on both builds; retain earlier lls evidence and quoted-lcd FAIL. Navigation remains held."
     },
     {
       "topic": "sftp/remote-mutations-errors",

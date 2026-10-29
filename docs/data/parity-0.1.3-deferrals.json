@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "5b053b727c90c7a00dcfa478e02e35b160ecbb133a8a2b381e376550b170332a",
+  "ledger_sha256": "199b85611e0e70dbedb68ef6c3302b3993f3f66b5f7eb9edab7124198be26702",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 104,
-    "full": 375,
+    "partial": 100,
+    "full": 379,
     "none": 121
   },
   "migrations": {
-    "deferred": 225,
-    "replacement": 375
+    "deferred": 221,
+    "replacement": 379
   },
   "pending_full_topics": [],
   "builds": {
@@ -7184,6 +7184,261 @@
             "stopped_at": 1793309118.1734877,
             "vm_uuid": "f629d499-c9f1-4699-b938-fbae2ddad634",
             "wrapper_pid": 867135
+          },
+          "overlay_discarded": true
+        },
+        {
+          "name": "modern-sftp29-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "evidence_format": "primary-qualified-modern293-v1",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "2b60a3fe-742a-4f18-8a7b-5cd8ad88bf99",
+          "primary_receipt_sha256": "5ed50f1c5639f9b22f94fe9d7437ec90f15c511bbd16856d6ef7f438a6a8eb4d",
+          "receipt_run": "sftp-static",
+          "provenance_sha256": "bb88154c0bc39e66b0e9665183e48441ad9bf3b244b5ff3703d7936bc447a7d8",
+          "evidence_sha256": "fb9a8807b53da338c9075e320d69f6a0fc19cae9e9de8fbe7a1f7e3ee9c02371",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-2b60a3fe.service",
+              "proof_sha256": "2fa33d904152f283bee5e0e0d2f6b6c54dfdbe2cdab802d237db57ee7695dcd2",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-2b60a3fe-reference.service",
+              "proof_sha256": "575500ef0357e96e07f30873279def68a7b526cc871e63c858897f74f276f3ce",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-2b60a3fe-742a-4f18-8a7b-5cd8ad88bf99.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261029/primary-modern-sftp29-001/results/sftp-static/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-2b60a3fe-742a-4f18-8a7b-5cd8ad88bf99.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-2b60a3fe-742a-4f18-8a7b-5cd8ad88bf99.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-2b60a3fe-742a-4f18-8a7b-5cd8ad88bf99.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-2b60a3fe-742a-4f18-8a7b-5cd8ad88bf99.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-2b60a3fe-742a-4f18-8a7b-5cd8ad88bf99.scope\nId=parity-vm-2b60a3fe-742a-4f18-8a7b-5cd8ad88bf99.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-2b60a3fe-742a-4f18-8a7b-5cd8ad88bf99.scope",
+                "id": "parity-vm-2b60a3fe-742a-4f18-8a7b-5cd8ad88bf99.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-2b60a3fe-742a-4f18-8a7b-5cd8ad88bf99.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-2b60a3fe-742a-4f18-8a7b-5cd8ad88bf99.scope",
+            "stopped_at": 1793310020.394106,
+            "vm_uuid": "2b60a3fe-742a-4f18-8a7b-5cd8ad88bf99",
+            "wrapper_pid": 906315
+          },
+          "overlay_discarded": true
+        },
+        {
+          "name": "modern-mlock-effective-r2-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "evidence_format": "primary-qualified-modern293-v1",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "07db542c-8a49-4af3-b24f-5312e1ded302",
+          "primary_receipt_sha256": "c7482be7f609e015542bafd987aca80cd6ec1961cbfa3809a50cc3d73c9143ad",
+          "receipt_run": "all-future-static",
+          "provenance_sha256": "6cefc44976e5619581b5f02194433912cfcbf9df5a1a27647205c63801bc37a5",
+          "evidence_sha256": "06860230c145ae15d3c5e04a76f8bad0ba15f523c775d15140a5166b7c111b31",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-07db542c.service",
+              "proof_sha256": "dcffc744a5c66ab47d3e1a1a5219bb74ff50803c2f6194ba403c361d09afbdc7",
+              "transport_returncode": 1,
+              "stop_returncode": 0
+            },
+            "compatibility": {
+              "unit": "bashos-optional-07db542c-reference.service",
+              "proof_sha256": "ae77eba6b9536db2b344b9ebb887ff8b2d3f0dd72e0930d77dfc4a0c26766a81",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-07db542c-8a49-4af3-b24f-5312e1ded302.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261029/primary-modern-mlock-effective-r2-001/results/all-future-static/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-07db542c-8a49-4af3-b24f-5312e1ded302.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-07db542c-8a49-4af3-b24f-5312e1ded302.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-07db542c-8a49-4af3-b24f-5312e1ded302.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-07db542c-8a49-4af3-b24f-5312e1ded302.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-07db542c-8a49-4af3-b24f-5312e1ded302.scope\nId=parity-vm-07db542c-8a49-4af3-b24f-5312e1ded302.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-07db542c-8a49-4af3-b24f-5312e1ded302.scope",
+                "id": "parity-vm-07db542c-8a49-4af3-b24f-5312e1ded302.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-07db542c-8a49-4af3-b24f-5312e1ded302.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-07db542c-8a49-4af3-b24f-5312e1ded302.scope",
+            "stopped_at": 1793311748.6127007,
+            "vm_uuid": "07db542c-8a49-4af3-b24f-5312e1ded302",
+            "wrapper_pid": 947268
+          },
+          "overlay_discarded": true
+        },
+        {
+          "name": "modern-netstat-r3-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "evidence_format": "primary-qualified-modern293-v1",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "8d1a2856-1dc3-4612-9c2a-c966bc5d2d46",
+          "primary_receipt_sha256": "ec8b67a40f4d5670590ccd321f41ad524c1c8065ae3d87faf81d27dff788a2a1",
+          "receipt_run": "transport-static",
+          "provenance_sha256": "510b486b9eb4070a9ddf197b1f66d23293d665ce344eff7268d77021396eea88",
+          "evidence_sha256": "f0df6c42689d781847005eb260dd765b6af0b0693d1e72675392ad6f05170f57",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-8d1a2856.service",
+              "proof_sha256": "6f043c44407f92b402594d41b6bf94b8d81d0aef36c72a8acf4012d0096b5a3d",
+              "transport_returncode": 1,
+              "stop_returncode": 0
+            },
+            "compatibility": {
+              "unit": "bashos-optional-8d1a2856-reference.service",
+              "proof_sha256": "0727fb3284c59f8b8682def8397cde36a75ad6459bc919ecc94d363407ff137b",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-8d1a2856-1dc3-4612-9c2a-c966bc5d2d46.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261029/primary-modern-netstat-transport-r3-001/results/transport-static/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 255,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-8d1a2856-1dc3-4612-9c2a-c966bc5d2d46.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-8d1a2856-1dc3-4612-9c2a-c966bc5d2d46.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-8d1a2856-1dc3-4612-9c2a-c966bc5d2d46.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-8d1a2856-1dc3-4612-9c2a-c966bc5d2d46.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-8d1a2856-1dc3-4612-9c2a-c966bc5d2d46.scope\nId=parity-vm-8d1a2856-1dc3-4612-9c2a-c966bc5d2d46.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-8d1a2856-1dc3-4612-9c2a-c966bc5d2d46.scope",
+                "id": "parity-vm-8d1a2856-1dc3-4612-9c2a-c966bc5d2d46.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-8d1a2856-1dc3-4612-9c2a-c966bc5d2d46.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-8d1a2856-1dc3-4612-9c2a-c966bc5d2d46.scope",
+            "stopped_at": 1793312434.563307,
+            "vm_uuid": "8d1a2856-1dc3-4612-9c2a-c966bc5d2d46",
+            "wrapper_pid": 974825
           },
           "overlay_discarded": true
         }
@@ -31333,19 +31588,26 @@
         },
         {
           "topic": "mlock/all-operation",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "mlock all with a sufficient RLIMIT_MEMLOCK succeeds (status 0) and VmLck becomes > 0 and >= resident set; later allocations are locked (MCL_FUTURE)",
-              "coverage": "missing",
-              "gap": "No case. Whether the guest default limit (8 MiB) suffices for mlockall of the 15 MB static candidate mappings is unknown; a deterministic success needs the controller to set the limit per case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-mlock-effective-future-unlock-r2",
+                  "status": "FAIL",
+                  "run": "modern-mlock-effective-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -31388,11 +31650,18 @@
             {
               "id": "r4",
               "behavior": "Process teardown releases the locks (side exits)",
-              "coverage": "missing",
-              "gap": "Implicit in per-side processes; not asserted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-mlock-effective-held-exit-r2",
+                  "status": "PASS",
+                  "run": "modern-mlock-effective-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -31648,19 +31917,26 @@
         },
         {
           "topic": "mlock/unlock-operation",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "After a known locked state (mlock all succeeded, VmLck > 0), mlock unlock returns 0 and VmLck becomes 0",
-              "coverage": "missing",
-              "gap": "No case; seeding the lock depends on the mlock all success path.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-mlock-effective-future-unlock-r2",
+                  "status": "FAIL",
+                  "run": "modern-mlock-effective-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -33539,10 +33815,10 @@
         },
         {
           "topic": "netstat/defer-transport-errors",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -33569,29 +33845,50 @@
             {
               "id": "r2",
               "behavior": "When sock_diag is unavailable, each family falls back to /proc/net/* and still prints correct rows.",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-netstat-transport-fallback-r1",
+                  "status": "FAIL",
+                  "run": "modern-netstat-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "A denied transport (no sock_diag, unreadable proc table) gives failure status with a diagnostic.",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-netstat-transport-denied-r1",
+                  "status": "FAIL",
+                  "run": "modern-netstat-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "An output write failure (e.g. stdout to /dev/full) returns failure and does not leave stdio errors for the next call.",
-              "coverage": "missing",
-              "gap": "Not exercised; no capability needed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-netstat-full-recovery-r1",
+                  "status": "PASS",
+                  "run": "modern-netstat-r3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -44211,10 +44508,10 @@
         },
         {
           "topic": "sftp/local-session-verbs",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -44241,8 +44538,8 @@
             {
               "id": "r2",
               "behavior": "lcd PATH changes the local directory for later lls/get/put.",
-              "coverage": "partial",
-              "gap": "The escaped lcd is followed by lpwd and lls, but later get and put after lcd are not exercised; quoted lcd fails.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -44255,10 +44552,22 @@
                   "id": "migration-transfer-sftp-local-verbs-r4",
                   "status": "FAIL",
                   "run": "qual-remote-canon-probe-composite-transfers-rest-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sftp-local-lcd-put-r1",
+                  "status": "PASS",
+                  "run": "modern-sftp29-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sftp-local-lcd-get-r1",
+                  "status": "PASS",
+                  "run": "modern-sftp29-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -56237,8 +56546,8 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 225,
-        "FAIL": 182,
+        "UNRESOLVED": 221,
+        "FAIL": 186,
         "PASS": 193
       },
       "migration_without_complete_evidence": []
@@ -63413,6 +63722,261 @@
             "stopped_at": 1793309801.2555065,
             "vm_uuid": "e1797b4e-f2da-4996-b0e2-82ec39481e3f",
             "wrapper_pid": 898151
+          },
+          "overlay_discarded": true
+        },
+        {
+          "name": "modern-sftp29-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "evidence_format": "primary-qualified-modern293-v1",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "82a1021e-e847-4bd5-aaf6-d8bbd5b8f526",
+          "primary_receipt_sha256": "5ed50f1c5639f9b22f94fe9d7437ec90f15c511bbd16856d6ef7f438a6a8eb4d",
+          "receipt_run": "sftp-dynamic",
+          "provenance_sha256": "b7bead2a01c84e929698eaf7a7dd47be95f9240738aa89db46a0ea3ac2a33eae",
+          "evidence_sha256": "06f03da729c7abb9d380cf2f9d04a25801ba599c4622ed7b0f5518d3ce45e094",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-82a1021e.service",
+              "proof_sha256": "b0dcef067842c8a9b19be96bd1d92001222b082a0b7f677668db4ab92581df96",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-82a1021e-reference.service",
+              "proof_sha256": "7cb50fc6cad54dcd8e8f2862b6c9a422d933f392684c495968640e8aeb0b203a",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-82a1021e-e847-4bd5-aaf6-d8bbd5b8f526.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261029/primary-modern-sftp29-001/results/sftp-dynamic/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-82a1021e-e847-4bd5-aaf6-d8bbd5b8f526.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-82a1021e-e847-4bd5-aaf6-d8bbd5b8f526.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-82a1021e-e847-4bd5-aaf6-d8bbd5b8f526.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-82a1021e-e847-4bd5-aaf6-d8bbd5b8f526.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-82a1021e-e847-4bd5-aaf6-d8bbd5b8f526.scope\nId=parity-vm-82a1021e-e847-4bd5-aaf6-d8bbd5b8f526.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-82a1021e-e847-4bd5-aaf6-d8bbd5b8f526.scope",
+                "id": "parity-vm-82a1021e-e847-4bd5-aaf6-d8bbd5b8f526.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-82a1021e-e847-4bd5-aaf6-d8bbd5b8f526.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-82a1021e-e847-4bd5-aaf6-d8bbd5b8f526.scope",
+            "stopped_at": 1793310645.414779,
+            "vm_uuid": "82a1021e-e847-4bd5-aaf6-d8bbd5b8f526",
+            "wrapper_pid": 924024
+          },
+          "overlay_discarded": true
+        },
+        {
+          "name": "modern-mlock-effective-r2-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "evidence_format": "primary-qualified-modern293-v1",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "e7aa8006-a8ce-4be3-a0a6-075a7d0ca60b",
+          "primary_receipt_sha256": "c7482be7f609e015542bafd987aca80cd6ec1961cbfa3809a50cc3d73c9143ad",
+          "receipt_run": "all-future-dynamic",
+          "provenance_sha256": "9467388bb2f186783fa5c1e16150efca31c04365c4a04500cd068b7d5e675f7c",
+          "evidence_sha256": "10984b9ef18efed75674b3dc8f978a385a63b615b4c51b6ccde7e76275850667",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-e7aa8006.service",
+              "proof_sha256": "e3555f902b5557ecea1f514b1d009bda61b25c151333aee3a962dfd03c4b8c31",
+              "transport_returncode": 1,
+              "stop_returncode": 0
+            },
+            "compatibility": {
+              "unit": "bashos-optional-e7aa8006-reference.service",
+              "proof_sha256": "44feeff00b22d72880955f84bac858fe4821df8a8a2755571606ad548d650f56",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-e7aa8006-a8ce-4be3-a0a6-075a7d0ca60b.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261029/primary-modern-mlock-effective-r2-001/results/all-future-dynamic/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 255,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-e7aa8006-a8ce-4be3-a0a6-075a7d0ca60b.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-e7aa8006-a8ce-4be3-a0a6-075a7d0ca60b.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-e7aa8006-a8ce-4be3-a0a6-075a7d0ca60b.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-e7aa8006-a8ce-4be3-a0a6-075a7d0ca60b.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-e7aa8006-a8ce-4be3-a0a6-075a7d0ca60b.scope\nId=parity-vm-e7aa8006-a8ce-4be3-a0a6-075a7d0ca60b.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-e7aa8006-a8ce-4be3-a0a6-075a7d0ca60b.scope",
+                "id": "parity-vm-e7aa8006-a8ce-4be3-a0a6-075a7d0ca60b.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-e7aa8006-a8ce-4be3-a0a6-075a7d0ca60b.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-e7aa8006-a8ce-4be3-a0a6-075a7d0ca60b.scope",
+            "stopped_at": 1793311894.267123,
+            "vm_uuid": "e7aa8006-a8ce-4be3-a0a6-075a7d0ca60b",
+            "wrapper_pid": 951319
+          },
+          "overlay_discarded": true
+        },
+        {
+          "name": "modern-netstat-r3-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "evidence_format": "primary-qualified-modern293-v1",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "c4002453-535c-4807-a382-821b7507d082",
+          "primary_receipt_sha256": "ec8b67a40f4d5670590ccd321f41ad524c1c8065ae3d87faf81d27dff788a2a1",
+          "receipt_run": "transport-dynamic",
+          "provenance_sha256": "0aa49344172c161d73cb2fa1484188c0060eeced6360c5919cdd504643e0807f",
+          "evidence_sha256": "c6538b9c5691017d5993eb4dd0798494402079e0062f62c93ab377c487c12af1",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-c4002453.service",
+              "proof_sha256": "77e2bc60c8830cd12941f56f57af8a481932a5c31124060585d643332f1f828a",
+              "transport_returncode": 1,
+              "stop_returncode": 0
+            },
+            "compatibility": {
+              "unit": "bashos-optional-c4002453-reference.service",
+              "proof_sha256": "add4e7d4b7a7404318ee8b7741898d35f0bc2ed49ef6199d2cfd731aece8fba0",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-c4002453-535c-4807-a382-821b7507d082.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261029/primary-modern-netstat-transport-r3-001/results/transport-dynamic/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-c4002453-535c-4807-a382-821b7507d082.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-c4002453-535c-4807-a382-821b7507d082.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-c4002453-535c-4807-a382-821b7507d082.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-c4002453-535c-4807-a382-821b7507d082.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-c4002453-535c-4807-a382-821b7507d082.scope\nId=parity-vm-c4002453-535c-4807-a382-821b7507d082.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-c4002453-535c-4807-a382-821b7507d082.scope",
+                "id": "parity-vm-c4002453-535c-4807-a382-821b7507d082.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-c4002453-535c-4807-a382-821b7507d082.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-c4002453-535c-4807-a382-821b7507d082.scope",
+            "stopped_at": 1793313277.4631255,
+            "vm_uuid": "c4002453-535c-4807-a382-821b7507d082",
+            "wrapper_pid": 1041965
           },
           "overlay_discarded": true
         }
@@ -87562,19 +88126,26 @@
         },
         {
           "topic": "mlock/all-operation",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "mlock all with a sufficient RLIMIT_MEMLOCK succeeds (status 0) and VmLck becomes > 0 and >= resident set; later allocations are locked (MCL_FUTURE)",
-              "coverage": "missing",
-              "gap": "No case. Whether the guest default limit (8 MiB) suffices for mlockall of the 15 MB static candidate mappings is unknown; a deterministic success needs the controller to set the limit per case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-mlock-effective-future-unlock-r2",
+                  "status": "FAIL",
+                  "run": "modern-mlock-effective-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -87617,11 +88188,18 @@
             {
               "id": "r4",
               "behavior": "Process teardown releases the locks (side exits)",
-              "coverage": "missing",
-              "gap": "Implicit in per-side processes; not asserted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-mlock-effective-held-exit-r2",
+                  "status": "PASS",
+                  "run": "modern-mlock-effective-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -87877,19 +88455,26 @@
         },
         {
           "topic": "mlock/unlock-operation",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "After a known locked state (mlock all succeeded, VmLck > 0), mlock unlock returns 0 and VmLck becomes 0",
-              "coverage": "missing",
-              "gap": "No case; seeding the lock depends on the mlock all success path.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-mlock-effective-future-unlock-r2",
+                  "status": "FAIL",
+                  "run": "modern-mlock-effective-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
@@ -89768,10 +90353,10 @@
         },
         {
           "topic": "netstat/defer-transport-errors",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -89798,29 +90383,50 @@
             {
               "id": "r2",
               "behavior": "When sock_diag is unavailable, each family falls back to /proc/net/* and still prints correct rows.",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-netstat-transport-fallback-r1",
+                  "status": "FAIL",
+                  "run": "modern-netstat-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "A denied transport (no sock_diag, unreadable proc table) gives failure status with a diagnostic.",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-netstat-transport-denied-r1",
+                  "status": "FAIL",
+                  "run": "modern-netstat-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "An output write failure (e.g. stdout to /dev/full) returns failure and does not leave stdio errors for the next call.",
-              "coverage": "missing",
-              "gap": "Not exercised; no capability needed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-netstat-full-recovery-r1",
+                  "status": "PASS",
+                  "run": "modern-netstat-r3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -100440,10 +101046,10 @@
         },
         {
           "topic": "sftp/local-session-verbs",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -100470,8 +101076,8 @@
             {
               "id": "r2",
               "behavior": "lcd PATH changes the local directory for later lls/get/put.",
-              "coverage": "partial",
-              "gap": "The escaped lcd is followed by lpwd and lls, but later get and put after lcd are not exercised; quoted lcd fails.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -100484,10 +101090,22 @@
                   "id": "migration-transfer-sftp-local-verbs-r4",
                   "status": "FAIL",
                   "run": "qual-remote-canon-probe-composite-transfers-rest-paired-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sftp-local-lcd-put-r1",
+                  "status": "PASS",
+                  "run": "modern-sftp29-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-sftp-local-lcd-get-r1",
+                  "status": "PASS",
+                  "run": "modern-sftp29-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
@@ -112466,8 +113084,8 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 225,
-        "FAIL": 181,
+        "UNRESOLVED": 221,
+        "FAIL": 185,
         "PASS": 194
       },
       "migration_without_complete_evidence": []
