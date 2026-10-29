@@ -37188,9 +37188,9 @@
         "kind": "deferred",
         "reason": "Requires a disposable shell fixture with a controlled failing output sink and a sock_diag mock for deterministic --version behavior. --version itself opens the diagnostic socket, so it is not invoked under the current safety scope."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: Not executed.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "requirements": [
         {
           "id": "r1",
@@ -37247,9 +37247,16 @@
         {
           "id": "r3",
           "behavior": "Repeated invocations with different selectors (-t, -u, -x, -l) each print only their own families.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ss-literal-repeat-r5",
+              "assertion": "Primary-receipted static and dynamic PASS for literal repeated -t, -u, -x and -l in one shell, with independent owned TCP/UDP/Unix native controls; no native UDP table State is invented.",
+              "definition_sha256": "5d97a486167fb234dd035276d52e630874e087ad450a530891e40e3362b83027"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
@@ -37272,7 +37279,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r2: After the /dev/full write failure the same shell performs another ss, which returns 0 with a header and empty stderr. Native output for the controlled empty table is also retained. This row does not require an invented live row; other selector and version cases keep their own statuses."
+      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r2: After the /dev/full write failure the same shell performs another ss, which returns 0 with a header and empty stderr. Native output for the controlled empty table is also retained. This row does not require an invented live row; other selector and version cases keep their own statuses. Primary SS34 receipt adds the bounded literal selector sequence on both builds; retain every earlier reached observation and failure."
     },
     {
       "topic": "ss/deferred_owned_socket_selectors",
@@ -44417,37 +44424,65 @@
         "purpose": "Check that command mode applies clamps only in a child, preserves literal argv, and propagates exit and lookup status.",
         "reason": "Future run needs a disposable VM with a reviewed scheduler syscall mock or supported uclamp kernel and a private fixture executable. Verify child-only changes, parent state preservation, literal arguments (including spaces and empty strings), builtin/external dispatch, normal exit status, and command-not-found behavior."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Missing fixtures only, subject to the UCLAMP_TASK and unprivileged-set preflight.",
+      "current_reason": "Remaining obligations: r5: Unexecuted. util-linux can only exec external commands, so this part is a candidate contract.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Command mode applies the clamps only to the child: the child (python3) reads its own clamps through sched_getattr and prints them, and the parent shell's clamps, read by an independent helper on $$, are unchanged.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Unprivileged after the preflight."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-uclamp-command-r1",
+              "assertion": "The child reads its own clamps as 100/800, and independent parent snapshots are unchanged on both builds.",
+              "definition_sha256": "6cd00f33efcd31738ec9fc59f473a0debac9d76e1dfe9d128d62e5a9db14c345"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Literal argv, including spaces and empty strings, reaches the child unchanged.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-uclamp-command-r1",
+              "assertion": "The child receives a space-bearing argument and an empty argument unchanged on both builds.",
+              "definition_sha256": "6cd00f33efcd31738ec9fc59f473a0debac9d76e1dfe9d128d62e5a9db14c345"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "The child's exit status propagates.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-uclamp-command-r1",
+              "assertion": "The child exit status 7 is propagated on both builds.",
+              "definition_sha256": "6cd00f33efcd31738ec9fc59f473a0debac9d76e1dfe9d128d62e5a9db14c345"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Command-not-found gives status 127 and a diagnostic.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-uclamp-command-r1",
+              "assertion": "A missing command returns status 127 with a diagnostic on both builds.",
+              "definition_sha256": "6cd00f33efcd31738ec9fc59f473a0debac9d76e1dfe9d128d62e5a9db14c345"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
@@ -44457,7 +44492,7 @@
           "gap": "Unexecuted. util-linux can only exec external commands, so this part is a candidate contract."
         }
       ],
-      "notes": "Source: loadables/uclampset.c:603-670 (validates before fork, re-reads after a reset-on-fork parent, execvp)."
+      "notes": "Source: loadables/uclampset.c:603-670 (validates before fork, re-reads after a reset-on-fork parent, execvp). Primary-receipted command observations cover child/parent clamps, literal argv, exit status and missing command. Printf output and status do not distinguish builtin from external dispatch; r5 remains unobserved."
     },
     {
       "topic": "uclampset/defer_pid_query",
@@ -44467,16 +44502,23 @@
         "purpose": "Check query formatting for one task and task enumeration with -a, without changing scheduler state.",
         "reason": "Future run needs a disposable Linux VM with a controlled owned process and known thread set, plus an independent sched_getattr oracle for each TID. Verify PID 0 handling, comm fallback, output values, and that querying makes no scheduler writes. Do not use a host task."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Missing fixtures only, subject to the UCLAMP_TASK preflight. Queries of one's own threads are unprivileged.",
+      "current_reason": "Remaining obligations: r1: The target readback is from the parent observer; child-self sched_getattr readback was not retained.; r2: Unexecuted.; r3: Unexecuted. util-linux behavior for an empty comm must come from its run.; r4: Unexecuted. Thread order follows /proc/PID/task readdir order on both sides.; r5: No SECCOMP-FILTER KILL witness for sched_setattr was retained.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "`uclampset -p PID` prints '<comm> (<pid>) util_clamp: min: N max: M' for an owned child, with values equal to the child's own sched_getattr read-back (python3 ctypes) and matching util-linux uclampset bytes.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. sched_getattr is unprivileged."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-uclamp-query-r1",
+              "assertion": "Both builds query an owned child and match util-linux bytes against attributes read by the parent observer. The required child-self sched_getattr readback was not retained.",
+              "definition_sha256": "42db3f630a2db9d91ff5efd842091f1836774a86e0e61190a24cf41f4079a1e4"
+            }
+          ],
+          "gap": "The target readback is from the parent observer; child-self sched_getattr readback was not retained."
         },
         {
           "id": "r2",
@@ -44502,12 +44544,19 @@
         {
           "id": "r5",
           "behavior": "Queries perform no scheduler writes: a SECCOMP-FILTER KILL on sched_setattr does not trigger, and the clamps are unchanged.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-uclamp-query-r1",
+              "assertion": "The owned child attributes remain unchanged after the query; no kill-on-sched_setattr filter was used.",
+              "definition_sha256": "42db3f630a2db9d91ff5efd842091f1836774a86e0e61190a24cf41f4079a1e4"
+            }
+          ],
+          "gap": "No SECCOMP-FILTER KILL witness for sched_setattr was retained."
         }
       ],
-      "notes": "Source: loadables/uclampset.c:214-248 (comm fallback, used when the comm read fails or is empty) and :253-317 (task collection, which reads /proc/PID/task)."
+      "notes": "Source: loadables/uclampset.c:214-248 (comm fallback, used when the comm read fails or is empty) and :253-317 (task collection, which reads /proc/PID/task). Primary-receipted bounded query observations retain the parent-observer limitation; no child-self readback or syscall no-write filter is claimed."
     },
     {
       "topic": "uclampset/defer_pid_setter",
@@ -44519,21 +44568,35 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "The rejection status for a reversed pair is exercised. Everything else is a missing fixture, unprivileged after the preflight. RT/DL preservation can use SECCOMP-NOTIFY in place of CAP_SYS_NICE.",
+      "current_reason": "Remaining obligations: r1: The retained sched_getattr readbacks were taken by the parent observer; the required child-self readback was not retained.; r2: Reset-request flag semantics were not independently traced.; r3: Unexecuted. An unprivileged caller may set, but not clear, reset-on-fork.; r4: Preservation with the specified seeded SCHED_BATCH or SCHED_IDLE policy and nice was not observed.; r5: An RT or DL policy needs CAP_SYS_NICE to set up. SECCOMP-NOTIFY can instead fake a sched_getattr reply carrying RT/DL fields and record the sched_setattr request bytes, so preservation is proven from the request.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "One-sided updates (-m only, -M only) change only that clamp, and paired -m/-M changes both, as the child's sched_getattr read-back shows, matching util-linux results.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Unprivileged if the preflight passes."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-uclamp-setter-r1",
+              "assertion": "Both builds record one-sided and paired updates to an owned child, independently read the target attributes, and match util-linux values.",
+              "definition_sha256": "2be66eddc294bb6516c513d112572a887136977c55a844ba5356479c612bf857"
+            }
+          ],
+          "gap": "The retained sched_getattr readbacks were taken by the parent observer; the required child-self readback was not retained."
         },
         {
           "id": "r2",
           "behavior": "Reset values: -m -1 and -M -1 restore the system default via SCHED_FLAG_UTIL_CLAMP_RESET semantics.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-uclamp-setter-r1",
+              "assertion": "Both builds observe -1 reset values 0/1024, with matching native controls. The reset-request flag itself was not traced.",
+              "definition_sha256": "2be66eddc294bb6516c513d112572a887136977c55a844ba5356479c612bf857"
+            }
+          ],
+          "gap": "Reset-request flag semantics were not independently traced."
         },
         {
           "id": "r3",
@@ -44545,9 +44608,16 @@
         {
           "id": "r4",
           "behavior": "Unrelated attributes are preserved: SCHED_BATCH or SCHED_IDLE policy and nice set by the helper are unchanged after the update.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-uclamp-setter-r1",
+              "assertion": "Both builds preserve the owned target\u2019s observed policy, nice and other scheduler attributes; SCHED_BATCH or SCHED_IDLE and a distinct nice were not seeded.",
+              "definition_sha256": "2be66eddc294bb6516c513d112572a887136977c55a844ba5356479c612bf857"
+            }
+          ],
+          "gap": "Preservation with the specified seeded SCHED_BATCH or SCHED_IDLE policy and nice was not observed."
         },
         {
           "id": "r5",
@@ -44559,19 +44629,25 @@
         {
           "id": "r6",
           "behavior": "A rejected request does not mutate the task: a reversed pair is rejected.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/uclampset/defer_cli_validation",
               "assertion": "contract: `uclampset -m 900 -M 100 -p 0` exits 1 with empty stdout and nonempty stderr on both builds",
               "definition_sha256": "d3bfc42f51220cca68efa50132be42840204e9dea673b767c6d8c03dbc1c1a98"
+            },
+            {
+              "group": "shell",
+              "id": "devices-uclamp-setter-r1",
+              "assertion": "Both builds reject a reversed min/max pair and independently observe unchanged target attributes. The original requirement is the reversed-pair no-mutation check.",
+              "definition_sha256": "2be66eddc294bb6516c513d112572a887136977c55a844ba5356479c612bf857"
             }
           ],
-          "gap": "Non-mutation is not checked. Add a read-back of the target's clamps before and after, plus a kernel-error case: ESRCH from a reaped child, and EINVAL from a value the kernel rejects, injected by SECCOMP-NOTIFY or SECCOMP-FILTER ERRNO."
+          "gap": ""
         }
       ],
-      "notes": "Source: loadables/uclampset.c:335-380 (buclamp_prepare copies the current attributes and sets KEEP_PARAMS, plus KEEP_POLICY or RESET_ON_FORK). With -R, KEEP_POLICY is not set (:370-373), so verify the policy is still preserved, because the copied policy field is sent. That is a candidate-specific risk to check."
+      "notes": "Source: loadables/uclampset.c:335-380 (buclamp_prepare copies the current attributes and sets KEEP_PARAMS, plus KEEP_POLICY or RESET_ON_FORK). With -R, KEEP_POLICY is not set (:370-373), so verify the policy is still preserved, because the copied policy field is sent. That is a candidate-specific risk to check. Primary-receipted setter observations include a rejected reversed pair with no target mutation. Reset request flags were not traced; seeded scheduler policies and reset-on-fork remain unobserved. The setter target attributes were read by the parent observer; the required child-self readback was not retained."
     },
     {
       "topic": "uclampset/defer_system_files",

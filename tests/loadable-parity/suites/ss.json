@@ -68,8 +68,25 @@
     {
       "id": "deferred_output_and_repeat_calls",
       "purpose": "Future operation comparison should check buffered output failures, recovery on a later call in the same shell, repeated invocations with different selectors, and --version status when its sock_diag probe or output fails.",
-      "kind": "deferred",
-      "reason": "Remaining obligations: r3: Not executed."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ss-full-repeat-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ss-version-fallback-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ss-version-normal-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ss-literal-repeat-r5"
+        }
+      ]
     }
   ]
 }

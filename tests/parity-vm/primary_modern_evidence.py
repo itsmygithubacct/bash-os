@@ -19,6 +19,7 @@ from primary_controller_evidence import (CHECKS, artifact_inventory, canonical,
 FORMAT = 'primary-qualified-modern293-v1'
 RECEIPT_SCHEMA = 'bashos-modern293-primary-receipt-v1'
 AUTHORIZED_RECEIPT_SHA256 = frozenset({
+    'b31cbbd73d0c5aa164e360ce970158d311d4faf8999b96f657e13c4dc685db20',
     'ec8b67a40f4d5670590ccd321f41ad524c1c8065ae3d87faf81d27dff788a2a1',
     'c7482be7f609e015542bafd987aca80cd6ec1961cbfa3809a50cc3d73c9143ad',
     '5ed50f1c5639f9b22f94fe9d7437ec90f15c511bbd16856d6ef7f438a6a8eb4d',

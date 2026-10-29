@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "199b85611e0e70dbedb68ef6c3302b3993f3f66b5f7eb9edab7124198be26702",
+  "ledger_sha256": "6a95650c593753825fa6235ab4ab9f28b94bf5957699948d99fe6ecda78b421b",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 100,
-    "full": 379,
-    "none": 121
+    "partial": 101,
+    "full": 380,
+    "none": 119
   },
   "migrations": {
-    "deferred": 221,
-    "replacement": 379
+    "deferred": 220,
+    "replacement": 380
   },
   "pending_full_topics": [],
   "builds": {
@@ -7439,6 +7439,181 @@
             "stopped_at": 1793312434.563307,
             "vm_uuid": "8d1a2856-1dc3-4612-9c2a-c966bc5d2d46",
             "wrapper_pid": 974825
+          },
+          "overlay_discarded": true
+        },
+        {
+          "name": "device-v8-uclamp-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "evidence_format": "primary-qualified-device-v8-uclamp-v1",
+          "primary_receipt_sha256": "1940fd1da14f62c2c166874ee0b72fcd5ebd0898488954e44b278ad0f16067ae",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "e7afa651-dec2-44fd-8ce9-4192ed692ff1",
+          "record_sha256": "98107fd4e79b0292e5d6479b71637104528c026a48fa70db7bb9ea18ddb803f2",
+          "evidence_sha256": "c2a36d889d11d95c51180b8fa317ebc03e77a05925abab884309d67de56f0e0c",
+          "units": {
+            "evaluation": {
+              "unit": "bashos-evaluation-e7afa651.service",
+              "proof_sha256": "ec228ce6f9bef8300b825ecc35703aa46bad6ec745563af510693326541548cf",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-e7afa651-reference.service",
+              "proof_sha256": "8f99ffdac55545429bbd5267a334dc36de77e92422b9ae52c0b5f39c4e5c118b",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-e7afa651-dec2-44fd-8ce9-4192ed692ff1.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261029/primary-device-consumer-v8-001/results/static-uclamp/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-e7afa651-dec2-44fd-8ce9-4192ed692ff1.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-e7afa651-dec2-44fd-8ce9-4192ed692ff1.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-e7afa651-dec2-44fd-8ce9-4192ed692ff1.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-e7afa651-dec2-44fd-8ce9-4192ed692ff1.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-e7afa651-dec2-44fd-8ce9-4192ed692ff1.scope\nId=parity-vm-e7afa651-dec2-44fd-8ce9-4192ed692ff1.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-e7afa651-dec2-44fd-8ce9-4192ed692ff1.scope",
+                "id": "parity-vm-e7afa651-dec2-44fd-8ce9-4192ed692ff1.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-e7afa651-dec2-44fd-8ce9-4192ed692ff1.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-e7afa651-dec2-44fd-8ce9-4192ed692ff1.scope",
+            "stopped_at": 1793311825.498838,
+            "vm_uuid": "e7afa651-dec2-44fd-8ce9-4192ed692ff1",
+            "wrapper_pid": 949175
+          },
+          "limitations": [
+            "Query readback comes from the parent observer reading the owned child, not a retained child self-read. No query no-write seccomp witness, p0, emptycomm or multiTID coverage.",
+            "Reset values0/1024 are observed without an independent reset-request flag trace. No seeded batch/idle/nice, RT/deadline or reset-on-fork coverage.",
+            "Printf bytes/status alone do not distinguish builtin from external dispatch.",
+            "No all-task preflight or live system sysctl coverage. Root product fixtures remain held.",
+            "Source-bound observer/kernel semantics and three native controls per case; EOPNOTSUPP is unexercised, not candidateFAIL. All prior evidence remains."
+          ]
+        },
+        {
+          "name": "modern-ss34-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-modern293-v1",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "3d11311d-25c0-4d3c-bdc3-a3391a0d56b4",
+          "primary_receipt_sha256": "b31cbbd73d0c5aa164e360ce970158d311d4faf8999b96f657e13c4dc685db20",
+          "receipt_run": "ss-literal-static",
+          "provenance_sha256": "c2a4dcd47e26eac3acf6ab85f159e3b1de4a1de35b6a27094691e95e8cb2b350",
+          "evidence_sha256": "5a7428734c872adb12e1aa14c282fc949293b44230e3d6d552d18d3205425910",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-3d11311d.service",
+              "proof_sha256": "a2ea9b2e31bb8e6cc66325a87a97763aeec67fb3788dabca9ee4cb5f11a0f68c",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-3d11311d-reference.service",
+              "proof_sha256": "70686de98245604883190a236fb4157698953b585eb0d46122d415d83df7b1ee",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-3d11311d-25c0-4d3c-bdc3-a3391a0d56b4.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261029/primary-modern-ss-literal34-001/results/ss-literal-static/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-3d11311d-25c0-4d3c-bdc3-a3391a0d56b4.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-3d11311d-25c0-4d3c-bdc3-a3391a0d56b4.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-3d11311d-25c0-4d3c-bdc3-a3391a0d56b4.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-3d11311d-25c0-4d3c-bdc3-a3391a0d56b4.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-3d11311d-25c0-4d3c-bdc3-a3391a0d56b4.scope\nId=parity-vm-3d11311d-25c0-4d3c-bdc3-a3391a0d56b4.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-3d11311d-25c0-4d3c-bdc3-a3391a0d56b4.scope",
+                "id": "parity-vm-3d11311d-25c0-4d3c-bdc3-a3391a0d56b4.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-3d11311d-25c0-4d3c-bdc3-a3391a0d56b4.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-3d11311d-25c0-4d3c-bdc3-a3391a0d56b4.scope",
+            "stopped_at": 1793315347.4430509,
+            "vm_uuid": "3d11311d-25c0-4d3c-bdc3-a3391a0d56b4",
+            "wrapper_pid": 1139803
           },
           "overlay_discarded": true
         }
@@ -45598,10 +45773,10 @@
         },
         {
           "topic": "ss/deferred_output_and_repeat_calls",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -45662,11 +45837,18 @@
             {
               "id": "r3",
               "behavior": "Repeated invocations with different selectors (-t, -u, -x, -l) each print only their own families.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ss-literal-repeat-r5",
+                  "status": "PASS",
+                  "run": "modern-ss34-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -53042,45 +53224,73 @@
         {
           "topic": "uclampset/defer_command_mode",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Command mode applies the clamps only to the child: the child (python3) reads its own clamps through sched_getattr and prints them, and the parent shell's clamps, read by an independent helper on $$, are unchanged.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Unprivileged after the preflight.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-command-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Literal argv, including spaces and empty strings, reaches the child unchanged.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-command-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "The child's exit status propagates.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-command-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Command-not-found gives status 127 and a diagnostic.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-command-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -53096,16 +53306,23 @@
         {
           "topic": "uclampset/defer_pid_query",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "`uclampset -p PID` prints '<comm> (<pid>) util_clamp: min: N max: M' for an owned child, with values equal to the child's own sched_getattr read-back (python3 ctypes) and matching util-linux uclampset bytes.",
-              "coverage": "missing",
-              "gap": "Unexecuted. sched_getattr is unprivileged.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The target readback is from the parent observer; child-self sched_getattr readback was not retained.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-query-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -53139,9 +53356,16 @@
             {
               "id": "r5",
               "behavior": "Queries perform no scheduler writes: a SECCOMP-FILTER KILL on sched_setattr does not trigger, and the clamps are unchanged.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "No SECCOMP-FILTER KILL witness for sched_setattr was retained.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-query-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -53157,18 +53381,32 @@
             {
               "id": "r1",
               "behavior": "One-sided updates (-m only, -M only) change only that clamp, and paired -m/-M changes both, as the child's sched_getattr read-back shows, matching util-linux results.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Unprivileged if the preflight passes.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The retained sched_getattr readbacks were taken by the parent observer; the required child-self readback was not retained.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-setter-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Reset values: -m -1 and -M -1 restore the system default via SCHED_FLAG_UTIL_CLAMP_RESET semantics.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Reset-request flag semantics were not independently traced.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-setter-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -53184,9 +53422,16 @@
             {
               "id": "r4",
               "behavior": "Unrelated attributes are preserved: SCHED_BATCH or SCHED_IDLE policy and nice set by the helper are unchanged after the update.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Preservation with the specified seeded SCHED_BATCH or SCHED_IDLE policy and nice was not observed.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-setter-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -53202,18 +53447,24 @@
             {
               "id": "r6",
               "behavior": "A rejected request does not mutate the task: a reversed pair is rejected.",
-              "coverage": "partial",
-              "gap": "Non-mutation is not checked. Add a read-back of the target's clamps before and after, plus a kernel-error case: ESRCH from a reaped child, and EINVAL from a value the kernel rejects, injected by SECCOMP-NOTIFY or SECCOMP-FILTER ERRNO.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/uclampset/defer_cli_validation",
                   "status": "PASS",
                   "run": "baseline-final-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-setter-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -56546,9 +56797,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 221,
+        "UNRESOLVED": 220,
         "FAIL": 186,
-        "PASS": 193
+        "PASS": 194
       },
       "migration_without_complete_evidence": []
     },
@@ -63977,6 +64228,181 @@
             "stopped_at": 1793313277.4631255,
             "vm_uuid": "c4002453-535c-4807-a382-821b7507d082",
             "wrapper_pid": 1041965
+          },
+          "overlay_discarded": true
+        },
+        {
+          "name": "device-v8-uclamp-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "evidence_format": "primary-qualified-device-v8-uclamp-v1",
+          "primary_receipt_sha256": "1940fd1da14f62c2c166874ee0b72fcd5ebd0898488954e44b278ad0f16067ae",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "02cb2950-b4fc-45d0-a1fa-a5a7d4f37b74",
+          "record_sha256": "8a4c2c3fe8cc4f6135fd978543c0e3d5699f86ec49f3fd168767f8c889a745e1",
+          "evidence_sha256": "fe747976e0dfe98746a506cdc25d2b0d42c57910d5b1bc34c12812cfae6433cb",
+          "units": {
+            "evaluation": {
+              "unit": "bashos-evaluation-02cb2950.service",
+              "proof_sha256": "aa74f429b11830a14b87fa36385f59e542c02ebdb8ee7fcc85b558a5c42c2e96",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-02cb2950-reference.service",
+              "proof_sha256": "d6048ef7b6d33cab1788e61c8df141538ce1ad3d19cf9c8ac9cf9e50c6b8f97b",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-02cb2950-b4fc-45d0-a1fa-a5a7d4f37b74.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261029/primary-device-consumer-v8-001/results/dynamic-uclamp/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-02cb2950-b4fc-45d0-a1fa-a5a7d4f37b74.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-02cb2950-b4fc-45d0-a1fa-a5a7d4f37b74.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-02cb2950-b4fc-45d0-a1fa-a5a7d4f37b74.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-02cb2950-b4fc-45d0-a1fa-a5a7d4f37b74.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-02cb2950-b4fc-45d0-a1fa-a5a7d4f37b74.scope\nId=parity-vm-02cb2950-b4fc-45d0-a1fa-a5a7d4f37b74.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-02cb2950-b4fc-45d0-a1fa-a5a7d4f37b74.scope",
+                "id": "parity-vm-02cb2950-b4fc-45d0-a1fa-a5a7d4f37b74.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-02cb2950-b4fc-45d0-a1fa-a5a7d4f37b74.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-02cb2950-b4fc-45d0-a1fa-a5a7d4f37b74.scope",
+            "stopped_at": 1793311661.9779227,
+            "vm_uuid": "02cb2950-b4fc-45d0-a1fa-a5a7d4f37b74",
+            "wrapper_pid": 945054
+          },
+          "limitations": [
+            "Query readback comes from the parent observer reading the owned child, not a retained child self-read. No query no-write seccomp witness, p0, emptycomm or multiTID coverage.",
+            "Reset values0/1024 are observed without an independent reset-request flag trace. No seeded batch/idle/nice, RT/deadline or reset-on-fork coverage.",
+            "Printf bytes/status alone do not distinguish builtin from external dispatch.",
+            "No all-task preflight or live system sysctl coverage. Root product fixtures remain held.",
+            "Source-bound observer/kernel semantics and three native controls per case; EOPNOTSUPP is unexercised, not candidateFAIL. All prior evidence remains."
+          ]
+        },
+        {
+          "name": "modern-ss34-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-modern293-v1",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "a71a0a5b-ea49-4e5d-9562-7285bb473152",
+          "primary_receipt_sha256": "b31cbbd73d0c5aa164e360ce970158d311d4faf8999b96f657e13c4dc685db20",
+          "receipt_run": "ss-literal-dynamic",
+          "provenance_sha256": "666102b51700df0df39172bd35002e08cd631f40b239fcffe7bab3c6865b3ea0",
+          "evidence_sha256": "71931acd99fcc0f4eea3807d84ec9a9bffbc321f1f60cfb6c79466ac7248401a",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-a71a0a5b.service",
+              "proof_sha256": "c8ca142468fc27163d558e5be45e14a781916139d354055389acee77ac99ffd2",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-a71a0a5b-reference.service",
+              "proof_sha256": "c552b26b3ef51594244a05abb97e896d69a3013c14f7fb397d0e94ed6fc43692",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-a71a0a5b-ea49-4e5d-9562-7285bb473152.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261029/primary-modern-ss-literal34-001/results/ss-literal-dynamic/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-a71a0a5b-ea49-4e5d-9562-7285bb473152.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-a71a0a5b-ea49-4e5d-9562-7285bb473152.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-a71a0a5b-ea49-4e5d-9562-7285bb473152.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-a71a0a5b-ea49-4e5d-9562-7285bb473152.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-a71a0a5b-ea49-4e5d-9562-7285bb473152.scope\nId=parity-vm-a71a0a5b-ea49-4e5d-9562-7285bb473152.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-a71a0a5b-ea49-4e5d-9562-7285bb473152.scope",
+                "id": "parity-vm-a71a0a5b-ea49-4e5d-9562-7285bb473152.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-a71a0a5b-ea49-4e5d-9562-7285bb473152.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-a71a0a5b-ea49-4e5d-9562-7285bb473152.scope",
+            "stopped_at": 1793315543.691408,
+            "vm_uuid": "a71a0a5b-ea49-4e5d-9562-7285bb473152",
+            "wrapper_pid": 1144321
           },
           "overlay_discarded": true
         }
@@ -102136,10 +102562,10 @@
         },
         {
           "topic": "ss/deferred_output_and_repeat_calls",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -102200,11 +102626,18 @@
             {
               "id": "r3",
               "behavior": "Repeated invocations with different selectors (-t, -u, -x, -l) each print only their own families.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ss-literal-repeat-r5",
+                  "status": "PASS",
+                  "run": "modern-ss34-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -109580,45 +110013,73 @@
         {
           "topic": "uclampset/defer_command_mode",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Command mode applies the clamps only to the child: the child (python3) reads its own clamps through sched_getattr and prints them, and the parent shell's clamps, read by an independent helper on $$, are unchanged.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Unprivileged after the preflight.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-command-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Literal argv, including spaces and empty strings, reaches the child unchanged.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-command-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "The child's exit status propagates.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-command-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Command-not-found gives status 127 and a diagnostic.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-command-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -109634,16 +110095,23 @@
         {
           "topic": "uclampset/defer_pid_query",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "`uclampset -p PID` prints '<comm> (<pid>) util_clamp: min: N max: M' for an owned child, with values equal to the child's own sched_getattr read-back (python3 ctypes) and matching util-linux uclampset bytes.",
-              "coverage": "missing",
-              "gap": "Unexecuted. sched_getattr is unprivileged.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The target readback is from the parent observer; child-self sched_getattr readback was not retained.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-query-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -109677,9 +110145,16 @@
             {
               "id": "r5",
               "behavior": "Queries perform no scheduler writes: a SECCOMP-FILTER KILL on sched_setattr does not trigger, and the clamps are unchanged.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "No SECCOMP-FILTER KILL witness for sched_setattr was retained.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-query-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -109695,18 +110170,32 @@
             {
               "id": "r1",
               "behavior": "One-sided updates (-m only, -M only) change only that clamp, and paired -m/-M changes both, as the child's sched_getattr read-back shows, matching util-linux results.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Unprivileged if the preflight passes.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The retained sched_getattr readbacks were taken by the parent observer; the required child-self readback was not retained.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-setter-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "Reset values: -m -1 and -M -1 restore the system default via SCHED_FLAG_UTIL_CLAMP_RESET semantics.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Reset-request flag semantics were not independently traced.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-setter-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -109722,9 +110211,16 @@
             {
               "id": "r4",
               "behavior": "Unrelated attributes are preserved: SCHED_BATCH or SCHED_IDLE policy and nice set by the helper are unchanged after the update.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Preservation with the specified seeded SCHED_BATCH or SCHED_IDLE policy and nice was not observed.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-setter-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -109740,18 +110236,24 @@
             {
               "id": "r6",
               "behavior": "A rejected request does not mutate the task: a reversed pair is rejected.",
-              "coverage": "partial",
-              "gap": "Non-mutation is not checked. Add a read-back of the target's clamps before and after, plus a kernel-error case: ESRCH from a reaped child, and EINVAL from a value the kernel rejects, injected by SECCOMP-NOTIFY or SECCOMP-FILTER ERRNO.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "legacy",
                   "id": "legacy/uclampset/defer_cli_validation",
                   "status": "PASS",
                   "run": "baseline-final-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-uclamp-setter-r1",
+                  "status": "PASS",
+                  "run": "device-v8-uclamp-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -113084,9 +113586,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 221,
+        "UNRESOLVED": 220,
         "FAIL": 185,
-        "PASS": 194
+        "PASS": 195
       },
       "migration_without_complete_evidence": []
     }
