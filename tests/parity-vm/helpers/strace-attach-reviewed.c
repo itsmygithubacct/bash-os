@@ -58,7 +58,7 @@ static int tracee(pid_t tracer, const char *prefix) {
     char path[256];
     if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() == 1 ||
         prctl(PR_SET_PTRACER, tracer, 0, 0, 0)) { perror("tracee prctl"); return 93; }
-    alarm(14);
+    alarm(25);
     snprintf(path, sizeof path, "%s.shared", prefix);
     int fd = open(path, O_RDWR | O_CLOEXEC);
     if (fd < 0) { perror("shared open"); return 93; }

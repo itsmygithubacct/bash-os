@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 """Guest-only preflight, controlled candidate observation and assessment."""
 import base64
+import copy
 import json
 import os
 from pathlib import Path
@@ -123,7 +124,216 @@ def parser_controls():
 def task_status(pid, tid):
     text = Path('/proc/%d/task/%d/status' % (pid, tid)).read_text()
     fields = dict(line.split(':', 1) for line in text.splitlines() if ':' in line)
-    return {key: int(fields[key].strip()) for key in ('Tgid', 'Pid', 'PPid', 'TracerPid')}
+    result = {key: int(fields[key].strip()) for key in ('Tgid', 'Pid', 'PPid', 'TracerPid')}
+    result['State'] = fields['State'].strip()
+    for key in ('voluntary_ctxt_switches', 'nonvoluntary_ctxt_switches'):
+        result[key] = int(fields[key].strip())
+    return result
+
+
+def attributable_stall(proof, pre):
+    """A bounded ptrace stop, tied to the actual released owned task."""
+    try:
+        stage = proof['stage']
+        if stage not in ('worker', 'leader'):
+            return False
+        target = pre[stage]
+        minimum_ns = (4 if stage == 'worker' else 5) * 1000000000
+        if proof['target_tid'] != target or proof['timeout_ns'] - proof['wait_started_ns'] < minimum_ns:
+            return False
+        samples = proof['samples']
+        if len(samples) != 3 or samples[0]['time_ns'] < proof['timeout_ns'] or samples[-1]['time_ns'] - samples[0]['time_ns'] < 200000000:
+            return False
+        if not all(a['time_ns'] < b['time_ns'] for a, b in zip(samples, samples[1:])):
+            return False
+        first_task = samples[0]['task']
+        switches = (first_task['voluntary_ctxt_switches'], first_task['nonvoluntary_ctxt_switches'])
+        for sample in samples:
+            task, leader, tracer = sample['task'], sample['leader'], sample['tracer']
+            gates = sample['shared']
+            if (not sample['fixture_alive'] or not sample['tracer_alive'] or
+                    task['Pid'] != target or task['Tgid'] != pre['leader'] or task['PPid'] != pre['owner_pid'] or
+                    task['TracerPid'] != pre['tracer_pid'] or not task['State'].startswith('t ') or
+                    (task['voluntary_ctxt_switches'], task['nonvoluntary_ctxt_switches']) != switches or
+                    leader['Pid'] != pre['leader'] or leader['Tgid'] != pre['leader'] or leader['PPid'] != pre['owner_pid'] or
+                    tracer['Pid'] != pre['tracer_pid'] or tracer['Tgid'] != pre['tracer_pid'] or tracer['PPid'] != pre['owner_pid'] or
+                    gates != ([1, 0, 1, 1] if stage == 'worker' else [1, 1, 1, 1])):
+                return False
+        return True
+    except (KeyError, TypeError, ValueError, IndexError):
+        return False
+
+
+def stall_record_valid(record):
+    try:
+        proof, pre, cleanup = record['stall'], record['preconditions'], record['stall_cleanup']
+        which = proof['stage']
+        events = record['events']
+        order = [entry['stage'] for entry in events]
+        needed = (['worker-release', 'worker-wait', 'worker-stall-observation', 'worker-stall-cleanup']
+                  if which == 'worker' else
+                  ['worker-release', 'worker-wait', 'leader-release', 'fixture-completion',
+                   'leader-stall-observation', 'leader-stall-cleanup'])
+        positions = [order.index(name) for name in needed]
+        if positions != sorted(set(positions)):
+            return False
+        release_event = 'worker-release' if which == 'worker' else 'leader-release'
+        wait_event = 'worker-wait' if which == 'worker' else 'fixture-completion'
+        times = {entry['stage']: entry['time_ns'] for entry in events}
+        if (not record['worker_release'] or
+                (which == 'leader' and (not record['worker_gone_before_leader_release'] or not record['leader_release'])) or
+                (which == 'worker' and record.get('leader_release', False)) or
+                not (times[release_event] <= proof['wait_started_ns'] <= times[wait_event] <= proof['timeout_ns']) or
+                not (proof['timeout_ns'] <= times[which + '-stall-observation'] <= proof['samples'][0]['time_ns']) or
+                times[which + '-stall-cleanup'] <= proof['samples'][-1]['time_ns'] or
+                not cleanup['tracer_kill_requested'] or cleanup['tracer_status_after_kill'] != -signal.SIGKILL or
+                not record['candidate_timeout'] or record['candidate_status_origin'] != 'cleanup_sigkill' or
+                record['candidate_status'] != -signal.SIGKILL):
+            return False
+        return attributable_stall(proof, pre)
+    except (KeyError, TypeError, ValueError, IndexError):
+        return False
+
+
+def stall_controls():
+    pre = {'leader': 101, 'worker': 102, 'owner_pid': 99, 'tracer_pid': 201}
+    leader = {'Pid': 101, 'Tgid': 101, 'PPid': 99, 'TracerPid': 201, 'State': 't (tracing stop)',
+              'voluntary_ctxt_switches': 7, 'nonvoluntary_ctxt_switches': 2}
+    tracer = {'Pid': 201, 'Tgid': 201, 'PPid': 99, 'TracerPid': 0, 'State': 'S (sleeping)'}
+    def proof(stage):
+        target = copy.deepcopy(leader)
+        if stage == 'worker':
+            target['Pid'] = 102
+        threshold = (4 if stage == 'worker' else 5) * 1000000000
+        sample = {'task': target, 'leader': leader, 'tracer': tracer, 'fixture_alive': True,
+                  'tracer_alive': True, 'shared': [1, 0 if stage == 'worker' else 1, 1, 1]}
+        samples = []
+        for offset in (0, 150000000, 300000000):
+            item = copy.deepcopy(sample); item['time_ns'] = 1000000000 + threshold + offset
+            samples.append(item)
+        return {'stage': stage, 'target_tid': pre[stage], 'wait_started_ns': 1000000000,
+                'timeout_ns': 1000000000 + threshold, 'samples': samples}
+    positive_worker, positive_leader = proof('worker'), proof('leader')
+    negative = {}
+    for label, mutate in [
+        ('running', lambda x: x['samples'][1]['task'].update(State='R (running)')),
+        ('wrong_tracer', lambda x: x['samples'][0]['task'].update(TracerPid=202)),
+        ('resumed', lambda x: x['samples'][2]['task'].update(voluntary_ctxt_switches=8)),
+        ('candidate_dead', lambda x: x['samples'][0].update(tracer_alive=False)),
+        ('gate_closed', lambda x: x['samples'][1]['shared'].__setitem__(0, 0)),
+        ('wrong_owner', lambda x: x['samples'][2]['leader'].update(PPid=98)),
+        ('insufficient_wait', lambda x: x.update(timeout_ns=x['wait_started_ns'] + 1)),
+        ('insufficient_samples', lambda x: x['samples'].pop()),
+        ('wrong_target', lambda x: x.update(target_tid=999)),
+        ('short_observation', lambda x: x['samples'][2].update(time_ns=x['samples'][0]['time_ns'] + 190000000)),
+    ]:
+        item = copy.deepcopy(positive_worker); mutate(item); negative[label] = item
+    record = {'preconditions': pre, 'inputs': {'worker': positive_worker, 'leader': positive_leader, **negative},
+              'outcomes': {}, 'complete': False}
+    try:
+        for label, item in record['inputs'].items():
+            result = attributable_stall(item, pre)
+            record['outcomes'][label] = result
+            if result != (label in ('worker', 'leader')):
+                raise ValueError('stall attribution control failed: ' + label)
+        def full_record(item):
+            which = item['stage']
+            events = [('worker-release', 500000000), ('worker-wait', 800000000)]
+            if which == 'worker':
+                events[1] = ('worker-wait', 1100000000)
+            else:
+                events += [('leader-release', 900000000), ('fixture-completion', 1100000000)]
+            events += [(which + '-stall-observation', item['timeout_ns']),
+                       (which + '-stall-cleanup', item['samples'][-1]['time_ns'] + 1)]
+            return {'stall': copy.deepcopy(item), 'preconditions': pre,
+                    'events': [{'stage': name, 'time_ns': ns} for name, ns in events],
+                    'worker_release': True, 'leader_release': which == 'leader',
+                    'worker_gone_before_leader_release': which == 'leader',
+                    'candidate_timeout': True, 'candidate_status_origin': 'cleanup_sigkill',
+                    'candidate_status': -signal.SIGKILL,
+                    'stall_cleanup': {'tracer_kill_requested': True, 'tracer_status_after_kill': -signal.SIGKILL}}
+        full = {'worker_record': full_record(positive_worker), 'leader_record': full_record(positive_leader)}
+        bad = copy.deepcopy(full['worker_record']); bad['worker_release'] = False; full['missing_release'] = bad
+        bad = copy.deepcopy(full['leader_record']); bad['worker_gone_before_leader_release'] = False; full['missing_worker_exit'] = bad
+        bad = copy.deepcopy(full['worker_record']); bad['stall_cleanup']['tracer_kill_requested'] = False; full['missing_cleanup'] = bad
+        bad = copy.deepcopy(full['worker_record']); bad['events'][-1]['time_ns'] = bad['stall']['samples'][0]['time_ns']; full['cleanup_too_early'] = bad
+        record['record_inputs'] = full
+        record['record_outcomes'] = {}
+        for label, item in full.items():
+            result = stall_record_valid(item)
+            record['record_outcomes'][label] = result
+            if result != (label in ('worker_record', 'leader_record')):
+                raise ValueError('stall record control failed: ' + label)
+        record['complete'] = True
+    except Exception as exc:
+        record['error'] = '%s: %s' % (type(exc).__name__, exc)
+        raise
+    finally:
+        save('stall-controls.json', record)
+
+
+def stage(record, name):
+    record['stage'] = name
+    record.setdefault('events', []).append({'stage': name, 'time_ns': time.monotonic_ns()})
+    save('setup-controls.json', record)
+
+
+def snapshot_stall(record, fixture, tracer, which, wait_started_ns):
+    pre = record['preconditions']
+    proof = {'stage': which, 'target_tid': pre[which], 'wait_started_ns': wait_started_ns,
+             'timeout_ns': time.monotonic_ns(), 'samples': []}
+    record['stall'] = proof
+    stage(record, which + '-stall-observation')
+    for index in range(3):
+        sample = {'time_ns': time.monotonic_ns(), 'fixture_alive': fixture.poll() is None,
+                  'tracer_alive': tracer.poll() is None, 'shared': shared_read('candidate'),
+                  'task': task_status(fixture.pid, pre[which]),
+                  'leader': task_status(fixture.pid, pre['leader']),
+                  'tracer': task_status(tracer.pid, tracer.pid)}
+        proof['samples'].append(sample)
+        save('setup-controls.json', record)
+        if index < 2:
+            time.sleep(.15)
+    if not attributable_stall(proof, pre):
+        raise ValueError(which + ' timeout has inconclusive attribution')
+    return proof
+
+
+def clean_stall(record, fixture, tracer, which):
+    """Intervene only after recording the candidate-caused stop, then reap owned tasks."""
+    action = {'tracer_kill_requested': False, 'fixture_kill_requested': False}
+    record['stall_cleanup'] = action
+    stage(record, which + '-stall-cleanup')
+    if tracer.poll() is not None:
+        raise ValueError('candidate exited before confirmed stall cleanup')
+    action['tracer_kill_requested'] = True
+    stop(tracer, True)
+    action['tracer_status_after_kill'] = tracer.returncode
+    if tracer.returncode != -signal.SIGKILL:
+        raise ValueError('candidate exit raced with stall cleanup')
+    try:
+        if which == 'worker':
+            task = Path('/proc/%d/task/%d' % (fixture.pid, record['preconditions']['worker']))
+            deadline = time.monotonic() + 3
+            while task.exists() and fixture.poll() is None and time.monotonic() < deadline:
+                time.sleep(.01)
+            action['worker_gone_after_tracer_kill'] = not task.exists()
+            if not task.exists() and fixture.poll() is None:
+                release('candidate', 1)
+                action['leader_gate_released_after_kill'] = True
+        try:
+            fixture.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            action['recovery_timeout'] = True
+    except (OSError, ValueError) as exc:
+        action['recovery_error'] = '%s: %s' % (type(exc).__name__, exc)
+    if fixture.poll() is None:
+        action['fixture_kill_requested'] = True
+        stop(fixture)
+    action['fixture_status_after_cleanup'] = fixture.returncode
+    record.update(candidate_timeout=True, candidate_status=tracer.returncode,
+                  candidate_status_origin='cleanup_sigkill', fixture_status=fixture.returncode)
+    return action
 
 
 def shared_init(prefix):
@@ -146,7 +356,7 @@ def release(prefix, index):
 
 
 def wait_ready(prefix, fixture, tracer):
-    deadline = time.monotonic() + 5
+    deadline = time.monotonic() + 4
     while time.monotonic() < deadline:
         if fixture.poll() is not None:
             raise ValueError('fixture exited before ready: %s' % fixture.returncode)
@@ -195,7 +405,7 @@ def native_control():
         Path('native.pid.tmp').write_text('%d %d\n' % (fixture.pid, os.getpid()))
         Path('native.pid.tmp').replace('native.pid')
         record.update(stage='running', control_pid=control.pid, fixture_pid=fixture.pid)
-        out, err = control.communicate(timeout=12)
+        out, err = control.communicate(timeout=10)
         control_collected = True
         f_out, f_err = fixture.communicate(timeout=3)
         fixture_collected = True
@@ -232,8 +442,8 @@ def candidate_limit():
 def observe(record):
     shared_init('candidate')
     tracer = fixture = None
-    record.update(stage='candidate-launch', complete=False, error=None)
-    save('setup-controls.json', record)
+    record.update(complete=False, error=None, outcome=None)
+    stage(record, 'candidate-launch')
     try:
         with (HOME / 'candidate.out').open('wb') as out, (HOME / 'candidate.err').open('wb') as err, \
              (HOME / 'fixture.out').open('wb') as f_out, (HOME / 'fixture.err').open('wb') as f_err:
@@ -244,8 +454,8 @@ def observe(record):
                                       env=candidate_env, preexec_fn=candidate_limit)
             fixture = subprocess.Popen(['./attach-fixture', 'tracee', str(tracer.pid), 'candidate'],
                                        stdout=f_out, stderr=f_err)
-            record.update(stage='candidate-readiness', tracer_pid=tracer.pid, fixture_pid=fixture.pid)
-            save('setup-controls.json', record)
+            record.update(tracer_pid=tracer.pid, fixture_pid=fixture.pid)
+            stage(record, 'candidate-readiness')
             pre = wait_ready('candidate', fixture, tracer)
             record['preconditions'] = pre
             if tracer.poll() is not None:
@@ -253,11 +463,11 @@ def observe(record):
             tracer.stdin.write(('%d\n' % fixture.pid).encode())
             tracer.stdin.close()
             record['invoked'] = True
-            record['stage'] = 'attach-monitor'
+            stage(record, 'attach-monitor')
             samples = []
             record['tracer_samples'] = samples
             record['stable_both_attached'] = False
-            deadline = time.monotonic() + 4
+            deadline = time.monotonic() + 3
             while time.monotonic() < deadline:
                 states = [task_status(fixture.pid, tid) for tid in pre['tasks']]
                 sample = [s['TracerPid'] for s in states]
@@ -276,38 +486,53 @@ def observe(record):
                 if tracer.poll() is not None:
                     break
                 time.sleep(.01)
-            record['tracer_samples'] = samples
-            record['stage'] = 'worker-release'
+            stage(record, 'worker-release')
             release('candidate', 0)
             record['worker_release'] = True
-            deadline = time.monotonic() + 4
-            while Path('/proc/%d/task/%d' % (fixture.pid, pre['worker'])).exists() and time.monotonic() < deadline:
+            worker_started = time.monotonic_ns()
+            stage(record, 'worker-wait')
+            worker_task = Path('/proc/%d/task/%d' % (fixture.pid, pre['worker']))
+            while worker_task.exists() and time.monotonic_ns() - worker_started < 4000000000:
                 if fixture.poll() is not None:
                     raise ValueError('fixture exited before worker completion')
                 time.sleep(.01)
-            if Path('/proc/%d/task/%d' % (fixture.pid, pre['worker'])).exists():
-                raise ValueError('worker did not exit after release')
-            record['worker_gone_before_leader_release'] = True
-            record['stage'] = 'leader-release'
-            release('candidate', 1)
-            record['leader_release'] = True
-            record['stage'] = 'fixture-completion'
-            fixture.wait(timeout=5)
-            record['fixture_status'] = fixture.returncode
-            if fixture.returncode != 0:
-                raise ValueError('fixture did not exit naturally with zero status')
-            try:
-                tracer.wait(timeout=3)
-                record['candidate_timeout'] = False
-            except subprocess.TimeoutExpired:
-                record['candidate_timeout'] = True
-                stop(tracer, True)
-            record['candidate_status'] = tracer.returncode
-        if (HOME / 'fixture.err').read_bytes() or sorted((HOME / 'fixture.out').read_bytes().splitlines()) != [b'leader-done', b'worker-done']:
+            if worker_task.exists():
+                snapshot_stall(record, fixture, tracer, 'worker', worker_started)
+                clean_stall(record, fixture, tracer, 'worker')
+                record['outcome'] = 'candidate_stall'
+            else:
+                record['worker_gone_before_leader_release'] = True
+                stage(record, 'leader-release')
+                release('candidate', 1)
+                record['leader_release'] = True
+                leader_started = time.monotonic_ns()
+                stage(record, 'fixture-completion')
+                try:
+                    fixture.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    snapshot_stall(record, fixture, tracer, 'leader', leader_started)
+                    clean_stall(record, fixture, tracer, 'leader')
+                    record['outcome'] = 'candidate_stall'
+                if record['outcome'] != 'candidate_stall':
+                    record['fixture_status'] = fixture.returncode
+                    if fixture.returncode != 0:
+                        raise ValueError('fixture did not exit naturally with zero status')
+                    try:
+                        tracer.wait(timeout=3)
+                        record['candidate_timeout'] = False
+                    except subprocess.TimeoutExpired:
+                        record['candidate_timeout'] = True
+                        stop(tracer, True)
+                    record['candidate_status'] = tracer.returncode
+                    record['candidate_status_origin'] = 'cleanup_sigkill' if record['candidate_timeout'] else 'natural'
+                    record['outcome'] = 'completed'
+        if record['outcome'] == 'completed' and ((HOME / 'fixture.err').read_bytes() or
+                sorted((HOME / 'fixture.out').read_bytes().splitlines()) != [b'leader-done', b'worker-done']):
             raise ValueError('fixture output incomplete or erroneous')
         if any((HOME / name).stat().st_size >= LIMIT for name in ('candidate.out', 'candidate.err')):
             raise ValueError('candidate output hit capture size limit; observation incomplete')
-        record.update(stage='complete', complete=True)
+        record['complete'] = True
+        stage(record, 'complete')
     except Exception as exc:
         record['error'] = '%s: %s' % (type(exc).__name__, exc)
         raise
@@ -326,11 +551,13 @@ def setup():
     save('setup-controls.json', record)
     try:
         parser_controls()
+        record['stage'] = 'stall-controls'; save('setup-controls.json', record)
+        stall_controls()
         record['stage'] = 'compile'; save('setup-controls.json', record)
         with (HOME / 'gcc.out').open('wb') as out, (HOME / 'gcc.err').open('wb') as err:
             subprocess.run(['/usr/bin/gcc', '-std=c11', '-O2', '-Wall', '-Wextra', '-pthread',
                             '-o', 'attach-fixture', '/opt/bashos-parity/harness/helpers/strace-attach-reviewed.c'],
-                           stdout=out, stderr=err, check=True, timeout=20)
+                           stdout=out, stderr=err, check=True, timeout=15)
         record['stage'] = 'native-control'; save('setup-controls.json', record)
         native_control()
         observe(record)
@@ -347,25 +574,37 @@ def verify(requirement):
     try:
         record = json.loads((HOME / 'setup-controls.json').read_text())
         native = json.loads((HOME / 'native-control.json').read_text())
-        if not record['complete'] or record['error'] or not record['invoked'] or not native['complete']:
+        controls = json.loads((HOME / 'stall-controls.json').read_text())
+        if not record['complete'] or record['error'] or not record['invoked'] or not native['complete'] or not controls['complete']:
             raise ValueError('incomplete infrastructure controls')
         pre = record['preconditions']
         trace_bytes = (HOME / 'candidate.err').read_bytes()
-        try:
-            trace = trace_bytes.decode('utf-8', 'strict')
-            parsed = parse_trace(trace, pre['leader'], pre['worker'], pre['owner_pid'], requirement == 'r2')
-        except (ValueError, UnicodeError) as exc:
-            failures.append('candidate_trace_rejected: ' + str(exc))
-            parsed = {'leader_call': False, 'leader_exit': False, 'worker_call': False, 'worker_exit': False}
-        leader_index = pre['tasks'].index(pre['leader'])
-        checks = {'leader_call': parsed['leader_call'], 'leader_exit': parsed['leader_exit'],
-                  'leader_attached': any(sample[leader_index] == pre['tracer_pid'] for sample in record['tracer_samples']),
-                  'candidate_status': record['candidate_status'] == 0 and not record['candidate_timeout'],
-                  'candidate_stdout': (HOME / 'candidate.out').read_bytes() == b''}
-        if requirement == 'r2':
-            checks.update(worker_call=parsed['worker_call'], worker_exit=parsed['worker_exit'],
-                          both_attached=record['stable_both_attached'])
-        failures.extend(name for name, passed in checks.items() if not passed)
+        candidate_out = (HOME / 'candidate.out').read_bytes()
+        (HOME / 'fixture.out').read_bytes()
+        (HOME / 'fixture.err').read_bytes()
+        if record['outcome'] == 'candidate_stall':
+            if not stall_record_valid(record):
+                raise ValueError('stall attribution or cleanup record incomplete')
+            checks = {'stall_attribution': True, 'candidate_did_not_stall': False}
+            failures.append('candidate_stall_' + record['stall']['stage'])
+        elif record['outcome'] == 'completed':
+            try:
+                trace = trace_bytes.decode('utf-8', 'strict')
+                parsed = parse_trace(trace, pre['leader'], pre['worker'], pre['owner_pid'], requirement == 'r2')
+            except (ValueError, UnicodeError) as exc:
+                failures.append('candidate_trace_rejected: ' + str(exc))
+                parsed = {'leader_call': False, 'leader_exit': False, 'worker_call': False, 'worker_exit': False}
+            leader_index = pre['tasks'].index(pre['leader'])
+            checks = {'leader_call': parsed['leader_call'], 'leader_exit': parsed['leader_exit'],
+                      'leader_attached': any(sample[leader_index] == pre['tracer_pid'] for sample in record['tracer_samples']),
+                      'candidate_status': record['candidate_status'] == 0 and not record['candidate_timeout'],
+                      'candidate_stdout': candidate_out == b''}
+            if requirement == 'r2':
+                checks.update(worker_call=parsed['worker_call'], worker_exit=parsed['worker_exit'],
+                              both_attached=record['stable_both_attached'])
+            failures.extend(name for name, passed in checks.items() if not passed)
+        else:
+            raise ValueError('unknown candidate observation outcome')
     except (OSError, KeyError, ValueError, UnicodeError) as exc:
         classification = 'infrastructure_error'
         failures.append('assessment_infrastructure_error: ' + str(exc))
