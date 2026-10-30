@@ -2,18 +2,24 @@
 # SPDX-License-Identifier: MIT
 """Guest-only synthetic proc lifecycle cases with an owned ptrace observer."""
 import base64
+import ctypes
+import hashlib
 import json
 import os
 from pathlib import Path
 import pwd
 import re
 import resource
+import select
 import shutil
 import signal
 import stat
 import struct
 import subprocess
 import sys
+import uuid
+
+from ns_guest_identity_r1 import verify as verify_guest_identity
 
 CASE = Path('/tmp/parity-case')
 HOME = Path('/tmp/parity-home')
@@ -26,19 +32,101 @@ CPU_NEXT = 'cpu 160 0 160 880 0 0 0 0 100 50\n'
 MEM = 'MemTotal: 8000 kB\nMemAvailable: 3000 kB\nSwapTotal: 2000 kB\nSwapFree: 1250 kB\n'
 LOAD = '1.25 1.50 1.75 1/4 402\n'
 SCENARIOS = ('malformed','vanish','empty','proc-rollback','cpu-rollback','guest','lifecycle')
+DIAGNOSTICS_ALLOWED = False
 
 
-def guard(outer=True, mounted=True):
-    marker = Path('/etc/bashos-parity-vm').read_text().strip()
+def read_at(fd, path, limit):
+    handle=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NONBLOCK,dir_fd=fd)
+    try:
+        data=b''
+        while len(data)<=limit:
+            part=os.read(handle,limit+1-len(data))
+            if not part: break
+            data+=part
+        if len(data)>limit: raise RuntimeError('oversized proc control file')
+        return data
+    finally: os.close(handle)
+
+
+def protected_identity(owner_uid,owner_gid):
+    def read_file(directory,name):
+        dfd=os.open(directory,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC)
+        try:
+            parent=os.fstat(dfd)
+            if parent.st_uid!=owner_uid or parent.st_gid!=owner_gid or stat.S_IMODE(parent.st_mode)&0o022:
+                raise RuntimeError('unprotected identity directory')
+            fd=os.open(name,os.O_RDONLY|os.O_NONBLOCK|os.O_NOFOLLOW|os.O_CLOEXEC,dir_fd=dfd)
+            try:
+                before=os.fstat(fd)
+                if (not stat.S_ISREG(before.st_mode) or before.st_uid!=owner_uid or before.st_gid!=owner_gid or
+                    stat.S_IMODE(before.st_mode)!=0o444 or before.st_nlink!=1 or before.st_size!=37):
+                    raise RuntimeError('unprotected identity file')
+                data=os.read(fd,38); after=os.fstat(fd)
+                entry=os.stat(name,dir_fd=dfd,follow_symlinks=False)
+                def fields(st): return (st.st_dev,st.st_ino,st.st_mode,st.st_uid,st.st_gid,st.st_nlink,st.st_size,st.st_mtime_ns)
+                if fields(before)!=fields(after) or fields(after)!=fields(entry): raise RuntimeError('identity changed')
+            finally: os.close(fd)
+        finally: os.close(dfd)
+        if len(data)!=37 or not data.endswith(b'\n'): raise RuntimeError('invalid identity bytes')
+        value=data[:-1].decode('ascii')
+        if str(uuid.UUID(value))!=value: raise RuntimeError('noncanonical identity')
+        return {'value':value,'owner_uid':before.st_uid,'owner_gid':before.st_gid,'mode':stat.S_IMODE(before.st_mode),
+                'size':before.st_size,'nlink':before.st_nlink,'parent_uid':parent.st_uid,
+                'parent_gid':parent.st_gid,'parent_mode':stat.S_IMODE(parent.st_mode)}
+    marker=read_file('/etc','bashos-parity-vm')
+    attestation=read_file('/run','bashos-parity-vm-identity')
+    if marker['value']!=attestation['value']: raise RuntimeError('attested identity differs')
+    return {'marker':marker,'attestation':attestation}
+
+
+def proc_context(fd, expected_ns=None, outer_ns=None):
+    # Preserve a descriptor to the real procfs opened before the private mount.
+    info=ctypes.create_string_buffer(256)
+    libc=ctypes.CDLL(None,use_errno=True)
+    if libc.fstatfs(fd,ctypes.byref(info))!=0 or struct.unpack_from('l',info.raw)[0]!=0x9fa0:
+        raise RuntimeError('saved descriptor is not procfs')
+    uidmap=read_at(fd,'self/uid_map',4096).decode().splitlines()
+    gidmap=read_at(fd,'self/gid_map',4096).decode().splitlines()
+    if [x.split() for x in uidmap]!=[['0','2000','1']] or [x.split() for x in gidmap]!=[['0','2000','1']]:
+        raise RuntimeError('unexpected uid or gid map')
+    ns=os.readlink('self/ns/mnt',dir_fd=fd)
+    if expected_ns is not None and ns!=expected_ns: raise RuntimeError('mount namespace changed')
+    if outer_ns is not None and ns==outer_ns: raise RuntimeError('mount namespace was not isolated')
+    mountinfo=read_at(fd,'self/mountinfo',1024*1024).decode('utf-8','strict')
+    for line in mountinfo.splitlines():
+        if ' - ' not in line: raise RuntimeError('malformed mountinfo')
+        optional=line.split(' - ',1)[0].split()[6:]
+        if any(x.startswith(('shared:','master:','propagate_from:')) for x in optional):
+            raise RuntimeError('mount propagation is not private')
+    return {'uid_map':uidmap,'gid_map':gidmap,'mount_namespace':ns,'outer_namespace':outer_ns,
+            'mountinfo':mountinfo,'overflow_uid':int(read_at(fd,'sys/kernel/overflowuid',64)),
+            'overflow_gid':int(read_at(fd,'sys/kernel/overflowgid',64))}
+
+
+def guard(outer=True,mounted=True):
+    global DIAGNOSTICS_ALLOWED
     if (os.getuid() != (2000 if outer else 0) or os.geteuid() != (2000 if outer else 0)
-        or Path.cwd() != CASE or os.environ.get('HOME') != str(HOME)
-        or os.uname().machine != 'x86_64'
-        or Path('/sys/class/dmi/id/sys_vendor').read_text().strip() != 'QEMU'
-        or not re.fullmatch(r'[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}', marker)):
+        or os.getgid()!=(2000 if outer else 0) or os.getegid()!=(2000 if outer else 0)
+        or Path.cwd()!=CASE or os.environ.get('HOME')!=str(HOME)
+        or os.uname().machine!='x86_64'):
         raise RuntimeError('requires the isolated x86_64 uid-2000 parity guest')
-    if not outer and mounted:
-        a,b = os.stat('/proc'), os.stat(LIVE)
-        if (a.st_dev,a.st_ino)!=(b.st_dev,b.st_ino): raise RuntimeError('private proc is not mounted')
+    if outer or not mounted:
+        verify_guest_identity()
+        if outer:
+            proof=protected_identity(0,0)
+            DIAGNOSTICS_ALLOWED=True
+            return proof
+        return None
+    fd=int(os.environ['LIFECYCLE_REALPROC_FD'])
+    context=proc_context(fd,expected_ns=os.environ['LIFECYCLE_MNT_NS'],outer_ns=os.environ['LIFECYCLE_OUTER_NS'])
+    identity=protected_identity(context['overflow_uid'],context['overflow_gid'])
+    if Path('/sys/class/dmi/id/sys_vendor').read_text().strip()!='QEMU': raise RuntimeError('unexpected vendor')
+    a,b=os.stat('/proc'),os.stat(LIVE)
+    if (a.st_dev,a.st_ino)!=(b.st_dev,b.st_ino): raise RuntimeError('private proc is not mounted')
+    mountinfo=context.pop('mountinfo')
+    context['mountinfo_sha256']=hashlib.sha256(mountinfo.encode()).hexdigest()
+    DIAGNOSTICS_ALLOWED=True
+    return {'identity':identity,'context':context,'proc_dev':a.st_dev,'proc_inode':a.st_ino}
 
 
 def dump(name, data):
@@ -69,7 +157,7 @@ def fixture(scenario):
         bad2={'stat':b'502 broken without parentheses\n','status':b'Name:\tbroken\nUid:\t0\t0\t0\t0\n','cmdline':b'broken\0'}
         first.update({501:bad1,502:bad2}); second.update({501:bad1,502:bad2})
     elif scenario=='vanish':
-        first[777]=proc_entry(777,'vanishing','S',5,5,7771,2)
+        second[777]=proc_entry(777,'vanishing','S',5,5,7771,2)
     elif scenario=='empty': first={}; second={}
     elif scenario=='proc-rollback':
         first={101:proc_entry(101,'steady','S',90,10,1001,4)}
@@ -118,7 +206,7 @@ def reset_live(scenario):
 
 
 def action(mode, scenario, role):
-    guard(False)
+    proof=guard(False)
     if scenario not in SCENARIOS or role not in ('native','candidate'): raise RuntimeError('unexpected action')
     if mode=='advance':
         for item in LIVE.iterdir():
@@ -129,20 +217,25 @@ def action(mode, scenario, role):
             else: shutil.copyfile(item,LIVE/item.name)
         actual=manifest(LIVE)
         if actual!=manifest(CASE/'snapshot-1'): raise RuntimeError('second fixture differs')
-        print(json.dumps({'action':'advance','scenario':scenario,'role':role,'manifest':actual},sort_keys=True))
+        print(json.dumps({'action':'advance','scenario':scenario,'role':role,'manifest':actual,'guard':proof},sort_keys=True))
     elif mode=='vanish':
         if scenario!='vanish': raise RuntimeError('vanish outside its case')
         path=LIVE/'777'
         before=manifest(path)
-        if before!=manifest(CASE/'snapshot-0'/'777'): raise RuntimeError('vanishing record differs')
+        if before!=manifest(CASE/'snapshot-1'/'777'): raise RuntimeError('vanishing record differs')
         shutil.rmtree(path)
         if path.exists(): raise RuntimeError('vanishing directory remains')
-        print(json.dumps({'action':'vanish','role':role,'pid':777,'before':before,'absent':True},sort_keys=True))
+        print(json.dumps({'action':'vanish','role':role,'pid':777,'before':before,'absent':True,'guard':proof},sort_keys=True))
     else: raise RuntimeError('unknown action')
 
 
 def native(scenario):
-    guard(False)
+    proof=guard(False)
+    os.close(int(os.environ.pop('LIFECYCLE_REALPROC_FD')))
+    def read_once(path):
+        fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC)
+        try: return os.read(fd,4096).hex()
+        finally: os.close(fd)
     observed=[]
     for _ in (0,1):
         with open('/proc/stat','rb',buffering=0) as stream:
@@ -151,12 +244,12 @@ def native(scenario):
         records={}; missing=[]
         for name in names:
             p=Path('/proc')/name
-            try: records[name]={k:(p/k).read_bytes().hex() for k in ('stat','status','cmdline')}
+            try: records[name]={k:read_once(p/k) for k in ('stat','status','cmdline')}
             except FileNotFoundError: missing.append(name)
         observed.append({'cpu':cpu,'names':names,'records':records,'missing':missing,
-                         'meminfo':Path('/proc/meminfo').read_bytes().hex(),
-                         'loadavg':Path('/proc/loadavg').read_bytes().hex()})
-    print(json.dumps(observed,sort_keys=True))
+                         'meminfo':read_once('/proc/meminfo'),
+                         'loadavg':read_once('/proc/loadavg')})
+    print(json.dumps({'guard':proof,'observed':observed},sort_keys=True))
 
 
 def run_observed(scenario, role):
@@ -164,22 +257,24 @@ def run_observed(scenario, role):
     if role=='native': command += ['/usr/bin/python3',HELPER,'native',scenario]
     else: command += ['/opt/bashos-parity/candidate','--noprofile','--norc','-c','builtin top --once']
     trace=HOME/(role+'.trace'); observer_err=HOME/(role+'.observer.err')
-    status=None; timeout=False
+    status=None; timeout=False; child_cleanup={'signal_attempted':False}
     with trace.open('wb') as out, observer_err.open('wb') as err:
         old=resource.getrlimit(resource.RLIMIT_FSIZE); soft=old[0]
         resource.setrlimit(resource.RLIMIT_FSIZE,(min(soft,512*1024) if soft!=resource.RLIM_INFINITY else 512*1024,old[1]))
         try:
-            p=subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=out,stderr=err)
+            p=subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=out,stderr=err,
+                               pass_fds=(int(os.environ['LIFECYCLE_REALPROC_FD']),))
             try: status=p.wait(timeout=12)
             except subprocess.TimeoutExpired:
-                timeout=True; p.kill(); p.wait()
+                timeout=True; child_cleanup={'signal_attempted':True,'unreaped_direct_child':True,'pid':p.pid}
+                p.kill(); p.wait()
         finally: resource.setrlimit(resource.RLIMIT_FSIZE,old)
     paths={x:HOME/(role+'.'+x) for x in ('out','err','trace','observer.err')}
     sizes={k:v.stat().st_size if v.exists() else None for k,v in paths.items()}
     raw=trace.read_text(errors='strict')
     try: events=[json.loads(line) for line in raw.splitlines()]; parse_error=None
     except (ValueError,UnicodeError) as exc: events=[]; parse_error=repr(exc)
-    meta={'role':role,'command':command,'observer_status':status,'timeout':timeout,'sizes':sizes,
+    meta={'role':role,'command':command,'observer_status':status,'timeout':timeout,'observer_cleanup':child_cleanup,'sizes':sizes,
           'complete':all(v is not None and v<512*1024 for v in sizes.values()) and raw.endswith('\n'),
           'observer_stderr_base64':base64.b64encode(observer_err.read_bytes()).decode(),
           'parse_error':parse_error,'events':events}
@@ -205,7 +300,26 @@ def trace_checks(meta, scenario):
         errors.append('observer incomplete or failed')
     if len([e for e in events if e.get('kind')=='start'])!=1 or len([e for e in events if e.get('kind')=='exit'])!=1:
         errors.append('missing or repeated start/exit')
+    if meta['role']=='candidate':
+        starts=[e for e in events if e.get('kind')=='start']
+        if len(starts)!=1 or starts[0].get('live_proc_inherited') is not False:
+            errors.append('candidate live-proc isolation not established')
     if any(e.get('kind')=='unsupported' for e in events): errors.append('unsupported traced operation')
+    mount=json.loads((HOME/'mount.json').read_text())
+    guard_events=[e for e in events if e.get('kind')=='guard']
+    if (len(guard_events)!=1 or guard_events[0].get('identity')!=mount['identity']['marker']['value'] or
+        guard_events[0].get('uid_map')!='0 2000 1' or guard_events[0].get('gid_map')!='0 2000 1' or
+        guard_events[0].get('mount_ns')!=mount['before']['mount_namespace'] or
+        guard_events[0].get('outer_ns')!=mount['before']['outer_namespace'] or
+        guard_events[0].get('overflow_uid')!=mount['before']['overflow_uid'] or
+        guard_events[0].get('overflow_gid')!=mount['before']['overflow_gid'] or guard_events[0].get('private') is not True):
+        errors.append('observer identity/namespace guard not established')
+    if len(guard_events)==1:
+        try:
+            raw_mountinfo=bytes.fromhex(guard_events[0]['mountinfo_hex'])
+            if hashlib.sha256(raw_mountinfo).hexdigest()!=mount['mounted_guard']['context']['mountinfo_sha256']:
+                errors.append('observer mountinfo differs')
+        except (KeyError,ValueError): errors.append('observer mountinfo missing or malformed')
     image='/usr/bin/python3' if meta['role']=='native' else '/opt/bashos-parity/candidate'
     executions=[e for e in events if e.get('kind')=='exec']
     if (len(executions)!=1 or executions[0].get('result')!=0 or
@@ -227,7 +341,9 @@ def trace_checks(meta, scenario):
         try: payload=json.loads(bytes.fromhex(event['output_hex']).decode())
         except (ValueError,UnicodeError): payload={}
         if (payload.get('scenario')!=scenario or payload.get('role')!=meta['role'] or
-            payload.get('manifest')!=manifest(CASE/'snapshot-1')):
+            payload.get('manifest')!=manifest(CASE/'snapshot-1') or
+            payload.get('guard',{}).get('identity',{}).get('marker',{}).get('value')!=mount['identity']['marker']['value'] or
+            payload.get('guard',{}).get('context',{}).get('mount_namespace')!=mount['before']['mount_namespace']):
             errors.append('transition manifest differs')
         index0=next((i for i,e in enumerate(events) if e in reads[:1]),-1)
         index1=next((i for i,e in enumerate(events) if e in reads[1:2]),-1)
@@ -241,21 +357,34 @@ def trace_checks(meta, scenario):
         numeric=sorted(x for x in visible if x.isdigit())
         if numeric!=sorted(str(pid) for pid in procs): errors.append('directory entries differ in epoch '+str(epoch))
         for pid,files in procs.items():
-            if scenario=='vanish' and epoch==1 and pid==777: continue
+            if scenario=='vanish' and epoch==2 and pid==777: continue
             read=[e for e in events if e.get('kind')=='read' and e.get('epoch')==epoch and
                   path(e)==f'/proc/{pid}/stat' and e.get('result',0)>0]
             if len(read)!=1 or read[0].get('data_hex')!=files['stat'].hex() or read[0].get('result')!=len(files['stat']):
                 errors.append(f'PID {pid} stat bytes not established in epoch {epoch}')
+    # The displayed second-sample header and row fields must be backed by
+    # actual matching reads, rather than by coincidentally matching output.
+    required={ '/proc/meminfo':MEM.encode(), '/proc/loadavg':LOAD.encode() }
+    for pid,files in expected[1][1].items():
+        if pid in (501,502) or (scenario=='vanish' and pid==777): continue
+        for name in ('status','cmdline'):
+            required[f'/proc/{pid}/{name}']=files[name]
+    for filename,value in required.items():
+        found=[e for e in events if e.get('kind')=='read' and e.get('epoch')==2 and
+               path(e)==filename and e.get('result')==len(value) and e.get('data_hex')==value.hex()]
+        if len(found)!=1: errors.append('rendered input not established: '+filename)
     if scenario=='vanish':
         gone=[(i,e) for i,e in enumerate(events) if e.get('kind')=='action' and e.get('name')=='vanish' and e.get('status')==0]
-        failed=[i for i,e in enumerate(events) if e.get('kind')=='open' and path(e)=='/proc/777/stat' and e.get('result')==-2]
-        scans=[i for i,e in enumerate(events) if e.get('kind')=='getdents' and e.get('epoch')==1 and path(e)=='/proc' and e.get('result',0)>0 and '777' in dirent_names(bytes.fromhex(e['data_hex']))]
+        failed=[i for i,e in enumerate(events) if e.get('kind')=='open' and e.get('epoch')==2 and path(e)=='/proc/777/stat' and e.get('result')==-2]
+        scans=[i for i,e in enumerate(events) if e.get('kind')=='getdents' and e.get('epoch')==2 and path(e)=='/proc' and e.get('result',0)>0 and '777' in dirent_names(bytes.fromhex(e['data_hex']))]
         if len(gone)!=1 or not failed or not scans or not (scans[0]<gone[0][0]<failed[0]):
             errors.append('vanishing scan/delete/ENOENT sequence not established')
         else:
             payload=json.loads(bytes.fromhex(gone[0][1]['output_hex']).decode())
             if (not payload.get('absent') or payload.get('pid')!=777 or payload.get('role')!=meta['role']
-                or payload.get('before')!=manifest(CASE/'snapshot-0'/'777')):
+                or payload.get('before')!=manifest(CASE/'snapshot-1'/'777')
+                or payload.get('guard',{}).get('identity',{}).get('marker',{}).get('value')!=mount['identity']['marker']['value']
+                or payload.get('guard',{}).get('context',{}).get('mount_namespace')!=mount['before']['mount_namespace']):
                 errors.append('vanishing action manifest differs')
     return errors
 
@@ -263,12 +392,17 @@ def trace_checks(meta, scenario):
 def control(scenario, meta):
     problems=trace_checks(meta,scenario)
     if problems: raise RuntimeError('native trace: '+repr(problems))
-    records=json.loads((HOME/'native.out').read_text())
+    native_data=json.loads((HOME/'native.out').read_text())
+    mount=json.loads((HOME/'mount.json').read_text())
+    if (native_data.get('guard',{}).get('identity',{}).get('marker',{}).get('value')!=mount['identity']['marker']['value']
+        or native_data.get('guard',{}).get('context',{}).get('mount_namespace')!=mount['before']['mount_namespace']):
+        raise RuntimeError('native identity evidence missing')
+    records=native_data['observed']
     expected=fixture(scenario)
     if len(records)!=2: raise RuntimeError('native control sample count')
     for epoch,(cpu,procs) in enumerate(expected):
         names=[str(i) for i in sorted(procs)]
-        missing=['777'] if scenario=='vanish' and epoch==0 else []
+        missing=['777'] if scenario=='vanish' and epoch==1 else []
         wanted={str(pid):{k:v.hex() for k,v in files.items()} for pid,files in procs.items() if str(pid) not in missing}
         row=records[epoch]
         if (row['cpu']!=cpu.encode().hex() or row['names']!=names or row['missing']!=missing or row['records']!=wanted
@@ -279,11 +413,20 @@ def control(scenario, meta):
     if terminal['status']!=0 or terminal['signal']!=0: raise RuntimeError('native reader exit')
 
 
-def parse_rows(text):
-    lines=text.splitlines(); cols=[i for i,s in enumerate(lines) if re.fullmatch(r'\s*PID\s+USER\s+%CPU\s+RSS\s+S\s+COMMAND\s*',s)]
+def parse_rows(data):
+    if not data or not data.endswith(b'\n') or any(c<32 and c not in (9,10) for c in data):
+        raise ValueError('empty, unterminated or control-containing output')
+    text=data.decode('utf-8','strict')
+    lines=text.splitlines(); cols=[i for i,line in enumerate(lines) if re.fullmatch(r'\s*PID\s+USER\s+%CPU\s+RSS\s+S\s+COMMAND\s*',line)]
     if len(cols)!=1: raise ValueError('missing or duplicate header')
+    head=lines[:cols[0]]
+    if (len(head) not in (3,4) or
+        not re.fullmatch(r'top - load 1\.25 1\.50 1\.75  procs (?:0|[1-9][0-9]*)  sort CPU  every 0s',head[0]) or
+        head[1]!='Mem: 8000 kB total, 5000 kB used, 3000 kB avail' or
+        head[2]!='Swap: 2000 kB total, 750 kB used, 1250 kB free' or
+        (len(head)==4 and head[3]!='(--once snapshot)')):
+        raise ValueError('unexpected or incomplete documented header')
     rx=re.compile(r'\s*(\d+)\s+(\S+)\s+(\d+\.\d)\s+(\d+)\s+([A-Za-z])\s+(.+)')
-    if any(rx.fullmatch(s) for s in lines[:cols[0]]): raise ValueError('row before header')
     result=[]
     for line in lines[cols[0]+1:]:
         m=rx.fullmatch(line)
@@ -291,17 +434,21 @@ def parse_rows(text):
         row=(int(m[1]),m[2],float(m[3]),int(m[4]),m[5],m[6])
         if any(x[0]==row[0] for x in result): raise ValueError('duplicate PID')
         result.append(row)
-    return lines[:cols[0]],result
+    return head,result
 
 
 def parser_controls():
-    header='top - load 1.25 1.50 1.75  procs 1  sort CPU  every 0s\n  PID USER %CPU RSS S COMMAND\n'
-    row='  101 root 10.0 16 S steady --fixture\n'
+    header=(b'top - load 1.25 1.50 1.75  procs 1  sort CPU  every 0s\n'
+            b'Mem: 8000 kB total, 5000 kB used, 3000 kB avail\n'
+            b'Swap: 2000 kB total, 750 kB used, 1250 kB free\n'
+            b'(--once snapshot)\n  PID USER %CPU RSS S COMMAND\n')
+    row=b'  101 root 10.0 16 S steady --fixture\n'
     if parse_rows(header+row)[1]!=[(101,'root',10.0,16,'S','steady --fixture')]: raise RuntimeError('positive row parser')
     if parse_rows(header)[1]!=[]: raise RuntimeError('empty row parser control')
-    for bad in ('',header+row+row,row+header+'extra\n',header+'broken\n'):
+    for bad in (b'',header+row+row,row+header+b'extra\n',header+b'broken\n',
+                header.replace(b'(--once snapshot)\n',b'extra\n'),header+row[:-1],header+b'\xff\n'):
         try: parse_rows(bad)
-        except ValueError: continue
+        except (ValueError,UnicodeError): continue
         raise RuntimeError('negative row parser')
     entry=struct.pack('<QqHB',1,0,24,4)+b'777\0\0'
     if dirent_names(entry)!=['777']: raise RuntimeError('dirent positive control')
@@ -312,7 +459,7 @@ def parser_controls():
     literal = b'101 (steady) S 1 1 1 0 -1 0 0 0 0 0 10 10 0 0 20 0 1 0 1001 1048576 4\n'
     if proc_stat(101,'steady','S',10,10,1001,4)!=literal:
         raise RuntimeError('proc(5) field position control')
-    dump('parser-controls.json',{'positive':2,'negative':4,'dirent_positive':1,'dirent_negative':2,'literal_proc5_control':True,'complete':True})
+    dump('parser-controls.json',{'positive':2,'negative':7,'dirent_positive':1,'dirent_negative':2,'literal_proc5_control':True,'complete':True})
 
 
 def assess(scenario):
@@ -320,8 +467,8 @@ def assess(scenario):
     terminal=[e for e in meta['events'] if e.get('kind')=='exit']
     if len(terminal)!=1 or terminal[0].get('status')!=0 or terminal[0].get('signal')!=0: result.append('candidate status')
     if (HOME/'candidate.err').read_bytes(): result.append('candidate stderr')
-    try: header,rows=parse_rows((HOME/'candidate.out').read_text(errors='replace'))
-    except ValueError as exc: header=[]; rows=[]; result.append('table: '+str(exc))
+    try: header,rows=parse_rows((HOME/'candidate.out').read_bytes())
+    except (ValueError,UnicodeError) as exc: header=[]; rows=[]; result.append('table: '+str(exc))
     unit=os.sysconf('SC_PAGE_SIZE')//1024
     expected={'malformed':[(101,'root',10.0,4*unit,'S','steady --fixture')],
               'vanish':[(101,'root',10.0,4*unit,'S','steady --fixture')],
@@ -346,63 +493,132 @@ def assess(scenario):
     print(scenario+'-ok'); return 0
 
 
-def inner(scenario):
-    guard(False, mounted=False)
+def inner(scenario, outer_ns):
+    global DIAGNOSTICS_ALLOWED
+    guard(False,mounted=False)
     if scenario not in SCENARIOS: raise RuntimeError('unknown scenario')
-    uid_map=Path('/proc/self/uid_map').read_text().split()[:3]
-    if uid_map!=['0','2000','1'] or os.getuid()!=0 or os.geteuid()!=0:
-        raise RuntimeError('unexpected user namespace mapping')
-    if pwd.getpwuid(0).pw_name!='root': raise RuntimeError('uid 0 name differs')
-    reset_live(scenario)
-    mount=subprocess.run(['/usr/bin/mount','-n','--bind',str(LIVE),'/proc'],capture_output=True,timeout=5)
-    dump('mount.json',{'status':mount.returncode,'stdout_base64':base64.b64encode(mount.stdout).decode(),
-                       'stderr_base64':base64.b64encode(mount.stderr).decode()})
-    if mount.returncode: raise RuntimeError('private proc mount failed')
-    guard(False)
-    native_result=run_observed(scenario,'native'); control(scenario,native_result)
-    reset_live(scenario)
-    dump('preconditions.json',{'mounted':True,'native_control':True,'uid_map':uid_map,
-         'namespace_uid':os.getuid(),'namespace_euid':os.geteuid(),
-         'proc_dev':os.stat('/proc').st_dev,'proc_inode':os.stat('/proc').st_ino,
-         'initial_manifest':manifest(LIVE)})
-    candidate_result=run_observed(scenario,'candidate')
-    if (candidate_result['observer_status']!=0 or candidate_result['timeout'] or not candidate_result['complete']
-        or candidate_result['parse_error'] or candidate_result['observer_stderr_base64']):
-        raise RuntimeError('candidate observation infrastructure failure')
-    dump('setup-stage.json',{'complete':True,'scenario':scenario})
+    if os.getgid()!=0 or os.getegid()!=0: raise RuntimeError('unexpected namespace gid')
+    realfd=os.open('/proc',os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC)
+    try:
+        before=proc_context(realfd,outer_ns=outer_ns)
+        identity=protected_identity(before['overflow_uid'],before['overflow_gid'])
+        DIAGNOSTICS_ALLOWED=True
+        if pwd.getpwuid(0).pw_name!='root': raise RuntimeError('uid 0 name differs')
+        os.environ['LIFECYCLE_REALPROC_FD']=str(realfd)
+        os.environ['LIFECYCLE_OUTER_NS']=outer_ns
+        os.environ['LIFECYCLE_MNT_NS']=before['mount_namespace']
+        reset_live(scenario)
+        mount=subprocess.run(['/usr/bin/mount','-n','--bind',str(LIVE),'/proc'],capture_output=True,timeout=5)
+        record={'status':mount.returncode,'stdout_base64':base64.b64encode(mount.stdout).decode(),
+                'stderr_base64':base64.b64encode(mount.stderr).decode(),'before':before,'identity':identity}
+        dump('mount.json',record)
+        if mount.returncode: raise RuntimeError('private proc mount failed')
+        after=proc_context(realfd,expected_ns=before['mount_namespace'],outer_ns=outer_ns)
+        proof=guard(False)
+        record['after']=after; record['mounted_guard']=proof; dump('mount.json',record)
+        controls=subprocess.run([str(OBSERVER),'descriptor-controls'],capture_output=True,timeout=5,pass_fds=(realfd,))
+        record['descriptor_controls']={'status':controls.returncode,
+            'stdout_base64':base64.b64encode(controls.stdout).decode(),
+            'stderr_base64':base64.b64encode(controls.stderr).decode()}
+        dump('mount.json',record)
+        try: lines=[json.loads(line) for line in controls.stdout.splitlines()]
+        except (ValueError,UnicodeError): raise RuntimeError('malformed descriptor controls')
+        if (controls.returncode or controls.stderr or len(lines)!=2 or lines[0].get('kind')!='guard'
+            or lines[1].get('kind')!='descriptor-controls' or not lines[1].get('complete')
+            or any(lines[1].get(key) is not True for key in ('replacement','rebind','range','dup_source','failed_dup'))):
+            raise RuntimeError('descriptor controls failed')
+        native_result=run_observed(scenario,'native'); control(scenario,native_result)
+        reset_live(scenario)
+        proof=guard(False)
+        dump('preconditions.json',{'guard':proof,'mounted':True,'native_control':True,
+             'uid_map':before['uid_map'],'gid_map':before['gid_map'],
+             'namespace_uid':os.getuid(),'namespace_euid':os.geteuid(),
+             'namespace_gid':os.getgid(),'namespace_egid':os.getegid(),
+             'initial_manifest':manifest(LIVE)})
+        candidate_result=run_observed(scenario,'candidate')
+        if (candidate_result['observer_status']!=0 or candidate_result['timeout'] or not candidate_result['complete']
+            or candidate_result['parse_error'] or candidate_result['observer_stderr_base64']):
+            raise RuntimeError('candidate observation infrastructure failure')
+        dump('setup-stage.json',{'complete':True,'scenario':scenario})
+        return 0
+    finally: os.close(realfd)
+
+
+def anchor(scenario, outer_ns):
+    identity=guard()
+    if os.readlink('/proc/self/ns/mnt')!=outer_ns: raise RuntimeError('outer mount namespace changed')
+    command=['/usr/bin/unshare','--user','--map-root-user','--mount',
+             '/usr/bin/python3',HELPER,'inner',scenario,outer_ns]
+    proc=subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    timed_out=False
+    try: out,err=proc.communicate(timeout=32)
+    except subprocess.TimeoutExpired as exc:
+        # The outer controller cleans the whole group while this anchor lives.
+        timed_out=True; out=exc.stdout or b''; err=exc.stderr or b''
+    dump('namespace.json',{'status':proc.returncode,'timeout':timed_out,'outer_guard':identity,
+         'stdout_base64':base64.b64encode(out).decode(),'stderr_base64':base64.b64encode(err).decode()})
+    sys.stdout.write('ANCHOR_READY\n'); sys.stdout.flush()
+    # Keep the group leader alive until the controller deliberately cleans it.
+    if sys.stdin.buffer.read(1)!=b'Q': raise RuntimeError('anchor protocol ended unexpectedly')
     return 0
 
 
 def setup(scenario):
-    guard()
+    identity=guard()
     if scenario not in SCENARIOS: raise RuntimeError('unknown scenario')
+    if not hasattr(os,'pidfd_open') or not hasattr(os,'P_PIDFD'):
+        raise RuntimeError('pidfd support is required for anchored cleanup')
+    probe=os.pidfd_open(os.getpid(),0)
+    os.close(probe)
+    outer_ns=os.readlink('/proc/self/ns/mnt')
     parser_controls()
     fixtures=fixture(scenario)
     for i,(cpu,records) in enumerate(fixtures): write_tree(CASE/('snapshot-'+str(i)),cpu,records)
     dump('snapshots.json',{'scenario':scenario,'epochs':[manifest(CASE/('snapshot-'+str(i))) for i in (0,1)],
-         'guest_uid':os.getuid(),'guest_euid':os.geteuid(),'vm_marker':Path('/etc/bashos-parity-vm').read_text().strip()})
-    result=subprocess.run(['/usr/bin/gcc','-O2','-Wall','-Wextra','-Werror',SOURCE,'-o',str(OBSERVER)],capture_output=True,timeout=20)
+         'guest_uid':os.getuid(),'guest_euid':os.geteuid(),'guard':identity,'outer_mount_namespace':outer_ns})
+    result=subprocess.run(['/usr/bin/gcc','-O2','-Wall','-Wextra','-Werror',SOURCE,'-o',str(OBSERVER)],capture_output=True,timeout=15)
     dump('compile.json',{'status':result.returncode,'stdout_base64':base64.b64encode(result.stdout).decode(),
                          'stderr_base64':base64.b64encode(result.stderr).decode()})
     if result.returncode: raise RuntimeError('observer compilation failed')
-    command=['/usr/bin/unshare','--user','--map-root-user','--mount','/usr/bin/python3',HELPER,'inner',scenario]
-    proc=subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
-    timed_out=False
+    command=['/usr/bin/python3',HELPER,'anchor',scenario,outer_ns]
+    proc=subprocess.Popen(command,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
+    cleanup={'anchor_pid':proc.pid,'ready':False,'live_proven':False,'group_signal_attempted':False}
+    pidfd=None; ready=b''; error=None
     try:
-        try: out,err=proc.communicate(timeout=40)
-        except subprocess.TimeoutExpired:
-            timed_out=True
-            os.killpg(proc.pid,signal.SIGKILL)
-            out,err=proc.communicate()
+        pidfd=os.pidfd_open(proc.pid,0)
+        if select.select([proc.stdout],[],[],38)[0]: ready=proc.stdout.readline(128)
+        cleanup['ready']=(ready==b'ANCHOR_READY\n')
+        # WNOWAIT avoids reaping the leader and its pinned pidfd ensures that
+        # an unexpected exit is never confused with a later reused PID.
+        exited=os.waitid(os.P_PIDFD,pidfd,os.WEXITED|os.WNOHANG|os.WNOWAIT)
+        if exited is not None:
+            error='anchor exited before group cleanup'
+        else:
+            cleanup['live_proven']=True
+            cleanup['group_signal_attempted']=True
+            try: os.killpg(proc.pid,signal.SIGKILL); cleanup['group_signal']='SIGKILL'
+            except ProcessLookupError: error='anchored group disappeared before cleanup'
+        if not cleanup['ready'] and error is None: error='anchor did not report completion'
+    except (OSError,ValueError) as exc:
+        error='anchor/pidfd cleanup failed: '+repr(exc)
     finally:
-        # This private session contains only this fixture's descendants.
-        try: os.killpg(proc.pid,signal.SIGKILL)
-        except ProcessLookupError: pass
-    dump('namespace.json',{'status':proc.returncode,'timeout':timed_out,
-                           'stdout_base64':base64.b64encode(out).decode(),
-                           'stderr_base64':base64.b64encode(err).decode()})
-    if timed_out: raise RuntimeError('namespace timeout')
-    if proc.returncode: raise RuntimeError('guest fixture setup failed')
+        # Reap only after deciding whether the still-live anchor can be signaled.
+        if cleanup['group_signal_attempted'] or not cleanup['live_proven']:
+            try: out,err=proc.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                out=b''; err=b'anchor could not be reaped without unsafe signaling'
+                error=error or 'anchor cleanup incomplete'
+        else: out=b''; err=b''
+        if pidfd is not None: os.close(pidfd)
+    if cleanup['group_signal_attempted'] and proc.returncode!=-signal.SIGKILL:
+        error=error or 'anchor termination not confirmed'
+    cleanup.update({'anchor_status':proc.returncode,'anchor_stdout_tail_base64':base64.b64encode(out).decode(),
+                    'anchor_stderr_base64':base64.b64encode(err).decode(),'error':error})
+    namespace_file=HOME/'namespace.json'
+    record=json.loads(namespace_file.read_text()) if namespace_file.exists() else {}
+    record['cleanup']=cleanup; dump('namespace.json',record)
+    if error: raise RuntimeError(error)
+    if record.get('timeout') or record.get('status')!=0: raise RuntimeError('guest fixture setup failed')
     return 0
 
 
@@ -410,7 +626,8 @@ if __name__=='__main__':
     try:
         mode=sys.argv[1]; scenario=sys.argv[2]
         if mode=='setup': rc=setup(scenario)
-        elif mode=='inner': rc=inner(scenario)
+        elif mode=='inner': rc=inner(scenario,sys.argv[3])
+        elif mode=='anchor': rc=anchor(scenario,sys.argv[3])
         elif mode=='native': native(scenario); rc=0
         elif mode in ('advance','vanish'): action(mode,scenario,sys.argv[3]); rc=0
         elif mode=='assess': guard(); rc=assess(scenario)
@@ -418,7 +635,8 @@ if __name__=='__main__':
         raise SystemExit(rc)
     except Exception as exc:
         try:
-            with (HOME/'failures.jsonl').open('a') as failures:
-                failures.write(json.dumps({'mode':sys.argv[1],'error':repr(exc)})+'\n')
+            if DIAGNOSTICS_ALLOWED:
+                with (HOME/'failures.jsonl').open('a') as failures:
+                    failures.write(json.dumps({'mode':sys.argv[1],'error':repr(exc)})+'\n')
         except Exception: pass
         print('fixture error: '+repr(exc),file=sys.stderr); raise SystemExit(125)
