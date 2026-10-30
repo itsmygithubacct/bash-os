@@ -11,17 +11,18 @@
         "ncdu/one-filesystem-boundary"
       ],
       "purpose": "Verify -x stops recursion at a nested filesystem on a different device.",
-      "oracle": "Per-observation private user and mount namespace with owned tmpfs, verified independent lstat device and block accounting, and GNU du with and without -x cross-checked against those observations. A nonempty foreign payload makes traversal measurable.",
-      "comparison": "Setup records the native controls and the frozen candidate stdout, stderr and status in the same verified namespace. The candidate-side script parses the complete listing and compares directory paths and exact allocated totals to the independent accounting. Namespace, mount, control or fixture precondition failure is a setup ERROR.",
+      "oracle": "Per-observation private user and mount namespace with owned tmpfs, independently checked lstat device and allocated-block accounting, GNU du with and without -x, and fresh inotify watches on the foreign mount and nested directory. Metadata-only and native traversal controls validate observation in each invocation.",
+      "comparison": "Setup retains candidate stdout, stderr and status plus complete inotify events from the same private mount. Metadata-only native stat must produce no foreign events and native du traversal must open both watched directories. Candidate -x must produce no foreign access/open events; unrestricted traversal must open both directories. Complete listing and exact accounting remain required. Setup and observer failures are setup ERROR; product mismatches are assessed FAIL. Primary must independently gate evidence on complete setup, control and raw diagnostics.",
       "requires": [
         "python3",
         "unshare",
         "mount",
         "du",
-        "systemd-detect-virt"
+        "systemd-detect-virt",
+        "stat"
       ],
       "helpers_sha256": {
-        "helpers/ncdu-boundary-reviewed.py": "33e5c72e33db735abc56e9530727c93d09bd41a0af42e4c1f8b5e37cbbab8043",
+        "helpers/ncdu-boundary-reviewed.py": "9aa2efdee26856b7d4d22669c06937b5683fc3b0c2419214dc808712c749418c",
         "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/ncdu-boundary-reviewed.py setup x\n",
@@ -39,7 +40,7 @@
         "ncdu-boundary-du-x.status",
         "ncdu-boundary-du-full.out",
         "ncdu-boundary-du-full.err",
-        "ncdu-boundary-du-full.status",
+        "ncdu-boundary-observer.json",
         "ncdu-boundary-control.json",
         "ncdu-boundary-candidate.out",
         "ncdu-boundary-candidate.err",
@@ -60,17 +61,18 @@
         "ncdu/one-filesystem-boundary"
       ],
       "purpose": "Verify traversal without -x counts the nested filesystem.",
-      "oracle": "Per-observation private user and mount namespace with owned tmpfs, verified independent lstat device and block accounting, and GNU du with and without -x cross-checked against those observations. A nonempty foreign payload makes traversal measurable.",
-      "comparison": "Setup records the native controls and the frozen candidate stdout, stderr and status in the same verified namespace. The candidate-side script parses the complete listing and compares directory paths and exact allocated totals to the independent accounting. Namespace, mount, control or fixture precondition failure is a setup ERROR.",
+      "oracle": "Per-observation private user and mount namespace with owned tmpfs, independently checked lstat device and allocated-block accounting, GNU du with and without -x, and fresh inotify watches on the foreign mount and nested directory. Metadata-only and native traversal controls validate observation in each invocation.",
+      "comparison": "Setup retains candidate stdout, stderr and status plus complete inotify events from the same private mount. Metadata-only native stat must produce no foreign events and native du traversal must open both watched directories. Candidate -x must produce no foreign access/open events; unrestricted traversal must open both directories. Complete listing and exact accounting remain required. Setup and observer failures are setup ERROR; product mismatches are assessed FAIL. Primary must independently gate evidence on complete setup, control and raw diagnostics.",
       "requires": [
         "python3",
         "unshare",
         "mount",
         "du",
-        "systemd-detect-virt"
+        "systemd-detect-virt",
+        "stat"
       ],
       "helpers_sha256": {
-        "helpers/ncdu-boundary-reviewed.py": "33e5c72e33db735abc56e9530727c93d09bd41a0af42e4c1f8b5e37cbbab8043",
+        "helpers/ncdu-boundary-reviewed.py": "9aa2efdee26856b7d4d22669c06937b5683fc3b0c2419214dc808712c749418c",
         "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/ncdu-boundary-reviewed.py setup full\n",
@@ -88,7 +90,7 @@
         "ncdu-boundary-du-x.status",
         "ncdu-boundary-du-full.out",
         "ncdu-boundary-du-full.err",
-        "ncdu-boundary-du-full.status",
+        "ncdu-boundary-observer.json",
         "ncdu-boundary-control.json",
         "ncdu-boundary-candidate.out",
         "ncdu-boundary-candidate.err",

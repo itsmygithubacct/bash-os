@@ -1,12 +1,16 @@
 #!/usr/bin/python3
 # SPDX-License-Identifier: MIT
 """Guest-only, independently accounted ncdu mount-boundary fixture."""
+import base64
+import ctypes
 import json
 import os
 from pathlib import Path
 import re
 import resource
+import signal
 import stat
+import struct
 import subprocess
 import sys
 import uuid
@@ -15,6 +19,9 @@ CASE = Path('/tmp/parity-case')
 HOME = Path('/tmp/parity-home')
 HELPER = '/opt/bashos-parity/harness/helpers/ncdu-boundary-reviewed.py'
 LIMIT = 256 * 1024
+EVENT_LIMIT = 32 * 1024
+IN_ACCESS, IN_OPEN = 0x00000001, 0x00000020
+IN_UNMOUNT, IN_Q_OVERFLOW, IN_IGNORED = 0x00002000, 0x00004000, 0x00008000
 
 
 def guard(inner=False):
@@ -59,6 +66,18 @@ def parser_selftest():
         except (ValueError, UnicodeError):
             continue
         raise RuntimeError('parser negative self-test failed')
+    sample = struct.pack('=iIII', 4, IN_OPEN, 0, 0)
+    parsed = event_records(sample, {4: 'foreign'})
+    if len(parsed) != 1 or parsed[0]['mask'] != IN_OPEN or parsed[0]['name_base64']:
+        raise RuntimeError('event parser positive self-test failed')
+    for bad in (sample[:-1], sample + b'\0', struct.pack('=iIII', -1, IN_Q_OVERFLOW, 0, 0),
+                struct.pack('=iIII', 4, IN_OPEN, 0, 4) + b'abcd',
+                struct.pack('=iIII', 5, IN_OPEN, 0, 0)):
+        try:
+            event_records(bad, {4: 'foreign'})
+        except RuntimeError:
+            continue
+        raise RuntimeError('event parser negative self-test failed')
 
 
 def save(name, data):
@@ -82,6 +101,119 @@ def command(argv, name, timeout=15):
 
 def limits():
     resource.setrlimit(resource.RLIMIT_FSIZE, (LIMIT, LIMIT))
+
+
+def event_records(raw, watches):
+    events = []
+    offset = 0
+    while offset < len(raw):
+        if len(raw) - offset < 16:
+            raise RuntimeError('truncated inotify header')
+        wd, mask, cookie, length = struct.unpack_from('=iIII', raw, offset)
+        end = offset + 16 + length
+        if end > len(raw) or (length and b'\0' not in raw[offset + 16:end]):
+            raise RuntimeError('truncated inotify name')
+        if mask & (IN_UNMOUNT | IN_Q_OVERFLOW | IN_IGNORED) or wd not in watches:
+            raise RuntimeError('inotify watch lost or queue overflow')
+        name = bytes(raw[offset + 16:end]).split(b'\0', 1)[0]
+        events.append({'watch': watches[wd], 'wd': wd, 'mask': mask,
+                       'cookie': cookie, 'name_base64': base64.b64encode(name).decode()})
+        offset = end
+    return events
+
+
+class DirectoryObserver:
+    """Fresh inotify watches; stat is silent while directory opens are visible."""
+    def __init__(self, tree):
+        self.libc = ctypes.CDLL(None, use_errno=True)
+        self.libc.inotify_init1.argtypes = [ctypes.c_int]
+        self.libc.inotify_init1.restype = ctypes.c_int
+        self.libc.inotify_add_watch.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32]
+        self.libc.inotify_add_watch.restype = ctypes.c_int
+        self.fd = self.libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
+        if self.fd < 0:
+            raise OSError(ctypes.get_errno(), 'inotify_init1')
+        self.watches = {}
+        self.raw = bytearray()
+        self.closed = False
+        try:
+            for name in ('foreign', 'foreign/deep'):
+                wd = self.libc.inotify_add_watch(self.fd, os.fsencode(tree / name), IN_OPEN | IN_ACCESS)
+                if wd < 0:
+                    raise OSError(ctypes.get_errno(), 'inotify_add_watch ' + name)
+                if wd in self.watches:
+                    raise RuntimeError('duplicate watch descriptor')
+                self.watches[wd] = name
+        except Exception:
+            os.close(self.fd)
+            raise
+
+    def finish(self):
+        raw = self.raw
+        try:
+            while True:
+                try:
+                    chunk = os.read(self.fd, 65536)
+                except BlockingIOError:
+                    break
+                if not chunk:
+                    raise RuntimeError('unexpected inotify EOF')
+                raw.extend(chunk)
+                if len(raw) > EVENT_LIMIT:
+                    raise RuntimeError('inotify observation exceeds limit')
+        finally:
+            os.close(self.fd)
+            self.closed = True
+        events = event_records(raw, self.watches)
+        return {'complete': True, 'watches': self.watches, 'events': events,
+                'raw_base64': base64.b64encode(raw).decode(), 'bytes': len(raw)}
+
+
+def observation(tree, label, report, action):
+    """Preserve stage and observer failures even when setup aborts."""
+    item = {'state': 'starting', 'complete': False}
+    report['observations'][label] = item
+    save('observer.json', (json.dumps(report, sort_keys=True, indent=2) + '\n').encode())
+    watcher = None
+    try:
+        watcher = DirectoryObserver(tree)
+        item['state'] = 'running'
+        save('observer.json', (json.dumps(report, sort_keys=True, indent=2) + '\n').encode())
+        outcome = action()
+        item['outcome'] = outcome
+        events = watcher.finish()
+        watcher = None
+        item.update(events)
+        item['state'] = 'complete'
+    except Exception as exc:
+        item['state'] = 'error'
+        item['error'] = type(exc).__name__ + ': ' + str(exc)
+        if isinstance(exc, subprocess.TimeoutExpired):
+            item['outcome'] = {'timeout': True,
+                               'stdout_base64': base64.b64encode(exc.stdout or b'').decode(),
+                               'stderr_base64': base64.b64encode(exc.stderr or b'').decode()}
+        if watcher is not None and not watcher.closed:
+            try:
+                item['partial'] = watcher.finish()
+            except Exception as inner:
+                item['observer_error'] = type(inner).__name__ + ': ' + str(inner)
+        if watcher is not None:
+            item['raw_on_error_base64'] = base64.b64encode(watcher.raw).decode()
+            item['raw_on_error_bytes'] = len(watcher.raw)
+        raise
+    finally:
+        save('observer.json', (json.dumps(report, sort_keys=True, indent=2) + '\n').encode())
+    return item
+
+
+def touched(item, name):
+    return any(event['watch'] == name and event['mask'] & (IN_OPEN | IN_ACCESS)
+               for event in item['events'])
+
+
+def opened(item, name):
+    return any(event['watch'] == name and event['mask'] & IN_OPEN and
+               not event['name_base64'] for event in item['events'])
 
 
 def setup_inner(mode, outer_user, outer_mount):
@@ -145,15 +277,48 @@ def setup_inner(mode, outer_user, outer_mount):
     if b['tree/foreign'] != 0 or foreign <= 0 or full['tree'] <= b['tree'] + local:
         raise RuntimeError('boundary allocation does not permit an unambiguous oracle')
     one = {'tree/local': local, 'tree': b['tree'] + local}
+    observer = {'version': 1, 'mode': mode, 'observations': {}}
+
+    def metadata_control():
+        result = subprocess.run(['/usr/bin/stat', '-c', '%d:%i', 'tree/foreign'],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                timeout=15, check=False)
+        return {'returncode': result.returncode,
+                'stdout_base64': base64.b64encode(result.stdout).decode(),
+                'stderr_base64': base64.b64encode(result.stderr).decode()}
+
+    negative = observation(tree, 'metadata-only', observer, metadata_control)
+    expected_stat = ('%d:%d\n' % (stats['tree/foreign']['dev'], stats['tree/foreign']['ino'])).encode()
+    if (negative['outcome'] != {'returncode': 0,
+                                 'stdout_base64': base64.b64encode(expected_stat).decode(),
+                                 'stderr_base64': ''} or
+        touched(negative, 'foreign') or touched(negative, 'foreign/deep')):
+        raise RuntimeError('metadata-only observer control failed')
+
     for label, argv, expected in (
         ('du-x', ['/usr/bin/du', '-x', '-B1', 'tree'], one),
         ('du-full', ['/usr/bin/du', '-B1', 'tree'], full)):
-        result = command(argv, label)
-        observed = records(result.stdout)
+        if label == 'du-full':
+            def positive_control():
+                result = command(argv, label)
+                return {'returncode': result.returncode,
+                        'stdout_base64': base64.b64encode(result.stdout).decode(),
+                        'stderr_base64': base64.b64encode(result.stderr).decode()}
+            positive = observation(tree, 'native-traversal', observer, positive_control)
+            if not opened(positive, 'foreign') or not opened(positive, 'foreign/deep'):
+                raise RuntimeError('native traversal observer control failed')
+            outcome = positive['outcome']
+            stdout = base64.b64decode(outcome['stdout_base64'], validate=True)
+            stderr = base64.b64decode(outcome['stderr_base64'], validate=True)
+            rc = outcome['returncode']
+        else:
+            result = command(argv, label)
+            stdout, stderr, rc = result.stdout, result.stderr, result.returncode
+        observed = records(stdout)
         allowed = dict(expected)
         if label == 'du-x' and 'tree/foreign' in observed:
             allowed['tree/foreign'] = 0
-        if result.returncode or result.stderr or observed != allowed:
+        if rc or stderr or observed != allowed:
             raise RuntimeError(label + ' native control disagrees with stat accounting')
     report = {'mode': mode, 'namespaces': ns, 'outer_user': outer_user,
               'outer_mount': outer_mount, 'stats': stats, 'mountinfo': mount_lines,
@@ -164,16 +329,37 @@ def setup_inner(mode, outer_user, outer_mount):
     script = ('if [[ $(type -t ncdu) != builtin ]]; then printf "ncdu builtin missing\\n" >&2; exit 99; fi\n'
               + ('ncdu -p -x tree\n' if mode == 'x' else 'ncdu -p tree\n'))
     env = dict(os.environ, PATH='/empty', BASH_ENV='', ENV='')
-    with (HOME / 'ncdu-boundary-candidate.out').open('wb') as out, \
-         (HOME / 'ncdu-boundary-candidate.err').open('wb') as err:
-        try:
-            proc = subprocess.run(['/opt/bashos-parity/candidate', '--noprofile', '--norc', '-c', script],
-                                  stdout=out, stderr=err, env=env, timeout=15,
-                                  preexec_fn=limits, check=False)
-            status = {'returncode': proc.returncode, 'timeout': False}
-        except subprocess.TimeoutExpired:
-            status = {'returncode': None, 'timeout': True}
-    save('candidate.status', (json.dumps(status, sort_keys=True) + '\n').encode())
+    def candidate_call():
+        with (HOME / 'ncdu-boundary-candidate.out').open('wb') as out, \
+             (HOME / 'ncdu-boundary-candidate.err').open('wb') as err:
+            proc = subprocess.Popen(['/opt/bashos-parity/candidate', '--noprofile', '--norc', '-c', script],
+                                    stdout=out, stderr=err, env=env,
+                                    preexec_fn=limits, start_new_session=True)
+            try:
+                status = {'returncode': proc.wait(timeout=15), 'timeout': False}
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                reaped = proc.wait(timeout=5)
+                status = {'returncode': None, 'timeout': True, 'reaped_returncode': reaped}
+            status.update(pid=proc.pid, group_empty=False)
+            save('candidate.status', (json.dumps(status, sort_keys=True) + '\n').encode())
+            try:
+                os.killpg(proc.pid, 0)
+            except ProcessLookupError:
+                pass
+            else:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                raise RuntimeError('candidate left processes in its observation group')
+            status['group_empty'] = True
+            save('candidate.status', (json.dumps(status, sort_keys=True) + '\n').encode())
+        return status
+    observation(tree, 'candidate', observer, candidate_call)
 
 
 def setup(mode):
@@ -191,11 +377,26 @@ def verify(mode):
     guard()
     report = json.loads((HOME / 'ncdu-boundary-control.json').read_text())
     status = json.loads((HOME / 'ncdu-boundary-candidate.status').read_text())
+    observer = json.loads((HOME / 'ncdu-boundary-observer.json').read_text())
     out = (HOME / 'ncdu-boundary-candidate.out').read_bytes()
     err = (HOME / 'ncdu-boundary-candidate.err').read_bytes()
     if report['mode'] != mode or report['parser_selftest'] != 'ok':
         raise RuntimeError('missing matching setup preconditions')
-    if status != {'returncode': 0, 'timeout': False} or err:
+    if observer['version'] != 1 or observer['mode'] != mode:
+        raise RuntimeError('missing matching observer preconditions')
+    observations = observer['observations']
+    if (set(observations) != {'metadata-only', 'native-traversal', 'candidate'} or
+        any(item['state'] != 'complete' or item['complete'] is not True for item in observations.values()) or
+        observations['candidate']['outcome'] != status):
+        raise RuntimeError('incomplete observer records')
+    candidate_events = observations['candidate']
+    if mode == 'x' and (touched(candidate_events, 'foreign') or touched(candidate_events, 'foreign/deep')):
+        raise ValueError('candidate traversed the foreign filesystem with -x')
+    if mode == 'full' and (not opened(candidate_events, 'foreign') or
+                           not opened(candidate_events, 'foreign/deep')):
+        raise ValueError('candidate did not open the foreign directories')
+    if (status.get('returncode') != 0 or status.get('timeout') is not False or
+        status.get('group_empty') is not True or not isinstance(status.get('pid'), int) or err):
         raise ValueError('candidate failed, timed out, or produced diagnostics')
     if len(out) >= LIMIT or len(err) >= LIMIT:
         raise ValueError('candidate output hit capture limit')
