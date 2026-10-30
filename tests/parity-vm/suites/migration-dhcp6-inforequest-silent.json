@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-dhcp6-inforequest-silent-timeout",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Close dhcp6/deferred_inforequest_exchange r3 only: a silent ::1 peer counts one inforequest exchange and the command retransmits three times, then exits 1 with the documented no-REPLY diagnostic. No REPLY is sent.",
+      "comparison": "Contract on the frozen candidate only. A non-root uid-2000 shell exports BASHDHCP6_CLIENT_PORT=54667 and BASHDHCP6_SERVER_PORT=54767, passes -d so no interface or SO_BINDTODEVICE is used, and targets -S ::1 -w 1. silent6.py binds UDP ::1:54767, records each datagram, and does not send. Pass requires status 1, empty dhcp6 stdout, stderr exactly 'dhcp6: inforequest: no REPLY (timeout)', and exactly three type-11 datagrams that share one xid. This does not credit r1 option layout, r2 REPLY decoding, or r4's default port 546 and multicast destination. The shell prefixes builtin_error with the script path and line when the case runs as a file. That prefix is accepted. The diagnostic text, status, and three type-11 datagrams are still required.",
+      "covers": [
+        "dhcp6/deferred_inforequest_exchange"
+      ],
+      "requires": [
+        "python3",
+        "sleep"
+      ],
+      "oracle": "RFC 8415 INFORMATION-REQUEST is message type 11. loadables/dhcp6.c inforequest computes one xid, sends that datagram, waits, and repeats while no REPLY arrives, for at most three attempts, then builtin_error 'inforequest: no REPLY (timeout)' and EXECUTION_FAILURE. -w is seconds. -S selects the unicast destination. BASHDHCP6_CLIENT_PORT and BASHDHCP6_SERVER_PORT select the unprivileged ports. The peer is a counter, not a server, so the expected result is the timeout failure rather than a lease.",
+      "files": {
+        "silent6.py": "# SPDX-License-Identifier: MIT\n# Silent IPv6 UDP counter for one dhcp6 inforequest retry obligation.\n# Binds ::1 only, records datagrams, and never sends a reply.\nimport socket\nimport sys\nimport time\n\ndef main():\n    port = int(sys.argv[1])\n    seen = sys.argv[2]\n    ready = sys.argv[3]\n    sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)\n    try:\n        sock.bind((\"::1\", port))\n    except OSError as exc:\n        sys.stderr.write(\"bind ::1:%d: %s\\n\" % (port, exc))\n        return 2\n    with open(ready, \"w\", encoding=\"ascii\") as handle:\n        handle.write(\"ready\\n\")\n    sock.settimeout(0.2)\n    deadline = time.monotonic() + 6\n    rows = []\n    while len(rows) < 3 and time.monotonic() < deadline:\n        try:\n            data, _addr = sock.recvfrom(2048)\n        except socket.timeout:\n            continue\n        if len(data) < 4:\n            rows.append(\"short 0\")\n            continue\n        xid = (data[1] << 16) | (data[2] << 8) | data[3]\n        rows.append(\"%d %06x\" % (data[0], xid))\n    with open(seen, \"w\", encoding=\"ascii\") as handle:\n        handle.write(\"\".join(row + \"\\n\" for row in rows))\n    return 0\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n"
+      },
+      "script": "lp=\ncleanup() {\n  if [[ -n ${lp} ]]; then\n    kill \"$lp\" 2>/dev/null || true\n    wait \"$lp\" 2>/dev/null || true\n    lp=\n  fi\n}\nread_file() {\n  local __dest=$1 __file=$2 __data=\n  [[ -f $__file ]] || { printf -v \"$__dest\" %s \"\"; return 0; }\n  IFS= read -r -d '' __data <\"$__file\" || true\n  printf -v \"$__dest\" %s \"$__data\"\n}\ntrap cleanup EXIT\nexport BASHDHCP6_CLIENT_PORT=54667\nexport BASHDHCP6_SERVER_PORT=54767\n/usr/bin/python3 silent6.py 54767 seen.txt ready.txt >listen.out 2>listen.err &\nlp=$!\nready=0\nfor _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do\n  if [[ -f ready.txt ]]; then ready=1; break; fi\n  /bin/sleep 0.1\ndone\nif [[ $ready -ne 1 ]]; then\n  read_file listen_err listen.err\n  printf 'mismatch\\nlistener=not-ready\\nlisten_err=%q\\n' \"$listen_err\"\n  exit 1\nfi\ndhcp6 inforequest -d 00030001020000000099 -S ::1 -w 1 >out.txt 2>err.txt\nrc=$?\nif [[ -n $lp ]]; then\n  wait \"$lp\" || true\n  lp=\nfi\ncount=0\ntypes=\nxid_same=1\nprev=\nif [[ -f seen.txt ]]; then\n  while IFS= read -r line || [[ -n $line ]]; do\n    [[ -z $line ]] && continue\n    count=$((count + 1))\n    typ=${line%% *}\n    xid=${line#* }\n    if [[ -n $types ]]; then types+=\",\"; fi\n    types+=$typ\n    if [[ -z $prev ]]; then prev=$xid\n    elif [[ $xid != \"$prev\" ]]; then xid_same=0\n    fi\n  done <seen.txt\nfi\nempty=0\n[[ ! -s out.txt ]] && empty=1\nread_file err err.txt\nread_file listen_err listen.err\nwant=$'dhcp6: inforequest: no REPLY (timeout)\\n'\n# builtin_error from a script is prefixed with the candidate path and line.\n# The requirement is the diagnostic text, not that prefix.\nprefix=${err%\"$want\"}\ndiag_ok=0\nif [[ $err == \"$want\" ]]; then\n  diag_ok=1\nelif [[ $prefix$want == \"$err\" && $prefix == *\": line \"*\": \" ]]; then\n  num=${prefix##*: line }\n  num=${num%: }\n  case $num in\n    \"\"|*[!0-9]*) diag_ok=0 ;;\n    *) diag_ok=1 ;;\n  esac\nfi\nif [[ $rc -eq 1 && $count -eq 3 && $types == \"11,11,11\" && $xid_same -eq 1 && $empty -eq 1 && $diag_ok -eq 1 && -z $listen_err ]]; then\n  printf 'status=1\\ncount=3\\ntypes=11,11,11\\nxid_same=1\\nstdout_empty=1\\ndiagnostic=inforequest: no REPLY (timeout)\\n'\n  exit 0\nfi\nprintf 'mismatch\\nstatus=%s\\ncount=%s\\ntypes=%s\\nxid_same=%s\\nstdout_empty=%s\\nstderr=%q\\nlisten_err=%q\\n' \\\n  \"$rc\" \"$count\" \"$types\" \"$xid_same\" \"$empty\" \"$err\" \"$listen_err\"\nexit 1\n",
+      "expected_status": 0,
+      "timeout": 15,
+      "stdout": "status=1\ncount=3\ntypes=11,11,11\nxid_same=1\nstdout_empty=1\ndiagnostic=inforequest: no REPLY (timeout)\n",
+      "stderr": ""
+    }
+  ]
+}
