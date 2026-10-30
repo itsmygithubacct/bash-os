@@ -25844,26 +25844,40 @@
         "purpose": "Verify that -x stops recursion when a nested directory is on a different device.",
         "reason": "A meaningful fixture needs two distinct st_dev values. Creating that boundary requires a private mount or a reviewed stat mock, neither of which the runner provides; defer to a future disposable VM with a dedicated fixture filesystem."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Never executed. A second st_dev is reachable unprivileged: an unprivileged user+mount namespace (unshare -Urm) may mount a tmpfs on a fixture subdirectory. GNU du -x in the same namespace is the parity oracle.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Both original requirements have paired, independently audited observations on the frozen x86_64 candidates. A private non-root user and mount namespace supplies distinct device identities; each invocation records native controls, complete candidate output and raw directory observer evidence.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-x does not descend into a nested directory on a different st_dev",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ncdu-boundary-reviewed-x",
+              "assertion": "Both frozen builds with -x count only the local filesystem. Complete raw inotify records show no successful open/access on either foreign directory, while per-invocation metadata-only and native traversal controls establish observer sensitivity. GNU du -x and independent lstat allocated-block accounting agree.",
+              "definition_sha256": "1e554a3640f36edaa57a435a1360fb428a94f36a0fff6aeb6246e3d4929558ee"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "without -x the nested filesystem is counted",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ncdu-boundary-reviewed-full",
+              "assertion": "Both frozen builds without -x open both watched foreign directories and count the nested payload. Complete unique directory listings agree with independently recomputed lstat blocks and GNU du in the same private mount namespace.",
+              "definition_sha256": "f6cb0b8a88e0421c55fd53387858ea0d62206ff4d95fd745f8209b42ac438653"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Source: ncdu.c:222 (one_fs check), :536/544 option parsing, :565 dev_root. The guest's scratch tmpfs mounts (/tmp, /dev/shm) are separate devices but cannot be nested under the case root without mounting."
+      "notes": "Source: ncdu.c:222 (one_fs check), :536/544 option parsing, :565 dev_root. The guest's scratch tmpfs mounts (/tmp, /dev/shm) are separate devices but cannot be nested under the case root without mounting. The independent data gate checks all capture envelopes, device and inode identities, Linux inotify bytes, allocated-block totals and protected VM identity proofs. Inotify observes successful directory opens/accesses on two watched inodes; it has no process attribution and relies on quiescent isolated execution. Failed opens and arbitrary metadata-only descendant probes are outside this observation. Earlier setup errors and the run with incomplete shutdown-request evidence remain unaccepted."
     },
     {
       "topic": "netids/deferred-active-firewall-blocking",

@@ -7,8 +7,8 @@ reviewed requirements, evidence links and specific remaining gaps. The
 saved static and dynamic VM runs. The initial qualification tables in the VM
 guide describe the earlier fixture set.
 
-The current review covers 399 of the 600 topics on both builds: static 209 PASS / 190 FAIL;
-dynamic 210 PASS / 189 FAIL. The other 201 retain unresolved requirements. These are topic counts,
+The current review covers 400 of the 600 topics on both builds: static 210 PASS / 190 FAIL;
+dynamic 211 PASS / 189 FAIL. The other 200 retain unresolved requirements. These are topic counts,
 not additional behavioral test results.
 
 The syslog review adds bounded three-record FIFO observations for startup, SIGHUP and periodic replay on both builds. Sender attribution is inferred from pinned serial source and isolated networking; HUP was queued while the daemon was stopped.
@@ -52,6 +52,8 @@ The strace summary review checks both `-c` and `--summary` against a fixed x86_6
 The strace execution review records two failures on both frozen builds: an exec event splits a syscall record across physical lines, and `write` displays its buffer address instead of quoted data. Exit-status propagation, output-file routing, preserved stdout and named/numeric syscall filters pass. Every trace event is accounted for; semantic assembly supports those independent properties while the original physical-line failure stays visible.
 
 The strace child-follow review checks one owned fork in both modes on each frozen build. With `-f`, tagged child calls are present; without it, the complete trace contains parent records only. Direct and native controls establish each invocation, and the raw audit verifies unique result attribution, child exit before reaping, ECHILD on a second wait and parent status 42. Physical-line failures remain separate observations; no GNU output or general signal-delivery parity is claimed.
+
+The ncdu boundary review checks both `-x` and unrestricted traversal in a private user and mount namespace. Both builds count only local allocated blocks with `-x` and include the nested filesystem without it. Independent file accounting, GNU du and per-invocation metadata and traversal controls qualify the observations. Raw inotify records observe successful opens/accesses on two watched directories in the quiescent guest; they do not attribute events to a PID or observe failed opens and arbitrary metadata probes.
 
 A historical case becomes `MIGRATED` only when every requirement has an explicit
 assertion and valid execution evidence on both builds. Its replacement cases

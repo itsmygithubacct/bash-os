@@ -192,9 +192,18 @@
     },
     {
       "id": "one-filesystem-boundary",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify that -x stops recursion when a nested directory is on a different device.",
-      "reason": "Never executed. A second st_dev is reachable unprivileged: an unprivileged user+mount namespace (unshare -Urm) may mount a tmpfs on a fixture subdirectory. GNU du -x in the same namespace is the parity oracle."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ncdu-boundary-reviewed-full"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ncdu-boundary-reviewed-x"
+        }
+      ]
     },
     {
       "id": "missing-not-directory",

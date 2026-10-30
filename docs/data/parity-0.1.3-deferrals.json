@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "119c2199db8067b89bf58de9ab53060afbf9b2a38ae9c100b64beacbf3acf2b9",
+  "ledger_sha256": "37dcac64fd5411f3eb95e50172b24f6fd6c973d27dd79e85339a342306402d19",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
     "partial": 94,
-    "full": 399,
-    "none": 107
+    "full": 400,
+    "none": 106
   },
   "migrations": {
-    "deferred": 201,
-    "replacement": 399
+    "deferred": 200,
+    "replacement": 400
   },
   "pending_full_topics": [],
   "builds": {
@@ -8126,6 +8126,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793394703.2495284
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "ncdu-boundary-static-v4",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "763fac75a3aa9e2eeb24515af746487a7616984aed0375b1b5d7e04716453ede",
+            "provenance.json": "e8b5011834238d0498ba59e1ae724d4ad04402aa5d809466ea75de844d3654ee",
+            "payload.tar": "23fcf2a1ca257e8426a9cf3a0617d2db567f5316ed2b5c6e970ff948db7e2e35",
+            "evidence.tar": "9ae26661961db3b385d06aa455c4882d2e01440d167c95d03adeaa5f8b893710"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793395819.6537511
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -34719,28 +34745,42 @@
         },
         {
           "topic": "ncdu/one-filesystem-boundary",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-x does not descend into a nested directory on a different st_dev",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ncdu-boundary-reviewed-x",
+                  "status": "PASS",
+                  "run": "ncdu-boundary-static-v4"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "without -x the nested filesystem is counted",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ncdu-boundary-reviewed-full",
+                  "status": "PASS",
+                  "run": "ncdu-boundary-static-v4"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -58048,9 +58088,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 201,
+        "UNRESOLVED": 200,
         "FAIL": 190,
-        "PASS": 209
+        "PASS": 210
       },
       "migration_without_complete_evidence": []
     },
@@ -66166,6 +66206,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793394592.6753516
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "ncdu-boundary-dynamic-v4-r2",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "8e99e2e5e987372bae7331da87096b8bba3ed90511c2f7af47ab5daeea3ce9b6",
+            "provenance.json": "d7f68ff4d1131f9c760348a07b6682704f703f6320f6edcf440dc6861039e685",
+            "payload.tar": "203f0e628af73f0ebb3c7eb0cdb603242d38adabc147895dbd6fb8de01444dbb",
+            "evidence.tar": "6a01a6fc44eb9b9e6dde9d534f6e70fd4f9847ac00c8d20a70e2220fea4600f8"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793396084.9228282
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -92759,28 +92825,42 @@
         },
         {
           "topic": "ncdu/one-filesystem-boundary",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-x does not descend into a nested directory on a different st_dev",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ncdu-boundary-reviewed-x",
+                  "status": "PASS",
+                  "run": "ncdu-boundary-dynamic-v4-r2"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "without -x the nested filesystem is counted",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ncdu-boundary-reviewed-full",
+                  "status": "PASS",
+                  "run": "ncdu-boundary-dynamic-v4-r2"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -116088,9 +116168,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 201,
+        "UNRESOLVED": 200,
         "FAIL": 189,
-        "PASS": 210
+        "PASS": 211
       },
       "migration_without_complete_evidence": []
     }
