@@ -36868,9 +36868,9 @@
         "purpose": "Exercise initial pwd, relative and quoted cd, subsequent remote ls, and batch termination against a controlled remote tree.",
         "reason": "Requires a disposable SSH peer that accepts only the candidate's BASHSSH1 command framing and an independent OpenSSH SFTP server mock backed by a small relative fixture tree. Session startup calls remote pwd before reading verbs. The user forbids network activity here, so this operation comparison is deferred."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: The tree-backed cd/ls passes in --openssh mode via a local SSH-shaped command adapter; the quoted case fails before the intended listing. This original scenario specifically requires the candidate's BASHSSH1 framing peer plus a tree-backed independent OpenSSH SFTP mock. The proposed tree-backed case does not exercise BASHSSH1, so do not combine it automatically with a separate canned native-framing observation.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All five original session-navigation requirements now have paired observations. The new selected-directory listing exercises native BASHSSH1 framing and a tree-backed OpenSSH control together; all earlier evidence and quoted-path failures remain.",
       "requirements": [
         {
           "id": "r1",
@@ -36902,6 +36902,18 @@
               "id": "migration-transfer-sftp-navigation-r4",
               "assertion": "Original obligation: cd with relative and quoted paths (spaces) changes the tracked remote cwd. Both builds record FAIL; static candidate status=0; pwd-initial=1; pwd-after-cd=0; listing=0; peer-stage=observed; reference status=0; pwd-initial=1; pwd-after-cd=1; listing=1; peer-stage=observed; no captured tree difference. Client diagnostic: sh: 1: cd: can't cd to \"space.",
               "definition_sha256": "93ff378be16b4735642becb86c0d4715e465dd7bc26c1e7bfa435a8d79d6e442"
+            },
+            {
+              "group": "shell",
+              "id": "migration-farm600-sftp-remaining-reviewed-navigation-escaped",
+              "assertion": "Both frozen builds complete the escaped relative cd through the native BASHSSH1 peer, establish the selected cwd and list its unique file. Complete request and response frames agree with the independent tree-backed OpenSSH control.",
+              "definition_sha256": "9764c43260d5639e79089ff51345dbe6297368ae2a9348f0812fd800332113f2"
+            },
+            {
+              "group": "shell",
+              "id": "migration-farm600-sftp-remaining-reviewed-navigation-quoted",
+              "assertion": "Both frozen builds send a malformed quoted cd command to the controlled BASHSSH1 peer, receive status 127 and retain the initial cwd. This reached path-parsing failure remains FAIL despite candidate builtin status zero; the intended selected-directory listing is not reached.",
+              "definition_sha256": "8f84c9aea11c461e218f7bd981239b206e7b0b3404659b53d3de5c5cac3396a3"
             }
           ],
           "gap": ""
@@ -36909,7 +36921,7 @@
         {
           "id": "r3",
           "behavior": "ls after cd lists the controlled remote tree.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -36922,9 +36934,15 @@
               "id": "migration-transfer-sftp-navigation-r4",
               "assertion": "Original obligation: ls after cd lists the controlled remote tree. Both builds record FAIL; static candidate status=0; pwd-initial=1; pwd-after-cd=0; listing=0; peer-stage=observed; reference status=0; pwd-initial=1; pwd-after-cd=1; listing=1; peer-stage=observed; no captured tree difference. Client diagnostic: sh: 1: cd: can't cd to \"space.",
               "definition_sha256": "93ff378be16b4735642becb86c0d4715e465dd7bc26c1e7bfa435a8d79d6e442"
+            },
+            {
+              "group": "shell",
+              "id": "migration-farm600-sftp-remaining-reviewed-navigation-escaped",
+              "assertion": "Both frozen builds list selected-needle after cd to the directory containing a space. The complete native BASHSSH1 pwd, cd and ls frames bind the selected cwd and exact listing to independently successful tree-backed OpenSSH controls, distinct root and decoy files, and complete untruncated captures.",
+              "definition_sha256": "9764c43260d5639e79089ff51345dbe6297368ae2a9348f0812fd800332113f2"
             }
           ],
-          "gap": "The tree-backed cd/ls passes in --openssh mode via a local SSH-shaped command adapter; the quoted case fails before the intended listing. This original scenario specifically requires the candidate's BASHSSH1 framing peer plus a tree-backed independent OpenSSH SFTP mock. The proposed tree-backed case does not exercise BASHSSH1, so do not combine it automatically with a separate canned native-framing observation."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -36967,7 +36985,7 @@
           "gap": ""
         }
       ],
-      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r3: The tree-backed cd/ls passes in --openssh mode via a local SSH-shaped command adapter; the quoted case fails before the intended listing. This original scenario specifically requires the candidate's BASHSSH1 framing peer plus a tree-backed independent OpenSSH SFTP mock. The proposed tree-backed case does not exercise BASHSSH1, so do not combine it automatically with a separate canned native-framing observation."
+      "notes": "Keep all accepted companion evidence and the original purpose, reason and requirements. Local fixture transport is not SSH authentication or encryption; reached mismatches remain FAIL. Signature mathematics was not recomputed in this data-only review. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r3: The tree-backed cd/ls passes in --openssh mode via a local SSH-shaped command adapter; the quoted case fails before the intended listing. This original scenario specifically requires the candidate's BASHSSH1 framing peer plus a tree-backed independent OpenSSH SFTP mock. The proposed tree-backed case does not exercise BASHSSH1, so do not combine it automatically with a separate canned native-framing observation. The paired remaining-navigation fixture closes the earlier r3 framing/control gap for escaped paths. Quoted cd still fails before the selected-directory listing. Protected VM identity, pinned sources, candidates and artifacts, exact raw frame decoding, independent controls and clean teardown were reviewed. The prepared-image digest is in run provenance; the manifest digest is plan-recorded and was separately checked by primary. No SSH authentication, encryption or path confinement is claimed. Binary upload/download coverage is unchanged."
     },
     {
       "topic": "sha256sum/read-error-after-open",

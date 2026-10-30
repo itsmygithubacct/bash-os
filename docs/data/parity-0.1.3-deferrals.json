@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "dda5ddfdf59e697c87170ed8ed29edbbbb2eba49afc7bbdb55194daf596c7a58",
+  "ledger_sha256": "0a46eaa14b59226abf5837d5eb79794e10c32868bdd38cd903ab2e554b655400",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 94,
-    "full": 401,
+    "partial": 93,
+    "full": 402,
     "none": 105
   },
   "migrations": {
-    "deferred": 199,
-    "replacement": 401
+    "deferred": 198,
+    "replacement": 402
   },
   "pending_full_topics": [],
   "builds": {
@@ -8178,6 +8178,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793400359.8795195
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "farm600-sftp-remaining-v1-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "b707ca560e641789e713cc215f3eac151c1feaa9f5804d091657d503d2cc447c",
+            "provenance.json": "89da30f04b911451231c823c6bc9ddf731759e03bb946fa0ffa06ff4bef8d2f5",
+            "payload.tar": "6bb8f5a195fb626020a0ba8985e9c620d472b2e9037ccf7b99cb90baf5d32a67",
+            "evidence.tar": "f483f1540ca2a97b720fc0adf6814720de93a665a8a85d5f61637c681eec2733"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793400442.4293277
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -46002,10 +46028,10 @@
         },
         {
           "topic": "sftp/session-navigation-listing",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -46040,6 +46066,18 @@
                   "id": "migration-transfer-sftp-navigation-r4",
                   "status": "FAIL",
                   "run": "qual-remote-canon-probe-composite-transfers-rest-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-sftp-remaining-reviewed-navigation-escaped",
+                  "status": "PASS",
+                  "run": "farm600-sftp-remaining-v1-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-sftp-remaining-reviewed-navigation-quoted",
+                  "status": "FAIL",
+                  "run": "farm600-sftp-remaining-v1-static"
                 }
               ],
               "fully_exercised": true,
@@ -46048,8 +46086,8 @@
             {
               "id": "r3",
               "behavior": "ls after cd lists the controlled remote tree.",
-              "coverage": "partial",
-              "gap": "The tree-backed cd/ls passes in --openssh mode via a local SSH-shaped command adapter; the quoted case fails before the intended listing. This original scenario specifically requires the candidate's BASHSSH1 framing peer plus a tree-backed independent OpenSSH SFTP mock. The proposed tree-backed case does not exercise BASHSSH1, so do not combine it automatically with a separate canned native-framing observation.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -46062,10 +46100,16 @@
                   "id": "migration-transfer-sftp-navigation-r4",
                   "status": "FAIL",
                   "run": "qual-remote-canon-probe-composite-transfers-rest-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-sftp-remaining-reviewed-navigation-escaped",
+                  "status": "PASS",
+                  "run": "farm600-sftp-remaining-v1-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -58185,8 +58229,8 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 199,
-        "FAIL": 190,
+        "UNRESOLVED": 198,
+        "FAIL": 191,
         "PASS": 211
       },
       "migration_without_complete_evidence": []
@@ -66355,6 +66399,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793400444.022534
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "farm600-sftp-remaining-v1-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "42b8e0d46df3580a42be837373796d6d339f57490a4c8c56310762c1982a2582",
+            "provenance.json": "10d943fb4074cf24847a88c86b70a615331e584a04da2c207f1358c9e2385f41",
+            "payload.tar": "bd372caa820dac069d04c5bd95241f6dba0d0db34b0ab69c552e59b5cef5486a",
+            "evidence.tar": "589781216a21445fb04a7c67a682c954ed1e6415d509ece3165dda3aa6072e48"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793400470.680465
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -104179,10 +104249,10 @@
         },
         {
           "topic": "sftp/session-navigation-listing",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -104217,6 +104287,18 @@
                   "id": "migration-transfer-sftp-navigation-r4",
                   "status": "FAIL",
                   "run": "qual-remote-canon-probe-composite-transfers-rest-paired-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-sftp-remaining-reviewed-navigation-escaped",
+                  "status": "PASS",
+                  "run": "farm600-sftp-remaining-v1-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-sftp-remaining-reviewed-navigation-quoted",
+                  "status": "FAIL",
+                  "run": "farm600-sftp-remaining-v1-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -104225,8 +104307,8 @@
             {
               "id": "r3",
               "behavior": "ls after cd lists the controlled remote tree.",
-              "coverage": "partial",
-              "gap": "The tree-backed cd/ls passes in --openssh mode via a local SSH-shaped command adapter; the quoted case fails before the intended listing. This original scenario specifically requires the candidate's BASHSSH1 framing peer plus a tree-backed independent OpenSSH SFTP mock. The proposed tree-backed case does not exercise BASHSSH1, so do not combine it automatically with a separate canned native-framing observation.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -104239,10 +104321,16 @@
                   "id": "migration-transfer-sftp-navigation-r4",
                   "status": "FAIL",
                   "run": "qual-remote-canon-probe-composite-transfers-rest-paired-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-sftp-remaining-reviewed-navigation-escaped",
+                  "status": "PASS",
+                  "run": "farm600-sftp-remaining-v1-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
@@ -116362,8 +116450,8 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 199,
-        "FAIL": 189,
+        "UNRESOLVED": 198,
+        "FAIL": 190,
         "PASS": 212
       },
       "migration_without_complete_evidence": []
