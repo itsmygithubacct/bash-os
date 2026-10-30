@@ -186,7 +186,7 @@ enum {
  * for printing (which may exceed the decoded args). */
 static const struct bs_sc_def bs_sc_table_x86_64[] = {
     {   0, "read",            M3(BS_FD, BS_PTR, BS_LONG),               3 },
-    {   1, "write",           M3(BS_FD, BS_PTR, BS_LONG),               3 },
+    {   1, "write",           M3(BS_FD, BS_STR, BS_LONG),               3 },
     {   2, "open",            M3(BS_STR, BS_OFLG, BS_INT),              3 },
     {   3, "close",           M1(BS_FD),                                1 },
     {   4, "stat",            M2(BS_STR, BS_PTR),                       2 },
@@ -256,7 +256,7 @@ static const struct bs_sc_def bs_sc_table_aarch64[] = {
     {  59, "pipe2",           M2(BS_PTR, BS_INT),                       2 },
     {  62, "lseek",           M3(BS_FD, BS_LONG, BS_SEEK),              3 },
     {  63, "read",            M3(BS_FD, BS_PTR, BS_LONG),               3 },
-    {  64, "write",           M3(BS_FD, BS_PTR, BS_LONG),               3 },
+    {  64, "write",           M3(BS_FD, BS_STR, BS_LONG),               3 },
     {  65, "readv",           M3(BS_FD, BS_PTR, BS_INT),                3 },
     {  66, "writev",          M3(BS_FD, BS_PTR, BS_INT),                3 },
     {  67, "pread64",         M3(BS_FD, BS_PTR, BS_LONG),               4 },
@@ -867,6 +867,8 @@ struct bs_state {
         int in_syscall;
         int printed_entry;
         long last_nr;
+        int started;    /* initial auto-attach SIGSTOP already consumed */
+        int announced;  /* this pid is included in `alive` */
         struct timespec enter_ts;
     } slots[256];
     int nslots;
@@ -938,6 +940,8 @@ bs_slot_for(struct bs_state *st, pid_t pid)
     st->slots[i].in_syscall = 0;
     st->slots[i].printed_entry = 0;
     st->slots[i].last_nr = -1;
+    st->slots[i].started = 0;
+    st->slots[i].announced = 0;
     memset(&st->slots[i].enter_ts, 0, sizeof st->slots[i].enter_ts);
     return i;
 }
@@ -1095,7 +1099,12 @@ bs_trace_loop(struct bs_state *st, pid_t root, int attached_root)
     int exit_code = 0;
     int alive = bs_live_slots(st);
     if (alive <= 0) {
-        bs_slot_for(st, root);
+        int root_slot = bs_slot_for(st, root);
+        /* The exec path already consumed this task's initial SIGSTOP. */
+        if (root_slot >= 0) {
+            st->slots[root_slot].started = 1;
+            st->slots[root_slot].announced = 1;
+        }
         alive = 1;
     }
 
@@ -1140,8 +1149,11 @@ bs_trace_loop(struct bs_state *st, pid_t root, int attached_root)
             int sig = WSTOPSIG(status);
             int deliver = 0;
             if (sig == (SIGTRAP | 0x80)) {
-                /* Syscall-stop. */
+                /* Syscall-stop. A task that has entered a syscall is past
+                 * its initial auto-attach stop. */
                 struct bs_syscall_regs r;
+                if (slot >= 0)
+                    st->slots[slot].started = 1;
                 if (bs_read_syscall_regs(w, &r) == 0 && slot >= 0) {
                     int entry_stop = bs_is_entry_stop(&r);
                     if (!st->slots[slot].in_syscall && !entry_stop) {
@@ -1188,11 +1200,31 @@ bs_trace_loop(struct bs_state *st, pid_t root, int attached_root)
                 ptrace(PTRACE_GETEVENTMSG, w, NULL, &new_pid);
                 if (!st->summary)
                     bs_emit("[pid %d] +++ new child %lu +++\n", (int)w, new_pid);
-                bs_slot_for(st, (pid_t)new_pid);
-                alive++;
+                /* Count the child once. Its first SIGSTOP is resumed below;
+                 * resuming here as well would let it exit before `alive`
+                 * includes it when that stop arrives first. */
+                if (new_pid > 0) {
+                    int child = bs_slot_for(st, (pid_t)new_pid);
+                    if (child >= 0 && !st->slots[child].announced) {
+                        st->slots[child].announced = 1;
+                        alive++;
+                    }
+                }
             } else if (status >> 16 == PTRACE_EVENT_EXEC) {
                 if (!st->summary)
                     bs_emit("[pid %d] +++ exec +++\n", (int)w);
+            } else if (slot >= 0 && !st->slots[slot].started
+                    && sig == SIGSTOP && (status >> 16) == 0) {
+                /* Fork/vfork/clone auto-attach stops the new task with
+                 * SIGSTOP. Injecting that signal stops it again, so the
+                 * child never runs. Suppress it once, then trace the child. */
+                if (!st->slots[slot].announced) {
+                    st->slots[slot].announced = 1;
+                    alive++;
+                }
+                bs_set_trace_options(st, w);
+                st->slots[slot].started = 1;
+                deliver = 0;
             } else {
                 /* Real signal: forward to tracee on resume. */
                 if (!st->summary)
@@ -1362,6 +1394,13 @@ bs_run_attach(struct bs_state *st, pid_t pid)
             bs_detach_all(st);
             builtin_error("PTRACE_SYSCALL kick %ld: %s", (long)tid, strerror(errno));
             BS_ATTACH_RETURN(EXECUTION_FAILURE);
+        }
+    }
+    /* Attach already waited out each task's initial SIGSTOP. */
+    for (int i = 0; i < st->nslots; i++) {
+        if (st->slots[i].pid > 0) {
+            st->slots[i].started = 1;
+            st->slots[i].announced = 1;
         }
     }
     int rc = bs_trace_loop(st, pid, 1);
