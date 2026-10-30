@@ -409,23 +409,158 @@ bdf_format_space (uint64_t bytes, const bdf_opts *o, char *out, size_t outsz)
         bdf_block_value (bytes, o, out, outsz);
 }
 
-static const char *
-bdf_output_header (int field, const bdf_opts *o)
+/* GNU df's size header is human_readable(block_size) with ceiling autoscaling,
+   not the digits the user typed.  An exact multiple of 1000 is an SI unit
+   ("1kB"); an exact multiple of 1024 is a binary unit ("1K", "1M"). */
+static void
+bdf_header_amount (uint64_t n, int base1024, int human_b, char *out, size_t outsz)
+{
+    unsigned base = base1024 ? 1024u : 1000u;
+    uint64_t amt = n;
+    unsigned tenths = 0;
+    int rounding = 0;
+    int exponent = 0;
+    char scratch[64];
+    char *p = scratch + sizeof scratch;
+    static const char powers[] = " KMGTPEZYRQ";
+
+    *--p = '\0';
+    if (base <= amt) {
+        do {
+            unsigned r10 = (unsigned) (amt % base) * 10u + tenths;
+            unsigned r2 = (r10 % base) * 2u + (unsigned) (rounding >> 1);
+            amt /= base;
+            tenths = r10 / base;
+            rounding = (r2 < base)
+                ? ((r2 + (unsigned) rounding) != 0)
+                : 2 + (base < r2 + (unsigned) rounding);
+            exponent++;
+        } while (base <= amt && exponent < 10);
+        if (amt < 10 && rounding > 0) {
+            tenths++;
+            rounding = 0;
+            if (tenths == 10) {
+                amt++;
+                tenths = 0;
+            }
+        }
+        if (amt < 10 && tenths != 0) {
+            *--p = (char) ('0' + tenths);
+            *--p = '.';
+            tenths = 0;
+            rounding = 0;
+        }
+    }
+    if ((int) tenths + rounding > 0) {
+        amt++;
+        if (amt == base && exponent < 10) {
+            exponent++;
+            amt = 1;
+        }
+    }
+    do {
+        *--p = (char) ('0' + (int) (amt % 10));
+    } while ((amt /= 10) != 0);
+    {
+        char suffix[4];
+        int sn = 0;
+        if (exponent)
+            suffix[sn++] = (!base1024 && exponent == 1) ? 'k' : powers[exponent];
+        if (human_b)
+            suffix[sn++] = 'B';
+        suffix[sn] = '\0';
+        snprintf (out, outsz, "%s%s", p, suffix);
+    }
+}
+
+static void
+bdf_blocks_header (const bdf_opts *o, char *out, size_t outsz)
+{
+    uint64_t n, q1000, q1024;
+    int div1000, div1024, base1024;
+    char num[64];
+
+    /* -P keeps the historical POSIX label ("1024-blocks", or the -B/-m label). */
+    if (o->Pflag && !o->output_count) {
+        snprintf (out, outsz, "%s", bdf_block_label (o));
+        return;
+    }
+    /* A suffixed -B (1K, 2M) already spells GNU's binary unit. */
+    if (o->block_suffix && o->block_label[0]) {
+        snprintf (out, outsz, "%s", o->block_label);
+        return;
+    }
+    n = bdf_block_size (o);
+    if (n == 0) {
+        snprintf (out, outsz, "0B-blocks");
+        return;
+    }
+    q1000 = q1024 = n;
+    do {
+        div1000 = q1000 % 1000 == 0;
+        q1000 /= 1000;
+        div1024 = q1024 % 1024 == 0;
+        q1024 /= 1024;
+    } while (div1000 && div1024);
+    base1024 = 0;
+    if (div1000 < div1024)
+        base1024 = 1;
+    if (div1024 < div1000)
+        base1024 = 0;
+    bdf_header_amount (n, base1024, !base1024, num, sizeof num);
+    snprintf (out, outsz, "%s-blocks", num);
+}
+
+static void
+bdf_field_geom (int field, int *min_width, int *align_right)
 {
     switch (field) {
-    case BDF_OUT_SOURCE: return "Filesystem";
-    case BDF_OUT_FSTYPE: return "Type";
-    case BDF_OUT_SIZE: return (o->hflag || o->Hflag) ? "Size" : bdf_block_label (o);
-    case BDF_OUT_USED: return "Used";
-    case BDF_OUT_AVAIL: return "Avail";
-    case BDF_OUT_PCENT: return "Use%";
-    case BDF_OUT_FILE: return "File";
-    case BDF_OUT_TARGET: return "Mounted on";
-    case BDF_OUT_ITOTAL: return "Inodes";
-    case BDF_OUT_IUSED: return "IUsed";
-    case BDF_OUT_IAVAIL: return "IAvail";
-    case BDF_OUT_IPCENT: return "IUse%";
-    default: return "?";
+    case BDF_OUT_SOURCE: *min_width = 14; *align_right = 0; break;
+    case BDF_OUT_FSTYPE: *min_width = 4; *align_right = 0; break;
+    case BDF_OUT_SIZE:
+    case BDF_OUT_USED:
+    case BDF_OUT_AVAIL:
+    case BDF_OUT_ITOTAL:
+    case BDF_OUT_IUSED:
+    case BDF_OUT_IAVAIL:
+        *min_width = 5; *align_right = 1; break;
+    case BDF_OUT_PCENT:
+    case BDF_OUT_IPCENT:
+        *min_width = 4; *align_right = 1; break;
+    default:
+        *min_width = 0; *align_right = 0; break;
+    }
+}
+
+static void
+bdf_header_text (int field, const bdf_opts *o, char *out, size_t outsz)
+{
+    switch (field) {
+    case BDF_OUT_SOURCE: snprintf (out, outsz, "Filesystem"); break;
+    case BDF_OUT_FSTYPE: snprintf (out, outsz, "Type"); break;
+    case BDF_OUT_SIZE:
+        if (o->hflag || o->Hflag)
+            snprintf (out, outsz, "Size");
+        else
+            bdf_blocks_header (o, out, outsz);
+        break;
+    case BDF_OUT_USED: snprintf (out, outsz, "Used"); break;
+    case BDF_OUT_AVAIL:
+        if (o->output_count || o->hflag || o->Hflag)
+            snprintf (out, outsz, "Avail");
+        else
+            snprintf (out, outsz, "Available");
+        break;
+    case BDF_OUT_PCENT:
+        snprintf (out, outsz, "%s", (o->Pflag && !o->output_count) ? "Capacity" : "Use%");
+        break;
+    case BDF_OUT_FILE: snprintf (out, outsz, "File"); break;
+    case BDF_OUT_TARGET: snprintf (out, outsz, "Mounted on"); break;
+    case BDF_OUT_ITOTAL: snprintf (out, outsz, "Inodes"); break;
+    case BDF_OUT_IUSED: snprintf (out, outsz, "IUsed"); break;
+    case BDF_OUT_IAVAIL: snprintf (out, outsz, "IFree"); break;
+    case BDF_OUT_IPCENT: snprintf (out, outsz, "IUse%"); break;
+    default: snprintf (out, outsz, "?"); break;
     }
 }
 
@@ -449,107 +584,204 @@ bdf_output_value (const bdf_row *row, const bdf_opts *o, int field, char *out, s
     }
 }
 
-static void
-bdf_print_output_header (const bdf_opts *o)
-{
-    for (int i = 0; i < o->output_count; i++)
-        printf ("%s%s", i ? " " : "", bdf_output_header (o->output_fields[i], o));
-    putchar ('\n');
-}
+/* GNU df column minima (coreutils 9.7 field_data) and one-space separation.
+   Numeric columns are right-aligned. The width is the minimum grown to the
+   widest rendered cell, including the header and a --total row. The last
+   column is not padded. */
+#define BDF_TABLE_COLS 16
+
+typedef struct {
+    int field;
+    int align_right;
+    int width;
+} bdf_col;
+
+typedef struct {
+    bdf_col cols[BDF_TABLE_COLS];
+    int ncols;
+    char **cells;
+    int nrows;
+    int cap;
+} bdf_table;
 
 static void
-bdf_print_output_row (const bdf_row *row, const bdf_opts *o)
+bdf_table_free (bdf_table *t)
 {
-    char val[64];
-    for (int i = 0; i < o->output_count; i++) {
-        const char *value;
-        /* Path and source fields need not fit in the numeric buffer. */
-        switch (o->output_fields[i]) {
-        case BDF_OUT_SOURCE: value = row->fs; break;
-        case BDF_OUT_FSTYPE: value = row->type; break;
-        case BDF_OUT_FILE: value = row->file; break;
-        case BDF_OUT_TARGET: value = row->path; break;
-        default:
-            bdf_output_value (row, o, o->output_fields[i], val, sizeof val);
-            value = val;
-            break;
+    if (!t->cells)
+        return;
+    for (int i = 0; i < t->nrows * t->ncols; i++)
+        free (t->cells[i]);
+    free (t->cells);
+    t->cells = NULL;
+    t->nrows = t->cap = 0;
+}
+
+static int
+bdf_table_store (bdf_table *t, char **src)
+{
+    char **nv, **dst;
+    int ncap;
+
+    if (t->nrows == t->cap) {
+        ncap = t->cap ? t->cap * 2 : 8;
+        nv = realloc (t->cells, (size_t) ncap * (size_t) t->ncols * sizeof *nv);
+        if (!nv)
+            return -1;
+        t->cells = nv;
+        t->cap = ncap;
+    }
+    dst = t->cells + (size_t) t->nrows * (size_t) t->ncols;
+    for (int i = 0; i < t->ncols; i++) {
+        dst[i] = strdup (src[i]);
+        if (!dst[i]) {
+            while (i > 0)
+                free (dst[--i]);
+            return -1;
         }
-        printf ("%s%s", i ? " " : "", value);
+        if ((int) strlen (dst[i]) > t->cols[i].width)
+            t->cols[i].width = (int) strlen (dst[i]);
     }
-    putchar ('\n');
+    t->nrows++;
+    return 0;
 }
 
-static void
-bdf_print_default_header (const bdf_opts *o)
+static int
+bdf_table_begin (bdf_table *t, const bdf_opts *o)
 {
-    if (o->iflag) {
-        if (o->Tflag)
-            printf ("%-20s %-10s %12s %12s %12s %5s %s\n",
-                    "Filesystem", "Type", "Inodes", "IUsed", "IFree", "IUse%", "Mounted on");
-        else
-            printf ("%-20s %12s %12s %12s %5s %s\n",
-                    "Filesystem", "Inodes", "IUsed", "IFree", "IUse%", "Mounted on");
-    } else if (o->hflag || o->Hflag) {
-        if (o->Tflag)
-            printf ("%-20s %-10s %8s %8s %8s %4s %s\n",
-                    "Filesystem", "Type", "Size", "Used", "Avail", "Use%", "Mounted on");
-        else
-            printf ("%-20s %8s %8s %8s %4s %s\n",
-                    "Filesystem", "Size", "Used", "Avail", "Use%", "Mounted on");
+    int fields[BDF_TABLE_COLS];
+    int n = 0;
+    char *headers[BDF_TABLE_COLS];
+    char text[64];
+    int rc;
+
+    if (o->output_count) {
+        n = o->output_count;
+        if (n > BDF_TABLE_COLS)
+            n = BDF_TABLE_COLS;
+        for (int i = 0; i < n; i++)
+            fields[i] = o->output_fields[i];
     } else {
+        fields[n++] = BDF_OUT_SOURCE;
         if (o->Tflag)
-            printf ("%-20s %-10s %12s %12s %12s %4s %s\n",
-                    "Filesystem", "Type", bdf_block_label (o), "Used", "Available",
-                    o->Pflag ? "Capacity" : "Use%", "Mounted on");
-        else
-            printf ("%-20s %12s %12s %12s %4s %s\n",
-                    "Filesystem", bdf_block_label (o), "Used", "Available",
-                    o->Pflag ? "Capacity" : "Use%", "Mounted on");
-    }
-}
-
-static void
-bdf_print_default_row (const bdf_row *row, const bdf_opts *o)
-{
-    char tot[32], use[32], av[32];
-
-    if (o->iflag) {
-        if (o->hflag || o->Hflag) {
-            bdf_human (row->inodes, o->Hflag, tot, sizeof tot);
-            bdf_human (row->iused, o->Hflag, use, sizeof use);
-            bdf_human (row->ifree, o->Hflag, av, sizeof av);
-            if (o->Tflag)
-                printf ("%-20s %-10s %12s %12s %12s %4d%% %s\n",
-                        row->fs, row->type, tot, use, av, row->iuse_pct, row->path);
-            else
-                printf ("%-20s %12s %12s %12s %4d%% %s\n",
-                        row->fs, tot, use, av, row->iuse_pct, row->path);
-        } else if (o->Tflag) {
-            printf ("%-20s %-10s %12" PRIu64 " %12" PRIu64 " %12" PRIu64 " %4d%% %s\n",
-                    row->fs, row->type, row->inodes, row->iused, row->ifree, row->iuse_pct, row->path);
+            fields[n++] = BDF_OUT_FSTYPE;
+        if (o->iflag) {
+            fields[n++] = BDF_OUT_ITOTAL;
+            fields[n++] = BDF_OUT_IUSED;
+            fields[n++] = BDF_OUT_IAVAIL;
+            fields[n++] = BDF_OUT_IPCENT;
         } else {
-            printf ("%-20s %12" PRIu64 " %12" PRIu64 " %12" PRIu64 " %4d%% %s\n",
-                    row->fs, row->inodes, row->iused, row->ifree, row->iuse_pct, row->path);
+            fields[n++] = BDF_OUT_SIZE;
+            fields[n++] = BDF_OUT_USED;
+            fields[n++] = BDF_OUT_AVAIL;
+            fields[n++] = BDF_OUT_PCENT;
         }
-    } else if (o->hflag || o->Hflag) {
-        bdf_human (row->total, o->Hflag, tot, sizeof tot);
-        bdf_human (row->used, o->Hflag, use, sizeof use);
-        bdf_human (row->avail, o->Hflag, av, sizeof av);
-        if (o->Tflag)
-            printf ("%-20s %-10s %8s %8s %8s %3d%% %s\n",
-                    row->fs, row->type, tot, use, av, row->use_pct, row->path);
+        fields[n++] = BDF_OUT_TARGET;
+    }
+    t->ncols = n;
+    for (int i = 0; i < n; i++) {
+        int min_width = 0, align_right = 0;
+        bdf_field_geom (fields[i], &min_width, &align_right);
+        t->cols[i].field = fields[i];
+        t->cols[i].align_right = align_right;
+        t->cols[i].width = min_width;
+    }
+    for (int i = 0; i < n; i++) {
+        bdf_header_text (fields[i], o, text, sizeof text);
+        headers[i] = strdup (text);
+        if (!headers[i]) {
+            while (i > 0)
+                free (headers[--i]);
+            t->ncols = 0;
+            return -1;
+        }
+    }
+    rc = bdf_table_store (t, headers);
+    for (int i = 0; i < n; i++)
+        free (headers[i]);
+    if (rc < 0)
+        t->ncols = 0;
+    return rc;
+}
+
+static void
+bdf_cell_text (const bdf_row *row, const bdf_opts *o, int field, char *out, size_t outsz)
+{
+    if (!o->output_count && o->iflag && (o->hflag || o->Hflag)) {
+        uint64_t n = 0;
+        int inode = 1;
+        if (field == BDF_OUT_ITOTAL)
+            n = row->inodes;
+        else if (field == BDF_OUT_IUSED)
+            n = row->iused;
+        else if (field == BDF_OUT_IAVAIL)
+            n = row->ifree;
         else
-            printf ("%-20s %8s %8s %8s %3d%% %s\n", row->fs, tot, use, av, row->use_pct, row->path);
-    } else {
-        bdf_block_value (row->total, o, tot, sizeof tot);
-        bdf_block_value (row->used, o, use, sizeof use);
-        bdf_block_value (row->avail, o, av, sizeof av);
-        if (o->Tflag)
-            printf ("%-20s %-10s %12s %12s %12s %3d%% %s\n",
-                    row->fs, row->type, tot, use, av, row->use_pct, row->path);
-        else
-            printf ("%-20s %12s %12s %12s %3d%% %s\n",
-                    row->fs, tot, use, av, row->use_pct, row->path);
+            inode = 0;
+        if (inode) {
+            bdf_human (n, o->Hflag, out, outsz);
+            return;
+        }
+    }
+    bdf_output_value (row, o, field, out, outsz);
+}
+
+static int
+bdf_table_add_row (bdf_table *t, const bdf_opts *o, const bdf_row *row)
+{
+    char *src[BDF_TABLE_COLS];
+    int rc;
+
+    for (int i = 0; i < t->ncols; i++) {
+        int field = t->cols[i].field;
+        if (field == BDF_OUT_SOURCE || field == BDF_OUT_FSTYPE
+            || field == BDF_OUT_FILE || field == BDF_OUT_TARGET) {
+            const char *s = "";
+            if (field == BDF_OUT_SOURCE)
+                s = row->fs ? row->fs : "";
+            else if (field == BDF_OUT_FSTYPE)
+                s = row->type ? row->type : "";
+            else if (field == BDF_OUT_FILE)
+                s = row->file ? row->file : "";
+            else
+                s = row->path ? row->path : "";
+            src[i] = strdup (s);
+        } else {
+            char val[64];
+            bdf_cell_text (row, o, field, val, sizeof val);
+            src[i] = strdup (val);
+        }
+        if (!src[i]) {
+            while (i > 0)
+                free (src[--i]);
+            return -1;
+        }
+    }
+    rc = bdf_table_store (t, src);
+    for (int i = 0; i < t->ncols; i++)
+        free (src[i]);
+    return rc;
+}
+
+static void
+bdf_table_print (const bdf_table *t)
+{
+    for (int r = 0; r < t->nrows; r++) {
+        char **cells = t->cells + (size_t) r * (size_t) t->ncols;
+        for (int c = 0; c < t->ncols; c++) {
+            int fill = t->cols[c].width - (int) strlen (cells[c]);
+            if (c)
+                putchar (' ');
+            if (fill < 0)
+                fill = 0;
+            if (t->cols[c].align_right)
+                for (; 0 < fill; fill--)
+                    putchar (' ');
+            fputs (cells[c], stdout);
+            if (c + 1 < t->ncols)
+                for (; 0 < fill; fill--)
+                    putchar (' ');
+        }
+        putchar ('\n');
     }
 }
 
@@ -576,36 +808,33 @@ bdf_total_add (bdf_row *total, const bdf_row *row)
 
 static int
 bdf_one (const char *path, const char *fs, const char *type, const char *target,
-         const bdf_opts *o, int *header_emitted, bdf_row *total)
+         const bdf_opts *o, bdf_table *table, int *header_emitted, bdf_row *total)
 {
     bdf_row row;
 
     if (bdf_fill_row (path, fs, type, &row) < 0)
         return -1;
     row.path = target;
-    if (!*header_emitted) {
-        if (o->output_count)
-            bdf_print_output_header (o);
-        else
-            bdf_print_default_header (o);
-        *header_emitted = 1;
-    }
-    if (o->output_count)
-        bdf_print_output_row (&row, o);
-    else
-        bdf_print_default_row (&row, o);
+    if (table->ncols == 0 && bdf_table_begin (table, o) < 0)
+        return -1;
+    if (bdf_table_add_row (table, o, &row) < 0)
+        return -1;
+    *header_emitted = 1;
     if (total)
         bdf_total_add (total, &row);
     return 0;
 }
 
-static void
-bdf_print_total (const bdf_opts *o, const bdf_row *total)
+static int
+bdf_emit (bdf_table *table, const bdf_opts *o, int header_emitted, bdf_row *total)
 {
-    if (o->output_count)
-        bdf_print_output_row (total, o);
-    else
-        bdf_print_default_row (total, o);
+    int rc = 0;
+
+    if (header_emitted && o->totalflag && bdf_table_add_row (table, o, total) < 0)
+        rc = -1;
+    bdf_table_print (table);
+    bdf_table_free (table);
+    return rc;
 }
 
 int
@@ -830,6 +1059,7 @@ df_builtin (WORD_LIST *list)
     int rc = EXECUTION_SUCCESS;
     bdf_row total = {0};
     bdf_row *totalp = o.totalflag ? &total : NULL;
+    bdf_table table = {0};
 
     if (positional.n > 0) {
         /* Per-path mode. */
@@ -854,15 +1084,15 @@ df_builtin (WORD_LIST *list)
             if (bdf_type_excluded (&o, display_type))
                 continue;
             if (bdf_one (positional.v[i], display_fs, display_type, display_path,
-                         &o, &header_emitted, totalp) < 0)
+                         &o, &table, &header_emitted, totalp) < 0)
                 rc = EXECUTION_FAILURE;
         }
         if (!header_emitted && rc == EXECUTION_SUCCESS) {
             builtin_error ("no file systems processed");
             rc = EXECUTION_FAILURE;
         }
-        if (o.totalflag && header_emitted)
-            bdf_print_total (&o, &total);
+        if (bdf_emit (&table, &o, header_emitted, &total) < 0)
+            rc = EXECUTION_FAILURE;
         free (positional.v);
         return rc;
     }
@@ -899,12 +1129,12 @@ df_builtin (WORD_LIST *list)
             || strcmp (type, "securityfs") == 0 || strcmp (type, "tracefs") == 0
             || strcmp (type, "bpf") == 0 || strcmp (type, "autofs") == 0))
             continue;
-        if (bdf_one (mnt, dev, type, mnt, &o, &header_emitted, totalp) < 0)
+        if (bdf_one (mnt, dev, type, mnt, &o, &table, &header_emitted, totalp) < 0)
             rc = EXECUTION_FAILURE;
     }
     fclose (mp);
-    if (o.totalflag && header_emitted)
-        bdf_print_total (&o, &total);
+    if (bdf_emit (&table, &o, header_emitted, &total) < 0)
+        rc = EXECUTION_FAILURE;
     return rc;
 }
 
