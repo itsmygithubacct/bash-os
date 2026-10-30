@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-strace-follow-child-r1-r3",
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Follow the forked child with PID-tagged syscall records and propagate the parent status after it reaps the child.",
+      "covers": ["strace/follow-children"],
+      "oracle": "In the uid-2000 x86_64 guest, compile a static libc-free tracee which forks one child, checks the child exit status 23, waits a second time to confirm ECHILD, and exits 42. Direct execution checks its own identity and wait records. An independent native ptrace observer follows its own descendants and records fork identity, per-PID syscalls, wait results, and both exits. Parser controls and both controls must succeed in setup; failure is a fixture ERROR. Each candidate invocation emits and checks its own child/parent identities and wait results.",
+      "comparison": "Require the candidate's own child and parent identity and successful reap records, propagated parent status 42, tagged parent getpid/fork/wait4, and tagged child getppid and exit_group. Reject unexpected PIDs, untagged records, empty or oversized traces and incomplete final lines. Retain raw setup and candidate output, errors, and status.",
+      "requires": ["gcc", "python3"],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-follow-reviewed.py setup\n",
+      "candidate_script": "rc=0\nstrace -f -- ./follow-tracee >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-follow-reviewed.py follow\n",
+      "stdout": "follow-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 25,
+      "setup_timeout": 60,
+      "diagnostic_files": ["parser-controls.json", "gcc.out", "gcc.err", "direct.out", "direct.err", "direct.status", "native.out", "native.err", "native.status", "candidate.out", "candidate.err", "candidate.status", "assertions.json"],
+      "helpers_sha256": {
+        "helpers/strace-follow-reviewed.py": "cec314b6b72e329e3fc44bf964ad77f4846772569f687660650207b4c3f90c16",
+        "helpers/strace-follow-reviewed.tracee.c": "7e4264a4041eb9124d3fa54ea013cc940b62b7b0628ffcedd921b42d5a5d72f5",
+        "helpers/strace-follow-reviewed.control.c": "4c1e9ad3fc0f02995c1c968d8b120eb4139af8781d49f54be51555146eaccccd"
+      }
+    },
+    {
+      "id": "migration-strace-no-follow-child-r2-r3",
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Without follow mode exclude child syscalls while the parent reaps it and its status propagates.",
+      "covers": ["strace/follow-children"],
+      "oracle": "The guest-only direct and independent native ptrace controls establish the deterministic owned fork, the child-only getppid, child exit 23, parent wait and parent exit 42. Their raw observations and parser self-tests are retained. Each candidate run independently supplies child/parent identities, the wait status and an ECHILD result, proving the child ran and was reaped even when it is not traced.",
+      "comparison": "Require its own child and parent records and successful reap, status 42, a nonempty parent trace with getpid/fork/wait4, no child PID tags or child-only getppid, and no untagged syscall records. Reject oversized traces and incomplete final lines; retain all raw observations.",
+      "requires": ["gcc", "python3"],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-follow-reviewed.py setup\n",
+      "candidate_script": "rc=0\nstrace -- ./follow-tracee >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-follow-reviewed.py plain\n",
+      "stdout": "plain-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 25,
+      "setup_timeout": 60,
+      "diagnostic_files": ["parser-controls.json", "gcc.out", "gcc.err", "direct.out", "direct.err", "direct.status", "native.out", "native.err", "native.status", "candidate.out", "candidate.err", "candidate.status", "assertions.json"],
+      "helpers_sha256": {
+        "helpers/strace-follow-reviewed.py": "cec314b6b72e329e3fc44bf964ad77f4846772569f687660650207b4c3f90c16",
+        "helpers/strace-follow-reviewed.tracee.c": "7e4264a4041eb9124d3fa54ea013cc940b62b7b0628ffcedd921b42d5a5d72f5",
+        "helpers/strace-follow-reviewed.control.c": "4c1e9ad3fc0f02995c1c968d8b120eb4139af8781d49f54be51555146eaccccd"
+      }
+    }
+  ]
+}
