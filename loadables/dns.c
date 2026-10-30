@@ -11752,8 +11752,9 @@ bda_h2_static_name (uint32_t idx)
     case 4: case 5: return ":path";
     case 6: case 7: return ":scheme";
     case 8: case 9: case 10: case 11: case 12: case 13: case 14: return ":status";
-    case 25: return "content-length";
-    case 28: return "content-type";
+    case 25: return "content-disposition";
+    case 28: return "content-length";
+    case 31: return "content-type";
     default: return NULL;
   }
 }
@@ -11910,11 +11911,11 @@ bda_h2_send_doh_response (struct bda_conn *c, uint32_t sid,
   snprintf (clen, sizeof clen, "%zu", wire_len);
   unsigned char hb[128];
   size_t off = 0;
-  hb[off++] = 0x88;                             /* indexed :status 200 */
-  hb[off++] = 0x40 | 28;                        /* literal content-type */
+  hb[off++] = 0x88;                             /* indexed :status 200 (static 8) */
+  hb[off++] = 0x40 | 31;                        /* literal content-type (static 31) */
   if (bda_hpack_put_string (hb, sizeof hb, &off, "application/dns-message") < 0)
     return -1;
-  hb[off++] = 0x40 | 25;                        /* literal content-length */
+  hb[off++] = 0x40 | 28;                        /* literal content-length (static 28) */
   if (bda_hpack_put_string (hb, sizeof hb, &off, clen) < 0)
     return -1;
   if (bda_h2_write_frame (c, 1, 0x04, sid, hb, off) < 0) return -1; /* HEADERS END_HEADERS */
@@ -11929,7 +11930,7 @@ bda_h2_send_empty_status (struct bda_conn *c, uint32_t sid, int status)
   unsigned char hb[64]; size_t off = 0;
   hb[off++] = 0x40 | 8;                         /* literal :status */
   if (bda_hpack_put_string (hb, sizeof hb, &off, st) < 0) return -1;
-  hb[off++] = 0x40 | 25;                        /* literal content-length */
+  hb[off++] = 0x40 | 28;                        /* literal content-length (static 28) */
   if (bda_hpack_put_string (hb, sizeof hb, &off, clen) < 0) return -1;
   return bda_h2_write_frame (c, 1, 0x05, sid, hb, off); /* HEADERS END_HEADERS|END_STREAM */
 }
