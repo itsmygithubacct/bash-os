@@ -2073,13 +2073,20 @@ start_processing:
         }
 #endif
 
-#if defined(MBEDTLS_X509_RSASSA_PSS_SUPPORT)
+        /*
+         * rsa_pss_rsae_* is accepted for TLS 1.2 ServerKeyExchange when
+         * PSA_WANT_ALG_RSA_PSS is enabled. mbedtls_pk_verify_restartable()
+         * always checks PKCS#1 v1.5, so a PSS signature has to go through
+         * mbedtls_pk_verify_ext(). MBEDTLS_X509_RSASSA_PSS_SUPPORT covers
+         * certificate signatures only and is off in this build.
+         */
+#if defined(MBEDTLS_X509_RSASSA_PSS_SUPPORT) || defined(PSA_WANT_ALG_RSA_PSS)
         if (pk_alg == MBEDTLS_PK_SIGALG_RSA_PSS) {
             ret = mbedtls_pk_verify_ext((mbedtls_pk_sigalg_t) pk_alg, peer_pk,
                                         md_alg, hash, hashlen,
                                         p, sig_len);
         } else
-#endif /* MBEDTLS_X509_RSASSA_PSS_SUPPORT */
+#endif /* MBEDTLS_X509_RSASSA_PSS_SUPPORT || PSA_WANT_ALG_RSA_PSS */
         ret = mbedtls_pk_verify_restartable(peer_pk,
                                             md_alg, hash, hashlen, p, sig_len, rs_ctx);
 
