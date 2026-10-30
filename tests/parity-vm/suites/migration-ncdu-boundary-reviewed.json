@@ -1,0 +1,103 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-ncdu-boundary-reviewed-x",
+      "loadable": "ncdu",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ncdu/one-filesystem-boundary"
+      ],
+      "purpose": "Verify -x stops recursion at a nested filesystem on a different device.",
+      "oracle": "Per-observation private user and mount namespace with owned tmpfs, verified independent lstat device and block accounting, and GNU du with and without -x cross-checked against those observations. A nonempty foreign payload makes traversal measurable.",
+      "comparison": "Setup records the native controls and the frozen candidate stdout, stderr and status in the same verified namespace. The candidate-side script parses the complete listing and compares directory paths and exact allocated totals to the independent accounting. Namespace, mount, control or fixture precondition failure is a setup ERROR.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "du",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/ncdu-boundary-reviewed.py": "33e5c72e33db735abc56e9530727c93d09bd41a0af42e4c1f8b5e37cbbab8043",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/ncdu-boundary-reviewed.py setup x\n",
+      "setup_timeout": 60,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/ncdu-boundary-reviewed.py verify x\n",
+      "diagnostic_files": [
+        "ncdu-boundary-setup.out",
+        "ncdu-boundary-setup.err",
+        "ncdu-boundary-setup.status",
+        "ncdu-boundary-mount.out",
+        "ncdu-boundary-mount.err",
+        "ncdu-boundary-mount.status",
+        "ncdu-boundary-du-x.out",
+        "ncdu-boundary-du-x.err",
+        "ncdu-boundary-du-x.status",
+        "ncdu-boundary-du-full.out",
+        "ncdu-boundary-du-full.err",
+        "ncdu-boundary-du-full.status",
+        "ncdu-boundary-control.json",
+        "ncdu-boundary-candidate.out",
+        "ncdu-boundary-candidate.err",
+        "ncdu-boundary-candidate.status"
+      ],
+      "expected_status": 0,
+      "stdout": "ncdu-boundary-x-verified\n",
+      "stderr": "",
+      "timeout": 30
+    },
+    {
+      "id": "migration-ncdu-boundary-reviewed-full",
+      "loadable": "ncdu",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ncdu/one-filesystem-boundary"
+      ],
+      "purpose": "Verify traversal without -x counts the nested filesystem.",
+      "oracle": "Per-observation private user and mount namespace with owned tmpfs, verified independent lstat device and block accounting, and GNU du with and without -x cross-checked against those observations. A nonempty foreign payload makes traversal measurable.",
+      "comparison": "Setup records the native controls and the frozen candidate stdout, stderr and status in the same verified namespace. The candidate-side script parses the complete listing and compares directory paths and exact allocated totals to the independent accounting. Namespace, mount, control or fixture precondition failure is a setup ERROR.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "du",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/ncdu-boundary-reviewed.py": "33e5c72e33db735abc56e9530727c93d09bd41a0af42e4c1f8b5e37cbbab8043",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/ncdu-boundary-reviewed.py setup full\n",
+      "setup_timeout": 60,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/ncdu-boundary-reviewed.py verify full\n",
+      "diagnostic_files": [
+        "ncdu-boundary-setup.out",
+        "ncdu-boundary-setup.err",
+        "ncdu-boundary-setup.status",
+        "ncdu-boundary-mount.out",
+        "ncdu-boundary-mount.err",
+        "ncdu-boundary-mount.status",
+        "ncdu-boundary-du-x.out",
+        "ncdu-boundary-du-x.err",
+        "ncdu-boundary-du-x.status",
+        "ncdu-boundary-du-full.out",
+        "ncdu-boundary-du-full.err",
+        "ncdu-boundary-du-full.status",
+        "ncdu-boundary-control.json",
+        "ncdu-boundary-candidate.out",
+        "ncdu-boundary-candidate.err",
+        "ncdu-boundary-candidate.status"
+      ],
+      "expected_status": 0,
+      "stdout": "ncdu-boundary-full-verified\n",
+      "stderr": "",
+      "timeout": 30
+    }
+  ]
+}
