@@ -71,6 +71,9 @@
  *       Tiny cgroup v2 helpers for sandbox resource limits. NAME is a
  *       relative cgroup path under /sys/fs/cgroup; FILE is a single
  *       controller file such as memory.max, cpu.max, or pids.max.
+ *       Validation rejects an absolute NAME, ".", "..", an empty
+ *       component, and a FILE containing "/". cgroup-enable with NAME
+ *       omitted writes the cgroup root. That omitted name is not ".".
  *
  * Security notes:
  *   - unshare USER namespace gives the caller CAP_SYS_ADMIN inside
@@ -534,17 +537,32 @@ bn_remount_readonly_cmd (WORD_LIST *args)
 static int
 bn_valid_relpath (const char *s)
 {
+    const char *p;
+
     if (!s || !*s || s[0] == '/')
         return 0;
-    if (!strcmp (s, "."))
-        return 1;
-    char buf[256];
-    if (strlen (s) >= sizeof buf)
+    /* Same bound as the old 256-byte copy. */
+    if (strlen (s) >= 256)
         return 0;
-    strcpy (buf, s);
-    for (char *p = buf, *tok; (tok = strtok (p, "/")); p = NULL) {
-        if (!strcmp (tok, ".") || !strcmp (tok, "..") || !*tok)
+    /* strtok never returns an empty token, so "a//b" and a trailing
+       slash used to pass the !*tok check. Walk the bytes. "." and ".."
+       are rejected as components, including a bare ".". */
+    for (p = s; *p; ) {
+        const char *start = p;
+        size_t len;
+
+        while (*p && *p != '/')
+            p++;
+        len = (size_t) (p - start);
+        if (len == 0 ||
+            (len == 1 && start[0] == '.') ||
+            (len == 2 && start[0] == '.' && start[1] == '.'))
             return 0;
+        if (*p == '/') {
+            p++;
+            if (!*p)
+                return 0;
+        }
     }
     return 1;
 }
@@ -562,12 +580,7 @@ bn_cgroup_path (const char *name, const char *file, char *out, size_t out_cap)
         return -1;
     if (file && !bn_valid_cgroup_file (file))
         return -1;
-    int n;
-    if (!strcmp (name, "."))
-        n = file ? snprintf (out, out_cap, "%s/%s", BN_CGROUP_ROOT, file)
-                 : snprintf (out, out_cap, "%s", BN_CGROUP_ROOT);
-    else
-        n = file ? snprintf (out, out_cap, "%s/%s/%s", BN_CGROUP_ROOT, name, file)
+    int n = file ? snprintf (out, out_cap, "%s/%s/%s", BN_CGROUP_ROOT, name, file)
                  : snprintf (out, out_cap, "%s/%s", BN_CGROUP_ROOT, name);
     return (n >= 0 && (size_t) n < out_cap) ? 0 : -1;
 }
@@ -689,9 +702,19 @@ static int
 bn_cgroup_enable_cmd (WORD_LIST *args)
 {
     if (!args) { builtin_error ("cgroup-enable: CONTROLLERS [NAME]"); return EX_USAGE; }
-    const char *name = args->next ? args->next->word->word : ".";
+    const char *name = args->next ? args->next->word->word : NULL;
     char path[512], value[256];
-    if (bn_cgroup_path (name, "cgroup.subtree_control", path, sizeof path) != 0) {
+    /* NAME omitted targets the cgroup root. Do not pass "." through
+       bn_valid_relpath: that relative name is rejected. */
+    if (!name) {
+        int n = snprintf (path, sizeof path, "%s/cgroup.subtree_control",
+                          BN_CGROUP_ROOT);
+        if (n < 0 || (size_t) n >= sizeof path) {
+            builtin_error ("cgroup-enable: invalid NAME");
+            return EX_USAGE;
+        }
+    } else if (bn_cgroup_path (name, "cgroup.subtree_control",
+                               path, sizeof path) != 0) {
         builtin_error ("cgroup-enable: invalid NAME");
         return EX_USAGE;
     }
