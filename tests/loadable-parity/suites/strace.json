@@ -32,21 +32,60 @@
     },
     {
       "id": "exec-trace-status",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare ordinary child tracing, decoded core syscalls, and propagation of the tracee's exit status.",
-      "reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. "
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-strace-exec-decode-reviewed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-strace-exec-lines-reviewed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-strace-exec-status-reviewed"
+        }
+      ]
     },
     {
       "id": "output-file-routing",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check that -o writes trace records to the requested relative fixture file while preserving the tracee's stdout and exit status.",
-      "reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. "
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-strace-output-route-reviewed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-strace-output-status-reviewed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-strace-output-stdout-reviewed"
+        }
+      ]
     },
     {
       "id": "syscall-filter",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check that -e trace=LIST includes selected calls and excludes other calls for a deterministic tracee.",
-      "reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. "
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-strace-filter-exclude-reviewed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-strace-filter-names-reviewed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-strace-filter-numbers-reviewed"
+        }
+      ]
     },
     {
       "id": "summary-counts",

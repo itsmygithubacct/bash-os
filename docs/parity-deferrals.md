@@ -7,8 +7,8 @@ reviewed requirements, evidence links and specific remaining gaps. The
 saved static and dynamic VM runs. The initial qualification tables in the VM
 guide describe the earlier fixture set.
 
-The current review covers 395 of the 600 topics on both builds: static 206 PASS / 189 FAIL;
-dynamic 207 PASS / 188 FAIL. The other 205 retain unresolved requirements. These are topic counts,
+The current review covers 398 of the 600 topics on both builds: static 208 PASS / 190 FAIL;
+dynamic 209 PASS / 189 FAIL. The other 202 retain unresolved requirements. These are topic counts,
 not additional behavioral test results.
 
 The syslog review adds bounded three-record FIFO observations for startup, SIGHUP and periodic replay on both builds. Sender attribution is inferred from pinned serial source and isolated networking; HUP was queued while the daemon was stopped.
@@ -48,6 +48,8 @@ The namespace review adds six separate native controls supporting the existing u
 The UCLAMP follow-up adds builtin dispatch, owned-task queries and bounded three-TID preflight observations on both builds. The static all-tasks poweroff request remains 255 under its exact lifecycle disposition; its SSH failure cause is unobserved. Earlier setter gaps and failures remain.
 
 The strace summary review checks both `-c` and `--summary` against a fixed x86_64 syscall sequence. Direct execution and a separate native ptrace observer verify the tracee before each case. Both frozen builds suppress per-call records and report one call for each of four syscalls, with one `openat` error. Timing columns are not compared, and these observations do not validate later source repairs.
+
+The strace execution review records two failures on both frozen builds: an exec event splits a syscall record across physical lines, and `write` displays its buffer address instead of quoted data. Exit-status propagation, output-file routing, preserved stdout and named/numeric syscall filters pass. Every trace event is accounted for; semantic assembly supports those independent properties while the original physical-line failure stays visible.
 
 A historical case becomes `MIGRATED` only when every requirement has an explicit
 assertion and valid execution evidence on both builds. Its replacement cases

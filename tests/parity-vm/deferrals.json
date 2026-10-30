@@ -39096,33 +39096,54 @@
         "purpose": "Compare ordinary child tracing, decoded core syscalls, and propagation of the tracee's exit status.",
         "reason": "Requires a future disposable Linux VM where the tracer may ptrace its own child, plus an independent GNU strace installation and a reviewed, deterministic fixture executable invoked by a relative path. The current harness denies ptrace through mandatory seccomp, and this suite must not treat that denial as operation coverage."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. ",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original requirements have paired, independently reviewed observations on the frozen x86_64 candidates. Direct execution and native ptrace controls passed; reached candidate failures remain explicit.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "strace -- CMD forks and traces CMD, one line per syscall to stderr.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No trace has run in any group."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-exec-lines-reviewed",
+              "assertion": "Both frozen builds ran the controlled tracee with its exact marker and status 42, but an exec event interrupted the execve record and left its return on a separate physical line. The one-line assertion fails on both builds; the raw records preserve that failure.",
+              "definition_sha256": "f50c4db57df29123be4934b596d2f66add79ec119b7509d6c8b9eeb9b32f14f0"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Core syscalls are decoded symbolically (write/openat/execve/exit_group with flags and quoted strings).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-exec-decode-reviewed",
+              "assertion": "Both frozen builds show quoted execve/openat paths, AT_FDCWD, O_RDONLY and exit_group(42), but write reports a buffer address instead of the quoted marker. The symbolic-write assertion independently fails on the complete observed sequence.",
+              "definition_sha256": "05ccb5cf219bf2b73fcd2b34665b2b7613b6fb01b6a2405ba0f788d51e8f558e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "The tracee's exit status is propagated as strace's status.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-exec-status-reviewed",
+              "assertion": "Each invocation returned the independently established tracee status 42 and exact marker. Separate physical-line and write-decoding failures remain recorded without changing this status observation.",
+              "definition_sha256": "edffb10d968d227e4e063788d03b16ffbbac40399abc1f28874c66ea1ec7aaf8"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "strace.c doc; compiling in the VM uses the trusted image compiler, not candidate execution on a host."
+      "notes": "strace.c doc; compiling in the VM uses the trusted image compiler, not candidate execution on a host. Direct and native ptrace controls establish the fixed tracee sequence; GNU strace was not executed and no GNU output equivalence is claimed. The raw exec event interruption is never normalized for the one-line assertion. Semantic assembly for other requirements accounts for each banner, PID and continuation without altering saved bytes. These observations concern the pinned frozen candidates and do not validate later source repairs or other architectures."
     },
     {
       "topic": "strace/follow-children",
@@ -39168,31 +39189,57 @@
         "purpose": "Check that -o writes trace records to the requested relative fixture file while preserving the tracee's stdout and exit status.",
         "reason": "Requires a future disposable Linux VM with ptrace allowed, a relative-path fixture executable, and GNU strace as the independent reference. Validate the target's stdout/status and parse the trace file for expected events; runtime PIDs and GNU formatting must not be mistaken for stable fixture content."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. ",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original requirements have paired, independently reviewed observations on the frozen x86_64 candidates. Direct execution and native ptrace controls passed; reached candidate failures remain explicit.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-o FILE writes trace records to FILE and nothing to stderr.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-output-route-reviewed",
+              "assertion": "Both frozen builds put the complete trace bytes in relative route.trace and left stderr empty. All four controlled syscalls are independently identified; the exec event interruption remains a separate physical-line failure under exec-trace-status.",
+              "definition_sha256": "a1f3fdbb6f00170d7298c33551d12056039de665ec32d0618cf84f56a2a5a82c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Tracee stdout is preserved.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-output-stdout-reviewed",
+              "assertion": "With -o, both frozen builds preserved the exact 12-byte marker, including its newline, established by the direct and native controls; the trace went to the file and stderr stayed empty.",
+              "definition_sha256": "499d5cfcae640ebfd3f918d4fa1e27e9e95e38d7b803dd84937c4678e0629e60"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Exit status is preserved with -o.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-output-status-reviewed",
+              "assertion": "With -o, both frozen builds returned the independently established tracee status 42 and exact marker while retaining the complete routed trace.",
+              "definition_sha256": "c347764abb76349aef9f8ab5371a1a63042cc3a92b644c2b0271394b37181bcc"
+            }
+          ],
+          "gap": ""
         }
+      ],
+      "notes": [
+        "Direct and native ptrace controls establish the fixed tracee sequence; GNU strace was not executed and no GNU output equivalence is claimed.",
+        "The raw exec event interruption is never normalized for the one-line assertion. Semantic assembly for other requirements accounts for each banner, PID and continuation without altering saved bytes.",
+        "These observations concern the pinned frozen candidates and do not validate later source repairs or other architectures."
       ]
     },
     {
@@ -39262,31 +39309,57 @@
         "purpose": "Check that -e trace=LIST includes selected calls and excludes other calls for a deterministic tracee.",
         "reason": "Requires a future disposable Linux VM with ptrace allowed, a reviewed relative-path fixture that makes a small known sequence of syscalls, and GNU strace as an independent filter-semantics oracle. The current seccomp policy blocks the operation before filtering can be observed."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. ",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original requirements have paired, independently reviewed observations on the frozen x86_64 candidates. Direct execution and native ptrace controls passed; reached candidate failures remain explicit.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-e trace=LIST prints only the listed syscalls.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-filter-names-reviewed",
+              "assertion": "Name list write,openat produced exactly one ordered record for each selected syscall on both frozen builds; exact marker and status 42 establish completion of the controlled sequence.",
+              "definition_sha256": "5b4e348658d701b670b47783ec6b911b48fad2db80f0167eb68b87a283021438"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Numbers are accepted in LIST.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-filter-numbers-reviewed",
+              "assertion": "On x86_64, numeric list 1,257 selected exactly write and openat on both frozen builds, with the independently established marker and exit status.",
+              "definition_sha256": "e90ad3c17d743f800d609d190f6680e3b8c982c42106f6fd370b3163052ae2fb"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Excluded calls do not appear.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-filter-exclude-reviewed",
+              "assertion": "The controlled sequence completed on both frozen builds, but its execve and exit_group syscall records were absent under the name filter. Exec and exit event banners are separately accounted and are not syscall records.",
+              "definition_sha256": "d270fbb8cfbc81c37991ea376b07d9f6f582c26624d437a86b0ff39bbec3cba0"
+            }
+          ],
+          "gap": ""
         }
+      ],
+      "notes": [
+        "Direct and native ptrace controls establish the fixed tracee sequence; GNU strace was not executed and no GNU output equivalence is claimed.",
+        "The raw exec event interruption is never normalized for the one-line assertion. Semantic assembly for other requirements accounts for each banner, PID and continuation without altering saved bytes.",
+        "These observations concern the pinned frozen candidates and do not validate later source repairs or other architectures."
       ]
     },
     {
