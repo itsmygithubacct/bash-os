@@ -418,7 +418,6 @@ class VM:
             if result.returncode:
                 raise RuntimeError(f"cloud-init did not finish cleanly (status {result.returncode})")
             self.identity = self.verify_identity()
-            self.attest_identity()
             return self
         except BaseException:
             self.__exit__(None, None, None)
@@ -494,6 +493,7 @@ class VM:
                     or any(proofs['write'][directory][key] != proofs['read'][directory][key]
                            for directory in ('etc_directory', 'run_directory') for key in directory_fixed)):
                 raise RuntimeError('independent identity attestation readback changed')
+            report['readback'] = proofs['read']
             report['status'] = 'validated'
         except BaseException as error:
             report['status'] = 'failed'
@@ -743,6 +743,9 @@ def evaluate(args, cache):
             if network["host_canary"] == "connected" or network["public_tcp"] == "connected" \
                     or network["canary_accepted"] or isinstance(network["dns"], list):
                 raise RuntimeError("runtime guest reached the host or the internet; candidate not uploaded")
+            # Fixed root scaffolding is permitted only after runtime isolation,
+            # before either lifecycle-check work or candidate upload.
+            vm.attest_identity()
             if check:
                 # Lifecycle check only: trusted guest tools, no candidate, no fixtures.
                 facts = vm.ssh("unshare --net ip -j link show; echo; "
