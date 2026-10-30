@@ -1,0 +1,392 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-strace-exec-lines-reviewed",
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "strace -- CMD traces the deterministic child with one line per syscall.",
+      "covers": [
+        "strace/exec-trace-status"
+      ],
+      "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
+      "comparison": "The stderr trace has exactly one ordered record per known syscall and stdout matches the direct control.",
+      "requires": [
+        "gcc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py setup\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r guest_marker </etc/bashos-parity-vm || exit 125\nIFS= read -r guest_vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $guest_vendor == QEMU && $guest_marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(/usr/bin/uname -m) == x86_64 ]] || exit 125\nrc=0\nstrace -- ./tracee-core >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py exec-lines\n",
+      "stdout": "exec-lines-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "gcc.out",
+        "gcc.err",
+        "direct.out",
+        "direct.err",
+        "direct.status",
+        "ptrace.out",
+        "ptrace.err",
+        "ptrace.status",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "candidate.trace",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+      }
+    },
+    {
+      "id": "migration-strace-exec-decode-reviewed",
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Core syscall arguments are symbolically decoded with flags and quoted strings.",
+      "covers": [
+        "strace/exec-trace-status"
+      ],
+      "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
+      "comparison": "Each of execve, write, openat and exit_group must appear in order with the known symbolic arguments and quoted strings.",
+      "requires": [
+        "gcc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py setup\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r guest_marker </etc/bashos-parity-vm || exit 125\nIFS= read -r guest_vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $guest_vendor == QEMU && $guest_marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(/usr/bin/uname -m) == x86_64 ]] || exit 125\nrc=0\nstrace -- ./tracee-core >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py exec-decode\n",
+      "stdout": "exec-decode-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "gcc.out",
+        "gcc.err",
+        "direct.out",
+        "direct.err",
+        "direct.status",
+        "ptrace.out",
+        "ptrace.err",
+        "ptrace.status",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "candidate.trace",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+      }
+    },
+    {
+      "id": "migration-strace-exec-status-reviewed",
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "The tracee exit status is propagated.",
+      "covers": [
+        "strace/exec-trace-status"
+      ],
+      "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
+      "comparison": "The tracer returns 42, the independently observed status of the deterministic tracee.",
+      "requires": [
+        "gcc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py setup\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r guest_marker </etc/bashos-parity-vm || exit 125\nIFS= read -r guest_vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $guest_vendor == QEMU && $guest_marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(/usr/bin/uname -m) == x86_64 ]] || exit 125\nrc=0\nstrace -- ./tracee-core >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py exec-status\n",
+      "stdout": "exec-status-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "gcc.out",
+        "gcc.err",
+        "direct.out",
+        "direct.err",
+        "direct.status",
+        "ptrace.out",
+        "ptrace.err",
+        "ptrace.status",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "candidate.trace",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+      }
+    },
+    {
+      "id": "migration-strace-output-route-reviewed",
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-o writes the trace records to the relative file and leaves stderr empty.",
+      "covers": [
+        "strace/output-file-routing"
+      ],
+      "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
+      "comparison": "The relative output file contains each of the four ordered syscall records and stderr is empty.",
+      "requires": [
+        "gcc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py setup\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r guest_marker </etc/bashos-parity-vm || exit 125\nIFS= read -r guest_vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $guest_vendor == QEMU && $guest_marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(/usr/bin/uname -m) == x86_64 ]] || exit 125\nrc=0\nstrace -o route.trace -- ./tracee-core >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py output-route\n",
+      "stdout": "output-route-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "gcc.out",
+        "gcc.err",
+        "direct.out",
+        "direct.err",
+        "direct.status",
+        "ptrace.out",
+        "ptrace.err",
+        "ptrace.status",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "candidate.trace",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+      }
+    },
+    {
+      "id": "migration-strace-output-stdout-reviewed",
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-o preserves tracee stdout.",
+      "covers": [
+        "strace/output-file-routing"
+      ],
+      "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
+      "comparison": "Stdout is byte-for-byte equal to the independently observed marker including its newline.",
+      "requires": [
+        "gcc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py setup\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r guest_marker </etc/bashos-parity-vm || exit 125\nIFS= read -r guest_vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $guest_vendor == QEMU && $guest_marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(/usr/bin/uname -m) == x86_64 ]] || exit 125\nrc=0\nstrace -o route.trace -- ./tracee-core >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py output-stdout\n",
+      "stdout": "output-stdout-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "gcc.out",
+        "gcc.err",
+        "direct.out",
+        "direct.err",
+        "direct.status",
+        "ptrace.out",
+        "ptrace.err",
+        "ptrace.status",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "candidate.trace",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+      }
+    },
+    {
+      "id": "migration-strace-output-status-reviewed",
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-o preserves tracee exit status.",
+      "covers": [
+        "strace/output-file-routing"
+      ],
+      "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
+      "comparison": "The tracer returns the independently observed status 42.",
+      "requires": [
+        "gcc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py setup\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r guest_marker </etc/bashos-parity-vm || exit 125\nIFS= read -r guest_vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $guest_vendor == QEMU && $guest_marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(/usr/bin/uname -m) == x86_64 ]] || exit 125\nrc=0\nstrace -o route.trace -- ./tracee-core >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py output-status\n",
+      "stdout": "output-status-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "gcc.out",
+        "gcc.err",
+        "direct.out",
+        "direct.err",
+        "direct.status",
+        "ptrace.out",
+        "ptrace.err",
+        "ptrace.status",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "candidate.trace",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+      }
+    },
+    {
+      "id": "migration-strace-filter-names-reviewed",
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A syscall name list selects exactly the named syscalls.",
+      "covers": [
+        "strace/syscall-filter"
+      ],
+      "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
+      "comparison": "Exactly one write and one openat record occur in order; all other records are excluded.",
+      "requires": [
+        "gcc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py setup\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r guest_marker </etc/bashos-parity-vm || exit 125\nIFS= read -r guest_vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $guest_vendor == QEMU && $guest_marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(/usr/bin/uname -m) == x86_64 ]] || exit 125\nrc=0\nstrace -e trace=write,openat -- ./tracee-core >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py filter-names\n",
+      "stdout": "filter-names-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "gcc.out",
+        "gcc.err",
+        "direct.out",
+        "direct.err",
+        "direct.status",
+        "ptrace.out",
+        "ptrace.err",
+        "ptrace.status",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "candidate.trace",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+      }
+    },
+    {
+      "id": "migration-strace-filter-numbers-reviewed",
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Numeric syscall selectors are accepted.",
+      "covers": [
+        "strace/syscall-filter"
+      ],
+      "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
+      "comparison": "On x86_64 the numeric list selects exactly write (1) and openat (257), once each.",
+      "requires": [
+        "gcc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py setup\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r guest_marker </etc/bashos-parity-vm || exit 125\nIFS= read -r guest_vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $guest_vendor == QEMU && $guest_marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(/usr/bin/uname -m) == x86_64 ]] || exit 125\nrc=0\nstrace -e trace=1,257 -- ./tracee-core >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py filter-numbers\n",
+      "stdout": "filter-numbers-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "gcc.out",
+        "gcc.err",
+        "direct.out",
+        "direct.err",
+        "direct.status",
+        "ptrace.out",
+        "ptrace.err",
+        "ptrace.status",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "candidate.trace",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+      }
+    },
+    {
+      "id": "migration-strace-filter-exclude-reviewed",
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Syscalls outside the name list do not appear.",
+      "covers": [
+        "strace/syscall-filter"
+      ],
+      "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
+      "comparison": "The trace contains only the known selected records; execve and exit_group must not occur.",
+      "requires": [
+        "gcc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py setup\n",
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r guest_marker </etc/bashos-parity-vm || exit 125\nIFS= read -r guest_vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $guest_vendor == QEMU && $guest_marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(/usr/bin/uname -m) == x86_64 ]] || exit 125\nrc=0\nstrace -e trace=write,openat -- ./tracee-core >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-exec-output-filter-reviewed.py filter-exclude\n",
+      "stdout": "filter-exclude-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "gcc.out",
+        "gcc.err",
+        "direct.out",
+        "direct.err",
+        "direct.status",
+        "ptrace.out",
+        "ptrace.err",
+        "ptrace.status",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "candidate.trace",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+      }
+    }
+  ]
+}
