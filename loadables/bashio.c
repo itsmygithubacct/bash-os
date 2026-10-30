@@ -513,11 +513,17 @@ bio_set_addr (WORD_LIST *args)
   memset (&ifr, 0, sizeof ifr);
   strncpy (ifr.ifr_name, iface, IFNAMSIZ - 1);
 
-  /* Set address. */
+  /* Both addresses are checked before any ioctl. A bad mask must not
+   * leave SIOCSIFADDR applied. */
+  struct in_addr ip_addr, mask_addr;
+  if (inet_pton (AF_INET, ip, &ip_addr) != 1)
+    { builtin_error ("bad IP: %s", ip); close (sfd); return EX_USAGE; }
+  if (inet_pton (AF_INET, mask, &mask_addr) != 1)
+    { builtin_error ("bad MASK: %s", mask); close (sfd); return EX_USAGE; }
+
   struct sockaddr_in *sin = (struct sockaddr_in *) &ifr.ifr_addr;
   sin->sin_family = AF_INET;
-  if (inet_pton (AF_INET, ip, &sin->sin_addr) != 1)
-    { builtin_error ("bad IP: %s", ip); close (sfd); return EX_USAGE; }
+  sin->sin_addr = ip_addr;
   if (ioctl (sfd, SIOCSIFADDR, &ifr) < 0)
     { builtin_error ("SIOCSIFADDR %s %s: %s", iface, ip, strerror (errno));
       close (sfd); return EXECUTION_FAILURE; }
@@ -525,8 +531,7 @@ bio_set_addr (WORD_LIST *args)
   /* Set netmask. */
   sin = (struct sockaddr_in *) &ifr.ifr_netmask;
   sin->sin_family = AF_INET;
-  if (inet_pton (AF_INET, mask, &sin->sin_addr) != 1)
-    { builtin_error ("bad MASK: %s", mask); close (sfd); return EX_USAGE; }
+  sin->sin_addr = mask_addr;
   if (ioctl (sfd, SIOCSIFNETMASK, &ifr) < 0)
     { builtin_error ("SIOCSIFNETMASK %s %s: %s", iface, mask, strerror (errno));
       close (sfd); return EXECUTION_FAILURE; }

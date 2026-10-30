@@ -92,6 +92,39 @@ ss_state_name (unsigned char s)
     }
 }
 
+/* netstat legacy columns. /proc/net/unix St is socket->state (SS_*):
+ * 0 FREE, 1 UNCONNECTED, 2 CONNECTING, 3 CONNECTED, 4 DISCONNECTING.
+ * A listener is that row with the acceptcon flag (1<<16), and its label
+ * is LISTENING. sock_diag instead reports sk->sk_state with TCP numbers,
+ * so the diag path translates the values AF_UNIX stores. */
+static const char *
+bss_unix_proc_state (unsigned long st, unsigned long flags)
+{
+  if (flags & 0x10000)
+    return "LISTENING";
+  switch (st)
+    {
+    case 0: return "FREE";
+    case 1: return "UNCONNECTED";
+    case 2: return "CONNECTING";
+    case 3: return "CONNECTED";
+    case 4: return "DISCONNECTING";
+    default: return "UNKNOWN";
+    }
+}
+
+static const char *
+bss_unix_diag_state (unsigned char s)
+{
+  switch (s)
+    {
+    case  1: return "CONNECTED";    /* TCP_ESTABLISHED */
+    case  7: return "UNCONNECTED";  /* TCP_CLOSE */
+    case 10: return "LISTENING";    /* TCP_LISTEN */
+    default: return "UNKNOWN";
+    }
+}
+
 /* ----------------------------------------------------------------- */
 /* pid/inode map for -p annotation                                     */
 /* ----------------------------------------------------------------- */
@@ -539,14 +572,17 @@ bss_cb_unix (struct nlmsghdr *h, void *vctx)
   if (c->show_pid)
     bss_pidmap_lookup (c->pidmap, (unsigned long) m->udiag_ino,
                        proc, sizeof proc);
+  const char *stname = c->legacy_columns
+    ? bss_unix_diag_state (m->udiag_state)
+    : ss_state_name (m->udiag_state);
   if (c->legacy_columns)
     fprintf (c->out, "%-5s %-6u %-6u %-26s %-26s %s%s\n",
             typestr, queues.udiag_rqueue, queues.udiag_wqueue,
             path[0] ? path : "*", "*",
-            ss_state_name (m->udiag_state), proc);
+            stname, proc);
   else
     fprintf (c->out, "%-6s %-11s %-7u %-7u  %-22s %s%s\n",
-            typestr, ss_state_name (m->udiag_state),
+            typestr, stname,
             queues.udiag_rqueue, queues.udiag_wqueue,
             path[0] ? path : "*", "*", proc);
   c->rows++;
@@ -652,8 +688,16 @@ bss_proc_unix (struct bss_render_ctx *c, int listen_only)
                            &flags, &type, &st, &inode, path);
       if (parsed < 4) continue;
       if (listen_only && !(flags & 0x10000)) continue;
-      /* /proc/net/unix uses SS_* socket states, not TCP states. */
-      st = flags & 0x10000 ? BSS_TCP_LISTEN : st == 3 ? 1 : st == 2 ? 2 : st == 4 ? 8 : 7;
+      /* Proc St is already an SS_* value. The ss surface remaps it onto
+       * TCP abbreviations. netstat legacy columns print the SS_* name. */
+      const char *stname;
+      if (c->legacy_columns)
+        stname = bss_unix_proc_state (st, flags);
+      else
+        {
+          st = flags & 0x10000 ? BSS_TCP_LISTEN : st == 3 ? 1 : st == 2 ? 2 : st == 4 ? 8 : 7;
+          stname = ss_state_name ((unsigned char) st);
+        }
       const char *typestr = type == SOCK_STREAM ? "u_str"
                           : type == SOCK_DGRAM  ? "u_dgr"
                           : type == SOCK_SEQPACKET ? "u_seq"
@@ -664,10 +708,10 @@ bss_proc_unix (struct bss_render_ctx *c, int listen_only)
         bss_pidmap_lookup (c->pidmap, inode, proc, sizeof proc);
       if (c->legacy_columns)
         fprintf (c->out, "%-5s 0      0      %-26s %-26s %s%s\n",
-                typestr, p, "*", ss_state_name ((unsigned char) st), proc);
+                typestr, p, "*", stname, proc);
       else
         fprintf (c->out, "%-6s %-11s %-7u %-7u  %-22s %s%s\n",
-                typestr, ss_state_name ((unsigned char) st), 0U, 0U,
+                typestr, stname, 0U, 0U,
                 p, "*", proc);
       rows++;
     }
