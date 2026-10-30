@@ -85,8 +85,11 @@ def parse_records(data, locations=None):
         m = CALL_START.match(line)
         if not m:
             raise ValueError('unexpected trace line: ' + line)
-        if m.group(1) == 'execve' and exec_seen:
-            raise ValueError('execve follows exec banner')
+        # A tracer may print the exec event before its completed execve line.
+        # Once another syscall has appeared, however, a later execve cannot
+        # belong to that initial event in this single-tracee fixture.
+        if m.group(1) == 'execve' and exec_seen and result:
+            raise ValueError('execve follows other syscalls after exec banner')
         args = []
         i = m.end()
         while True:
@@ -276,6 +279,9 @@ def setup(home):
     exec_banner = b'[pid 123] +++ exec +++\n'
     exit_banner = b'[pid 123] +++ exited with 42 +++\n'
     standalone = good.replace(b'[pid 123] write(', exec_banner + b'[pid 123] write(', 1)
+    preceding = exec_banner + good
+    preceding_unprefixed = preceding.replace(b'[pid 123] ', b'')
+    preceding_numbered = preceding.replace(b'[pid 123] ', b'123 ')
     plain = good.replace(exit_banner, b'')
     unprefixed = good.replace(b'[pid 123] ', b'')
     no_prefix_or_banner = plain.replace(b'[pid 123] ', b'')
@@ -284,7 +290,9 @@ def setup(home):
     filtered = exec_banner + parts[1] + parts[2] + exit_banner
     filtered_plain = parts[1] + parts[2]
     filtered_unprefixed = filtered.replace(b'[pid 123] ', b'')
-    for sample, expected in [(standalone, EXPECTED), (plain, EXPECTED),
+    for sample, expected in [(standalone, EXPECTED), (preceding, EXPECTED),
+                             (preceding_unprefixed, EXPECTED), (preceding_numbered, EXPECTED),
+                             (plain, EXPECTED),
                              (unprefixed, EXPECTED), (no_prefix_or_banner, EXPECTED),
                              (numbered, EXPECTED), (filtered, ['write', 'openat']),
                              (filtered_plain, ['write', 'openat']),
@@ -298,6 +306,19 @@ def setup(home):
     if standalone_banners != [{'kind': 'exec', 'pid': 123, 'line': 2, 'source': 'standalone'},
                               {'kind': 'exit', 'pid': 123, 'line': 6, 'source': 'standalone'}]:
         raise ValueError('standalone banner accounting mismatch')
+    _, _, preceding_banners = semantic_records(preceding)
+    if preceding_banners != [{'kind': 'exec', 'pid': 123, 'line': 1, 'source': 'standalone'},
+                             {'kind': 'exit', 'pid': 123, 'line': 6, 'source': 'standalone'}]:
+        raise ValueError('preceding exec banner accounting mismatch')
+    for sample, expected_pid in [(preceding, 123), (preceding_unprefixed, None),
+                                 (preceding_numbered, 123)]:
+        _, strict_banners = parse_records(sample)
+        _, _, semantic_banners = semantic_records(sample)
+        expected_banners = [{'kind': 'exec', 'pid': expected_pid, 'line': 1, 'source': 'standalone'},
+                            {'kind': 'exit', 'pid': expected_pid, 'line': 6, 'source': 'standalone'}]
+        if strict_banners != expected_banners or semantic_banners != expected_banners:
+            raise ValueError('preceding exec banner PID or line accounting mismatch')
+    require_decode(preceding)
     _, _, unprefixed_banners = semantic_records(filtered_unprefixed)
     if ([banner['kind'] for banner in unprefixed_banners] != ['exec', 'exit'] or
             any(banner['pid'] is not None for banner in unprefixed_banners)):
@@ -346,7 +367,9 @@ def setup(home):
         (good + exit_banner, EXPECTED, False),
         (good.replace(parts[1], exit_banner + parts[1]), EXPECTED, False),
         (good.replace(parts[2], exec_banner + parts[2]), EXPECTED, False),
-        (exec_banner + good, EXPECTED, False),
+        (exec_banner + parts[1] + parts[0] + b''.join(parts[2:]), EXPECTED, False),
+        (exec_banner + good.replace(b'[pid 123] execve(', b'[pid 124] execve(', 1), EXPECTED, False),
+        (exec_banner + standalone, EXPECTED, False),
         (good + exec_banner, EXPECTED, False),
         (exit_banner + good, EXPECTED, False),
         (good.replace(b'[pid 123] write(', b'write(', 1), EXPECTED, False),
@@ -435,7 +458,7 @@ def setup(home):
         'positive': 7, 'negative': len(negatives),
         'decode_negative': len(decode_negatives), 'semantic_positive': 3,
         'semantic_negative': len(semantic_negatives),
-        'banner_positive': 8, 'banner_negative': len(banner_negatives),
+        'banner_positive': 11, 'banner_negative': len(banner_negatives),
         'strict_interruption_rejected': True}) + '\n')
     Path('tracee-core.s').write_text(ASSEMBLY)
     Path('native-trace.c').write_text(CONTROL)
