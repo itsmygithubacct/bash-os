@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "candidate_script": "export PATH=/usr/bin:/bin\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/sftp-native-tree-peer-r1.py >\"$HOME/native-peer.stdout\" 2>\"$HOME/native-peer.stderr\" & peer=$!\ntrap 'if [[ -n $peer ]]; then kill \"$peer\" 2>/dev/null; wait \"$peer\" 2>/dev/null; fi' EXIT\nfor ((i=0;i<200;i++)); do [[ -s \"$HOME/native-peer-ready.json\" ]] && break; kill -0 \"$peer\" 2>/dev/null || break; sleep 0.05; done\nif [[ ! -s \"$HOME/native-peer-ready.json\" ]]; then printf 'SFTP27-INFRA: readiness missing\\n' >&2; exit 125; fi\nif ! port=$(/usr/bin/python3 \"$PWD/native-ready-check.py\" \"$peer\" 2>>\"$HOME/native-peer.stderr\"); then printf 'SFTP27-INFRA: invalid readiness\\n' >&2; exit 125; fi\nif ! kill -0 \"$peer\" 2>/dev/null; then printf 'SFTP27-INFRA: peer not alive\\n' >&2; exit 125; fi\nbuiltin sftp --native -p \"$port\" -b commands.batch 127.0.0.1 >\"$HOME/client.stdout\" 2>\"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - <<'PY2'\nimport pathlib\ns=pathlib.Path('/tmp/parity-home/client.stdout').read_text(errors='replace')\nprint('selected=%d' % ('selected-needle' in s))\nprint('decoys-absent=%d' % ('decoy-needle' not in s and 'root-needle' not in s))\nPY2\nwait \"$peer\"; peer_rc=$?; printf 'pid=%s\\nstatus=%s\\n' \"$peer\" \"$peer_rc\" > \"$HOME/native-peer.status\"; peer=\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\nh=pathlib.Path('/tmp/parity-home')\ntry:\n e=[json.loads(x) for x in (h/'native-peer.jsonl').read_text().splitlines()]\n req=[x for x in e if x['event']=='request']; cmds=[x['command'] for x in req]\n expected=['pwd',\"cd '/fixture' && cd 'space dir' && pwd\",\"cd '/fixture/space dir' && ls -la\"]\n valid=cmds==expected and all(x['rc']==0 and x['stdin_len']==0 for x in req) and any(x['event']=='finished' for x in e)\nexcept (OSError,KeyError,ValueError): valid=False\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "comparison": "Compare normalized status and selected listing with independent reference plus complete fixture trees; retain client and peer traces. Primary must apply the pinned data-only gate before assigning any coverage or product result. This case does not establish the confined binary-transfer requirements.",
+      "covers": [
+        "sftp/session-navigation-listing"
+      ],
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "native-peer.jsonl",
+        "native-peer-ready.json",
+        "native-peer.stderr",
+        "native-peer.status",
+        "sftp-invocations.jsonl",
+        "adapter-control.txt",
+        "native-control.out",
+        "native-control.err",
+        "native-control-peer.jsonl",
+        "native-control-peer.stderr",
+        "nav-control.out",
+        "nav-control.err",
+        "native-control-peer-ready.json",
+        "nav-control-invocations.jsonl"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "files": {
+        "commands.batch": "cd \"space dir\"\nls\nbye\n",
+        "native-control.py": "# Guest-only independent preflight of the native framed tree peer.\nimport json, socket\nfrom pathlib import Path\nh=Path('/tmp/parity-home'); ready=json.loads((h/'native-peer-ready.json').read_text())\nassert ready['address']=='127.0.0.1' and 1<=ready['port']<=65535\ndef read_exact(s,n):\n    b=b''\n    while len(b)<n:\n        v=s.recv(n-len(b))\n        if not v:raise RuntimeError('short response')\n        b+=v\n    return b\ndef exchange(cmd):\n    with socket.create_connection(('127.0.0.1',ready['port']),timeout=3) as s:\n        c=cmd.encode(); s.sendall(b'BASHSSH1\\ncmd-len %d\\nstdin-len 0\\n\\n'%len(c)+c)\n        head=b''\n        while not head.endswith(b'\\n\\n'):\n            head+=read_exact(s,1)\n            if len(head)>512:raise RuntimeError('header limit')\n        ls=head[:-2].decode('ascii').split('\\n'); assert len(ls)==4 and ls[0]=='BASHSSH1-RESP'\n        fields=dict(x.split(' ',1) for x in ls[1:]); assert fields['rc']=='0' and fields['stderr-len']=='0'\n        return read_exact(s,int(fields['stdout-len']))\nassert exchange('pwd')==b'/fixture\\n'\nassert exchange(\"cd '/fixture' && cd 'space dir' && pwd\")==b'/fixture/space dir\\n'\nassert exchange(\"cd '/fixture/space dir' && ls -la\")==b'selected-needle\\n'\nprint('native-control=PASS')\n",
+        "native-ready-check.py": "# Guest-only ready-record integrity; no product invocation.\nimport json, os, stat, sys\nfrom pathlib import Path\nif len(sys.argv) != 2: raise SystemExit(125)\nexpected = int(sys.argv[1]); path = Path('/tmp/parity-home/native-peer-ready.json')\nfd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)\ntry:\n    st = os.fstat(fd)\n    if not stat.S_ISREG(st.st_mode) or st.st_uid != 2000 or st.st_nlink != 1 or st.st_size > 512: raise ValueError('invalid ready file')\n    raw = os.read(fd, 513)\nfinally: os.close(fd)\ndoc = json.loads(raw)\nif (type(doc) is not dict or set(doc) != {'pid','address','port'} or type(doc['pid']) is not int or doc['pid'] != expected or doc['address'] != '127.0.0.1' or type(doc['port']) is not int or not 1 <= doc['port'] <= 65535): raise ValueError('invalid ready identity/address/port')\nprint(doc['port'])\n",
+        "remote/other/decoy-needle": "other\n",
+        "remote/root-needle": "root\n",
+        "remote/space dir/selected-needle": "selected\n"
+      },
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/sftp-native-tree-peer-r1.py": "3d9de6d33717c6aa754dea4ead15ff24739fbac78e2277f3dbc353b1156cc734",
+        "helpers/transfer-sftp-ssh-r3.py": "18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b",
+        "helpers/farm600-sftp-remaining-reviewed-gate.json": "ba2f9d9b63f2c30a6e32997469b57481505f3f494133bcc32f3f20de8a4a7446"
+      },
+      "id": "migration-farm600-sftp-remaining-reviewed-native-navigation",
+      "kind": "parity",
+      "loadable": "sftp",
+      "oracle": "Stock OpenSSH sftp and its SFTP server use the same fixture tree as the independently decoded BASHSSH1 peer. The native peer reads the selected real directory and does not execute shell commands; setup runs separate native framing and stock SFTP controls for each side. This is local transport, not SSH authentication or encryption.",
+      "purpose": "Compare quoted relative cd followed by ls through native framing and a tree-backed independent OpenSSH SFTP server.",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/sftp -b commands.batch -S \"$H\" fixture >\"$HOME/client.stdout\" 2>\"$HOME/client.stderr\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\n/usr/bin/python3 - <<'PY2'\nimport pathlib\ns=pathlib.Path('/tmp/parity-home/client.stdout').read_text(errors='replace')\nprint('selected=%d' % ('selected-needle' in s))\nprint('decoys-absent=%d' % ('decoy-needle' not in s and 'root-needle' not in s))\nPY2\n/usr/bin/python3 - <<'PY2'\nimport json, pathlib\ntry:\n e=[json.loads(x) for x in pathlib.Path('/tmp/parity-home/sftp-invocations.jsonl').read_text().splitlines()]\n valid=any(x['event']=='sftp-server' for x in e) and not any(x['event']=='error' for x in e)\nexcept (OSError,KeyError,ValueError):valid=False\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPY2\n",
+      "requires": [
+        "python3",
+        "sftp",
+        "grep",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "script": ":",
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-sftp-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-sftp-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == 18b2920ad89a6f9a85bb595147ad9ea087c794d9b1956673783770c3d540df3b && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-sftp-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"deny\":false}' > \"$HOME/sftp-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\nprintf 'control contents\\n' > \"$FIXTURE_REMOTE_ROOT/control-name\"\nprintf 'pwd\\nls\\n' > \"$HOME/control.batch\"\n[[ -x /usr/lib/openssh/sftp-server && -x \"$H\" ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED shell endpoint'; exit 98; }\n/usr/bin/sftp -b \"$HOME/control.batch\" -S \"$H\" fixture > \"$HOME/control-sftp.out\" 2> \"$HOME/control-sftp.err\"\n/usr/bin/grep -Fq 'control-name' \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED OpenSSH SFTP endpoint'; exit 98; }\n/usr/bin/grep -Fq \"$FIXTURE_REMOTE_ROOT\" \"$HOME/control-sftp.out\" || { echo 'CONTROL-FAILED remote pwd'; exit 98; }\nprintf '%s\\n' '{\"phase\":\"case\",\"deny\":false}' > \"$HOME/sftp-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\"\n/usr/bin/cmp -s \"$HOME/sftp-case-config.json\" \"$HOME/sftp-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/sftp-native-tree-peer-r1.py >\"$HOME/native-control-peer.stdout\" 2>\"$HOME/native-control-peer.stderr\" & ctrl=$!\ntrap 'if [[ -n $ctrl ]]; then kill \"$ctrl\" 2>/dev/null; wait \"$ctrl\" 2>/dev/null; fi' EXIT\nfor ((i=0;i<200;i++)); do [[ -s \"$HOME/native-peer-ready.json\" ]] && break; kill -0 \"$ctrl\" 2>/dev/null || break; sleep 0.05; done\nif [[ ! -s \"$HOME/native-peer-ready.json\" ]] || ! /usr/bin/python3 \"$PWD/native-ready-check.py\" \"$ctrl\" > \"$HOME/native-control.out\" 2> \"$HOME/native-control.err\" || ! kill -0 \"$ctrl\" 2>/dev/null; then echo 'CONTROL-INCOMPLETE native readiness' >&2; exit 125; fi\nprintf 'peer-pid=%s\\n' \"$ctrl\" >> \"$HOME/native-control.out\"\n/usr/bin/python3 \"$PWD/native-control.py\" >> \"$HOME/native-control.out\" 2> \"$HOME/native-control.err\" || { echo 'CONTROL-INCOMPLETE native preflight' >&2; exit 125; }\nif ! wait \"$ctrl\"; then ctrl=; echo 'CONTROL-INCOMPLETE native control peer' >&2; exit 125; fi\nctrl=; trap - EXIT\n/bin/mv \"$HOME/native-peer.jsonl\" \"$HOME/native-control-peer.jsonl\"\n/bin/mv \"$HOME/native-peer-ready.json\" \"$HOME/native-control-peer-ready.json\"\n\n# Exercise the actual quoted navigation and selected tree over stock SFTP.\nprintf 'cd \"space dir\"\\nls\\nbye\\n' > \"$HOME/nav-control.batch\"\n/usr/bin/sftp -b \"$HOME/nav-control.batch\" -S \"$H\" fixture > \"$HOME/nav-control.out\" 2> \"$HOME/nav-control.err\"\n/usr/bin/grep -Fq 'selected-needle' \"$HOME/nav-control.out\"\n! /usr/bin/grep -Fq 'decoy-needle' \"$HOME/nav-control.out\"\n! /usr/bin/grep -Fq 'root-needle' \"$HOME/nav-control.out\"\n/bin/cp \"$HOME/sftp-invocations.jsonl\" \"$HOME/nav-control-invocations.jsonl\"\n: > \"$HOME/sftp-invocations.jsonl\"\n",
+      "setup_timeout": 30,
+      "stderr": "",
+      "stdout": "status=0\nselected=1\ndecoys-absent=1\npeer-stage=observed\n",
+      "timeout": 30
+    }
+  ]
+}

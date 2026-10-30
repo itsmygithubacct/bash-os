@@ -1,0 +1,21 @@
+{
+  "schema": "farm600-sftp-navigation-gate-v1",
+  "scope": "sftp/session-navigation-listing r3; quoted relative cd followed by ls; no claim for binary transfers or SSH authentication",
+  "mandatory_primary_gate": {
+    "per_side_controls": [
+      "Require guest setup status 0, no harness_error, and untruncated native-control-peer.jsonl, native-control-peer-ready.json, native-control.out, native-control.err, nav-control.out, nav-control.err, nav-control-invocations.jsonl, and adapter-control.txt.",
+      "Independently bind both helper hashes and copied adapter identity to the fixture. Verify the native ready address and PID against the recorded setup peer-pid, synthetic-control pwd, cd and tree-backed ls records and their selected-needle result. Require the stock navigation control to have zero status, to select selected-needle and exclude both decoys, and to record a successful SFTP-server invocation without adapter error.",
+      "Reference and candidate each use fresh setup; never reuse one side\u2019s controls as the other side\u2019s control."
+    ],
+    "reference": [
+      "Require reference stdout status=0, selected=1, decoys-absent=1, peer-stage=observed and actual bounded client output and adapter invocation records proving sftp-server execution with no error. Require unchanged reference fixture tree and expected input files."
+    ],
+    "candidate": [
+      "Require bounded complete client stdout/stderr, candidate status, peer status and native-peer.jsonl including initial header, command bytes, decoded requests and terminal event; validate ready PID/address/port against the recorded peer PID and helper identity.",
+      "A behavioral PASS requires peer status 0, a finished event, exactly three complete requests pwd, cd into the quoted directory, and ls in that directory, with empty stdin and zero peer status; compare raw command and lengths, selected name in client listing, decoys absent, and untouched fixture tree against the independently validated reference.",
+      "A reached mismatch can be FAIL only if setup controls passed, the reference is valid, peer recorded the affected product command and response and the relevant listing attempt is observed; retain all request bytes, response/error, client status and tree observations. A malformed/wrong cd that prevents the listing does not establish the r3 listing obligation.",
+      "Missing records, setup/control failure, unexplained peer death, timeouts, truncated bytes or an unobserved listing are ERROR or inconclusive/unreached, not a product PASS or completed r3 coverage. Do not treat generic runner FAIL alone as evidence."
+    ],
+    "limits": "The native peer admits only bounded framed commands and never executes an arbitrary shell. The reference adapter selects stock OpenSSH sftp-server; that server is not claimed to confine paths, so this case makes no claim for binary-get-put r1/r2. Actual runtime and evidence integration are separately owned."
+  }
+}
