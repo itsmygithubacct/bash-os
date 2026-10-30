@@ -2258,10 +2258,16 @@ static int
 ba_policy_class_match (const char **patp, char c)
 {
 	const char *p = *patp;
-	int matched = 0, any = 0;
+	int matched = 0, any = 0, negate = 0;
 
+	/* FNM_PATHNAME: a class never matches '/' or the empty string. '!' as
+	   the first class character negates; a leading ']' stays literal. */
 	if (!c || c == '/')
 		return 0;
+	if (*p == '!') {
+		negate = 1;
+		p++;
+	}
 	if (*p == ']') {
 		matched = c == ']';
 		any = 1;
@@ -2289,7 +2295,7 @@ ba_policy_class_match (const char **patp, char c)
 	if (*p != ']' || !any)
 		return 0;
 	*patp = p + 1;
-	return matched;
+	return negate ? !matched : matched;
 }
 
 static int
@@ -2711,6 +2717,39 @@ ba_policy_normalize_command_list (const char *list, char *out, size_t cap)
 	return ret ? ret : (n > 0 ? 0 : -1);
 }
 
+/* Join a comma-separated name list with no whitespace. sudoers treats
+   whitespace around ',' as insignificant. */
+static int
+ba_policy_normalize_name_list (const char *list, char *out, size_t cap)
+{
+	char *copy, *save = NULL;
+	size_t pos = 0;
+	int n = 0;
+
+	if (!list || !out || cap == 0)
+		return -1;
+	out[0] = '\0';
+	copy = strdup (list);
+	if (!copy)
+		return -1;
+	for (char *tok = strtok_r (copy, ",", &save); tok;
+	     tok = strtok_r (NULL, ",", &save)) {
+		tok = ba_policy_trim (tok);
+		if (!*tok)
+			continue;
+		if (n++ > 0 && ba_policy_append_text (out, cap, &pos, ",") < 0) {
+			free (copy);
+			return -1;
+		}
+		if (ba_policy_append_text (out, cap, &pos, tok) < 0) {
+			free (copy);
+			return -1;
+		}
+	}
+	free (copy);
+	return n > 0 ? 0 : -1;
+}
+
 static int
 ba_policy_value_ok (const char *s, int command)
 {
@@ -2721,7 +2760,10 @@ ba_policy_value_ok (const char *s, int command)
 	}
 	if (ba_policy_has_glob_or_negation (s)) return 0;
 	if (strcmp (s, "ALL") == 0) return 1;
-	return ba_policy_name_ok (s, 1) || (!command && ba_policy_name_ok (s, 0));
+	/* sudoers #uid user form. A leading '#' is otherwise a comment. */
+	if (s[0] == '#' && ba_policy_uint_ok (s + 1))
+		return 1;
+	return ba_policy_name_ok (s, 1) || ba_policy_name_ok (s, 0);
 }
 
 static int
@@ -2844,8 +2886,12 @@ ba_policy_parse_alias (struct ba_policy_parse_ctx *ctx,
 			builtin_error ("policy-parse:%u: invalid alias list", lineno);
 			return -1;
 		}
-		values = normalized_values;
+	} else if (ba_policy_normalize_name_list (values, normalized_values,
+	                                          sizeof normalized_values) < 0) {
+		builtin_error ("policy-parse:%u: invalid alias list", lineno);
+		return -1;
 	}
+	values = normalized_values;
 	return ba_policy_emit (ctx, "alias type=%s name=%s values=%s",
 	                       kind, name, values);
 }
@@ -3098,6 +3144,20 @@ ba_policy_parse_rule (struct ba_policy_parse_ctx *ctx,
 			return -1;
 		}
 	}
+	char runas_norm[256], group_norm[256];
+	if (ba_policy_normalize_name_list (runas, runas_norm, sizeof runas_norm) < 0) {
+		builtin_error ("policy-parse:%u: invalid runas list", lineno);
+		return -1;
+	}
+	runas = runas_norm;
+	if (runas_group) {
+		if (ba_policy_normalize_name_list (runas_group, group_norm,
+		                                   sizeof group_norm) < 0) {
+			builtin_error ("policy-parse:%u: invalid runas group list", lineno);
+			return -1;
+		}
+		runas_group = group_norm;
+	}
 	char *cmds = ba_policy_trim (closep);
 	char normalized_cmds[256];
 	int nopasswd = 0, setenv = 0;
@@ -3132,17 +3192,48 @@ ba_policy_parse_rule (struct ba_policy_parse_ctx *ctx,
 }
 
 static int
+ba_policy_include_directive (const char *line)
+{
+	static const char *const words[] = {
+		"@includedir", "@include", "#includedir", "#include", NULL
+	};
+
+	for (int i = 0; words[i]; i++) {
+		size_t n = strlen (words[i]);
+		if (strncmp (line, words[i], n) == 0 &&
+		    (line[n] == '\0' || isspace ((unsigned char) line[n])))
+			return 1;
+	}
+	return 0;
+}
+
+static int
 ba_policy_parse_line (struct ba_policy_parse_ctx *ctx,
                       char *line, unsigned int lineno)
 {
-	char *hash = strchr (line, '#');
-	if (hash) *hash = '\0';
+	char *hash;
+
+	/* sudoers: '#' starts a comment, except '#include'/'#includedir'
+	   (unsupported directives) and a '#uid' user id. '@include' and
+	   '@includedir' are the same directives. A command path that merely
+	   contains the letters "include" is not one. */
 	line = ba_policy_trim (line);
-	if (!*line) return 0;
-	if (line[0] == '@' || strstr (line, "include")) {
+	if (!*line)
+		return 0;
+	if (ba_policy_include_directive (line)) {
 		builtin_error ("policy-parse:%u: includes are not supported", lineno);
 		return -1;
 	}
+	if (line[0] == '#' && !isdigit ((unsigned char) line[1])) {
+		line[0] = '\0';
+		return 0;
+	}
+	hash = strchr (line[0] == '#' ? line + 1 : line, '#');
+	if (hash)
+		*hash = '\0';
+	line = ba_policy_trim (line);
+	if (!*line)
+		return 0;
 	if (strncmp (line, "User_Alias", 10) == 0 && isspace ((unsigned char) line[10]))
 		return ba_policy_parse_alias (ctx, "User_Alias", line, lineno);
 	if (strncmp (line, "Runas_Alias", 11) == 0 && isspace ((unsigned char) line[11]))
