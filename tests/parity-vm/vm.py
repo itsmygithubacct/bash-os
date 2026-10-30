@@ -146,6 +146,176 @@ print(json.dumps(result))
 """
 
 
+# Fixed controller scaffolding, run as root only in the verified guest.  The
+# read phase runs as a separate process and never modifies the attestation.
+ROOT_IDENTITY_ATTESTATION = r'''
+import json
+import os
+import stat
+import sys
+import uuid
+
+phase, token = sys.argv[1:3]
+if phase not in ('write', 'read') or str(uuid.UUID(token)) != token or os.getuid() != 0 or os.geteuid() != 0:
+    raise RuntimeError('invalid root attestation invocation')
+expected = token.encode('ascii') + b'\n'
+name = 'bashos-parity-vm-identity'
+
+
+def metadata(info, kind):
+    return {'type': kind, 'uid': info.st_uid, 'gid': info.st_gid,
+            'mode': stat.S_IMODE(info.st_mode), 'nlink': info.st_nlink,
+            'size': info.st_size, 'dev': info.st_dev, 'ino': info.st_ino,
+            'mtime_ns': info.st_mtime_ns, 'ctime_ns': info.st_ctime_ns}
+
+
+def directory(path):
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    info = os.fstat(fd)
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_gid != 0
+            or stat.S_IMODE(info.st_mode) & 0o022):
+        os.close(fd)
+        raise RuntimeError('unsafe identity directory: ' + path)
+    return fd
+
+
+def regular_at(dirfd, filename):
+    fd = os.open(filename, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=dirfd)
+    try:
+        before = os.fstat(fd)
+        if (not stat.S_ISREG(before.st_mode) or before.st_uid != 0 or before.st_gid != 0
+                or stat.S_IMODE(before.st_mode) != 0o444 or before.st_nlink != 1
+                or before.st_size != len(expected)):
+            raise RuntimeError('unsafe identity file metadata: ' + filename)
+        data = os.read(fd, len(expected) + 1)
+        after = os.fstat(fd)
+        entry = os.stat(filename, dir_fd=dirfd, follow_symlinks=False)
+        if metadata(before, 'regular') != metadata(after, 'regular') or metadata(after, 'regular') != metadata(entry, 'regular'):
+            raise RuntimeError('identity file changed during read: ' + filename)
+        if data != expected:
+            raise RuntimeError('identity file bytes mismatch: ' + filename)
+        return data, metadata(after, 'regular')
+    finally:
+        os.close(fd)
+
+
+def dmi_uuid():
+    fd = os.open('/sys/class/dmi/id/product_uuid', os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_gid != 0:
+            raise RuntimeError('unsafe DMI UUID file')
+        data = os.read(fd, len(expected) + 1)
+        if data.lower() != expected:
+            raise RuntimeError('root DMI UUID mismatch')
+        return data
+    finally:
+        os.close(fd)
+
+
+runfd = directory('/run')
+try:
+    etcfd = directory('/etc')
+    try:
+        marker, marker_meta = regular_at(etcfd, 'bashos-parity-vm')
+        dmi = dmi_uuid()
+        if phase == 'write':
+            try:
+                os.stat(name, dir_fd=runfd, follow_symlinks=False)
+            except FileNotFoundError:
+                pass
+            else:
+                regular_at(runfd, name)  # Reject unsafe or mismatched prior content.
+            temp = '.bashos-parity-vm-identity-' + token
+            created = False
+            try:
+                fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                             0o600, dir_fd=runfd)
+                created = True
+                try:
+                    written = 0
+                    while written < len(expected):
+                        n = os.write(fd, expected[written:])
+                        if n <= 0:
+                            raise RuntimeError('short attestation write')
+                        written += n
+                    os.fchmod(fd, 0o444)
+                    os.fsync(fd)
+                finally:
+                    os.close(fd)
+                os.replace(temp, name, src_dir_fd=runfd, dst_dir_fd=runfd)
+                created = False
+                os.fsync(runfd)
+            finally:
+                if created:
+                    os.unlink(temp, dir_fd=runfd)
+        attestation, attestation_meta = regular_at(runfd, name)
+        proof = {'schema': 'bashos-vm-identity-attestation-v1', 'token': token,
+                 'path': '/run/' + name, 'marker_hex': marker.hex(), 'dmi_hex': dmi.hex(),
+                 'attestation_hex': attestation.hex(), 'marker': marker_meta,
+                 'attestation': attestation_meta,
+                 'etc_directory': metadata(os.fstat(etcfd), 'directory'),
+                 'run_directory': metadata(os.fstat(runfd), 'directory')}
+        print(json.dumps(proof, sort_keys=True, separators=(',', ':')))
+    finally:
+        os.close(etcfd)
+finally:
+    os.close(runfd)
+'''
+
+
+def validate_attestation_proof(token, raw):
+    """Validate guest proof as bounded data and retain the raw observations."""
+    if (not isinstance(token, str) or str(uuid.UUID(token)) != token
+            or not isinstance(raw, bytes) or len(raw) > 8192):
+        raise RuntimeError('invalid attestation proof envelope')
+
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise RuntimeError('duplicate attestation proof key')
+            result[key] = value
+        return result
+
+    try:
+        proof = json.loads(raw.decode('ascii'), object_pairs_hook=unique)
+    except (ValueError, UnicodeError) as error:
+        raise RuntimeError('invalid attestation proof JSON') from error
+    keys = {'schema', 'token', 'path', 'marker_hex', 'dmi_hex', 'attestation_hex',
+            'marker', 'attestation', 'etc_directory', 'run_directory'}
+    if not isinstance(proof, dict) or set(proof) != keys:
+        raise RuntimeError('invalid attestation proof fields')
+    expected = (token + '\n').encode('ascii')
+    if (proof['schema'] != 'bashos-vm-identity-attestation-v1' or proof['token'] != token
+            or proof['path'] != '/run/bashos-parity-vm-identity'
+            or proof['marker_hex'] != expected.hex() or proof['attestation_hex'] != expected.hex()
+            or not isinstance(proof['dmi_hex'], str)):
+        raise RuntimeError('attestation proof identity mismatch')
+    try:
+        dmi = bytes.fromhex(proof['dmi_hex'])
+    except ValueError as error:
+        raise RuntimeError('invalid DMI proof bytes') from error
+    if dmi.lower() != expected or proof['dmi_hex'] != dmi.hex():
+        raise RuntimeError('attestation DMI proof mismatch')
+    meta_keys = {'type', 'uid', 'gid', 'mode', 'nlink', 'size', 'dev', 'ino', 'mtime_ns', 'ctime_ns'}
+    for key in ('marker', 'attestation', 'etc_directory', 'run_directory'):
+        meta = proof[key]
+        if (not isinstance(meta, dict) or set(meta) != meta_keys
+                or any(type(meta[x]) is not int for x in meta_keys - {'type'})
+                or meta['uid'] != 0 or meta['gid'] != 0 or not 0 <= meta['mode'] <= 0o7777
+                or meta['dev'] < 0 or meta['ino'] <= 0 or meta['size'] < 0
+                or meta['mtime_ns'] < 0 or meta['ctime_ns'] < 0):
+            raise RuntimeError('invalid attestation metadata: ' + key)
+        if key.endswith('_directory'):
+            if meta['type'] != 'directory' or meta['mode'] & 0o022 or meta['nlink'] < 1:
+                raise RuntimeError('unsafe identity directory proof: ' + key)
+        elif (meta['type'] != 'regular' or meta['mode'] != 0o444
+              or meta['nlink'] != 1 or meta['size'] != len(expected)):
+            raise RuntimeError('unsafe identity file proof: ' + key)
+    return proof
+
+
 class VM:
     POWEROFF_GRACE, TERMINATE_GRACE = 60, 10
 
@@ -248,6 +418,7 @@ class VM:
             if result.returncode:
                 raise RuntimeError(f"cloud-init did not finish cleanly (status {result.returncode})")
             self.identity = self.verify_identity()
+            self.attest_identity()
             return self
         except BaseException:
             self.__exit__(None, None, None)
@@ -255,14 +426,16 @@ class VM:
 
     def verify_identity(self):
         script = ("cat /etc/bashos-parity-vm; cat /sys/class/dmi/id/product_uuid; "
-                  "systemd-detect-virt --vm; findmnt -J -o TARGET,SOURCE,FSTYPE,OPTIONS; "
+                  "systemd-detect-virt --vm; cat /sys/class/dmi/id/sys_vendor; "
+                  "findmnt -J -o TARGET,SOURCE,FSTYPE,OPTIONS; "
                   "ip -j -4 addr show")
-        out = self.ssh(script, capture_output=True, timeout=20, check=True).stdout.decode()
-        lines = out.split("\n", 3)
-        marker, product, virt = (line.strip() for line in lines[:3])
+        raw = self.ssh(script, capture_output=True, timeout=20, check=True).stdout
+        (self.state / 'identity-root.raw').write_bytes(raw)
+        lines = raw.decode().split("\n", 4)
+        marker, product, virt, vendor = (line.strip() for line in lines[:4])
         decoder = json.JSONDecoder()
-        mounts, end = decoder.raw_decode(lines[3])
-        addresses = decoder.raw_decode(lines[3][end:].lstrip())[0]
+        mounts, end = decoder.raw_decode(lines[4])
+        addresses = decoder.raw_decode(lines[4][end:].lstrip())[0]
 
         def flatten(nodes):
             for node in nodes:
@@ -271,12 +444,66 @@ class VM:
         mounts = list(flatten(mounts["filesystems"]))
         shared = [m for m in mounts if m["fstype"] in ("9p", "virtiofs", "nfs", "nfs4", "cifs", "smb3", "fuse.sshfs")]
         identity = {"marker_matches": marker == self.token, "product_uuid_matches": product.lower() == self.token,
-                    "virtualization": virt, "host_shared_mounts": shared, "mounts": mounts,
+                    "virtualization": virt, "sys_vendor": vendor,
+                    "identity_root_raw_sha256": hashlib.sha256(raw).hexdigest(),
+                    "host_shared_mounts": shared, "mounts": mounts,
                     "interfaces": {a["ifname"]: [i["local"] for i in a.get("addr_info", [])] for a in addresses}}
+        self.identity = identity
         json_write(self.state / "identity.json", identity)
-        if not (identity["marker_matches"] and identity["product_uuid_matches"]) or virt not in ("kvm", "qemu") or shared:
+        if (not (identity["marker_matches"] and identity["product_uuid_matches"])
+                or virt not in ("kvm", "qemu") or vendor != "QEMU" or shared):
             raise RuntimeError("guest identity or isolation check failed; inspect identity.json")
         return identity
+
+    def attest_identity(self):
+        report = {'status': 'started', 'phases': {}}
+        self.identity['attestation'] = report
+        proofs = {}
+        try:
+            for phase in ('write', 'read'):
+                step = {'status': 'started', 'stdout_file': 'identity-attestation-' + phase + '.raw',
+                        'stderr_file': 'identity-attestation-' + phase + '.stderr'}
+                report['phases'][phase] = step
+                json_write(self.state / 'identity.json', self.identity)
+                command = shlex.join(['/usr/bin/python3', '-I', '-c', ROOT_IDENTITY_ATTESTATION,
+                                      phase, self.token])
+                try:
+                    result = self.ssh(command, capture_output=True, timeout=20)
+                    stdout, stderr = result.stdout, result.stderr
+                    step['exit_status'] = result.returncode
+                except subprocess.TimeoutExpired as error:
+                    stdout, stderr = error.stdout or b'', error.stderr or b''
+                    step['timeout'] = True
+                    (self.state / ('identity-attestation-' + phase + '.raw')).write_bytes(stdout)
+                    (self.state / ('identity-attestation-' + phase + '.stderr')).write_bytes(stderr)
+                    step['stdout_sha256'] = hashlib.sha256(stdout).hexdigest()
+                    step['stderr_sha256'] = hashlib.sha256(stderr).hexdigest()
+                    raise
+                (self.state / ('identity-attestation-' + phase + '.raw')).write_bytes(stdout)
+                (self.state / ('identity-attestation-' + phase + '.stderr')).write_bytes(stderr)
+                step.update({'stdout_sha256': hashlib.sha256(stdout).hexdigest(),
+                             'stderr_sha256': hashlib.sha256(stderr).hexdigest()})
+                if result.returncode:
+                    raise RuntimeError('root identity attestation failed: ' + phase)
+                proofs[phase] = validate_attestation_proof(self.token, stdout)
+                step.update({'status': 'validated', 'proof': proofs[phase]})
+                json_write(self.state / 'identity.json', self.identity)
+            fixed = ('schema', 'token', 'path', 'marker_hex', 'dmi_hex', 'attestation_hex', 'marker', 'attestation')
+            directory_fixed = ('type', 'uid', 'gid', 'mode', 'dev', 'ino')
+            if (any(proofs['write'][key] != proofs['read'][key] for key in fixed)
+                    or any(proofs['write'][directory][key] != proofs['read'][directory][key]
+                           for directory in ('etc_directory', 'run_directory') for key in directory_fixed)):
+                raise RuntimeError('independent identity attestation readback changed')
+            report['status'] = 'validated'
+        except BaseException as error:
+            report['status'] = 'failed'
+            report['error'] = type(error).__name__ + ': ' + str(error)
+            if report['phases'] and step['status'] == 'started':
+                step['status'] = 'failed'
+                step['error'] = report['error']
+            raise
+        finally:
+            json_write(self.state / 'identity.json', self.identity)
 
     def probe_network(self, public_hint=""):
         canary = Canary()
@@ -565,6 +792,10 @@ def evaluate(args, cache):
         raise
     finally:
         record["teardown"] = vm.teardown if vm else {}
+        if vm:
+            record["vm_uuid"] = vm.token
+            if hasattr(vm, 'identity'):
+                record["identity"] = vm.identity
         record["candidate_unchanged"] = check or before == digest(binary)
         if not args.keep_overlay:
             disk.unlink(missing_ok=True)
