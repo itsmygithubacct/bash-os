@@ -1,0 +1,189 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Six independently owned UID-2000 children, separate util-linux positive controls and candidate actions; PID birth/pidfd and child self-read plus independent sched_getattr.",
+      "comparison": "Native and candidate child readbacks before/after prove each update and preserved other clamp; all observations retained.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-uclamp-observer-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "uclamp-followup-setter-owned-updates",
+      "purpose": "Owned children self-read min-only, max-only and paired updates",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/uclamp-update-observer.py": "cff3b1e3c82cd0826ee94c46ebecefdd3f0484c07e5bc079b4eca4dc3946a57f",
+        "helpers/uclamp-selfread-task.py": "73f216cc9d4b590379c378dd1e65394055de020d6008fe1484a5b442b47c196b",
+        "helpers/devices-uclamp-observer-r1.py": "f9b73a1c12a869815092027232e5cf9782ca21a6b64f4c861bc7de42a3d2ac8c"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/uclamp-update-observer.py \"$BASH\"\n",
+      "stdout": "owned child setter updates ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "setter-update-report.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ]
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-uclamp-observer-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "uclamp-followup-setter-reset",
+      "purpose": "Owned nonroot reset with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/uclamp-setter-followup.py": "aee61db9bd81de029ac4262ec84fa70e09f49b328c191160c0800ecdb27f6f62",
+        "helpers/uclamp-owned-task.py": "a6612b6e8cbdb9bdd5ae6d75b783f1322ec85772ac4e48271b2eb153ef624b6f",
+        "helpers/devices-uclamp-observer-r1.py": "f9b73a1c12a869815092027232e5cf9782ca21a6b64f4c861bc7de42a3d2ac8c",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/uclamp-setter-followup.py reset \"$BASH\"\n",
+      "stdout": "owned uclamp setter checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "setter-report.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ]
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-uclamp-observer-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "uclamp-followup-setter-policy",
+      "purpose": "Owned nonroot policy with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/uclamp-setter-followup.py": "aee61db9bd81de029ac4262ec84fa70e09f49b328c191160c0800ecdb27f6f62",
+        "helpers/uclamp-owned-task.py": "a6612b6e8cbdb9bdd5ae6d75b783f1322ec85772ac4e48271b2eb153ef624b6f",
+        "helpers/devices-uclamp-observer-r1.py": "f9b73a1c12a869815092027232e5cf9782ca21a6b64f4c861bc7de42a3d2ac8c",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/uclamp-setter-followup.py policy \"$BASH\"\n",
+      "stdout": "owned uclamp setter checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "setter-report.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ]
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Synthetic sched_getattr and sched_setattr replies with raw request-byte preservation checks; native scheduling not changed.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-uclamp-observer-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "uclamp-followup-setter-mock-rt",
+      "purpose": "Owned nonroot rt with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/uclamp-scheduler-mock.py": "a8661f16c9b7341599782054b185b34026b662867559666b0f667e8788b15d63",
+        "helpers/uclamp-owned-task.py": "a6612b6e8cbdb9bdd5ae6d75b783f1322ec85772ac4e48271b2eb153ef624b6f",
+        "helpers/devices-uclamp-observer-r1.py": "f9b73a1c12a869815092027232e5cf9782ca21a6b64f4c861bc7de42a3d2ac8c",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/uclamp-scheduler-mock.py rt \"$BASH\"\n",
+      "stdout": "synthetic uclamp scheduler checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "scheduler-mock-report.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ]
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Synthetic sched_getattr and sched_setattr replies with raw request-byte preservation checks; native scheduling not changed.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-uclamp-observer-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "uclamp-followup-setter-mock-deadline",
+      "purpose": "Owned nonroot deadline with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/uclamp-scheduler-mock.py": "a8661f16c9b7341599782054b185b34026b662867559666b0f667e8788b15d63",
+        "helpers/uclamp-owned-task.py": "a6612b6e8cbdb9bdd5ae6d75b783f1322ec85772ac4e48271b2eb153ef624b6f",
+        "helpers/devices-uclamp-observer-r1.py": "f9b73a1c12a869815092027232e5cf9782ca21a6b64f4c861bc7de42a3d2ac8c",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/uclamp-scheduler-mock.py deadline \"$BASH\"\n",
+      "stdout": "synthetic uclamp scheduler checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "scheduler-mock-report.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ]
+    }
+  ]
+}

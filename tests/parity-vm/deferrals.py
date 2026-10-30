@@ -71,6 +71,34 @@ def definitions(repo):
                     check(helper.is_file() and file_digest(helper) ==
                           "43727835c26debf1bb23d6e05462cc5a9e59940a441338a1274619f92cafbeef",
                           "issued PTY historical helper differs")
+                elif (directory == "evidence-suites" and
+                      case.get("id") in {
+                          "uclamp-followup-setter-reset": "4c2869bd469688ca5783554fc00584b1e5bb1b058ce631f159b2f86e0426fdcd",
+                          "uclamp-followup-setter-policy": "58d9b1164767ac54f0304f4ed4197a22758d9a54baecd17bb9d49aded379df6e",
+                      } and digest(case) == {
+                          "uclamp-followup-setter-reset": "4c2869bd469688ca5783554fc00584b1e5bb1b058ce631f159b2f86e0426fdcd",
+                          "uclamp-followup-setter-policy": "58d9b1164767ac54f0304f4ed4197a22758d9a54baecd17bb9d49aded379df6e",
+                      }[case["id"]]):
+                    # Packet55 evidence retains the issued guest helper name.
+                    # Only these exact issued case objects may use the saved
+                    # historical bytes; every other helper remains verified.
+                    helper_name = "helpers/uclamp-setter-followup.py"
+                    historical_sha = "aee61db9bd81de029ac4262ec84fa70e09f49b328c191160c0800ecdb27f6f62"
+                    check(case.get("helpers_sha256", {}).get(helper_name) == historical_sha,
+                          "setter historical helper mapping differs")
+                    helper = repo / "tests/parity-vm/helpers/uclamp-setter-followup-aee61db9bd81de029ac4262ec84fa70e09f49b328c191160c0800ecdb27f6f62.py"
+                    check(helper.is_file() and file_digest(helper) == historical_sha,
+                          "setter historical helper differs")
+                    canonical = repo / "tests/parity-vm" / helper_name
+                    check(canonical.is_file() and file_digest(canonical) ==
+                          "e2ae89c536f4bffcb2e00b55a0fbc6ed53764e3a08c5c75388862e6927860395",
+                          "setter45 canonical helper differs")
+                    remaining = dict(case)
+                    remaining["helpers_sha256"] = {
+                        name: value for name, value in case["helpers_sha256"].items()
+                        if name != helper_name
+                    }
+                    schema.verify_helpers(remaining, repo / "tests/parity-vm")
                 else:
                     schema.verify_helpers(case, repo / "tests/parity-vm")
                 name = (case["group"], case["id"])
@@ -340,6 +368,9 @@ def retained_overlay_cleanup(spec, directory, summary, provenance, expected_bina
 
 def load_run(spec, expected_binary, expected_build=None, repo=REPO):
     if "evidence_format" in spec:
+        if spec["evidence_format"] == "primary-qualified-broker-owner-r12-v3":
+            from primary_owner_r12_evidence import load_qualified_owner_r12
+            return load_qualified_owner_r12(spec, expected_binary, expected_build)
         if spec["evidence_format"] == "primary-qualified-broker286-v1":
             from primary_broker_evidence import load_qualified_broker_run
             return load_qualified_broker_run(spec, expected_binary, expected_build)
@@ -349,12 +380,24 @@ def load_run(spec, expected_binary, expected_build=None, repo=REPO):
         if spec["evidence_format"] == "primary-qualified-watch337-r3-v1":
             from primary_watch337_evidence import load_qualified_watch337_run
             return load_qualified_watch337_run(spec, expected_binary, expected_build)
+        if spec["evidence_format"] == "primary-qualified-ss-multipart-v1":
+            from primary_ss_multipart_evidence import load_qualified_ss_multipart
+            return load_qualified_ss_multipart(spec, expected_binary, expected_build)
+        if spec["evidence_format"] == "primary-qualified-uclamp-setter55-v1":
+            from primary_uclamp_setter55_evidence import load_qualified_uclamp_setter55
+            return load_qualified_uclamp_setter55(spec, expected_binary, expected_build)
+        if spec["evidence_format"] == "primary-qualified-uclamp-setter45-r3-v1":
+            from primary_setter45_evidence import load_qualified_setter45
+            return load_qualified_setter45(spec, expected_binary, expected_build)
         if spec["evidence_format"] == "primary-qualified-uclamp-followup40-v1":
             from primary_uclamp40_evidence import load_qualified_uclamp40
             return load_qualified_uclamp40(spec, expected_binary, expected_build)
         if spec["evidence_format"] == "primary-qualified-su-v7-bounded-v1":
             from primary_su_v7_evidence import load_qualified_su_v7
             return load_qualified_su_v7(spec, expected_binary, expected_build)
+        if spec["evidence_format"] == "primary-qualified-calendar45-v1":
+            from primary_calendar45_evidence import load_qualified_calendar45
+            return load_qualified_calendar45(spec, expected_binary, expected_build)
         if spec["evidence_format"] == "primary-qualified-device-v8-rtc-calendar-v1":
             from primary_calendar_evidence import load_qualified_rtc_calendar
             return load_qualified_rtc_calendar(spec, expected_binary, expected_build)
@@ -491,7 +534,7 @@ def reconcile(ledger, configuration, repo=REPO):
         binary = file_digest(spec["binary"])
         evidence, runs = {}, []
         for run in spec["runs"]:
-            if run.get("evidence_format") in ("primary-qualified-controller-v1", "primary-qualified-clock342-v1", "primary-qualified-syslog309-v1", "primary-qualified-ncdu294-v1", "primary-qualified-broker286-v1", "primary-qualified-modern293-v1", "primary-qualified-watch293-v1", "primary-qualified-watch337-r3-v1", "primary-qualified-top371-v1", "primary-qualified-device-v8-uclamp-v1", "primary-qualified-device-v8-rtc-effects-v1", "primary-qualified-device-v8-rtc-calendar-v1", "primary-qualified-su-v7-bounded-v1", "primary-qualified-uclamp-followup40-v1"):
+            if run.get("evidence_format") in ("primary-qualified-controller-v1", "primary-qualified-clock342-v1", "primary-qualified-syslog309-v1", "primary-qualified-ncdu294-v1", "primary-qualified-broker286-v1", "primary-qualified-modern293-v1", "primary-qualified-watch293-v1", "primary-qualified-watch337-r3-v1", "primary-qualified-top371-v1", "primary-qualified-device-v8-uclamp-v1", "primary-qualified-device-v8-rtc-effects-v1", "primary-qualified-device-v8-rtc-calendar-v1", "primary-qualified-calendar45-v1", "primary-qualified-su-v7-bounded-v1", "primary-qualified-uclamp-followup40-v1", "primary-qualified-uclamp-setter45-r3-v1", "primary-qualified-ss-multipart-v1", "primary-qualified-broker-owner-r12-v3", "primary-qualified-uclamp-setter55-v1"):
                 check(Path(spec["binary"]).is_absolute()
                       and spec["binary"] == run.get("core_binary_path"),
                       "controller evidence requires the configured recorded core binary")

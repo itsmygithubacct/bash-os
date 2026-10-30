@@ -62,8 +62,33 @@
     {
       "id": "deferred_netlink_protocol_errors",
       "purpose": "Future operation comparison should cover multipart sock_diag replies, ACK/EINTR/unmatched sequences, malformed and truncated messages, interrupted dumps, and atomic fallback after an invalid family dump.",
-      "kind": "deferred",
-      "reason": "Remaining obligations: r1: The independent native dump spans four datagrams and all 720 names appear once, but candidate receive buffer boundaries are not retained."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ss-multipart-unix-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ss-netlink-error-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ss-netlink-interrupt-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ss-netlink-malformed-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ss-netlink-retry-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ss-netlink-multipart-boundaries-r3"
+        }
+      ]
     },
     {
       "id": "deferred_output_and_repeat_calls",

@@ -109,9 +109,42 @@
     },
     {
       "id": "defer_pid_setter",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check one-sided and paired clamp updates, reset values, -R, and preservation of unrelated scheduler attributes.",
-      "reason": "Remaining obligations: r1: The retained sched_getattr readbacks were taken by the parent observer; the required child-self readback was not retained.; r2: Reset-request flag semantics were not independently traced.; r3: Unexecuted. An unprivileged caller may set, but not clear, reset-on-fork.; r4: Preservation with the specified seeded SCHED_BATCH or SCHED_IDLE policy and nice was not observed.; r5: An RT or DL policy needs CAP_SYS_NICE to set up. SECCOMP-NOTIFY can instead fake a sched_getattr reply carrying RT/DL fields and record the sched_setattr request bytes, so preservation is proven from the request."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/uclampset/defer_cli_validation"
+        },
+        {
+          "group": "shell",
+          "id": "devices-uclamp-setter-r1"
+        },
+        {
+          "group": "shell",
+          "id": "uclamp-followup-setter-fork-direct-r2"
+        },
+        {
+          "group": "shell",
+          "id": "uclamp-followup-setter-mock-deadline"
+        },
+        {
+          "group": "shell",
+          "id": "uclamp-followup-setter-mock-rt"
+        },
+        {
+          "group": "shell",
+          "id": "uclamp-followup-setter-owned-updates"
+        },
+        {
+          "group": "shell",
+          "id": "uclamp-followup-setter-policy"
+        },
+        {
+          "group": "shell",
+          "id": "uclamp-followup-setter-reset"
+        }
+      ]
     },
     {
       "id": "defer_all_tasks_preflight",

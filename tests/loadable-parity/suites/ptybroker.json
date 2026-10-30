@@ -34,9 +34,22 @@
     },
     {
       "id": "private_session_lifecycle",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify create, status, list, and terminate for a bounded harmless child, including 0700 session ownership and removal after termination.",
-      "reason": "Remaining obligations: r3: Wrong-owner rejection remains unproved: the /root test retained EACCES but not target owner/mode or proof that the error arose from the ownership condition."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ptybroker-wrong-owner-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-pty-b01-broker-lifecycle"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-review112-pty-b01r2-broker-lifecycle"
+        }
+      ]
     },
     {
       "id": "binary_stream_roundtrip",
@@ -85,19 +98,19 @@
       "replacement_cases": [
         {
           "group": "shell",
-          "id": "migration-terra-local-pty-b02r3-errors"
-        },
-        {
-          "group": "shell",
-          "id": "migration-terra-local-pty-broker-256-timeout-r1"
-        },
-        {
-          "group": "shell",
           "id": "migration-terra-local-pty-b02r2-partial-output"
         },
         {
           "group": "shell",
+          "id": "migration-terra-local-pty-b02r3-errors"
+        },
+        {
+          "group": "shell",
           "id": "migration-terra-local-pty-broker-256-partial-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-broker-256-timeout-r1"
         }
       ]
     }

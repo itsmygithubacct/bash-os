@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "comparison": "Exact literal r3 wrong-owner rejection: different owner and 0700 target, observed EACCES. A target directory open failure or missing relevant trace is incomplete, not a behavioral failure. Preserve earlier attributed mismatch through later infrastructure errors.",
+      "covers": [
+        "ptybroker/private_session_lifecycle"
+      ],
+      "diagnostic_files": [
+        "owner-preflight.json",
+        "owner-native-reached.json",
+        "owner-native-identity.json",
+        "owner-native-outer-uid.json",
+        "owner-control-reached.json",
+        "owner-control-identity.json",
+        "owner-control-outer-uid.json",
+        "owner-candidate-reached.json",
+        "owner-candidate-identity.json",
+        "owner-candidate-outer-uid.json",
+        "owner-native-trace-fault.json",
+        "owner-control-trace-fault.json",
+        "owner-candidate-trace-fault.json",
+        "owner-native-getrandom-rejected.json",
+        "owner-control-getrandom-rejected.json",
+        "owner-candidate-getrandom-rejected.json",
+        "owner-final.json",
+        "owner-verdict.json",
+        "owner-builtin-kind"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "features": [
+        "userns"
+      ],
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/ptybroker-owner-r3.py": "cab106d70d192702dd75078493770acdeb04c818968608286c455ba1420be882",
+        "helpers/ptybroker-owner-wrapper-r3.py": "c128c10621a62075d02a0ef1dee95eb58780ad53eb3db2b20ddefdb0fdca6486"
+      },
+      "id": "migration-ptybroker-wrong-owner-r3",
+      "kind": "contract",
+      "loadable": "ptybroker",
+      "oracle": "Owned candidate trace with independently stat-bound foreign 0700 root and own 0700 positive root, PID/executable and user mapping; raw records require independent provenance and cleanup validation.",
+      "purpose": "Bounded wrong-owner ROOT rejection under UID-2000 mapped-user namespace, preserving prior lifecycle evidence.",
+      "requires": [
+        "python3",
+        "unshare"
+      ],
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nexec /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/ptybroker-owner-wrapper-r3.py \"$BASH\"\n",
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\n[[ $v == QEMU ]] || exit 125\n",
+      "stderr": "",
+      "stdout": "owner-observed\n",
+      "timeout": 60
+    }
+  ]
+}

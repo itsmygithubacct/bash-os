@@ -16804,38 +16804,62 @@
         "purpose": "Check the documented three-line adjtime format, accepted whitespace and missing-file defaults, and rejection of malformed, nonfinite, overflowing, NUL-containing, or trailing data before RTC access.",
         "reason": "Requires private relative adjtime fixtures plus an RTC open/ioctl mock with call counters, so the test can verify invalid files are rejected before device access without opening a real RTC."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Valid LOCAL and mode-line whitespace remain unobserved; missing-file default UTC and zero drift remain unobserved.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original requirement is exercised by bounded paired evidence; valid LOCAL mode-line whitespace reaches FAIL on both builds and remains FAIL.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A valid three-line adjtime (drift last_adjust remainder / last_calib / UTC|LOCAL), with accepted surrounding whitespace, is accepted and the command proceeds to RTC access.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "devices-hwclock-adj-valid-r1",
               "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
               "definition_sha256": "91dab9c3a8d0d9514af4a178a0ab3d614360f45409530c857cee6429a34bbb55"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-valid-local-r2",
+              "assertion": "Both builds observe unoverridden LOCAL input proceed to synthetic RTC access with the independently derived EST epoch.",
+              "definition_sha256": "cf50ad19f03de618981e3d4e3523eecdba75ce5835b2c81013488d94568610ec"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-valid-local-space-r2",
+              "assertion": "Both builds reject a valid LOCAL mode line with surrounding whitespace before recorded RTC open; retain the reached FAIL.",
+              "definition_sha256": "addc18c1221f1246a4fb5d77084ca7c862c2fd11fa4b07045db1422bee339df6"
             }
           ],
-          "gap": "Valid LOCAL adjtime and surrounding whitespace on the mode line are not witnessed.",
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r2",
           "behavior": "A missing adjtime file yields the documented defaults (UTC, no drift) and proceeds.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "devices-hwclock-adj-missing-r1",
               "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
               "definition_sha256": "cf146522678ae0a8bae83ecb435a759b59becf96c198d63e54ade20bfef6accc"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-missing-default-utc-r2",
+              "assertion": "Both builds observe missing-file UTC selection without an overriding mode flag using synthetic RTC and clock requests.",
+              "definition_sha256": "ebd359a639d46cadf87fab2b201b8190fd90846209a6b1029adc83eef3e21428"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-missing-default-drift-r2",
+              "assertion": "Both builds serialize zero drift after missing-file systohc; the pinned source preserves drift_factor across the action, supporting a bounded inference of the no-drift default. Post-write remainder does not establish its pre-action value.",
+              "definition_sha256": "262f9141c1019244dbfa97eda8acb4dfb5a36be076e8a8f566fbdd48ddabd036"
             }
           ],
-          "gap": "The missing-file show case uses explicit --utc and does not independently establish the default UTC mode or zero drift.",
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
@@ -16953,7 +16977,7 @@
           "next_step": "implement_fixture"
         }
       ],
-      "notes": "Source: loadables/hwclock.c: adjtime parsed before any RTC access (:700-712 calls bhc_parse_adjtime before the action switch; missing file -> defaults :253-258); --rtc/-f PATH :630-650; RTC read/write via open + ioctl RTC_RD_TIME/RTC_SET_TIME :384-424; show prints raw '%04d-%02d-%02dT%02d:%02d:%02d' :427-445; hctosys clock_settime :456-477; systohc clock_gettime -> RTC_SET_TIME -> adjtime reset :479-505; adjust :507-541; local conversion mktime(tm_isdst=-1) with calendar re-check :111-150; atomic adjtime replacement via mkstemp/fchown/fchmod/rename :312-361. Proposed bounded synthetic calendar observations: physical RTC and system-clock effects are not demonstrated."
+      "notes": "Source: loadables/hwclock.c: adjtime parsed before any RTC access (:700-712 calls bhc_parse_adjtime before the action switch; missing file -> defaults :253-258); --rtc/-f PATH :630-650; RTC read/write via open + ioctl RTC_RD_TIME/RTC_SET_TIME :384-424; show prints raw '%04d-%02d-%02dT%02d:%02d:%02d' :427-445; hctosys clock_settime :456-477; systohc clock_gettime -> RTC_SET_TIME -> adjtime reset :479-505; adjust :507-541; local conversion mktime(tm_isdst=-1) with calendar re-check :111-150; atomic adjtime replacement via mkstemp/fchown/fchmod/rename :312-361. Proposed bounded synthetic calendar observations: physical RTC and system-clock effects are not demonstrated. Calendar45 observations use synthetic RTC/clock calls; retained failures do not become PASS. Missing-file no-drift default is inferred from serialized drift and the pinned source preserving drift_factor; the post-write remainder does not prove its pre-action value."
     },
     {
       "topic": "hwclock/adjust-fractional-drift",
@@ -32369,9 +32393,9 @@
         "purpose": "Verify create, status, list, and terminate for a bounded harmless child, including 0700 session ownership and removal after termination.",
         "reason": "Requires a controller-approved disposable Linux VM with /proc, Unix SOCK_SEQPACKET, pidfd and subreaper support, plus a private PTY and a short private runtime root. The current suite does not start a broker or child process."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: Wrong-owner rejection remains unproved: the /root test retained EACCES but not target owner/mode or proof that the error arose from the ownership condition.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original requirements are supported by the retained paired lifecycle evidence and the primary-receipted wrong-owner observation; all earlier reached failures remain recorded.",
       "requirements": [
         {
           "id": "r1",
@@ -32416,7 +32440,7 @@
         {
           "id": "r3",
           "behavior": "The session directory and ROOT are 0700 and owned by the caller; a ROOT with wrong mode or owner is rejected (EACCES)",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -32429,9 +32453,15 @@
               "id": "migration-terminal-review112-pty-b01r2-broker-lifecycle",
               "assertion": "Original requirement: The session directory and ROOT are 0700 and owned by the caller; a ROOT with wrong mode or owner is rejected (EACCES) Fresh raw analysis: Both directories were recorded 0700 owned by UID 2000 and a wrong-mode directory produced EACCES. The proposed wrong-owner call used /root, but the saved record does not capture that target's uid/mode or separate owner rejection from filesystem access denial. migration-terminal-review112-pty-b01r2-broker-lifecycle: static PASS, dynamic PASS.",
               "definition_sha256": "01ced11a3eef155e45b5bae158e48bbe7fe31fe054cdc8557e581c24f5c2ae67"
+            },
+            {
+              "group": "shell",
+              "id": "migration-ptybroker-wrong-owner-r3",
+              "assertion": "Both primary-receipted runs record the candidate rejecting a foreign-owned mode 0700 ROOT with status 1 and Permission denied, with matched target identity, independently checked caller UID and native and owned controls. Existing evidence separately covers directory ownership, mode, wrong-mode rejection and lifecycle.",
+              "definition_sha256": "247b55d5c7197e04bb5d00b5dfe4853ace142306e594f903ab342bcd6f1200b4"
             }
           ],
-          "gap": "Wrong-owner rejection remains unproved: the /root test retained EACCES but not target owner/mode or proof that the error arose from the ownership condition."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -37523,23 +37553,29 @@
         "kind": "deferred",
         "reason": "Requires a reviewed NETLINK_SOCK_DIAG syscall mock supplying deterministic binary replies and a controlled proc fallback fixture in a disposable VM. There is no safe external CLI oracle for malformed synthetic kernel replies, and this environment must not invoke ss operations."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: The independent native dump spans four datagrams and all 720 names appear once, but candidate receive buffer boundaries are not retained.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original obligation is exercised by named paired evidence; previously reached failures remain visible.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Multipart sock_diag replies spanning several recv() buffers are fully rendered.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-namespace-network-ss-multipart-unix-r1",
               "assertion": "Original obligation: Multipart sock_diag replies spanning several recv() buffers are fully rendered. Recorded statuses static=PASS, dynamic=PASS. Static candidate result: multipart=ok. Independent raw observations: 720 named owned sockets each occur once in candidate output; independent native dump contains 4 datagrams",
               "definition_sha256": "9daf0abd2d527b36992f90e4785b3b19c39ae042dffb2bb1ccfdb336f9f7b45a"
+            },
+            {
+              "group": "shell",
+              "id": "migration-ss-netlink-multipart-boundaries-r3",
+              "assertion": "Primary-receipted candidate-bound multipart sock_diag receive buffers: static PASS, dynamic PASS. Synthetic controlled replies, native owned-socket/protocol controls and per-notification identity; prior reached failures remain.",
+              "definition_sha256": "0753af2a2b17d430a5be85bc87525d1d94b5109b62c34e25e1d4aeba2bbf29ea"
             }
           ],
-          "gap": "The independent native dump spans four datagrams and all 720 names appear once, but candidate receive buffer boundaries are not retained."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -37616,7 +37652,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r4: The reviewed observer injects a matching multipart message followed by DONE with DUMP_INTR, and retained candidate/control traces show delivery. Candidate silently falls back with status 0, without a recorded retry or diagnostic; this is a reached failure, retained as FAIL. r3: A valid injected row followed by a truncated eight-byte header reaches the reviewed sock_diag mock. The saved output discards the partial row and falls back; both cases PASS. The literal says malformed or truncated, so this representative truncation does not prove every malformed encoding."
+      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r4: The reviewed observer injects a matching multipart message followed by DONE with DUMP_INTR, and retained candidate/control traces show delivery. Candidate silently falls back with status 0, without a recorded retry or diagnostic; this is a reached failure, retained as FAIL. r3: A valid injected row followed by a truncated eight-byte header reaches the reviewed sock_diag mock. The saved output discards the partial row and falls back; both cases PASS. The literal says malformed or truncated, so this representative truncation does not prove every malformed encoding. Primary paired receipt adds candidate-bound multipart receive-buffer observations using a controlled mock; earlier observations and failures are retained."
     },
     {
       "topic": "ss/deferred_output_and_repeat_calls",
@@ -45116,65 +45152,103 @@
         "purpose": "Check one-sided and paired clamp updates, reset values, -R, and preservation of unrelated scheduler attributes.",
         "reason": "Future run needs a disposable VM with CONFIG_UCLAMP_TASK or a reviewed sched_getattr/sched_setattr mock that records request bytes and can inject kernel errors. Use an owned test process and an independent syscall oracle; assert policy, nice, priority, and deadline parameters are preserved and rejected requests do not mutate the task."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: The retained sched_getattr readbacks were taken by the parent observer; the required child-self readback was not retained.; r2: Reset-request flag semantics were not independently traced.; r3: Unexecuted. An unprivileged caller may set, but not clear, reset-on-fork.; r4: Preservation with the specified seeded SCHED_BATCH or SCHED_IDLE policy and nice was not observed.; r5: An RT or DL policy needs CAP_SYS_NICE to set up. SECCOMP-NOTIFY can instead fake a sched_getattr reply carrying RT/DL fields and record the sched_setattr request bytes, so preservation is proven from the request.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original requirements have paired bounded evidence; synthetic scheduler and child ownership limits remain recorded, with historical results retained.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "One-sided updates (-m only, -M only) change only that clamp, and paired -m/-M changes both, as the child's sched_getattr read-back shows, matching util-linux results.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "devices-uclamp-setter-r1",
               "assertion": "Both builds record one-sided and paired updates to an owned child, independently read the target attributes, and match util-linux values.",
               "definition_sha256": "2be66eddc294bb6516c513d112572a887136977c55a844ba5356479c612bf857"
+            },
+            {
+              "group": "shell",
+              "id": "uclamp-followup-setter-owned-updates",
+              "assertion": "Both builds use independently controlled owned children and child-self readback for min-only, max-only and paired updates; native and candidate readbacks match.",
+              "definition_sha256": "6a2d61488e99e44a1d5f2feb773be3412ba9a541da65201860d06637d0922811"
             }
           ],
-          "gap": "The retained sched_getattr readbacks were taken by the parent observer; the required child-self readback was not retained."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Reset values: -m -1 and -M -1 restore the system default via SCHED_FLAG_UTIL_CLAMP_RESET semantics.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "devices-uclamp-setter-r1",
               "assertion": "Both builds observe -1 reset values 0/1024, with matching native controls. The reset-request flag itself was not traced.",
               "definition_sha256": "2be66eddc294bb6516c513d112572a887136977c55a844ba5356479c612bf857"
+            },
+            {
+              "group": "shell",
+              "id": "uclamp-followup-setter-reset",
+              "assertion": "Both builds observe paired -m -1 and -M -1 reset request flag/sentinels and default clamp readback with native control; the inherited target birth/pidfd is not separately recorded.",
+              "definition_sha256": "4c2869bd469688ca5783554fc00584b1e5bb1b058ce631f159b2f86e0426fdcd"
             }
           ],
-          "gap": "Reset-request flag semantics were not independently traced."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "-R sets reset-on-fork: a child forked by the helper afterwards has default clamps.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. An unprivileged caller may set, but not clear, reset-on-fork."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "uclamp-followup-setter-fork-direct-r2",
+              "definition_sha256": "221c51d5d65fdba71c0878d20e115e4b670d1cd5925f90c1ce4a913656877d3b",
+              "assertion": "Both builds set reset-on-fork on a separately owned seeded task, observe the parent flag and child self-read default clamps 0/1024, with direct native clear-to-set and fork controls."
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Unrelated attributes are preserved: SCHED_BATCH or SCHED_IDLE policy and nice set by the helper are unchanged after the update.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "devices-uclamp-setter-r1",
-              "assertion": "Both builds preserve the owned target\u2019s observed policy, nice and other scheduler attributes; SCHED_BATCH or SCHED_IDLE and a distinct nice were not seeded.",
+              "assertion": "Both builds preserve the owned target’s observed policy, nice and other scheduler attributes; SCHED_BATCH or SCHED_IDLE and a distinct nice were not seeded.",
               "definition_sha256": "2be66eddc294bb6516c513d112572a887136977c55a844ba5356479c612bf857"
+            },
+            {
+              "group": "shell",
+              "id": "uclamp-followup-setter-policy",
+              "assertion": "Both builds preserve seeded SCHED_BATCH policy and nice 5 after the update, with independent native control; target birth/pidfd is not separately recorded.",
+              "definition_sha256": "58d9b1164767ac54f0304f4ed4197a22758d9a54baecd17bb9d49aded379df6e"
             }
           ],
-          "gap": "Preservation with the specified seeded SCHED_BATCH or SCHED_IDLE policy and nice was not observed."
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "RT priority and SCHED_DEADLINE parameters are preserved.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "An RT or DL policy needs CAP_SYS_NICE to set up. SECCOMP-NOTIFY can instead fake a sched_getattr reply carrying RT/DL fields and record the sched_setattr request bytes, so preservation is proven from the request."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "uclamp-followup-setter-mock-rt",
+              "assertion": "Both builds retain the synthetic RT getter and setter request bytes, preserving policy and priority for the passed locally owned numeric target; no real RT scheduling or target birth claim.",
+              "definition_sha256": "d040e921788ee34d508f0b956fa3d8e6df758ed50b5d75a5c923e42d364fe4c1"
+            },
+            {
+              "group": "shell",
+              "id": "uclamp-followup-setter-mock-deadline",
+              "assertion": "Both builds retain synthetic deadline getter and setter request bytes, preserving policy and runtime/deadline/period for the passed locally owned numeric target; no real deadline scheduling or target birth claim.",
+              "definition_sha256": "a2f60d80cd76db17dbaa5ea698d3b32e289ece7e190107c0e5d00aae08d98c2a"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
@@ -45197,7 +45271,7 @@
           "gap": ""
         }
       ],
-      "notes": "Source: loadables/uclampset.c:335-380 (buclamp_prepare copies the current attributes and sets KEEP_PARAMS, plus KEEP_POLICY or RESET_ON_FORK). With -R, KEEP_POLICY is not set (:370-373), so verify the policy is still preserved, because the copied policy field is sent. That is a candidate-specific risk to check. Primary-receipted setter observations include a rejected reversed pair with no target mutation. Reset request flags were not traced; seeded scheduler policies and reset-on-fork remain unobserved. The setter target attributes were read by the parent observer; the required child-self readback was not retained."
+      "notes": "Source: loadables/uclampset.c:335-380 (buclamp_prepare copies the current attributes and sets KEEP_PARAMS, plus KEEP_POLICY or RESET_ON_FORK). With -R, KEEP_POLICY is not set (:370-373), so verify the policy is still preserved, because the copied policy field is sent. That is a candidate-specific risk to check. Primary-receipted setter observations include a rejected reversed pair with no target mutation. In the earlier setter observations, reset request flags were not traced and seeded scheduler policies were not observed. In those earlier observations, the setter target attributes were read by the parent observer; the required child-self readback was not retained. Both builds observe reset-on-fork parent state and child default clamps with a direct native control. Child wait status and post-fork parent liveness were not separately saved. Paired setter55 observations add child self-read, reset request flags, seeded policy/nice, and synthetic RT/deadline request construction; r3 retains setter45 and r6 retains prior evidence. Synthetic requests do not establish real privileged scheduling; inherited reset/policy and synthetic targets lack independently logged pidfd/birth. Setter45 child wait-status and post-fork parent-liveness are not independently observed."
     },
     {
       "topic": "uclampset/defer_system_files",

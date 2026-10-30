@@ -136,9 +136,66 @@
     },
     {
       "id": "adjtime-validation-before-rtc",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check the documented three-line adjtime format, accepted whitespace and missing-file defaults, and rejection of malformed, nonfinite, overflowing, NUL-containing, or trailing data before RTC access.",
-      "reason": "Valid LOCAL and mode-line whitespace remain unobserved; missing-file default UTC and zero drift remain unobserved."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adj-calibration-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adj-drift-tail-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adj-infinity-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adj-integer-overflow-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adj-missing-default-drift-r2"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adj-missing-default-utc-r2"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adj-missing-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adj-mode-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adj-nan-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adj-nul-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adj-trailing-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adj-valid-local-r2"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adj-valid-local-space-r2"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adj-valid-r1"
+        }
+      ]
     },
     {
       "id": "rtc-and-adjfile-failure-cleanup",

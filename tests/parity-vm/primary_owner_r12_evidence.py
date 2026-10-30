@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""Data-only owner-r12 reader gated by the exact primary-issued receipt."""
+import hashlib,json,math,os,re,stat,tarfile
+from pathlib import Path,PurePosixPath
+
+AUTHORIZED_RECEIPTS=frozenset({'a4d232f9be11f7e9ea46c2c3339f8818f7317c761b27f0a88d5d7c8f2b974098'})
+FORMAT='primary-qualified-broker-owner-r12-v3'
+HISTORY='4bbc9b327478843a4be6aceb2214fabc1925ddec8bc7c24d341fe91ff4ada865'
+HISTORY_AUDITS={'r8_static': '2fdb0ee2517d4adb078bc03099b0b9a42d7c20a459f5e1f3729adf90fdba1029', 'r9_static': '314c7e7fc295356b92d9fc1958c6da26a402f912a60dd9df273a54163a5d52ef', 'clarification': '28d42d965af1d3b64729004a1c133ab4f41e7db5b8496199aa6ab129dfc6dc46'}
+CASE='migration-ptybroker-wrong-owner-r3'
+CASE_SHA='247b55d5c7197e04bb5d00b5dfe4853ace142306e594f903ab342bcd6f1200b4'
+FREEZE='ec2262e5839d3d002e81a0df37cd4ed319df8789f2d012286f159361d71fd855'
+SOURCE='6daa14e2e14efa52aa036402f9966e042a3b6681ac66910c2f312dcc8a90763e'
+AUDIT='27179bc076fa06ecc03d1cc3438ec14bf3c30a47eaacffbbd5d60ee7bf37ae61'
+CHECKER='b12525bce443747e20ca5b07b9ebbadeecd7fca9ab4d3def9778f07471b4923a'
+DYNAMIC_PRIMARY_AUDIT='a630d19589a44c431c94927ab34522ee0123152271c1bc5522908b4c65a042dd'
+HELPERS={'helpers/ptybroker-owner-r3.py':'cab106d70d192702dd75078493770acdeb04c818968608286c455ba1420be882','helpers/ptybroker-owner-wrapper-r3.py':'c128c10621a62075d02a0ef1dee95eb58780ad53eb3db2b20ddefdb0fdca6486'}
+RUNS={'static':{'candidate':'2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab','record':'a7969a22c1d3019c0c0b2c59d7f6d0b62c1982f2171f530052e4231a50d4d1ee','uuid':'209a9b87-ebf6-451c-b587-47884bdfc274','archive':'e4b2131cae1353dcfe67bb553e32500b16d59f4aca863fd5247da776b573a14e','raw':'14141871a6ed2ee76bc791e519c33c7aef1cbb9a51289f65b14f40cfc618463c','current':'5e7bd2e7af48702a3cb0e966fe43aa5230a4e6df6783f6bd26220d9666cb5d96'},'dynamic':{'candidate':'6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2','record':'67e39c3230050dfc7fcaa084eaef6f62669b8a66f2bc1465edb19082a0339808','uuid':'b3c15555-e41d-4cac-994d-6d2eda16c685','archive':'f3606268f13aa3a035ed2ea1d90750fc4588d84440844c5ed3c6ced3a2c50f21','raw':'70a4d7684610a99c247c0dcb372230e9a20f1f0a797ec5faeb4b25d8250c6a1d','current':'5e4bd7442679e13e2f16eed8a6e030d289e7dcf5d7fc1a020495e8028eb7f456'}}
+LIMITATIONS=['Wrong-owner rejection only; existing lifecycle, ownership and wrong-mode evidence remains separately required.','Mapped namespace UID 0 corresponds to guest UID 2000; no initial-user-namespace root fixture.','Earlier incomplete observations and reached failures remain preserved.','The paired raw checker relies on separately reviewed trace-source and descendant guarantees; primary must independently verify them before issuance. The seed ISO is inventoried by metadata only and its bytes are not read.']
+def need(x,s):
+ if not x:raise ValueError(s)
+def sha(b):return hashlib.sha256(b).hexdigest()
+def read(p,limit=64*1024**2):
+ p=Path(p);need(p.is_absolute(),'absolute path required');fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC|os.O_NONBLOCK)
+ with os.fdopen(fd,'rb') as f:
+  a=os.fstat(f.fileno());need(stat.S_ISREG(a.st_mode) and a.st_nlink==1 and 0<=a.st_size<=limit,'unsafe file');b=f.read(limit+1);z=os.fstat(f.fileno());need(len(b)==a.st_size and (a.st_dev,a.st_ino,a.st_size,a.st_mtime_ns,a.st_ctime_ns)==(z.st_dev,z.st_ino,z.st_size,z.st_mtime_ns,z.st_ctime_ns),'file changed');return b
+def pinned(p,h,limit=64*1024**2):
+ need(type(h) is str and re.fullmatch(r'[0-9a-f]{64}',h),'invalid hash');b=read(p,limit);need(sha(b)==h,'hash mismatch: '+str(p));return b
+def decode(b):
+ def pairs(x):
+  d={}
+  for k,v in x:need(k not in d,'duplicate JSON');d[k]=v
+  return d
+ def finite(x):
+  v=float(x);need(math.isfinite(v),'nonfinite JSON');return v
+ return json.loads(b,object_pairs_hook=pairs,parse_float=finite,parse_constant=lambda _:(_ for _ in ()).throw(ValueError('nonfinite JSON')))
+def members(path,expected):
+ b=pinned(path,expected,128*1024**2)
+ with tarfile.open(fileobj=__import__('io').BytesIO(b),mode='r:') as t:
+  out={};seen=set()
+  for x in t:
+   n=PurePosixPath(x.name);need(not n.is_absolute() and '..' not in n.parts and str(n)==x.name and x.name not in seen and (x.isfile() or x.isdir()) and not x.linkname,'unsafe archive');seen.add(x.name)
+   if x.isfile():need(x.size<=64*1024**2,'archive member cap');out[x.name]=t.extractfile(x).read()
+  return out
+def inventory(root,p):
+ inv=p['artifacts'];need(type(inv) is dict and bool(inv),'inventory absent')
+ actual={x.relative_to(root).as_posix() for x in root.rglob('*')}-{'provenance.json','provenance.sha256'}
+ need(actual==set(inv),'artifact inventory membership')
+ for n,v in inv.items():
+  q=PurePosixPath(n);need(not q.is_absolute() and '..' not in q.parts and str(q)==n,'inventory path');path=root/n;st=path.lstat();need(format(stat.S_IMODE(st.st_mode),'04o')==v['mode'],'inventory mode '+n)
+  if v['type']=='directory':need(stat.S_ISDIR(st.st_mode),'inventory directory '+n)
+  elif v['type']=='file':
+   need(stat.S_ISREG(st.st_mode) and st.st_nlink==1 and st.st_size==v['bytes'],'inventory file '+n)
+   if n!='vm/seed.iso':need(sha(read(path,128*1024**2))==v['sha256'],'inventory hash '+n)
+  else:raise ValueError('unsupported inventory type')
+ side=read(root/'provenance.sha256',256).decode('ascii').split();need(side and side[0]==sha(read(root/'provenance.json')),'provenance sidecar')
+
+def unit_proof(path,digest,token,unit,transport):
+ q=decode(pinned(path,digest));group='/system.slice/'+unit
+ need(q['schema']=='bashos-guest-unit-quiescence-v1' and q['vm_uuid']==token and q['unit']==unit and q['cgroup']==group and q['quiescent'] is True and q['transport_finished'] is True and type(q['transport_returncode']) is int and q['transport_returncode']==transport,'unit identity/transport')
+ def output(key):
+  x=q[key];need(type(x['returncode']) is int and x['returncode']==0 and x['stderr_hex']=='','unit command '+key);return bytes.fromhex(x['stdout_hex']).decode('ascii')
+ def props(key):
+  lines=output(key).splitlines();pairs=[x.split('=',1) for x in lines];need(all(len(x)==2 for x in pairs) and len(dict(pairs))==len(lines),'unit property syntax');return dict(pairs)
+ before=props('unit_before');after=props('unit_after');need(before=={'Id':unit,'ControlGroup':group,'LoadState':'loaded','ActiveState':'active'} and set(after)==set(before) and after['Id'] in ('',unit) and after['ControlGroup'] in ('',group) and (after['LoadState']=='not-found' or after['ActiveState'] in ('inactive','failed')),'unit live/stop state')
+ be=output('events_before').splitlines();ae=output('events_after').splitlines();need(be.count('populated 1')==1 and not any(x.startswith('populated ') and x!='populated 1' for x in be) and (ae==['__CGROUP_REMOVED__'] or (ae.count('populated 0')==1 and not any(x.startswith('populated ') and x!='populated 0' for x in ae))),'unit cgroup state')
+ need(q['release']['returncode']==0 and type(q['stop']['returncode']) is int and (q['stop']['returncode']==0 or after['LoadState']=='not-found'),'unit release/stop')
+ return {'unit':unit,'proof_sha256':digest,'transport_returncode':transport,'stop_returncode':q['stop']['returncode']}
+
+def protected_sources_and_compat(root,p,freeze,token,candidate,current):
+ import base64
+ ev='bashos-evaluation-'+token[:8]+'.service';cu='bashos-optional-'+token[:8]+'-reference.service';ep=p['guest_unit_proofs']['run.log.unit-proof.json'];cp=p['compatibility_unit_proofs']['run.log.unit-proof.json']
+ a=unit_proof(root/'run.log.unit-proof.json',ep,token,ev,p['guest_exit_status']);b=unit_proof(root/'compat/run.log.unit-proof.json',cp,token,cu,0);need(current['strict_unit_proofs']==[a,b] and current['strict_unit_helper_sha256']=='b926b5bf88055c763a4ed5f36d5df56681a34d3cf3c160c434d16999ab8b20c0','current unit replay')
+ raw=pinned(root/'owner-sources-before.json',p['owner_source_before_sha256']);need(raw==pinned(root/'owner-sources-after.json',p['owner_source_after_sha256']) and p['owner_source_before_sha256']==p['owner_source_after_sha256'],'owner source snapshots');owner=decode(raw);need(owner['token']==token and owner['schema']=='bashos-compat252-source-attestation-v1','owner source identity')
+ fixture=p['frozen_fixture_sha256'];want={'candidate':('candidate',candidate),'fixture':('harness/suites/optional-frozen.json',fixture),'owner':('harness/helpers/ptybroker-owner-r3.py',HELPERS['helpers/ptybroker-owner-r3.py']),'owner_wrapper':('harness/helpers/ptybroker-owner-wrapper-r3.py',HELPERS['helpers/ptybroker-owner-wrapper-r3.py'])}
+ need(set(owner['directories'])=={'harness','loadable-parity'},'source directories')
+ for x in owner['directories'].values():need(x['uid']==x['gid']==0 and type(x['mode']) is int and not x['mode']&0o022 and type(x['dev']) is int and type(x['ino']) is int and x['ino']>0,'source directory protection')
+ for k,(path,h) in want.items():
+  x=owner['files'][k];need(x['path']==path and x['sha256']==h and x['uid']==x['gid']==0 and x['nlink']==1 and type(x['mode']) is int and not x['mode']&0o022 and all(type(x.get(t)) is int and x[t]>=0 for t in ('dev','ino','size','mtime_ns')) and x['ino']>0,'protected owner source '+k)
+ c=p['compatibility'];compraw=pinned(root/'compat/raw.json',c['raw_sha256']);comp=decode(compraw);handraw=pinned(root/'compat/handoff.json',c['handoff_sha256']);hand=decode(handraw)
+ need(handraw==read(root/'compat/handoff-guest.json')==read(root/'compat/handoff-after.json') and hand==c['handoff'] and hand['schema']=='bashos-compat252-handoff-v1' and hand['status']=='PASS' and hand['service_exit']==0 and hand['canary_absent'] is True and hand['vm_uuid']==token and hand['unit']==cu and hand['candidate_sha256']==candidate and hand['fixture_sha256']==fixture and hand['selected_ids']==[CASE] and hand['controller_sha256']==p['controller_sha256'] and hand['service_proof_sha256']==cp and hand['service_data_sha256']==sha(compraw),'compat handoff')
+ sourcebytes=[pinned(root/('compat/sources-'+n+'.json'),p['guest_source_attestation_after']) for n in ('before','after-service','after-evaluator')];need(sourcebytes[0]==sourcebytes[1]==sourcebytes[2] and sha(sourcebytes[0])==hand['source_attestation_sha256']==c['source_attestation_sha256'],'compat source snapshots');source=decode(sourcebytes[0]);need(source['schema']=='bashos-compat252-source-attestation-v1' and source['token']==token and source['directories']==owner['directories'] and set(owner['files'])==set(source['files'])|{'owner','owner_wrapper'} and all(source['files'][k]==owner['files'][k] for k in source['files']) and {k:v['sha256'] for k,v in source['files'].items()}==hand['source_sha256'],'compat source identity')
+ for x in source['files'].values():need(x['uid']==x['gid']==0 and x['nlink']==1 and type(x['mode']) is int and not x['mode']&0o022 and all(type(x.get(t)) is int and x[t]>=0 for t in ('dev','ino','size','mtime_ns')) and x['ino']>0,'compat source protection')
+ need(comp['schema']=='bashos-compat252-raw-v1' and comp['availability_trees_empty'] is True and comp['case_directories_absent'] is True,'compat raw schema');protected=comp['protected'];nsbytes=base64.b64decode(protected['compat252-namespace.json'],validate=True);rtbytes=base64.b64decode(protected['compat252-rootproof.json'],validate=True);ns=decode(nsbytes);rt=decode(rtbytes);parent=decode(pinned(root/'parent-namespace.json',p['parent_namespace_sha256']));need(decode(pinned(root/'compat/parent-namespace.json',c['parent_sha256']))==parent,'compat parent')
+ need(sha(rtbytes)==hand['namespace_proof_sha256']==c['checked']['namespace_proof_sha256'] and ns['schema']=='bashos-syslog-namespace-attestation-v1' and rt['schema']=='bashos-syslog208-namespace-v1' and ns['token']==rt['token']==rt['dmi_uuid']==token and rt['attestation']['sha256']==sha(nsbytes) and all(rt['attestation'].get(k)==v for k,v in {'uid':0,'gid':0,'mode':0o444,'nlink':1}.items()) and rt['uid']==rt['euid']==0 and rt['pid1_uid']==['0']*4 and rt['proc_interfaces']==rt['sysfs_interfaces']==['lo'] and rt['namespaces']==ns['namespaces'] and rt['outer_namespaces']==ns['outer_namespaces'] and all(rt['outer_namespaces'][k]==parent[k] and rt['namespaces'][k]!=parent[k] for k in ('mnt','net','pid')),'compat namespace')
+ expected={'PASS':0,'FAIL':0,'ERROR':0,'SKIP':0,'DEFERRED':0,'MIGRATED':1};need(hand['original_summary']==hand['canary_summary']==c['checked']['original_summary']==c['checked']['canary_summary']==expected,'compat canary summary')
+ for kind in ('original','canary'):
+  report=decode(base64.b64decode(comp['files'][kind+'/report.json'],validate=True));need(report['summary']==expected and len(report['cases'])==1 and report['cases'][0]['status']=='MIGRATED' and base64.b64decode(comp['files'][kind+'/availability/stdout'],validate=True)==b'builtin\n' and base64.b64decode(comp['files'][kind+'/availability/stderr'],validate=True)==b'','compat canary raw')
+ availability=[{'status':0,'stdout_sha256':sha(b'builtin\n'),'stderr_sha256':sha(b'')}] * 2;need(hand['availability']==c['checked']['availability']==availability,'compat availability')
+ propbytes=base64.b64decode(protected['compat252-unit.properties'],validate=True);lines=propbytes.decode('ascii').splitlines();pairs=[x.split('=',1) for x in lines];need(all(len(x)==2 for x in pairs) and len(dict(pairs))==len(lines) and dict(pairs)==c['checked']['properties']=={'Id':cu,'ControlGroup':'/system.slice/'+cu,'KillMode':'control-group','NoNewPrivileges':'yes','RestrictSUIDSGID':'no'},'compat properties')
+ props=read(root/'evaluation-properties.txt').decode('ascii').splitlines();pairs=[x.split('=',1) for x in props];need(all(len(x)==2 for x in pairs) and len(dict(pairs))==len(props) and dict(pairs)==p['evaluation_properties']=={'Id':ev,'ControlGroup':'/system.slice/'+ev,'KillMode':'control-group','NoNewPrivileges':'yes','RestrictSUIDSGID':'yes'},'evaluation properties')
+
+
+def load_qualified_owner_r12(spec,expected_binary,expected_build):
+ need(type(spec) is dict and expected_build in RUNS and expected_binary==RUNS[expected_build]['candidate'] and spec.get('evidence_format')==FORMAT and spec.get('ledger_scope')=='core' and spec.get('core_ledger_eligible') is True and spec.get('groups')==['shell'] and spec.get('ids')==[CASE] and spec.get('name')=='owner-r12-'+expected_build and spec.get('receipt_run')==expected_build,'selection')
+ need(spec.get('optional',False) is False and spec.get('exclude_ids',[])==[],'excluded selection');pin=spec.get('primary_receipt');need(type(pin) is dict and set(pin)=={'path','sha256'} and pin['sha256'] in AUTHORIZED_RECEIPTS,'receipt not source-authorized')
+ receipt=decode(pinned(pin['path'],pin['sha256']));fields={'schema','decision','primary_reviewer','utc','ledger_scope','core_ledger_eligible','subject_execution_on_host','source_acceptance_sha256','freeze_sha256','paired_review_sha256','paired_checker_sha256','dynamic_primary_audit_sha256','history_manifest_sha256','limitations','runs'}
+ need(set(receipt)==fields and receipt['schema']=='bashos-owner-r12-primary-receipt-v3' and receipt['decision']=='accept-bounded-owner-case-evidence' and type(receipt['primary_reviewer']) is str and bool(receipt['primary_reviewer'].strip()) and type(receipt['utc']) is str and receipt['utc'].endswith('Z') and receipt['ledger_scope']=='core' and receipt['core_ledger_eligible'] is True and receipt['subject_execution_on_host'] is False and receipt['source_acceptance_sha256']==SOURCE and receipt['freeze_sha256']==FREEZE and receipt['paired_review_sha256']==AUDIT and receipt['paired_checker_sha256']==CHECKER and receipt['dynamic_primary_audit_sha256']==DYNAMIC_PRIMARY_AUDIT and receipt['history_manifest_sha256']==HISTORY and receipt['limitations']==LIMITATIONS and receipt['runs']==RUNS,'receipt binding')
+ history=decode(pinned(spec['history_manifest_path'],HISTORY));need(history['schema']=='owner-r12-history-manifest-v1' and history['authority'] is False and history['primary_record_sha256']==HISTORY_AUDITS,'history binding');need(set(spec['history_audit_paths'])==set(HISTORY_AUDITS),'history paths');audits={k:decode(pinned(spec['history_audit_paths'][k],h)) for k,h in HISTORY_AUDITS.items()};r8=audits['r8_static']['runs']['static'];r9=audits['r9_static']['runs']['static'];need(r8['behavior']=='INCOMPLETE (matching partial)' and r8['coverage_eligible'] is False and r8['observations']['candidate']['outcome']=='MATCH' and r8['observations']['candidate']['raw_status']==1 and r9['behavior']=='complete matching observation' and r9['coverage_eligible'] is False and r9['raw_behavior']=='MATCH' and r9['observations']['candidate']['outcome']=='MATCH' and r9['observations']['candidate']['raw_status']==1 and audits['clarification']['source_audits']=={'broker-owner-r8-static-primary-raw-review.json':HISTORY_AUDITS['r8_static'],'broker-owner-r9-static-primary-raw-review.json':HISTORY_AUDITS['r9_static']},'historical observations');source=decode(pinned(spec['source_acceptance_path'],SOURCE));need(source['freeze_sha256']==FREEZE and source['decision']=='accept-source-and-bounded-vm-plan' and source['root_fixtures_allowed'] is False and source['product_coverage'] is False,'source acceptance');freeze=decode(pinned(spec['freeze_path'],FREEZE));need(freeze['case_sha256']==CASE_SHA and freeze['helper_sha256']==HELPERS,'freeze registry');pinned(spec['paired_checker_path'],CHECKER);audit=decode(pinned(spec['paired_review_path'],AUDIT));pinned(spec['dynamic_primary_audit_path'],DYNAMIC_PRIMARY_AUDIT);need(audit['schema']=='owner-r12-paired-nondisk-review-v1' and audit['authority'] is False and audit['product_credit']==0 and set(audit['runs'])==set(RUNS),'paired review')
+ need(set(spec['run_paths'])==set(RUNS) and set(spec['current_paths'])==set(RUNS),'paired paths')
+ records={}
+ for build,v in RUNS.items():
+  root=Path(spec['run_paths'][build]);need(root.is_absolute() and root.name=='owner-'+build and root.is_dir(),'result path');p=decode(pinned(root/'provenance.json',v['record']));need(p['vm_uuid']==v['uuid'] and p['candidate_sha256']==v['candidate'] and p['status']=='completed' and p['selected_case_ids']==[CASE] and p['root_fixtures_allowed'] is False and p['helper_sha256']==HELPERS and p['canonical_case_sha256']=={CASE:CASE_SHA},'provenance');current=decode(pinned(spec['current_paths'][build],v['current']));inventory(root,p);protected_sources_and_compat(root,p,freeze,v['uuid'],v['candidate'],current);scope='parity-vm-'+v['uuid']+'.scope';need(current['vm_uuid']==v['uuid'] and current['record_sha256']==v['record'] and current['wrapper_pid']==p['teardown']['wrapper_pid'] and current['scope_raw']=={'returncode':0,'stdout':'ControlGroup=\nId='+scope+'\nLoadState=not-found\nActiveState=inactive\n','stderr':''} and current['poweroff_request']==0 and all(current[k] is True for k in ('cgroup_absent','wrapper_absent','overlay_absent')),'current scope');z=audit['runs'][build];need(z['vm_uuid']==v['uuid'] and z['provenance_sha256']==v['record'] and z['candidate_sha256']==v['candidate'] and z['candidate_raw_sha256']==v['raw'] and z['archive_sha256']==v['archive'] and z['current_sha256']==v['current'] and z['state']=='COMPLETED_BOUNDED_MATCH_NOT_AUTHORITY' and z['selfchecks']==13 and z['statuses']=={'native':13,'owned':0,'candidate':1} and z['authority'] is False and z['product_credit']==0,'paired proof')
+  need(sha(read(root/'candidate.snapshot'))==v['candidate'] and sha(read(root/'vm/teardown.json'))==z['teardown_sha256'] and p['teardown']['poweroff_request']==0 and p['teardown']['clean_poweroff'] is True and p['teardown']['forced_stop'] is False and not os.path.lexists(root/'overlay.qcow2'),'lifecycle');payload=members(root/'payload.tar',z['payload_sha256']);need(sha(payload['candidate'])==v['candidate'],'payload candidate');definition=decode(payload['harness/suites/optional-frozen.json'])['cases'];need(len(definition)==1 and definition[0]['id']==CASE and sha(json.dumps(definition[0],sort_keys=True,separators=(',',':'),ensure_ascii=False).encode())==CASE_SHA,'case definition');need(all(sha(payload['harness/'+n])==h for n,h in HELPERS.items()),'helper versions');archive=members(root/'evidence.tar',v['archive']);name='results/'+CASE+'/candidate.json';need(sha(archive[name])==v['raw'] and archive[name]==read(root/'partial-records'/name),'raw case');summary=decode(pinned(root/'guest-summary.json',z['summary_sha256']));need(archive['results/summary.json']==read(root/'guest-summary.json') and summary['vm_uuid']==v['uuid'] and summary['binary_sha256']==v['candidate'] and summary['selected_case_ids']==[CASE] and len(summary['cases'])==14,'summary');rows=summary['cases'];selected=[x for x in rows if x['id']==CASE];need(len(selected)==1 and selected[0]['status']=='PASS' and selected[0]['group']=='shell' and sum(x['group']=='selfcheck' and x['status']=='PASS' for x in rows)==13,'case/control status');records[build]=(selected[0],definition[0],z)
+ need(Path(spec['path']).resolve()==Path(spec['run_paths'][expected_build]).resolve() and sha(read(spec['core_binary_path']))==expected_binary,'selected core/path');row,definition,z=records[expected_build]
+ return [{'record':row,'definition':definition,'sources':{},'run':spec['name']}],{'name':spec['name'],'selected_records':1,'evidence_format':FORMAT,'primary_receipt_sha256':pin['sha256'],'candidate_sha256':expected_binary,'vm_uuid':z['vm_uuid'],'limitations':LIMITATIONS}

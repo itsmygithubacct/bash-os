@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "1c1822c259f1ea62ad7faedf6cbd92dac52c3039ea7a951d07b717cd3295f277",
+  "ledger_sha256": "54f6b8c0ac4d6a70f01969befb983c47fd3cb5d931bb636f15367bc086f60cb7",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 98,
-    "full": 390,
+    "partial": 94,
+    "full": 394,
     "none": 112
   },
   "migrations": {
-    "deferred": 210,
-    "replacement": 390
+    "deferred": 206,
+    "replacement": 394
   },
   "pending_full_topics": [],
   "builds": {
@@ -7897,6 +7897,161 @@
             "A 255 poweroff request is accepted only for the exact primary-disposition static all-task run, remains 255 and has an unobserved SSH failure cause.",
             "Synthetic scheduler replies do not establish privileged policy behavior.",
             "Prior candidate failures and incomplete observations remain retained."
+          ]
+        },
+        {
+          "name": "calendar45-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "evidence_format": "primary-qualified-calendar45-v1",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "095ccfd0-a41b-42c3-9428-4ff24305ea68",
+          "record_sha256": "5c241df2aec703c1470b0a1cdc335393197d3732d6e9d9187f0ad0e8743419f2",
+          "limitations": [
+            "RTC and clock calls use synthetic responses; no physical RTC or real clock effect is established.",
+            "Whitespace LOCAL remains a reached candidate failure on both builds.",
+            "Missing-file UTC selection and post-systohc serialized zero drift are observed; the no-drift default is inferred from pinned source, and post-write remainder does not establish its pre-action value.",
+            "Root fixtures remain held; preserve prior evidence and failures."
+          ],
+          "primary_receipt_sha256": "5cb2884f09e77582e17618ebfd5aa2efac67b0ce4d675f14d5c4a137182cd3df"
+        },
+        {
+          "name": "uclamp-setter45-static-setter-fork",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-uclamp-setter45-r3-v1",
+          "primary_receipt_sha256": "d41a5fd2f88d164c0ee73295908f946144fb8a009d5fcba2dd096d2d4f5df53a",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "b4b866a4-4013-4970-9cae-f3dff95256d7",
+          "poweroff_request": 0,
+          "limitations": [
+            "Only setter reset-on-fork r3; remaining setter requirements require separate evidence.",
+            "Child wait status and post-fork parent liveness are not separately saved.",
+            "Preserve earlier incomplete setter observations and any prior reached failures.",
+            "This fixed paired PASS reader does not classify incomplete future runs.",
+            "Historical audit contains seed ISO hashes; current reader never opens or hashes ISO disk bytes."
+          ]
+        },
+        {
+          "name": "modern-ss-multipart-v4-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-ss-multipart-v1",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "1c496449-1821-4025-8a80-93dcb6485428",
+          "primary_receipt_sha256": "6d5b3a3d0039456f1a994ad79532163e171b581713e7435d8d32d5787f1f8d4e",
+          "receipt_run": "ss-multipart-v3-static",
+          "provenance_sha256": "09b635f84e181759f972b704a222f507f3ccbe20244b47e81885c46c7c891e84",
+          "evidence_sha256": "fa15e07dd5b72fe34539419b47082ee12363f14e6b753a2326fd78b9b82005c2",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-1c496449.service",
+              "proof_sha256": "a94ab2dd16ddc5ff61a350c4610001417000276536c875766fc08f62a051b931",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-1c496449-reference.service",
+              "proof_sha256": "60b278a4960898a417a000ba3704c1d478cdefb33dcb04ace0dc34f869f3777c",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-1c496449-1821-4025-8a80-93dcb6485428.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261029/primary-modern-ss-multipart-v4-001/results/ss-multipart-v3-static/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 255,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-1c496449-1821-4025-8a80-93dcb6485428.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-1c496449-1821-4025-8a80-93dcb6485428.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-1c496449-1821-4025-8a80-93dcb6485428.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-1c496449-1821-4025-8a80-93dcb6485428.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-1c496449-1821-4025-8a80-93dcb6485428.scope\nId=parity-vm-1c496449-1821-4025-8a80-93dcb6485428.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-1c496449-1821-4025-8a80-93dcb6485428.scope",
+                "id": "parity-vm-1c496449-1821-4025-8a80-93dcb6485428.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-1c496449-1821-4025-8a80-93dcb6485428.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-1c496449-1821-4025-8a80-93dcb6485428.scope",
+            "stopped_at": 1793325416.3797247,
+            "vm_uuid": "1c496449-1821-4025-8a80-93dcb6485428",
+            "wrapper_pid": 1468611
+          },
+          "overlay_discarded": true,
+          "ss_lifecycle_sha256": "3f531454e70fa436b4a6b0789e0ba7f7a49c61514d06eee00a5090199efa8aa8",
+          "ss_paired_review_sha256": "6b943d0c483ab3f8eae282d29468d7d0b21c3c3d280420f2a2b59f441e90cf95"
+        },
+        {
+          "name": "owner-r12-static",
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-broker-owner-r12-v3",
+          "primary_receipt_sha256": "a4d232f9be11f7e9ea46c2c3339f8818f7317c761b27f0a88d5d7c8f2b974098",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "209a9b87-ebf6-451c-b587-47884bdfc274",
+          "limitations": [
+            "Wrong-owner rejection only; existing lifecycle, ownership and wrong-mode evidence remains separately required.",
+            "Mapped namespace UID 0 corresponds to guest UID 2000; no initial-user-namespace root fixture.",
+            "Earlier incomplete observations and reached failures remain preserved.",
+            "The paired raw checker relies on separately reviewed trace-source and descendant guarantees; primary must independently verify them before issuance. The seed ISO is inventoried by metadata only and its bytes are not read."
+          ]
+        },
+        {
+          "name": "uclamp-setter55-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "evidence_format": "primary-qualified-uclamp-setter55-v1",
+          "primary_receipt_sha256": "f2da2f66e87cb824243d4123387af71196b27b6e057a634c6d8bd957fc08b0e9",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "cfef626e-e697-46df-9aac-c1962dc06410",
+          "limitations": [
+            "r1 is bounded child-self readback for the tested one-sided and paired updates.",
+            "r2 and r4 use source-owned numeric targets without separately retained birth or pidfd proof.",
+            "r5 uses synthetic scheduler replies and request bytes for a passed numeric target, not actual privileged RT or deadline scheduling.",
+            "r3 is separately evidenced and r6 retains historical evidence; preserve all prior observations and failures."
           ]
         }
       ],
@@ -25203,42 +25358,66 @@
         },
         {
           "topic": "hwclock/adjtime-validation-before-rtc",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A valid three-line adjtime (drift last_adjust remainder / last_calib / UTC|LOCAL), with accepted surrounding whitespace, is accepted and the command proceeds to RTC access.",
-              "coverage": "partial",
-              "gap": "Valid LOCAL adjtime and surrounding whitespace on the mode line are not witnessed.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "devices-hwclock-adj-valid-r1",
                   "status": "PASS",
                   "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-valid-local-r2",
+                  "status": "PASS",
+                  "run": "calendar45-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-valid-local-space-r2",
+                  "status": "FAIL",
+                  "run": "calendar45-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "A missing adjtime file yields the documented defaults (UTC, no drift) and proceeds.",
-              "coverage": "partial",
-              "gap": "The missing-file show case uses explicit --utc and does not independently establish the default UTC mode or zero drift.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "devices-hwclock-adj-missing-r1",
                   "status": "PASS",
                   "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-missing-default-utc-r2",
+                  "status": "PASS",
+                  "run": "calendar45-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-missing-default-drift-r2",
+                  "status": "PASS",
+                  "run": "calendar45-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -41143,10 +41322,10 @@
         },
         {
           "topic": "ptybroker/private_session_lifecycle",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -41195,8 +41374,8 @@
             {
               "id": "r3",
               "behavior": "The session directory and ROOT are 0700 and owned by the caller; a ROOT with wrong mode or owner is rejected (EACCES)",
-              "coverage": "partial",
-              "gap": "Wrong-owner rejection remains unproved: the /root test retained EACCES but not target owner/mode or proof that the error arose from the ownership condition.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -41209,10 +41388,16 @@
                   "id": "migration-terminal-review112-pty-b01r2-broker-lifecycle",
                   "status": "PASS",
                   "run": "terminal-canonical-b06-static-115"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-ptybroker-wrong-owner-r3",
+                  "status": "PASS",
+                  "run": "owner-r12-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -46387,26 +46572,32 @@
         },
         {
           "topic": "ss/deferred_netlink_protocol_errors",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Multipart sock_diag replies spanning several recv() buffers are fully rendered.",
-              "coverage": "partial",
-              "gap": "The independent native dump spans four datagrams and all 720 names appear once, but candidate receive buffer boundaries are not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-namespace-network-ss-multipart-unix-r1",
                   "status": "PASS",
                   "run": "qual-remote-canon-probe-composite-namespace-remainder-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-ss-netlink-multipart-boundaries-r3",
+                  "status": "PASS",
+                  "run": "modern-ss-multipart-v4-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -54206,76 +54397,114 @@
         },
         {
           "topic": "uclampset/defer_pid_setter",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "One-sided updates (-m only, -M only) change only that clamp, and paired -m/-M changes both, as the child's sched_getattr read-back shows, matching util-linux results.",
-              "coverage": "partial",
-              "gap": "The retained sched_getattr readbacks were taken by the parent observer; the required child-self readback was not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "devices-uclamp-setter-r1",
                   "status": "PASS",
                   "run": "device-v8-uclamp-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-setter-owned-updates",
+                  "status": "PASS",
+                  "run": "uclamp-setter55-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Reset values: -m -1 and -M -1 restore the system default via SCHED_FLAG_UTIL_CLAMP_RESET semantics.",
-              "coverage": "partial",
-              "gap": "Reset-request flag semantics were not independently traced.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "devices-uclamp-setter-r1",
                   "status": "PASS",
                   "run": "device-v8-uclamp-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-setter-reset",
+                  "status": "PASS",
+                  "run": "uclamp-setter55-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "-R sets reset-on-fork: a child forked by the helper afterwards has default clamps.",
-              "coverage": "missing",
-              "gap": "Unexecuted. An unprivileged caller may set, but not clear, reset-on-fork.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-setter-fork-direct-r2",
+                  "status": "PASS",
+                  "run": "uclamp-setter45-static-setter-fork"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Unrelated attributes are preserved: SCHED_BATCH or SCHED_IDLE policy and nice set by the helper are unchanged after the update.",
-              "coverage": "partial",
-              "gap": "Preservation with the specified seeded SCHED_BATCH or SCHED_IDLE policy and nice was not observed.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "devices-uclamp-setter-r1",
                   "status": "PASS",
                   "run": "device-v8-uclamp-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-setter-policy",
+                  "status": "PASS",
+                  "run": "uclamp-setter55-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "RT priority and SCHED_DEADLINE parameters are preserved.",
-              "coverage": "missing",
-              "gap": "An RT or DL policy needs CAP_SYS_NICE to set up. SECCOMP-NOTIFY can instead fake a sched_getattr reply carrying RT/DL fields and record the sched_setattr request bytes, so preservation is proven from the request.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-setter-mock-rt",
+                  "status": "PASS",
+                  "run": "uclamp-setter55-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-setter-mock-deadline",
+                  "status": "PASS",
+                  "run": "uclamp-setter55-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
@@ -57630,9 +57859,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 210,
-        "FAIL": 187,
-        "PASS": 203
+        "UNRESOLVED": 206,
+        "FAIL": 189,
+        "PASS": 205
       },
       "migration_without_complete_evidence": []
     },
@@ -65519,6 +65748,161 @@
             "A 255 poweroff request is accepted only for the exact primary-disposition static all-task run, remains 255 and has an unobserved SSH failure cause.",
             "Synthetic scheduler replies do not establish privileged policy behavior.",
             "Prior candidate failures and incomplete observations remain retained."
+          ]
+        },
+        {
+          "name": "calendar45-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "evidence_format": "primary-qualified-calendar45-v1",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "21ee982b-1b01-4bc7-8244-d9ef1594294a",
+          "record_sha256": "66537a47415daa81477c611263122be223150fb4245e5d0377c9013a7da6e913",
+          "limitations": [
+            "RTC and clock calls use synthetic responses; no physical RTC or real clock effect is established.",
+            "Whitespace LOCAL remains a reached candidate failure on both builds.",
+            "Missing-file UTC selection and post-systohc serialized zero drift are observed; the no-drift default is inferred from pinned source, and post-write remainder does not establish its pre-action value.",
+            "Root fixtures remain held; preserve prior evidence and failures."
+          ],
+          "primary_receipt_sha256": "5cb2884f09e77582e17618ebfd5aa2efac67b0ce4d675f14d5c4a137182cd3df"
+        },
+        {
+          "name": "uclamp-setter45-dynamic-setter-fork",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-uclamp-setter45-r3-v1",
+          "primary_receipt_sha256": "d41a5fd2f88d164c0ee73295908f946144fb8a009d5fcba2dd096d2d4f5df53a",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "be0434e8-a415-46eb-bf01-8b41b062f0bf",
+          "poweroff_request": 0,
+          "limitations": [
+            "Only setter reset-on-fork r3; remaining setter requirements require separate evidence.",
+            "Child wait status and post-fork parent liveness are not separately saved.",
+            "Preserve earlier incomplete setter observations and any prior reached failures.",
+            "This fixed paired PASS reader does not classify incomplete future runs.",
+            "Historical audit contains seed ISO hashes; current reader never opens or hashes ISO disk bytes."
+          ]
+        },
+        {
+          "name": "modern-ss-multipart-v4-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-ss-multipart-v1",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "5fb90558-815a-460a-bdd9-8ac5382c7809",
+          "primary_receipt_sha256": "6d5b3a3d0039456f1a994ad79532163e171b581713e7435d8d32d5787f1f8d4e",
+          "receipt_run": "ss-multipart-v3-dynamic",
+          "provenance_sha256": "9ae3db666314621fb9a71b8b29ec4ae34c7f29a4560c0610e292bca7b8a049d8",
+          "evidence_sha256": "ce7899a537133f23c599e428ff1b8d4f2e75d4db38c92446547f0a1bef0949f2",
+          "units": {
+            "evaluator": {
+              "unit": "bashos-evaluation-5fb90558.service",
+              "proof_sha256": "99837228741423fcc66dc986f92983a585aa2a9242b46b412568f848c51e0d89",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            },
+            "compatibility": {
+              "unit": "bashos-optional-5fb90558-reference.service",
+              "proof_sha256": "f8656a382ca84a8c911e2d805653b1f40adbfd81cccae881315a992527a683ca",
+              "transport_returncode": 0,
+              "stop_returncode": 5
+            }
+          },
+          "teardown": {
+            "cgroup_events": {
+              "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-5fb90558-815a-460a-bdd9-8ac5382c7809.scope/cgroup.events",
+              "raw_ascii": null,
+              "removed": true
+            },
+            "clean_poweroff": true,
+            "disk": "/home/pleb/storage/research/bash-os/0.1.3/deferral-migration/resume-20261029/primary-modern-ss-multipart-v4-001/results/ss-multipart-v3-dynamic/overlay.qcow2",
+            "forced_stop": false,
+            "launch_attempted": true,
+            "poweroff_request": 0,
+            "proof_durable": true,
+            "qemu_exit_status": 0,
+            "scope_after": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-5fb90558-815a-460a-bdd9-8ac5382c7809.scope",
+              "load": "not-found"
+            },
+            "scope_after_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-5fb90558-815a-460a-bdd9-8ac5382c7809.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_before": {
+              "active": "inactive",
+              "group": "",
+              "id": "parity-vm-5fb90558-815a-460a-bdd9-8ac5382c7809.scope",
+              "load": "not-found"
+            },
+            "scope_before_raw": {
+              "returncode": 0,
+              "stderr": "",
+              "stdout": "ControlGroup=\nId=parity-vm-5fb90558-815a-460a-bdd9-8ac5382c7809.scope\nLoadState=not-found\nActiveState=inactive\n"
+            },
+            "scope_boot_observation": {
+              "raw": {
+                "returncode": 0,
+                "stderr": "",
+                "stdout": "ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-5fb90558-815a-460a-bdd9-8ac5382c7809.scope\nId=parity-vm-5fb90558-815a-460a-bdd9-8ac5382c7809.scope\nLoadState=loaded\nActiveState=active\n"
+              },
+              "state": {
+                "active": "active",
+                "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-5fb90558-815a-460a-bdd9-8ac5382c7809.scope",
+                "id": "parity-vm-5fb90558-815a-460a-bdd9-8ac5382c7809.scope",
+                "load": "loaded"
+              }
+            },
+            "scope_cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/parity-vm-5fb90558-815a-460a-bdd9-8ac5382c7809.scope",
+            "scope_error": null,
+            "scope_quiescent": true,
+            "scope_unit": "parity-vm-5fb90558-815a-460a-bdd9-8ac5382c7809.scope",
+            "stopped_at": 1793326096.2508407,
+            "vm_uuid": "5fb90558-815a-460a-bdd9-8ac5382c7809",
+            "wrapper_pid": 1479345
+          },
+          "overlay_discarded": true,
+          "ss_lifecycle_sha256": "e165802b71ff37f22651348f0d32221271b973efd4b293423df36fa6ce0aa8e9",
+          "ss_paired_review_sha256": "6b943d0c483ab3f8eae282d29468d7d0b21c3c3d280420f2a2b59f441e90cf95"
+        },
+        {
+          "name": "owner-r12-dynamic",
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-broker-owner-r12-v3",
+          "primary_receipt_sha256": "a4d232f9be11f7e9ea46c2c3339f8818f7317c761b27f0a88d5d7c8f2b974098",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "b3c15555-e41d-4cac-994d-6d2eda16c685",
+          "limitations": [
+            "Wrong-owner rejection only; existing lifecycle, ownership and wrong-mode evidence remains separately required.",
+            "Mapped namespace UID 0 corresponds to guest UID 2000; no initial-user-namespace root fixture.",
+            "Earlier incomplete observations and reached failures remain preserved.",
+            "The paired raw checker relies on separately reviewed trace-source and descendant guarantees; primary must independently verify them before issuance. The seed ISO is inventoried by metadata only and its bytes are not read."
+          ]
+        },
+        {
+          "name": "uclamp-setter55-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 5,
+          "evidence_format": "primary-qualified-uclamp-setter55-v1",
+          "primary_receipt_sha256": "f2da2f66e87cb824243d4123387af71196b27b6e057a634c6d8bd957fc08b0e9",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "10885c94-6185-47e0-8c8f-685f3c0129cb",
+          "limitations": [
+            "r1 is bounded child-self readback for the tested one-sided and paired updates.",
+            "r2 and r4 use source-owned numeric targets without separately retained birth or pidfd proof.",
+            "r5 uses synthetic scheduler replies and request bytes for a passed numeric target, not actual privileged RT or deadline scheduling.",
+            "r3 is separately evidenced and r6 retains historical evidence; preserve all prior observations and failures."
           ]
         }
       ],
@@ -82825,42 +83209,66 @@
         },
         {
           "topic": "hwclock/adjtime-validation-before-rtc",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A valid three-line adjtime (drift last_adjust remainder / last_calib / UTC|LOCAL), with accepted surrounding whitespace, is accepted and the command proceeds to RTC access.",
-              "coverage": "partial",
-              "gap": "Valid LOCAL adjtime and surrounding whitespace on the mode line are not witnessed.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "devices-hwclock-adj-valid-r1",
                   "status": "PASS",
                   "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-valid-local-r2",
+                  "status": "PASS",
+                  "run": "calendar45-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-valid-local-space-r2",
+                  "status": "FAIL",
+                  "run": "calendar45-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "A missing adjtime file yields the documented defaults (UTC, no drift) and proceeds.",
-              "coverage": "partial",
-              "gap": "The missing-file show case uses explicit --utc and does not independently establish the default UTC mode or zero drift.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "devices-hwclock-adj-missing-r1",
                   "status": "PASS",
                   "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-missing-default-utc-r2",
+                  "status": "PASS",
+                  "run": "calendar45-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-missing-default-drift-r2",
+                  "status": "PASS",
+                  "run": "calendar45-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -98765,10 +99173,10 @@
         },
         {
           "topic": "ptybroker/private_session_lifecycle",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -98817,8 +99225,8 @@
             {
               "id": "r3",
               "behavior": "The session directory and ROOT are 0700 and owned by the caller; a ROOT with wrong mode or owner is rejected (EACCES)",
-              "coverage": "partial",
-              "gap": "Wrong-owner rejection remains unproved: the /root test retained EACCES but not target owner/mode or proof that the error arose from the ownership condition.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -98831,10 +99239,16 @@
                   "id": "migration-terminal-review112-pty-b01r2-broker-lifecycle",
                   "status": "PASS",
                   "run": "terminal-canonical-b06-dynamic-115"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-ptybroker-wrong-owner-r3",
+                  "status": "PASS",
+                  "run": "owner-r12-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -104009,26 +104423,32 @@
         },
         {
           "topic": "ss/deferred_netlink_protocol_errors",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Multipart sock_diag replies spanning several recv() buffers are fully rendered.",
-              "coverage": "partial",
-              "gap": "The independent native dump spans four datagrams and all 720 names appear once, but candidate receive buffer boundaries are not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-namespace-network-ss-multipart-unix-r1",
                   "status": "PASS",
                   "run": "qual-remote-canon-probe-composite-namespace-remainder-paired-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-ss-netlink-multipart-boundaries-r3",
+                  "status": "PASS",
+                  "run": "modern-ss-multipart-v4-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -111828,76 +112248,114 @@
         },
         {
           "topic": "uclampset/defer_pid_setter",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "One-sided updates (-m only, -M only) change only that clamp, and paired -m/-M changes both, as the child's sched_getattr read-back shows, matching util-linux results.",
-              "coverage": "partial",
-              "gap": "The retained sched_getattr readbacks were taken by the parent observer; the required child-self readback was not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "devices-uclamp-setter-r1",
                   "status": "PASS",
                   "run": "device-v8-uclamp-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-setter-owned-updates",
+                  "status": "PASS",
+                  "run": "uclamp-setter55-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Reset values: -m -1 and -M -1 restore the system default via SCHED_FLAG_UTIL_CLAMP_RESET semantics.",
-              "coverage": "partial",
-              "gap": "Reset-request flag semantics were not independently traced.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "devices-uclamp-setter-r1",
                   "status": "PASS",
                   "run": "device-v8-uclamp-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-setter-reset",
+                  "status": "PASS",
+                  "run": "uclamp-setter55-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "-R sets reset-on-fork: a child forked by the helper afterwards has default clamps.",
-              "coverage": "missing",
-              "gap": "Unexecuted. An unprivileged caller may set, but not clear, reset-on-fork.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-setter-fork-direct-r2",
+                  "status": "PASS",
+                  "run": "uclamp-setter45-dynamic-setter-fork"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Unrelated attributes are preserved: SCHED_BATCH or SCHED_IDLE policy and nice set by the helper are unchanged after the update.",
-              "coverage": "partial",
-              "gap": "Preservation with the specified seeded SCHED_BATCH or SCHED_IDLE policy and nice was not observed.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "devices-uclamp-setter-r1",
                   "status": "PASS",
                   "run": "device-v8-uclamp-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-setter-policy",
+                  "status": "PASS",
+                  "run": "uclamp-setter55-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "RT priority and SCHED_DEADLINE parameters are preserved.",
-              "coverage": "missing",
-              "gap": "An RT or DL policy needs CAP_SYS_NICE to set up. SECCOMP-NOTIFY can instead fake a sched_getattr reply carrying RT/DL fields and record the sched_setattr request bytes, so preservation is proven from the request.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-setter-mock-rt",
+                  "status": "PASS",
+                  "run": "uclamp-setter55-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-setter-mock-deadline",
+                  "status": "PASS",
+                  "run": "uclamp-setter55-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
@@ -115252,9 +115710,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 210,
-        "FAIL": 186,
-        "PASS": 204
+        "UNRESOLVED": 206,
+        "FAIL": 188,
+        "PASS": 206
       },
       "migration_without_complete_evidence": []
     }
