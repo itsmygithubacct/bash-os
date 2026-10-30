@@ -13,6 +13,7 @@ import re
 import selectors
 import signal
 import socket
+import stat
 import struct
 import subprocess
 import sys
@@ -57,13 +58,69 @@ def write(name, value):
     (HOME / name).write_bytes(data)
 
 
-def guest():
-    token = str(uuid.UUID(Path('/etc/bashos-parity-vm').read_text().strip()))
-    actual = str(uuid.UUID(Path('/sys/class/dmi/id/product_uuid').read_text().strip()))
-    if (token != actual or Path('/sys/class/dmi/id/sys_vendor').read_text().strip() != 'QEMU'
-            or Path.cwd() != Path('/tmp/parity-case') or os.environ.get('HOME') != str(HOME)
+def guest(expected_uid):
+    """Use the controller's protected DMI attestation, including in userns."""
+    if (Path.cwd() != Path('/tmp/parity-case') or os.environ.get('HOME') != str(HOME)
             or os.uname().machine != 'x86_64'):
+        raise RuntimeError('guest context mismatch')
+    uid, euid, gid, egid = os.getuid(), os.geteuid(), os.getgid(), os.getegid()
+    if (uid, euid, gid, egid) != (expected_uid,) * 4 or expected_uid not in (0, 2000):
+        raise RuntimeError('guest credentials mismatch')
+    if expected_uid == 0:
+        uid_map = [list(map(int, row.split())) for row in Path('/proc/self/uid_map').read_text().splitlines()]
+        gid_map = [list(map(int, row.split())) for row in Path('/proc/self/gid_map').read_text().splitlines()]
+        if uid_map != [[0, 2000, 1]] or gid_map != [[0, 2000, 1]]:
+            raise RuntimeError('unexpected mapped user namespace')
+        owner_uid = int(Path('/proc/sys/kernel/overflowuid').read_text())
+        owner_gid = int(Path('/proc/sys/kernel/overflowgid').read_text())
+    else:
+        uid_map = gid_map = None
+        owner_uid = owner_gid = 0
+
+    def metadata(info):
+        return {'uid': info.st_uid, 'gid': info.st_gid, 'mode': stat.S_IMODE(info.st_mode),
+                'nlink': info.st_nlink, 'size': info.st_size, 'dev': info.st_dev, 'ino': info.st_ino,
+                'mtime_ns': info.st_mtime_ns}
+
+    def read_identity(directory, name):
+        dirfd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            parent = os.fstat(dirfd)
+            if (not stat.S_ISDIR(parent.st_mode) or parent.st_uid != owner_uid or parent.st_gid != owner_gid
+                    or stat.S_IMODE(parent.st_mode) & 0o022):
+                raise RuntimeError('unprotected identity directory')
+            fd = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=dirfd)
+            try:
+                before = os.fstat(fd)
+                if (not stat.S_ISREG(before.st_mode) or before.st_uid != owner_uid or before.st_gid != owner_gid
+                        or stat.S_IMODE(before.st_mode) != 0o444 or before.st_nlink != 1 or before.st_size != 37):
+                    raise RuntimeError('unprotected identity file')
+                data = os.read(fd, 38)
+                after = os.fstat(fd)
+                entry = os.stat(name, dir_fd=dirfd, follow_symlinks=False)
+                if metadata(before) != metadata(after) or metadata(after) != metadata(entry):
+                    raise RuntimeError('identity file changed during read')
+            finally:
+                os.close(fd)
+        finally:
+            os.close(dirfd)
+        if len(data) != 37 or not data.endswith(b'\n'):
+            raise RuntimeError('invalid identity bytes')
+        value = data[:-1].decode('ascii')
+        if str(uuid.UUID(value)) != value:
+            raise RuntimeError('noncanonical identity')
+        return value, {'directory': metadata(parent), 'file': metadata(after), 'bytes_hex': data.hex()}
+
+    token, marker = read_identity('/etc', 'bashos-parity-vm')
+    attested, proof = read_identity('/run', 'bashos-parity-vm-identity')
+    vendor = Path('/sys/class/dmi/id/sys_vendor').read_text().strip()
+    virt = subprocess.run(['/usr/bin/systemd-detect-virt', '--vm'], capture_output=True, text=True,
+                          timeout=3, check=True).stdout.strip()
+    if token != attested or vendor != 'QEMU' or virt not in ('qemu', 'kvm'):
         raise RuntimeError('guest identity mismatch')
+    return {'uid': uid, 'euid': euid, 'gid': gid, 'egid': egid, 'uuid': token,
+            'vendor': vendor, 'virtualization': virt, 'marker': marker, 'attestation': proof,
+            'uid_map': uid_map, 'gid_map': gid_map, 'owner_uid': owner_uid, 'owner_gid': owner_gid}
 
 
 def run(argv, events, label):
@@ -621,14 +678,18 @@ def native_control(events):
     ip(events, 'link', 'del', 'bnc')
 
 
-def inner(name, outer_net, outer_user):
+def inner(name, outer_net, outer_user, outer_uuid, identity):
     events = []
-    stage = {'scenario': name, 'state': 'preparing', 'stage': 'identity'}
+    stage = {'scenario': name, 'state': 'preparing', 'stage': 'identity', 'identity': identity}
     write('network-stage.json', stage)
     try:
-        if (os.getuid() != 0 or os.geteuid() != 0 or Path('/proc/self/uid_map').read_text().split() != ['0', '2000', '1'] or
+        if (identity['uuid'] != outer_uuid or os.getuid() != 0 or os.geteuid() != 0 or
+                Path('/proc/self/uid_map').read_text().split() != ['0', '2000', '1'] or
                 os.readlink('/proc/self/ns/net') == outer_net or os.readlink('/proc/self/ns/user') == outer_user):
             raise RuntimeError('namespace isolation or uid mapping failed')
+        os.environ['BASHIO_OUTER_USER_NS'] = outer_user
+        os.environ['BASHIO_OUTER_NET_NS'] = outer_net
+        os.environ['BASHIO_VM_UUID'] = identity['uuid']
         cap = int(re.search(r'^CapEff:\s*([0-9a-f]+)$', Path('/proc/self/status').read_text(), re.M).group(1), 16)
         if not cap & (1 << 12): raise RuntimeError('namespace lacks CAP_NET_ADMIN')
         stage.update({'user_ns': os.readlink('/proc/self/ns/user'), 'net_ns': os.readlink('/proc/self/ns/net'),
@@ -724,23 +785,20 @@ def inner(name, outer_net, outer_user):
         raise
 
 
-def setup(name):
+def setup(name, identity):
     if os.getuid() != 2000 or os.geteuid() != 2000 or name not in CASES:
         raise RuntimeError('outer identity or scenario invalid')
+    outer = {'user': os.readlink('/proc/self/ns/user'), 'net': os.readlink('/proc/self/ns/net')}
+    write('network-outer.json', {'state': 'identity-verified', 'namespaces': outer, 'identity': identity})
     parser_controls()
     events = []
     for source, target in [('bashio-network-reviewed-tracer.c', TRACER), ('bashio-network-reviewed-native.c', NATIVE)]:
         run(['/usr/bin/gcc', '-O2', '-Wall', '-Wextra', '-o', target, str(HELPERS / source)], events, 'compile-' + source)
     write('network-compile.json', events)
-    outer = {'user': os.readlink('/proc/self/ns/user'), 'net': os.readlink('/proc/self/ns/net')}
-    identity = {'uid': os.getuid(), 'euid': os.geteuid(),
-                'vendor': Path('/sys/class/dmi/id/sys_vendor').read_text().strip(),
-                'uuid': str(uuid.UUID(Path('/etc/bashos-parity-vm').read_text().strip())),
-                'product_uuid': str(uuid.UUID(Path('/sys/class/dmi/id/product_uuid').read_text().strip()))}
     write('network-outer.json', {'state': 'launching', 'namespaces': outer, 'identity': identity})
     try:
         result = subprocess.run(['/usr/bin/unshare', '--user', '--map-root-user', '--net', '/usr/bin/python3', HERE,
-                                 'inner', name, outer['net'], outer['user']], capture_output=True, timeout=52)
+                                 'inner', name, outer['net'], outer['user'], identity['uuid']], capture_output=True, timeout=52)
         write('network-outer.json', {'state': 'finished', 'namespaces': outer, 'identity': identity, 'status': result.returncode,
                                      'stdout_b64': base64.b64encode(result.stdout[:MAX_OUTPUT]).decode(),
                                      'stderr_b64': base64.b64encode(result.stderr[:MAX_OUTPUT]).decode(),
@@ -766,10 +824,12 @@ def assess(name):
 
 
 def main():
-    guest()
-    if len(sys.argv) == 3 and sys.argv[1] == 'setup': setup(sys.argv[2]); return 0
-    if len(sys.argv) == 5 and sys.argv[1] == 'inner': inner(sys.argv[2], sys.argv[3], sys.argv[4]); return 0
-    if len(sys.argv) == 3 and sys.argv[1] == 'assess': return assess(sys.argv[2])
+    if len(sys.argv) == 3 and sys.argv[1] == 'setup':
+        setup(sys.argv[2], guest(2000)); return 0
+    if len(sys.argv) == 6 and sys.argv[1] == 'inner':
+        inner(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], guest(0)); return 0
+    if len(sys.argv) == 3 and sys.argv[1] == 'assess':
+        guest(2000); return assess(sys.argv[2])
     raise ValueError('invalid invocation')
 
 

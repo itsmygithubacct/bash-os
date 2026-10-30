@@ -21,6 +21,7 @@
 #include <sys/user.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include "bashio-network-reviewed-identity.h"
 
 static int read_child(pid_t pid, unsigned long ptr, void *dst, size_t n) {
     unsigned char *p = dst;
@@ -98,12 +99,16 @@ static void emit(FILE *f, struct saved *s, long ret) {
     fprintf(f, "}\n"); fflush(f);
 }
 int main(int argc, char **argv) {
+    if (bashio_network_guest_guard() < 0) return 89;
     if (argc < 5 || (strcmp(argv[2], "keep") && strcmp(argv[2], "drop")) || strcmp(argv[3], "mark")) return 90;
     FILE *f = fopen(argv[1], "w"); if (!f || fcntl(fileno(f), F_SETFD, FD_CLOEXEC) < 0) return 91;
     pid_t child = fork();
     if (child < 0) return 92;
     if (!child) {
         if (!strcmp(argv[2], "drop") && drop_caps() < 0) _exit(120);
+        if (!strcmp(argv[4], "/opt/bashos-parity/candidate") &&
+            (unsetenv("BASHIO_OUTER_USER_NS") < 0 || unsetenv("BASHIO_OUTER_NET_NS") < 0 ||
+             unsetenv("BASHIO_VM_UUID") < 0)) _exit(123);
         if (ptrace(PTRACE_TRACEME, 0, 0, 0) < 0) _exit(121);
         raise(SIGSTOP); execv(argv[4], &argv[4]); _exit(122);
     }

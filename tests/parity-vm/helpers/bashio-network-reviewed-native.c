@@ -10,6 +10,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include "bashio-network-reviewed-identity.h"
 
 static int guard(int fd, const char *name) {
     struct ifreq r = {0};
@@ -42,6 +43,7 @@ static int operation(int fd, char **args) {
     return 0;
 }
 int main(int argc, char **argv) {
+    if (bashio_network_guest_guard() < 0) return 89;
     if (argc != 7 || strcmp(argv[1], "--marked")) return 90;
     int fd = socket(AF_INET, SOCK_DGRAM, 0); if (fd < 0) return 91;
     if (guard(fd, argv[2]) < 0 || kill(getpid(), SIGSTOP) < 0) return 96;

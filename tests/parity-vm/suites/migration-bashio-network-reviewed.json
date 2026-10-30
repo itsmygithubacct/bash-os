@@ -36,9 +36,10 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "addr-success",
@@ -132,9 +133,10 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "addr-missing",
@@ -194,9 +196,10 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "addr-missing-ip",
@@ -256,9 +259,10 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "addr-missing-mask",
@@ -318,9 +322,10 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "addr-bad-ip",
@@ -380,9 +385,10 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "addr-bad-mask",
@@ -443,9 +449,10 @@
         "network-native-target.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "addr-nodev",
@@ -540,9 +547,10 @@
         "network-native-target.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "addr-perm",
@@ -636,9 +644,10 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "route-missing",
@@ -699,9 +708,10 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "route-missing-iface",
@@ -762,9 +772,10 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "route-extra",
@@ -825,9 +836,10 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "route-bad-gateway",
@@ -888,9 +900,10 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "route-long-iface",
@@ -951,9 +964,10 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "route-auto",
@@ -1029,9 +1043,10 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "route-iface",
@@ -1110,9 +1125,10 @@
         "network-native-target.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "route-repeat",
@@ -1222,9 +1238,10 @@
         "network-native-target.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "route-unreachable",
@@ -1334,9 +1351,10 @@
         "network-native-target.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
-        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
-        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
+        "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
+        "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
       },
       "primary_evidence_gate": {
         "scenario": "route-perm",
@@ -1429,11 +1447,17 @@
     "identity_rules": {
       "outer_uid": 2000,
       "outer_euid": 2000,
+      "outer_gid": 2000,
+      "outer_egid": 2000,
       "vendor": "QEMU",
-      "uuid_rule": "outer uuid equals product_uuid and primary VM provenance uuid",
+      "uuid_rule": "Require canonical identical marker and protected /run attestation bytes for both outer and inner identity records. Bind both UUIDs to primary VM provenance and its independently root-validated attestation readback, including matching marker/attestation bytes and the case-insensitively matching root DMI UUID. Do not require an unprivileged DMI product_uuid read or invent a product_uuid observation in the fixture.",
+      "protected_files": "For both identity records independently validate exact 37-byte UUID plus newline, no-follow regular single-link files mode 0444 and protected non-group/world-writable directories; outer ownership is root:root and inner ownership is the recorded kernel overflow uid/gid under the one-id maps. Bind matching file/directory dev and inode, byte contents and invariant metadata across both records, accounting for the expected owner remapping. Require completed systemd virtualization check and QEMU vendor. The controller's root provenance attestation establishes the root DMI binding.",
       "inner_uid": 0,
       "inner_euid": 0,
+      "inner_gid": 0,
+      "inner_egid": 0,
       "uid_map": "0 2000 1",
+      "gid_map": "0 2000 1",
       "distinct_namespaces": [
         "user",
         "net"
