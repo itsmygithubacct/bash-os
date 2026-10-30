@@ -1,0 +1,235 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-killall5-dry-run-reviewed-baseline",
+      "loadable": "killall5",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Select all eligible outside-session PIDs while excluding the real caller, its session, kernel and malformed records.",
+      "covers": [
+        "killall5/dry_run_selection"
+      ],
+      "oracle": "A per-observation synthetic proc tree is checked against known records, and the candidate shell PID and SID are independently cross-checked with getsid and the live caller stat. The expected set is derived from the fixture roles and omit arguments, never from candidate output. Setup executes PID parser positive/negative controls and a native seccomp signal-syscall guard control. The guard prevents delivery and makes an attempted signal syscall fatal.",
+      "comparison": "Compare the complete unordered unique PID set, raw exit status and stderr with the independent expected set and status. Unreadable-root errors require a nonempty opendir diagnostic. Setup or per-observation precondition failure and missing/truncated diagnostics require primary adjudication as incomplete, not a candidate behavior failure.",
+      "requires": [
+        "cc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py setup\n",
+      "candidate_script": "exec ./guard \"$BASH\" --noprofile --norc -c 'ulimit -f 128 || exit 89\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare baseline \"$$\" >\"$HOME/prepare.out\" 2>\"$HOME/prepare.err\" || { printf '\"'\"'fixture-precondition-failed\\n'\"'\"' >&2; exit 90; }\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nrc=0\nkillall5 --dry-run >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify baseline\n'\n",
+      "stdout": "dry-run-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 25,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "cc.out",
+        "cc.err",
+        "cc.status",
+        "guard-control.out",
+        "guard-control.err",
+        "guard-control.status",
+        "guard-exec.json",
+        "prepare.out",
+        "prepare.err",
+        "fixture.json",
+        "oracle.json",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/killall5-dry-run-reviewed.py": "a83af1c8aeb87d4ed911defc440ba8d4d5e933f76f469131f92451989c84ac08",
+        "helpers/killall5-dry-run-reviewed.c": "f5a39d853a6197f0fa7aec2e659cfb40b875531f6e55c7c9189f382db59be52d"
+      }
+    },
+    {
+      "id": "migration-killall5-dry-run-reviewed-comma",
+      "loadable": "killall5",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Omit a comma-separated list while retaining other eligible PIDs.",
+      "covers": [
+        "killall5/dry_run_selection"
+      ],
+      "oracle": "A per-observation synthetic proc tree is checked against known records, and the candidate shell PID and SID are independently cross-checked with getsid and the live caller stat. The expected set is derived from the fixture roles and omit arguments, never from candidate output. Setup executes PID parser positive/negative controls and a native seccomp signal-syscall guard control. The guard prevents delivery and makes an attempted signal syscall fatal.",
+      "comparison": "Compare the complete unordered unique PID set, raw exit status and stderr with the independent expected set and status. Unreadable-root errors require a nonempty opendir diagnostic. Setup or per-observation precondition failure and missing/truncated diagnostics require primary adjudication as incomplete, not a candidate behavior failure.",
+      "requires": [
+        "cc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py setup\n",
+      "candidate_script": "exec ./guard \"$BASH\" --noprofile --norc -c 'ulimit -f 128 || exit 89\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare comma \"$$\" >\"$HOME/prepare.out\" 2>\"$HOME/prepare.err\" || { printf '\"'\"'fixture-precondition-failed\\n'\"'\"' >&2; exit 90; }\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nrc=0\nkillall5 --dry-run -o 1900000101,1900000102 >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify comma\n'\n",
+      "stdout": "dry-run-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 25,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "cc.out",
+        "cc.err",
+        "cc.status",
+        "guard-control.out",
+        "guard-control.err",
+        "guard-control.status",
+        "guard-exec.json",
+        "prepare.out",
+        "prepare.err",
+        "fixture.json",
+        "oracle.json",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/killall5-dry-run-reviewed.py": "a83af1c8aeb87d4ed911defc440ba8d4d5e933f76f469131f92451989c84ac08",
+        "helpers/killall5-dry-run-reviewed.c": "f5a39d853a6197f0fa7aec2e659cfb40b875531f6e55c7c9189f382db59be52d"
+      }
+    },
+    {
+      "id": "migration-killall5-dry-run-reviewed-repeat",
+      "loadable": "killall5",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Combine repeated, comma-separated and attached omission forms with the short dry-run option.",
+      "covers": [
+        "killall5/dry_run_selection"
+      ],
+      "oracle": "A per-observation synthetic proc tree is checked against known records, and the candidate shell PID and SID are independently cross-checked with getsid and the live caller stat. The expected set is derived from the fixture roles and omit arguments, never from candidate output. Setup executes PID parser positive/negative controls and a native seccomp signal-syscall guard control. The guard prevents delivery and makes an attempted signal syscall fatal.",
+      "comparison": "Compare the complete unordered unique PID set, raw exit status and stderr with the independent expected set and status. Unreadable-root errors require a nonempty opendir diagnostic. Setup or per-observation precondition failure and missing/truncated diagnostics require primary adjudication as incomplete, not a candidate behavior failure.",
+      "requires": [
+        "cc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py setup\n",
+      "candidate_script": "exec ./guard \"$BASH\" --noprofile --norc -c 'ulimit -f 128 || exit 89\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare repeat \"$$\" >\"$HOME/prepare.out\" 2>\"$HOME/prepare.err\" || { printf '\"'\"'fixture-precondition-failed\\n'\"'\"' >&2; exit 90; }\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nrc=0\nkillall5 -n -o 1900000102,1900000103 -o1900000104 >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify repeat\n'\n",
+      "stdout": "dry-run-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 25,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "cc.out",
+        "cc.err",
+        "cc.status",
+        "guard-control.out",
+        "guard-control.err",
+        "guard-control.status",
+        "guard-exec.json",
+        "prepare.out",
+        "prepare.err",
+        "fixture.json",
+        "oracle.json",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/killall5-dry-run-reviewed.py": "a83af1c8aeb87d4ed911defc440ba8d4d5e933f76f469131f92451989c84ac08",
+        "helpers/killall5-dry-run-reviewed.c": "f5a39d853a6197f0fa7aec2e659cfb40b875531f6e55c7c9189f382db59be52d"
+      }
+    },
+    {
+      "id": "migration-killall5-dry-run-reviewed-none",
+      "loadable": "killall5",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Omit all otherwise eligible PIDs and require empty output and status 2.",
+      "covers": [
+        "killall5/dry_run_selection"
+      ],
+      "oracle": "A per-observation synthetic proc tree is checked against known records, and the candidate shell PID and SID are independently cross-checked with getsid and the live caller stat. The expected set is derived from the fixture roles and omit arguments, never from candidate output. Setup executes PID parser positive/negative controls and a native seccomp signal-syscall guard control. The guard prevents delivery and makes an attempted signal syscall fatal.",
+      "comparison": "Compare the complete unordered unique PID set, raw exit status and stderr with the independent expected set and status. Unreadable-root errors require a nonempty opendir diagnostic. Setup or per-observation precondition failure and missing/truncated diagnostics require primary adjudication as incomplete, not a candidate behavior failure.",
+      "requires": [
+        "cc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py setup\n",
+      "candidate_script": "exec ./guard \"$BASH\" --noprofile --norc -c 'ulimit -f 128 || exit 89\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare none \"$$\" >\"$HOME/prepare.out\" 2>\"$HOME/prepare.err\" || { printf '\"'\"'fixture-precondition-failed\\n'\"'\"' >&2; exit 90; }\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nrc=0\nkillall5 --dry-run -o1900000101,1900000102,1900000103,1900000104 >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify none\n'\n",
+      "stdout": "dry-run-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 25,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "cc.out",
+        "cc.err",
+        "cc.status",
+        "guard-control.out",
+        "guard-control.err",
+        "guard-control.status",
+        "guard-exec.json",
+        "prepare.out",
+        "prepare.err",
+        "fixture.json",
+        "oracle.json",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/killall5-dry-run-reviewed.py": "a83af1c8aeb87d4ed911defc440ba8d4d5e933f76f469131f92451989c84ac08",
+        "helpers/killall5-dry-run-reviewed.c": "f5a39d853a6197f0fa7aec2e659cfb40b875531f6e55c7c9189f382db59be52d"
+      }
+    },
+    {
+      "id": "migration-killall5-dry-run-reviewed-unreadable",
+      "loadable": "killall5",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Require status 1 and a diagnostic when the synthetic proc root cannot be opened.",
+      "covers": [
+        "killall5/dry_run_selection"
+      ],
+      "oracle": "A per-observation synthetic proc tree is checked against known records, and the candidate shell PID and SID are independently cross-checked with getsid and the live caller stat. The expected set is derived from the fixture roles and omit arguments, never from candidate output. Setup executes PID parser positive/negative controls and a native seccomp signal-syscall guard control. The guard prevents delivery and makes an attempted signal syscall fatal.",
+      "comparison": "Compare the complete unordered unique PID set, raw exit status and stderr with the independent expected set and status. Unreadable-root errors require a nonempty opendir diagnostic. Setup or per-observation precondition failure and missing/truncated diagnostics require primary adjudication as incomplete, not a candidate behavior failure.",
+      "requires": [
+        "cc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py setup\n",
+      "candidate_script": "exec ./guard \"$BASH\" --noprofile --norc -c 'ulimit -f 128 || exit 89\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare unreadable \"$$\" >\"$HOME/prepare.out\" 2>\"$HOME/prepare.err\" || { printf '\"'\"'fixture-precondition-failed\\n'\"'\"' >&2; exit 90; }\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nrc=0\nkillall5 --dry-run >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify unreadable\n'\n",
+      "stdout": "dry-run-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 25,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "cc.out",
+        "cc.err",
+        "cc.status",
+        "guard-control.out",
+        "guard-control.err",
+        "guard-control.status",
+        "guard-exec.json",
+        "prepare.out",
+        "prepare.err",
+        "fixture.json",
+        "oracle.json",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/killall5-dry-run-reviewed.py": "a83af1c8aeb87d4ed911defc440ba8d4d5e933f76f469131f92451989c84ac08",
+        "helpers/killall5-dry-run-reviewed.c": "f5a39d853a6197f0fa7aec2e659cfb40b875531f6e55c7c9189f382db59be52d"
+      }
+    }
+  ]
+}
