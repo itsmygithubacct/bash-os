@@ -109,6 +109,10 @@ bs_parse_id (const char *s, unsigned long long max, unsigned long long *out)
     return 0;
 }
 
+/* 0: no check, or SO_PEERCRED matches.
+ * -1: the credential query failed. The caller must not receive.
+ * -2: uid, gid, or pid does not match. The caller must receive the
+ *     message, close every descriptor it carried, and must not bind one. */
 static int
 bs_check_peer_cred (int sock_fd, int want_uid, uid_t uid,
                     int want_gid, gid_t gid, int want_pid, pid_t pid)
@@ -130,17 +134,17 @@ bs_check_peer_cred (int sock_fd, int want_uid, uid_t uid,
     if (want_uid && cred.uid != uid) {
         builtin_error ("recv-fd: peer uid mismatch (got %lu, want %lu)",
                        (unsigned long) cred.uid, (unsigned long) uid);
-        return -1;
+        return -2;
     }
     if (want_gid && cred.gid != gid) {
         builtin_error ("recv-fd: peer gid mismatch (got %lu, want %lu)",
                        (unsigned long) cred.gid, (unsigned long) gid);
-        return -1;
+        return -2;
     }
     if (want_pid && cred.pid != pid) {
         builtin_error ("recv-fd: peer pid mismatch (got %ld, want %ld)",
                        (long) cred.pid, (long) pid);
-        return -1;
+        return -2;
     }
     return 0;
 #else
@@ -304,6 +308,44 @@ bs_send_fd_cmd (WORD_LIST *args)
     return EXECUTION_SUCCESS;
 }
 
+/* Close every SCM_RIGHTS descriptor recvmsg installed. A rejected
+ * peer can send more than one int in the cmsg; closing only the first
+ * would leave the rest open. */
+static void
+bs_close_rights (struct msghdr *msg)
+{
+    unsigned char *base;
+    unsigned char *end;
+
+    if (!msg->msg_control || msg->msg_controllen == 0)
+        return;
+    base = msg->msg_control;
+    end = base + msg->msg_controllen;
+    for (struct cmsghdr *cm = CMSG_FIRSTHDR (msg); cm; cm = CMSG_NXTHDR (msg, cm)) {
+        unsigned char *data;
+        size_t room, nbytes, nfd, i;
+
+        if (cm->cmsg_level != SOL_SOCKET || cm->cmsg_type != SCM_RIGHTS)
+            continue;
+        if (cm->cmsg_len < CMSG_LEN (sizeof (int)))
+            continue;
+        data = CMSG_DATA (cm);
+        if (data < base || data >= end)
+            continue;
+        room = (size_t) (end - data);
+        nbytes = (size_t) cm->cmsg_len - CMSG_LEN (0);
+        if (nbytes > room)
+            nbytes = room;
+        nfd = nbytes / sizeof (int);
+        for (i = 0; i < nfd; i++) {
+            int fd = -1;
+            memcpy (&fd, data + (i * sizeof (int)), sizeof fd);
+            if (fd >= 0)
+                (void) close (fd);
+        }
+    }
+}
+
 static int
 bs_recv_fd_cmd (WORD_LIST *args)
 {
@@ -348,8 +390,13 @@ bs_recv_fd_cmd (WORD_LIST *args)
         else if (strcmp (w, "--fd-socket") == 0) { want_socket = 1; }
         else { builtin_error ("recv-fd: unexpected '%s'", w); builtin_usage (); return EX_USAGE; }
     }
-    if (bs_check_peer_cred (sock_fd, want_uid, peer_uid,
-                            want_gid, peer_gid, want_pid, peer_pid) < 0)
+    /* A value mismatch still receives. Returning here would leave the
+     * SCM_RIGHTS message queued, so the descriptor would not be closed.
+     * A failed credential query has no compared uid, gid, or pid and
+     * stays before recvmsg. */
+    int cred = bs_check_peer_cred (sock_fd, want_uid, peer_uid,
+                                   want_gid, peer_gid, want_pid, peer_pid);
+    if (cred == -1)
         return EXECUTION_FAILURE;
 
     char dbuf[8192];
@@ -374,6 +421,10 @@ bs_recv_fd_cmd (WORD_LIST *args)
     ssize_t n = recvmsg (sock_fd, &msg, MSG_CMSG_CLOEXEC);
     if (n < 0) {
         builtin_error ("recvmsg: %s", strerror (errno));
+        return EXECUTION_FAILURE;
+    }
+    if (cred == -2) {
+        bs_close_rights (&msg);
         return EXECUTION_FAILURE;
     }
     int recvd_fd = -1;
