@@ -50,9 +50,22 @@
     },
     {
       "id": "summary-counts",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check -c/--summary call and error counts on a deterministic fixture, including suppression of per-call records.",
-      "reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. "
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-strace-summary-counts-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-strace-summary-errors-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-strace-summary-suppress-r1"
+        }
+      ]
     },
     {
       "id": "follow-children",

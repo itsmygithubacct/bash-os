@@ -7,8 +7,8 @@ reviewed requirements, evidence links and specific remaining gaps. The
 saved static and dynamic VM runs. The initial qualification tables in the VM
 guide describe the earlier fixture set.
 
-The current review covers 390 of the 600 topics on both builds: static 203 PASS / 187 FAIL;
-dynamic 204 PASS / 186 FAIL. The other 210 retain unresolved requirements. These are topic counts,
+The current review covers 395 of the 600 topics on both builds: static 206 PASS / 189 FAIL;
+dynamic 207 PASS / 188 FAIL. The other 205 retain unresolved requirements. These are topic counts,
 not additional behavioral test results.
 
 The syslog review adds bounded three-record FIFO observations for startup, SIGHUP and periodic replay on both builds. Sender attribution is inferred from pinned serial source and isolated networking; HUP was queued while the daemon was stopped.
@@ -46,6 +46,8 @@ The SU review adds absent-device fail-closed and injected fork/wait error observ
 The namespace review adds six separate native controls supporting the existing unshare inode comparison; no simultaneous six-namespace invocation is claimed. Unsupported-namespace EINVAL remains unobserved.
 
 The UCLAMP follow-up adds builtin dispatch, owned-task queries and bounded three-TID preflight observations on both builds. The static all-tasks poweroff request remains 255 under its exact lifecycle disposition; its SSH failure cause is unobserved. Earlier setter gaps and failures remain.
+
+The strace summary review checks both `-c` and `--summary` against a fixed x86_64 syscall sequence. Direct execution and a separate native ptrace observer verify the tracee before each case. Both frozen builds suppress per-call records and report one call for each of four syscalls, with one `openat` error. Timing columns are not compared, and these observations do not validate later source repairs.
 
 A historical case becomes `MIGRATED` only when every requirement has an explicit
 assertion and valid execution evidence on both builds. Its replacement cases

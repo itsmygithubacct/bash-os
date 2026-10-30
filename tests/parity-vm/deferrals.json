@@ -39203,31 +39203,55 @@
         "purpose": "Check -c/--summary call and error counts on a deterministic fixture, including suppression of per-call records.",
         "reason": "Requires a future disposable Linux VM with ptrace allowed, a small reviewed fixture with a known syscall sequence, and GNU strace as the independent oracle. Compare parsed syscall counts and error counts; elapsed-time columns are variable and need a semantic summary parser."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. ",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All three summary requirements have paired, reviewed execution evidence for the frozen x86_64 candidates. Direct and native ptrace controls passed under uid 2000; timing values are not compared.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-c / --summary suppresses per-call lines.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-summary-suppress-r1",
+              "assertion": "Both -c and --summary returned the independent tracee status 42 and exact marker, and each produced a nonempty summary of the four known syscalls with no per-call records. Raw option traces are retained on both frozen builds.",
+              "definition_sha256": "d31903d686d53366b637b958905cf6a57fc0b8dfeb4ff7288636f9bc2708d6b0"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Call counts per syscall match the deterministic tracee.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-summary-counts-r2",
+              "assertion": "Both -c and --summary reported exactly one execve, write, openat and exit_group call. Independent guest assembly checks and a separate native ptrace control established the sequence; raw rows were independently parsed on both frozen builds.",
+              "definition_sha256": "673e3779aa7f5136c67182df37252e5e4dcb9cde541ff84ff12cd825e6a55d46"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Error counts (openat ENOENT) are reported.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-summary-errors-r3",
+              "assertion": "Both -c and --summary reported exactly one openat error and zero execve, write and exit_group errors. The assembly and native ptrace control checked openat returned -ENOENT; the raw summaries match on both frozen builds.",
+              "definition_sha256": "5f179851d5ed28a912acb0d0dee0bee6e506b657b147af6aabf90739818943ef"
+            }
+          ],
+          "gap": ""
         }
+      ],
+      "notes": [
+        "This evidence concerns the pinned frozen binaries and the fixed x86_64 syscall sequence. It does not validate later source repairs or other architectures."
       ]
     },
     {

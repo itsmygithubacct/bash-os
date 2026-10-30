@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "54f6b8c0ac4d6a70f01969befb983c47fd3cb5d931bb636f15367bc086f60cb7",
+  "ledger_sha256": "a27e3e4cef586d5736f341b58a0c8788210e661122696d7fbeec1cf0fba9c846",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
     "partial": 94,
-    "full": 394,
-    "none": 112
+    "full": 395,
+    "none": 111
   },
   "migrations": {
-    "deferred": 206,
-    "replacement": 394
+    "deferred": 205,
+    "replacement": 395
   },
   "pending_full_topics": [],
   "builds": {
@@ -8053,6 +8053,32 @@
             "r5 uses synthetic scheduler replies and request bytes for a passed numeric target, not actual privileged RT or deadline scheduling.",
             "r3 is separately evidenced and r6 retains historical evidence; preserve all prior observations and failures."
           ]
+        },
+        {
+          "name": "strace-summary-static-v3",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "62c5835ccc4fdd993023dc7d13971a84a3987c56c6ce1b450aa50bdbf9de1f6b",
+            "provenance.json": "38e3068254da87f3abdc47f7d642198fe056f2108bbf8086f48ef19a35998466",
+            "payload.tar": "64a02e7fda7bb91169164ee341cb191ae4258b30e36bc417198b3e3bdadd6541",
+            "evidence.tar": "acf067aefd49e39f9adadcd04e7d43b505102060f7031471bde882ceb731e2e6"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793390160.006774
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
         }
       ],
       "entries": [
@@ -48277,37 +48303,58 @@
         },
         {
           "topic": "strace/summary-counts",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-c / --summary suppresses per-call lines.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strace-summary-suppress-r1",
+                  "status": "PASS",
+                  "run": "strace-summary-static-v3"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Call counts per syscall match the deterministic tracee.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strace-summary-counts-r2",
+                  "status": "PASS",
+                  "run": "strace-summary-static-v3"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Error counts (openat ENOENT) are reported.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strace-summary-errors-r3",
+                  "status": "PASS",
+                  "run": "strace-summary-static-v3"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -57859,9 +57906,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 206,
+        "UNRESOLVED": 205,
         "FAIL": 189,
-        "PASS": 205
+        "PASS": 206
       },
       "migration_without_complete_evidence": []
     },
@@ -65904,6 +65951,32 @@
             "r5 uses synthetic scheduler replies and request bytes for a passed numeric target, not actual privileged RT or deadline scheduling.",
             "r3 is separately evidenced and r6 retains historical evidence; preserve all prior observations and failures."
           ]
+        },
+        {
+          "name": "strace-summary-dynamic-v3",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "9ea080480a40fce670399882d92678d3b3ec19c8aacabd5c3739893624b55291",
+            "provenance.json": "0fa483171880b11ed8f96d9b809a855a9488a7b04dfad2713bac6676bdc6e004",
+            "payload.tar": "1fb004bad0d8fec81ce92d0ab95c34d250b123d004c1c5deb3472986722b1b2f",
+            "evidence.tar": "300af49aea67279e07840d862d42ebc154b4dad650d4c9b5536254d34bd86af4"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793390160.2743056
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
         }
       ],
       "entries": [
@@ -106128,37 +106201,58 @@
         },
         {
           "topic": "strace/summary-counts",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-c / --summary suppresses per-call lines.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strace-summary-suppress-r1",
+                  "status": "PASS",
+                  "run": "strace-summary-dynamic-v3"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Call counts per syscall match the deterministic tracee.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strace-summary-counts-r2",
+                  "status": "PASS",
+                  "run": "strace-summary-dynamic-v3"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Error counts (openat ENOENT) are reported.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strace-summary-errors-r3",
+                  "status": "PASS",
+                  "run": "strace-summary-dynamic-v3"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -115710,9 +115804,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 206,
+        "UNRESOLVED": 205,
         "FAIL": 188,
-        "PASS": 206
+        "PASS": 207
       },
       "migration_without_complete_evidence": []
     }

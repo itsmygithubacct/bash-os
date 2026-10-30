@@ -1,0 +1,140 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-strace-summary-suppress-r1",
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-c and --summary suppress per-call lines.",
+      "covers": [
+        "strace/summary-counts"
+      ],
+      "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee whose successful path issues one write returning 12, one openat returning -ENOENT, and exit_group(42). Direct execution checks exact output and status. A separately compiled native ptrace observer checks the same calls plus the initial execve, exact return values, and error counts under uid 2000. Parser positive and negative controls run before candidate execution. Any failed control is a setup ERROR. Both candidate option forms retain raw output, status and summary.",
+      "comparison": "For both -c and --summary, require the traced marker/status and a nonempty, structurally valid summary with the four known syscall names and no per-call records. Count values belong to r2 and r3.",
+      "requires": [
+        "gcc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-summary-reviewed.py setup\n",
+      "candidate_script": "for flag in -c --summary; do\n  suffix=${flag#-}; suffix=${suffix#-}\n  rc=0\n  strace \"$flag\" -- ./tracee-core >\"$HOME/$suffix.out\" 2>\"$HOME/$suffix.trace\" || rc=$?\n  printf \"%s\\n\" \"$rc\" >\"$HOME/$suffix.status\"\ndone\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-summary-reviewed.py r1\n",
+      "stdout": "r1-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "gcc.out",
+        "gcc.err",
+        "direct.out",
+        "direct.err",
+        "direct.status",
+        "ptrace.out",
+        "ptrace.err",
+        "ptrace.status",
+        "c.out",
+        "c.trace",
+        "c.status",
+        "summary.out",
+        "summary.trace",
+        "summary.status",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/strace-summary-reviewed.py": "76084825697acdd96fe82183f5e481bddb22cecbbf035cf2ecc78ce89d823b35"
+      }
+    },
+    {
+      "id": "migration-strace-summary-counts-r2",
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Summary call counts match the deterministic tracee.",
+      "covers": [
+        "strace/summary-counts"
+      ],
+      "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee whose successful path issues one write returning 12, one openat returning -ENOENT, and exit_group(42). Direct execution checks exact output and status. A separately compiled native ptrace observer checks the same calls plus the initial execve, exact return values, and error counts under uid 2000. Parser positive and negative controls run before candidate execution. Any failed control is a setup ERROR. Both candidate option forms retain raw output, status and summary.",
+      "comparison": "For both -c and --summary, parse count fields by header name, require unique rows for exactly the four known syscalls and one call each. Timing fields are validated but never compared; omitted zero-error fields are accepted.",
+      "requires": [
+        "gcc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-summary-reviewed.py setup\n",
+      "candidate_script": "for flag in -c --summary; do\n  suffix=${flag#-}; suffix=${suffix#-}\n  rc=0\n  strace \"$flag\" -- ./tracee-core >\"$HOME/$suffix.out\" 2>\"$HOME/$suffix.trace\" || rc=$?\n  printf \"%s\\n\" \"$rc\" >\"$HOME/$suffix.status\"\ndone\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-summary-reviewed.py r2\n",
+      "stdout": "r2-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "gcc.out",
+        "gcc.err",
+        "direct.out",
+        "direct.err",
+        "direct.status",
+        "ptrace.out",
+        "ptrace.err",
+        "ptrace.status",
+        "c.out",
+        "c.trace",
+        "c.status",
+        "summary.out",
+        "summary.trace",
+        "summary.status",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/strace-summary-reviewed.py": "76084825697acdd96fe82183f5e481bddb22cecbbf035cf2ecc78ce89d823b35"
+      }
+    },
+    {
+      "id": "migration-strace-summary-errors-r3",
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "The summary reports the openat ENOENT error.",
+      "covers": [
+        "strace/summary-counts"
+      ],
+      "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee whose successful path issues one write returning 12, one openat returning -ENOENT, and exit_group(42). Direct execution checks exact output and status. A separately compiled native ptrace observer checks the same calls plus the initial execve, exact return values, and error counts under uid 2000. Parser positive and negative controls run before candidate execution. Any failed control is a setup ERROR. Both candidate option forms retain raw output, status and summary.",
+      "comparison": "For both -c and --summary, parse error fields by header name, require unique rows for the four known syscalls and exactly one openat error with zero others. Timing values are not compared. Last-duplicate-wins parsing is rejected.",
+      "requires": [
+        "gcc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-summary-reviewed.py setup\n",
+      "candidate_script": "for flag in -c --summary; do\n  suffix=${flag#-}; suffix=${suffix#-}\n  rc=0\n  strace \"$flag\" -- ./tracee-core >\"$HOME/$suffix.out\" 2>\"$HOME/$suffix.trace\" || rc=$?\n  printf \"%s\\n\" \"$rc\" >\"$HOME/$suffix.status\"\ndone\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-summary-reviewed.py r3\n",
+      "stdout": "r3-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "gcc.out",
+        "gcc.err",
+        "direct.out",
+        "direct.err",
+        "direct.status",
+        "ptrace.out",
+        "ptrace.err",
+        "ptrace.status",
+        "c.out",
+        "c.trace",
+        "c.status",
+        "summary.out",
+        "summary.trace",
+        "summary.status",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/strace-summary-reviewed.py": "76084825697acdd96fe82183f5e481bddb22cecbbf035cf2ecc78ce89d823b35"
+      }
+    }
+  ]
+}
