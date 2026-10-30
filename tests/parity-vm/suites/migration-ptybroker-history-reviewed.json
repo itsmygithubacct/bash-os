@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-ptybroker-lifecycle-raw-exit",
+      "loadable": "ptybroker",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Raw capture, late attachment, final output ordering, and retained exit status.",
+      "covers": [
+        "ptybroker/raw_history_and_late_attach",
+        "ptybroker/child_exit_and_cleanup"
+      ],
+      "oracle": "Each guest setup records staged filesystem, seqpacket, monotonic clock, parser controls and exact PTY handshake. Cleanup additionally controls FIFO, proc/pidfd, positive/negative ordering and subreaper adoption. Candidate preconditions and the observer record are checked independently for each run. Primary must apply the pinned proposed primary gate, after independent review; generic runner status alone is not sufficient.",
+      "comparison": "Require exact fixed history bytes, no replay, contiguous output offsets, attached and gap offsets, final output preceding exit, and status 37 after child exit.",
+      "requires": [
+        "python3",
+        "stat",
+        "mkdir",
+        "cat",
+        "sleep"
+      ],
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/ptybroker-lifecycle-reviewed.py setup\n",
+      "candidate_script": "source /opt/bashos-parity/harness/helpers/ptybroker-lifecycle-reviewed.sh\n",
+      "stdout": "raw-exit-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 60,
+      "setup_timeout": 35,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "native-control.bin",
+        "native-control.json",
+        "child-ready",
+        "candidate-stdout",
+        "candidate-stderr",
+        "candidate-steps",
+        "candidate-before",
+        "candidate-after",
+        "candidate-events",
+        "candidate-live.bin",
+        "candidate-capture.bin",
+        "assertions.json",
+        "candidate-polls",
+        "setup-record.json"
+      ],
+      "helpers_sha256": {
+        "helpers/ptybroker-lifecycle-reviewed.py": "b3c8bc3d82e327efd2da46f8c94de22cf6d9b993ca1976f4722f02f3b67abaf2",
+        "helpers/ptybroker-lifecycle-reviewed.sh": "e3be1eb1336628160fbf33cacbbca773846efd58717ba866e140df330716dc4e",
+        "helpers/ptybroker-lifecycle-reviewed.gate.json": "36f34d8ff1bee4bb126e6644b4a050e44e833bfb8c98a72c91e5a581fe2b5ab2",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
+      }
+    }
+  ]
+}
