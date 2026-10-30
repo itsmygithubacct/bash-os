@@ -11,40 +11,41 @@
       "covers": [
         "killall5/dry_run_selection"
       ],
-      "oracle": "A per-observation synthetic proc tree is checked against known records, and the candidate shell PID and SID are independently cross-checked with getsid and the live caller stat. The expected set is derived from the fixture roles and omit arguments, never from candidate output. Setup executes PID parser positive/negative controls and a native seccomp signal-syscall guard control. The guard prevents delivery and makes an attempted signal syscall fatal.",
-      "comparison": "Compare the complete unordered unique PID set, raw exit status and stderr with the independent expected set and status. Unreadable-root errors require a nonempty opendir diagnostic. Setup or per-observation precondition failure and missing/truncated diagnostics require primary adjudication as incomplete, not a candidate behavior failure.",
+      "oracle": "Per case, guest-only parser and native seccomp controls run in setup. In the guarded candidate shell, each observation rechecks its actual PID, SID, and synthetic records; a fixture-role oracle specifies the selected set independently of candidate output. The none case first checks a nonempty baseline in that same shell and tree. The race case synchronizes stat FIFO read with deletion of that record cmdline.",
+      "comparison": "The primary must implement and independently review helpers/killall5-dry-run-reviewed-gate.json before using any runner verdict as migration evidence. The gate conditionally requires complete raw diagnostics and successful preconditions per observation, recomputes sets and status from fixture roles, and distinguishes infrastructure incompleteness from reached product mismatches, including the none baseline.",
       "requires": [
         "cc",
         "python3"
       ],
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py setup\n",
-      "candidate_script": "exec ./guard \"$BASH\" --noprofile --norc -c 'ulimit -f 128 || exit 89\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare baseline \"$$\" >\"$HOME/prepare.out\" 2>\"$HOME/prepare.err\" || { printf '\"'\"'fixture-precondition-failed\\n'\"'\"' >&2; exit 90; }\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nrc=0\nkillall5 --dry-run >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify baseline\n'\n",
+      "candidate_script": "exec ./guard \"$BASH\" --noprofile --norc -c 'printf '\"'\"'{\"stage\":\"guard-enter\",\"pid\":%s}\\n'\"'\"' \"$$\" >\"$HOME/events.jsonl\"\nif ! ulimit -f 128; then printf '\"'\"'{\"stage\":\"ulimit-failed\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"ulimit-ok\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"prepare-start\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare baseline \"$$\" >\"$HOME/prepare.log\" 2>&1; then printf '\"'\"'{\"stage\":\"prepare-failed\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"prepare-ok\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nprintf '\"'\"'{\"stage\":\"recheck-start\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py recheck baseline \"$$\" candidate >>\"$HOME/prepare.log\" 2>&1; then printf '\"'\"'{\"stage\":\"recheck-failed\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"recheck-ok\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"observe-start\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nrc=0\nkillall5 --dry-run >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\nprintf '\"'\"'{\"stage\":\"observe-end\",\"observation\":\"candidate\",\"status\":%s}\\n'\"'\"' \"$rc\" >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"verify-start\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify baseline\nrc=$?\nprintf '\"'\"'{\"stage\":\"verify-end\",\"status\":%s}\\n'\"'\"' \"$rc\" >>\"$HOME/events.jsonl\"\nexit \"$rc\"\n'\n",
       "stdout": "dry-run-ok\n",
       "stderr": "",
       "expected_status": 0,
       "timeout": 25,
       "setup_timeout": 45,
       "diagnostic_files": [
-        "parser-controls.json",
-        "cc.out",
-        "cc.err",
-        "cc.status",
-        "guard-control.out",
-        "guard-control.err",
-        "guard-control.status",
-        "guard-exec.json",
-        "prepare.out",
-        "prepare.err",
+        "setup.json",
+        "prepare.log",
         "fixture.json",
         "oracle.json",
+        "events.jsonl",
+        "rechecks.jsonl",
+        "baseline.out",
+        "baseline.err",
+        "baseline.status",
         "candidate.out",
         "candidate.err",
         "candidate.status",
-        "assertions.json"
+        "assertions.json",
+        "race.json",
+        "race.err",
+        "race.status"
       ],
       "helpers_sha256": {
-        "helpers/killall5-dry-run-reviewed.py": "a83af1c8aeb87d4ed911defc440ba8d4d5e933f76f469131f92451989c84ac08",
-        "helpers/killall5-dry-run-reviewed.c": "f5a39d853a6197f0fa7aec2e659cfb40b875531f6e55c7c9189f382db59be52d"
+        "helpers/killall5-dry-run-reviewed.py": "7b5b582599d5d836aba1fb58713fcf65d44a899f7f563225ae72562c842fa730",
+        "helpers/killall5-dry-run-reviewed.c": "f5a39d853a6197f0fa7aec2e659cfb40b875531f6e55c7c9189f382db59be52d",
+        "helpers/killall5-dry-run-reviewed-gate.json": "62fa9ff624cbfa6b70f2ba1ad93eb8f3666abdba964b8c7467d0c024355549ed"
       }
     },
     {
@@ -57,40 +58,41 @@
       "covers": [
         "killall5/dry_run_selection"
       ],
-      "oracle": "A per-observation synthetic proc tree is checked against known records, and the candidate shell PID and SID are independently cross-checked with getsid and the live caller stat. The expected set is derived from the fixture roles and omit arguments, never from candidate output. Setup executes PID parser positive/negative controls and a native seccomp signal-syscall guard control. The guard prevents delivery and makes an attempted signal syscall fatal.",
-      "comparison": "Compare the complete unordered unique PID set, raw exit status and stderr with the independent expected set and status. Unreadable-root errors require a nonempty opendir diagnostic. Setup or per-observation precondition failure and missing/truncated diagnostics require primary adjudication as incomplete, not a candidate behavior failure.",
+      "oracle": "Per case, guest-only parser and native seccomp controls run in setup. In the guarded candidate shell, each observation rechecks its actual PID, SID, and synthetic records; a fixture-role oracle specifies the selected set independently of candidate output. The none case first checks a nonempty baseline in that same shell and tree. The race case synchronizes stat FIFO read with deletion of that record cmdline.",
+      "comparison": "The primary must implement and independently review helpers/killall5-dry-run-reviewed-gate.json before using any runner verdict as migration evidence. The gate conditionally requires complete raw diagnostics and successful preconditions per observation, recomputes sets and status from fixture roles, and distinguishes infrastructure incompleteness from reached product mismatches, including the none baseline.",
       "requires": [
         "cc",
         "python3"
       ],
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py setup\n",
-      "candidate_script": "exec ./guard \"$BASH\" --noprofile --norc -c 'ulimit -f 128 || exit 89\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare comma \"$$\" >\"$HOME/prepare.out\" 2>\"$HOME/prepare.err\" || { printf '\"'\"'fixture-precondition-failed\\n'\"'\"' >&2; exit 90; }\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nrc=0\nkillall5 --dry-run -o 1900000101,1900000102 >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify comma\n'\n",
+      "candidate_script": "exec ./guard \"$BASH\" --noprofile --norc -c 'printf '\"'\"'{\"stage\":\"guard-enter\",\"pid\":%s}\\n'\"'\"' \"$$\" >\"$HOME/events.jsonl\"\nif ! ulimit -f 128; then printf '\"'\"'{\"stage\":\"ulimit-failed\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"ulimit-ok\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"prepare-start\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare comma \"$$\" >\"$HOME/prepare.log\" 2>&1; then printf '\"'\"'{\"stage\":\"prepare-failed\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"prepare-ok\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nprintf '\"'\"'{\"stage\":\"recheck-start\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py recheck comma \"$$\" candidate >>\"$HOME/prepare.log\" 2>&1; then printf '\"'\"'{\"stage\":\"recheck-failed\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"recheck-ok\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"observe-start\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nrc=0\nkillall5 --dry-run -o 1900000101,1900000102 >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\nprintf '\"'\"'{\"stage\":\"observe-end\",\"observation\":\"candidate\",\"status\":%s}\\n'\"'\"' \"$rc\" >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"verify-start\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify comma\nrc=$?\nprintf '\"'\"'{\"stage\":\"verify-end\",\"status\":%s}\\n'\"'\"' \"$rc\" >>\"$HOME/events.jsonl\"\nexit \"$rc\"\n'\n",
       "stdout": "dry-run-ok\n",
       "stderr": "",
       "expected_status": 0,
       "timeout": 25,
       "setup_timeout": 45,
       "diagnostic_files": [
-        "parser-controls.json",
-        "cc.out",
-        "cc.err",
-        "cc.status",
-        "guard-control.out",
-        "guard-control.err",
-        "guard-control.status",
-        "guard-exec.json",
-        "prepare.out",
-        "prepare.err",
+        "setup.json",
+        "prepare.log",
         "fixture.json",
         "oracle.json",
+        "events.jsonl",
+        "rechecks.jsonl",
+        "baseline.out",
+        "baseline.err",
+        "baseline.status",
         "candidate.out",
         "candidate.err",
         "candidate.status",
-        "assertions.json"
+        "assertions.json",
+        "race.json",
+        "race.err",
+        "race.status"
       ],
       "helpers_sha256": {
-        "helpers/killall5-dry-run-reviewed.py": "a83af1c8aeb87d4ed911defc440ba8d4d5e933f76f469131f92451989c84ac08",
-        "helpers/killall5-dry-run-reviewed.c": "f5a39d853a6197f0fa7aec2e659cfb40b875531f6e55c7c9189f382db59be52d"
+        "helpers/killall5-dry-run-reviewed.py": "7b5b582599d5d836aba1fb58713fcf65d44a899f7f563225ae72562c842fa730",
+        "helpers/killall5-dry-run-reviewed.c": "f5a39d853a6197f0fa7aec2e659cfb40b875531f6e55c7c9189f382db59be52d",
+        "helpers/killall5-dry-run-reviewed-gate.json": "62fa9ff624cbfa6b70f2ba1ad93eb8f3666abdba964b8c7467d0c024355549ed"
       }
     },
     {
@@ -103,40 +105,41 @@
       "covers": [
         "killall5/dry_run_selection"
       ],
-      "oracle": "A per-observation synthetic proc tree is checked against known records, and the candidate shell PID and SID are independently cross-checked with getsid and the live caller stat. The expected set is derived from the fixture roles and omit arguments, never from candidate output. Setup executes PID parser positive/negative controls and a native seccomp signal-syscall guard control. The guard prevents delivery and makes an attempted signal syscall fatal.",
-      "comparison": "Compare the complete unordered unique PID set, raw exit status and stderr with the independent expected set and status. Unreadable-root errors require a nonempty opendir diagnostic. Setup or per-observation precondition failure and missing/truncated diagnostics require primary adjudication as incomplete, not a candidate behavior failure.",
+      "oracle": "Per case, guest-only parser and native seccomp controls run in setup. In the guarded candidate shell, each observation rechecks its actual PID, SID, and synthetic records; a fixture-role oracle specifies the selected set independently of candidate output. The none case first checks a nonempty baseline in that same shell and tree. The race case synchronizes stat FIFO read with deletion of that record cmdline.",
+      "comparison": "The primary must implement and independently review helpers/killall5-dry-run-reviewed-gate.json before using any runner verdict as migration evidence. The gate conditionally requires complete raw diagnostics and successful preconditions per observation, recomputes sets and status from fixture roles, and distinguishes infrastructure incompleteness from reached product mismatches, including the none baseline.",
       "requires": [
         "cc",
         "python3"
       ],
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py setup\n",
-      "candidate_script": "exec ./guard \"$BASH\" --noprofile --norc -c 'ulimit -f 128 || exit 89\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare repeat \"$$\" >\"$HOME/prepare.out\" 2>\"$HOME/prepare.err\" || { printf '\"'\"'fixture-precondition-failed\\n'\"'\"' >&2; exit 90; }\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nrc=0\nkillall5 -n -o 1900000102,1900000103 -o1900000104 >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify repeat\n'\n",
+      "candidate_script": "exec ./guard \"$BASH\" --noprofile --norc -c 'printf '\"'\"'{\"stage\":\"guard-enter\",\"pid\":%s}\\n'\"'\"' \"$$\" >\"$HOME/events.jsonl\"\nif ! ulimit -f 128; then printf '\"'\"'{\"stage\":\"ulimit-failed\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"ulimit-ok\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"prepare-start\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare repeat \"$$\" >\"$HOME/prepare.log\" 2>&1; then printf '\"'\"'{\"stage\":\"prepare-failed\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"prepare-ok\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nprintf '\"'\"'{\"stage\":\"recheck-start\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py recheck repeat \"$$\" candidate >>\"$HOME/prepare.log\" 2>&1; then printf '\"'\"'{\"stage\":\"recheck-failed\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"recheck-ok\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"observe-start\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nrc=0\nkillall5 -n -o 1900000102,1900000103 -o1900000104 >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\nprintf '\"'\"'{\"stage\":\"observe-end\",\"observation\":\"candidate\",\"status\":%s}\\n'\"'\"' \"$rc\" >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"verify-start\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify repeat\nrc=$?\nprintf '\"'\"'{\"stage\":\"verify-end\",\"status\":%s}\\n'\"'\"' \"$rc\" >>\"$HOME/events.jsonl\"\nexit \"$rc\"\n'\n",
       "stdout": "dry-run-ok\n",
       "stderr": "",
       "expected_status": 0,
       "timeout": 25,
       "setup_timeout": 45,
       "diagnostic_files": [
-        "parser-controls.json",
-        "cc.out",
-        "cc.err",
-        "cc.status",
-        "guard-control.out",
-        "guard-control.err",
-        "guard-control.status",
-        "guard-exec.json",
-        "prepare.out",
-        "prepare.err",
+        "setup.json",
+        "prepare.log",
         "fixture.json",
         "oracle.json",
+        "events.jsonl",
+        "rechecks.jsonl",
+        "baseline.out",
+        "baseline.err",
+        "baseline.status",
         "candidate.out",
         "candidate.err",
         "candidate.status",
-        "assertions.json"
+        "assertions.json",
+        "race.json",
+        "race.err",
+        "race.status"
       ],
       "helpers_sha256": {
-        "helpers/killall5-dry-run-reviewed.py": "a83af1c8aeb87d4ed911defc440ba8d4d5e933f76f469131f92451989c84ac08",
-        "helpers/killall5-dry-run-reviewed.c": "f5a39d853a6197f0fa7aec2e659cfb40b875531f6e55c7c9189f382db59be52d"
+        "helpers/killall5-dry-run-reviewed.py": "7b5b582599d5d836aba1fb58713fcf65d44a899f7f563225ae72562c842fa730",
+        "helpers/killall5-dry-run-reviewed.c": "f5a39d853a6197f0fa7aec2e659cfb40b875531f6e55c7c9189f382db59be52d",
+        "helpers/killall5-dry-run-reviewed-gate.json": "62fa9ff624cbfa6b70f2ba1ad93eb8f3666abdba964b8c7467d0c024355549ed"
       }
     },
     {
@@ -149,40 +152,41 @@
       "covers": [
         "killall5/dry_run_selection"
       ],
-      "oracle": "A per-observation synthetic proc tree is checked against known records, and the candidate shell PID and SID are independently cross-checked with getsid and the live caller stat. The expected set is derived from the fixture roles and omit arguments, never from candidate output. Setup executes PID parser positive/negative controls and a native seccomp signal-syscall guard control. The guard prevents delivery and makes an attempted signal syscall fatal.",
-      "comparison": "Compare the complete unordered unique PID set, raw exit status and stderr with the independent expected set and status. Unreadable-root errors require a nonempty opendir diagnostic. Setup or per-observation precondition failure and missing/truncated diagnostics require primary adjudication as incomplete, not a candidate behavior failure.",
+      "oracle": "Per case, guest-only parser and native seccomp controls run in setup. In the guarded candidate shell, each observation rechecks its actual PID, SID, and synthetic records; a fixture-role oracle specifies the selected set independently of candidate output. The none case first checks a nonempty baseline in that same shell and tree. The race case synchronizes stat FIFO read with deletion of that record cmdline.",
+      "comparison": "The primary must implement and independently review helpers/killall5-dry-run-reviewed-gate.json before using any runner verdict as migration evidence. The gate conditionally requires complete raw diagnostics and successful preconditions per observation, recomputes sets and status from fixture roles, and distinguishes infrastructure incompleteness from reached product mismatches, including the none baseline.",
       "requires": [
         "cc",
         "python3"
       ],
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py setup\n",
-      "candidate_script": "exec ./guard \"$BASH\" --noprofile --norc -c 'ulimit -f 128 || exit 89\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare none \"$$\" >\"$HOME/prepare.out\" 2>\"$HOME/prepare.err\" || { printf '\"'\"'fixture-precondition-failed\\n'\"'\"' >&2; exit 90; }\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nrc=0\nkillall5 --dry-run -o1900000101,1900000102,1900000103,1900000104 >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify none\n'\n",
+      "candidate_script": "exec ./guard \"$BASH\" --noprofile --norc -c 'printf '\"'\"'{\"stage\":\"guard-enter\",\"pid\":%s}\\n'\"'\"' \"$$\" >\"$HOME/events.jsonl\"\nif ! ulimit -f 128; then printf '\"'\"'{\"stage\":\"ulimit-failed\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"ulimit-ok\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"prepare-start\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare none \"$$\" >\"$HOME/prepare.log\" 2>&1; then printf '\"'\"'{\"stage\":\"prepare-failed\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"prepare-ok\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nprintf '\"'\"'{\"stage\":\"recheck-start\",\"observation\":\"baseline\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py recheck none \"$$\" baseline >>\"$HOME/prepare.log\" 2>&1; then printf '\"'\"'{\"stage\":\"recheck-failed\",\"observation\":\"baseline\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"recheck-ok\",\"observation\":\"baseline\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"observe-start\",\"observation\":\"baseline\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nrc=0\nkillall5 --dry-run >\"$HOME/baseline.out\" 2>\"$HOME/baseline.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/baseline.status\"\nprintf '\"'\"'{\"stage\":\"observe-end\",\"observation\":\"baseline\",\"status\":%s}\\n'\"'\"' \"$rc\" >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"recheck-start\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py recheck none \"$$\" candidate >>\"$HOME/prepare.log\" 2>&1; then printf '\"'\"'{\"stage\":\"recheck-failed\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"recheck-ok\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"observe-start\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nrc=0\nkillall5 --dry-run -o1900000101,1900000102,1900000103,1900000104 >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\nprintf '\"'\"'{\"stage\":\"observe-end\",\"observation\":\"candidate\",\"status\":%s}\\n'\"'\"' \"$rc\" >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"verify-start\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify none\nrc=$?\nprintf '\"'\"'{\"stage\":\"verify-end\",\"status\":%s}\\n'\"'\"' \"$rc\" >>\"$HOME/events.jsonl\"\nexit \"$rc\"\n'\n",
       "stdout": "dry-run-ok\n",
       "stderr": "",
       "expected_status": 0,
       "timeout": 25,
       "setup_timeout": 45,
       "diagnostic_files": [
-        "parser-controls.json",
-        "cc.out",
-        "cc.err",
-        "cc.status",
-        "guard-control.out",
-        "guard-control.err",
-        "guard-control.status",
-        "guard-exec.json",
-        "prepare.out",
-        "prepare.err",
+        "setup.json",
+        "prepare.log",
         "fixture.json",
         "oracle.json",
+        "events.jsonl",
+        "rechecks.jsonl",
+        "baseline.out",
+        "baseline.err",
+        "baseline.status",
         "candidate.out",
         "candidate.err",
         "candidate.status",
-        "assertions.json"
+        "assertions.json",
+        "race.json",
+        "race.err",
+        "race.status"
       ],
       "helpers_sha256": {
-        "helpers/killall5-dry-run-reviewed.py": "a83af1c8aeb87d4ed911defc440ba8d4d5e933f76f469131f92451989c84ac08",
-        "helpers/killall5-dry-run-reviewed.c": "f5a39d853a6197f0fa7aec2e659cfb40b875531f6e55c7c9189f382db59be52d"
+        "helpers/killall5-dry-run-reviewed.py": "7b5b582599d5d836aba1fb58713fcf65d44a899f7f563225ae72562c842fa730",
+        "helpers/killall5-dry-run-reviewed.c": "f5a39d853a6197f0fa7aec2e659cfb40b875531f6e55c7c9189f382db59be52d",
+        "helpers/killall5-dry-run-reviewed-gate.json": "62fa9ff624cbfa6b70f2ba1ad93eb8f3666abdba964b8c7467d0c024355549ed"
       }
     },
     {
@@ -195,40 +199,88 @@
       "covers": [
         "killall5/dry_run_selection"
       ],
-      "oracle": "A per-observation synthetic proc tree is checked against known records, and the candidate shell PID and SID are independently cross-checked with getsid and the live caller stat. The expected set is derived from the fixture roles and omit arguments, never from candidate output. Setup executes PID parser positive/negative controls and a native seccomp signal-syscall guard control. The guard prevents delivery and makes an attempted signal syscall fatal.",
-      "comparison": "Compare the complete unordered unique PID set, raw exit status and stderr with the independent expected set and status. Unreadable-root errors require a nonempty opendir diagnostic. Setup or per-observation precondition failure and missing/truncated diagnostics require primary adjudication as incomplete, not a candidate behavior failure.",
+      "oracle": "Per case, guest-only parser and native seccomp controls run in setup. In the guarded candidate shell, each observation rechecks its actual PID, SID, and synthetic records; a fixture-role oracle specifies the selected set independently of candidate output. The none case first checks a nonempty baseline in that same shell and tree. The race case synchronizes stat FIFO read with deletion of that record cmdline.",
+      "comparison": "The primary must implement and independently review helpers/killall5-dry-run-reviewed-gate.json before using any runner verdict as migration evidence. The gate conditionally requires complete raw diagnostics and successful preconditions per observation, recomputes sets and status from fixture roles, and distinguishes infrastructure incompleteness from reached product mismatches, including the none baseline.",
       "requires": [
         "cc",
         "python3"
       ],
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py setup\n",
-      "candidate_script": "exec ./guard \"$BASH\" --noprofile --norc -c 'ulimit -f 128 || exit 89\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare unreadable \"$$\" >\"$HOME/prepare.out\" 2>\"$HOME/prepare.err\" || { printf '\"'\"'fixture-precondition-failed\\n'\"'\"' >&2; exit 90; }\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nrc=0\nkillall5 --dry-run >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify unreadable\n'\n",
+      "candidate_script": "exec ./guard \"$BASH\" --noprofile --norc -c 'printf '\"'\"'{\"stage\":\"guard-enter\",\"pid\":%s}\\n'\"'\"' \"$$\" >\"$HOME/events.jsonl\"\nif ! ulimit -f 128; then printf '\"'\"'{\"stage\":\"ulimit-failed\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"ulimit-ok\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"prepare-start\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare unreadable \"$$\" >\"$HOME/prepare.log\" 2>&1; then printf '\"'\"'{\"stage\":\"prepare-failed\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"prepare-ok\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nprintf '\"'\"'{\"stage\":\"recheck-start\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py recheck unreadable \"$$\" candidate >>\"$HOME/prepare.log\" 2>&1; then printf '\"'\"'{\"stage\":\"recheck-failed\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"recheck-ok\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"observe-start\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nrc=0\nkillall5 --dry-run >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\nprintf '\"'\"'{\"stage\":\"observe-end\",\"observation\":\"candidate\",\"status\":%s}\\n'\"'\"' \"$rc\" >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"verify-start\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify unreadable\nrc=$?\nprintf '\"'\"'{\"stage\":\"verify-end\",\"status\":%s}\\n'\"'\"' \"$rc\" >>\"$HOME/events.jsonl\"\nexit \"$rc\"\n'\n",
       "stdout": "dry-run-ok\n",
       "stderr": "",
       "expected_status": 0,
       "timeout": 25,
       "setup_timeout": 45,
       "diagnostic_files": [
-        "parser-controls.json",
-        "cc.out",
-        "cc.err",
-        "cc.status",
-        "guard-control.out",
-        "guard-control.err",
-        "guard-control.status",
-        "guard-exec.json",
-        "prepare.out",
-        "prepare.err",
+        "setup.json",
+        "prepare.log",
         "fixture.json",
         "oracle.json",
+        "events.jsonl",
+        "rechecks.jsonl",
+        "baseline.out",
+        "baseline.err",
+        "baseline.status",
         "candidate.out",
         "candidate.err",
         "candidate.status",
-        "assertions.json"
+        "assertions.json",
+        "race.json",
+        "race.err",
+        "race.status"
       ],
       "helpers_sha256": {
-        "helpers/killall5-dry-run-reviewed.py": "a83af1c8aeb87d4ed911defc440ba8d4d5e933f76f469131f92451989c84ac08",
-        "helpers/killall5-dry-run-reviewed.c": "f5a39d853a6197f0fa7aec2e659cfb40b875531f6e55c7c9189f382db59be52d"
+        "helpers/killall5-dry-run-reviewed.py": "7b5b582599d5d836aba1fb58713fcf65d44a899f7f563225ae72562c842fa730",
+        "helpers/killall5-dry-run-reviewed.c": "f5a39d853a6197f0fa7aec2e659cfb40b875531f6e55c7c9189f382db59be52d",
+        "helpers/killall5-dry-run-reviewed-gate.json": "62fa9ff624cbfa6b70f2ba1ad93eb8f3666abdba964b8c7467d0c024355549ed"
+      }
+    },
+    {
+      "id": "migration-killall5-dry-run-reviewed-race",
+      "loadable": "killall5",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Skip a record whose cmdline disappears while the candidate reads its stat, retaining other eligible PIDs.",
+      "covers": [
+        "killall5/dry_run_selection"
+      ],
+      "oracle": "Per case, guest-only parser and native seccomp controls run in setup. In the guarded candidate shell, each observation rechecks its actual PID, SID, and synthetic records; a fixture-role oracle specifies the selected set independently of candidate output. The none case first checks a nonempty baseline in that same shell and tree. The race case synchronizes stat FIFO read with deletion of that record cmdline.",
+      "comparison": "The primary must implement and independently review helpers/killall5-dry-run-reviewed-gate.json before using any runner verdict as migration evidence. The gate conditionally requires complete raw diagnostics and successful preconditions per observation, recomputes sets and status from fixture roles, and distinguishes infrastructure incompleteness from reached product mismatches, including the none baseline.",
+      "requires": [
+        "cc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py setup\n",
+      "candidate_script": "exec ./guard \"$BASH\" --noprofile --norc -c 'printf '\"'\"'{\"stage\":\"guard-enter\",\"pid\":%s}\\n'\"'\"' \"$$\" >\"$HOME/events.jsonl\"\nif ! ulimit -f 128; then printf '\"'\"'{\"stage\":\"ulimit-failed\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"ulimit-ok\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"prepare-start\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare race \"$$\" >\"$HOME/prepare.log\" 2>&1; then printf '\"'\"'{\"stage\":\"prepare-failed\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"prepare-ok\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nprintf '\"'\"'{\"stage\":\"recheck-start\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py recheck race \"$$\" candidate >>\"$HOME/prepare.log\" 2>&1; then printf '\"'\"'{\"stage\":\"recheck-failed\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"recheck-ok\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"race-writer-start\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py race-writer >\"$HOME/race.err\" 2>&1 &\nrace_pid=$!\nprintf '\"'\"'{\"stage\":\"observe-start\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nrc=0\nkillall5 --dry-run >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\nprintf '\"'\"'{\"stage\":\"observe-end\",\"observation\":\"candidate\",\"status\":%s}\\n'\"'\"' \"$rc\" >>\"$HOME/events.jsonl\"\nrace_rc=0\nwait \"$race_pid\" || race_rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$race_rc\" >\"$HOME/race.status\"\nprintf '\"'\"'{\"stage\":\"race-writer-end\",\"status\":%s}\\n'\"'\"' \"$race_rc\" >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"verify-start\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify race\nrc=$?\nprintf '\"'\"'{\"stage\":\"verify-end\",\"status\":%s}\\n'\"'\"' \"$rc\" >>\"$HOME/events.jsonl\"\nexit \"$rc\"\n'\n",
+      "stdout": "dry-run-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 25,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "setup.json",
+        "prepare.log",
+        "fixture.json",
+        "oracle.json",
+        "events.jsonl",
+        "rechecks.jsonl",
+        "baseline.out",
+        "baseline.err",
+        "baseline.status",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "assertions.json",
+        "race.json",
+        "race.err",
+        "race.status"
+      ],
+      "helpers_sha256": {
+        "helpers/killall5-dry-run-reviewed.py": "7b5b582599d5d836aba1fb58713fcf65d44a899f7f563225ae72562c842fa730",
+        "helpers/killall5-dry-run-reviewed.c": "f5a39d853a6197f0fa7aec2e659cfb40b875531f6e55c7c9189f382db59be52d",
+        "helpers/killall5-dry-run-reviewed-gate.json": "62fa9ff624cbfa6b70f2ba1ad93eb8f3666abdba964b8c7467d0c024355549ed"
       }
     }
   ]

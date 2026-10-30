@@ -1,0 +1,134 @@
+{
+  "schema": "killall5-dry-run-primary-gate-v1",
+  "authority": "Specification for a separately implemented and independently reviewed primary gate. It does not alter guest.py verdicts.",
+  "common_inputs": [
+    "Pinned suite and helper contents and both candidate hashes; authenticated VM/evaluator identity including root evaluator marker/product UUID equality; case id and mode; complete raw candidate.json including setup, status, error and diagnostics; underlying stdout/stderr/status bytes and all stage records."
+  ],
+  "capture_rules": [
+    "For every stage that has started, reject absent, errored, truncated, non-regular or malformed required diagnostics as incomplete; validate base64 and captured_bytes against decoded content. Files for stages not yet reached are not required. Retain any present partial diagnostics and setup stdout/stderr/status on failure.",
+    "Do not accept a generic harness PASS as evidence without this gate; do not turn generic FAIL into a candidate failure until fixture capability, invocation identity, guards and that observation's preconditions are established."
+  ],
+  "stages": {
+    "setup": [
+      "If setup fails or times out, classify infrastructure incomplete; preserve setup process stdout/stderr/status and setup.json if present, including partial stage and error. For successful setup require setup.json, stage complete, complete true, parser positive=3 negative=9 ok, compile status 0, guard_control status 0 with exactly one blocked record for each x86_64 syscall number 62, 200, 234, 129, 297, 424, each with SIGSYS 31 and empty stderr, guard_exec status 0 and empty stdout/stderr; validate all base64 fields."
+    ],
+    "guard_and_prepare": [
+      "Require exactly one guard-enter event containing actual shell PID, ulimit-ok, prepare-ok, fixture.json, oracle.json, prepare.log, and the successful setup control. Guard failure or missing stage is infrastructure incomplete. Validate fixture caller PID equals guard PID, fixture SID matches recorded real stat field 6, uid-owned proc root, fixture roles and complete bytes; independently reconstruct expected selection using fixed role IDs and case omit arguments. Check root_uid 2000 and recheck it for each observation; root_mode must be 0 for unreadable and searchable for other cases."
+    ],
+    "observation": [
+      "Before each invocation require its own successful rechecks.jsonl entry with PID and real stat SID matching fixture and guard, and ordered start/end events with matching label. For each completed invocation require complete raw output, stderr and status, with matching event status, bounded nontruncated bytes, canonical PID grammar and unique PIDs. Independently compare each observation to the fixture-role oracle. If verify has completed, require valid assertions.json, empty infrastructure_errors, and consistency with the independently assessed raw data. Do not require assertions for an earlier completed observation if a later stage prevented verification. For none, require baseline then candidate in the same shell and tree with separate successful rechecks immediately before each."
+    ],
+    "race": [
+      "For race, require writer start and completion, race.status 0, empty race.err, complete race.json with reader_open=true and cmdline_removed=true and a complete full stat write, and candidate observation reached. A missing reader, FIFO/control failure, timeout, or incomplete race record is incomplete infrastructure, not a candidate failure. Check bytes_written equals the decoded stat payload length and the payload encodes GONE and outside_sid."
+    ],
+    "assessment": [
+      "Classify each completed, independently controlled observation from its own complete raw data; a baseline selected-set, status or stderr mismatch is a reached candidate failure, even if a later target recheck or other infrastructure step fails. Preserve both the baseline product result and later incomplete stage. No case may pass if any required observation or evidence is incomplete. For each fully observed target, classify raw selected-set, status or stderr mismatch as reached candidate failure. Missing, inconsistent or truncated evidence, setup, guard, recheck, writer or assertion infrastructure failure is incomplete. Preserve SIGSYS termination after invocation start for primary review; do not turn incomplete raw evidence into a pass."
+    ]
+  },
+  "conditional_diagnostics": {
+    "always_after_setup_started": [
+      "setup.json if created; setup process stdout/stderr/status always"
+    ],
+    "after_guard_enter": [
+      "events.jsonl"
+    ],
+    "after_prepare_started": [
+      "prepare.log"
+    ],
+    "after_prepare_ok": [
+      "fixture.json",
+      "oracle.json"
+    ],
+    "after_recheck_started": [
+      "rechecks.jsonl"
+    ],
+    "after_baseline_started": [
+      "baseline.out",
+      "baseline.err"
+    ],
+    "after_baseline_end": [
+      "baseline.status"
+    ],
+    "after_candidate_started": [
+      "candidate.out",
+      "candidate.err"
+    ],
+    "after_candidate_end": [
+      "candidate.status"
+    ],
+    "after_verify": [
+      "assertions.json"
+    ],
+    "race_after_writer_started": [
+      "race.json if created",
+      "race.err"
+    ],
+    "race_after_writer_end": [
+      "race.status"
+    ]
+  },
+  "limits": [
+    "The native guard blocks signal syscalls but is not a syscall trace; a killed process may lack its completion record.",
+    "A FIFO writer performs a controlled deletion during the stat read; behavior under arbitrary timing or other errors is not established.",
+    "A primary gate implementation and review, both guest runs, and adjudication are still required."
+  ],
+  "fixture_roles": {
+    "eligible": [
+      1900000101,
+      1900000102,
+      1900000103,
+      1900000104
+    ],
+    "caller_session": [
+      1900000201,
+      1900000202
+    ],
+    "empty_cmdline": 1900000301,
+    "malformed_stat": 1900000302,
+    "missing_cmdline": 1900000303,
+    "vanished_or_race": 1900000304,
+    "denied_cmdline": 1900000305,
+    "self": "actual caller_pid; synthetic outside_sid"
+  },
+  "mode_expectations": {
+    "baseline": {
+      "omitted": [],
+      "status": 0
+    },
+    "comma": {
+      "omitted": [
+        1900000101,
+        1900000102
+      ],
+      "status": 0
+    },
+    "repeat": {
+      "omitted": [
+        1900000102,
+        1900000103,
+        1900000104
+      ],
+      "status": 0
+    },
+    "none": {
+      "omitted": [
+        1900000101,
+        1900000102,
+        1900000103,
+        1900000104
+      ],
+      "status": 2,
+      "baseline_status": 0,
+      "baseline_omitted": []
+    },
+    "unreadable": {
+      "omitted": [],
+      "status": 1,
+      "stderr_requires": "opendir"
+    },
+    "race": {
+      "omitted": [],
+      "status": 0
+    }
+  }
+}

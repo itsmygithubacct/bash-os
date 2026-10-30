@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 """Guest-only fixture and independent dry-run selected-set assertions."""
+import base64
+import errno
 import json
 import os
 from pathlib import Path
@@ -8,6 +10,7 @@ import re
 import stat
 import subprocess
 import sys
+import time
 import uuid
 
 HOME = Path('/tmp/parity-home')
@@ -15,16 +18,20 @@ ROOT = Path('/tmp/parity-case/proc-fixture')
 ELIGIBLE = [1900000101, 1900000102, 1900000103, 1900000104]
 SAME = [1900000201, 1900000202]
 KERNEL, BAD, MISSING, GONE, DENIED = range(1900000301, 1900000306)
-MODES = {'baseline', 'comma', 'repeat', 'none', 'unreadable'}
+MODES = {'baseline', 'comma', 'repeat', 'none', 'unreadable', 'race'}
 
 
 def require_guest():
     marker = Path('/etc/bashos-parity-vm').read_text().strip()
-    actual = Path('/sys/class/dmi/id/product_uuid').read_text().strip()
+    # The root guest evaluator already verifies marker/product UUID equality.
+    # The DMI product UUID need not be readable after dropping to uid 2000.
+    if str(uuid.UUID(marker)) != marker.lower():
+        raise RuntimeError('noncanonical guest marker')
     if (os.getuid() != 2000 or os.geteuid() != 2000 or
             Path.cwd() != Path('/tmp/parity-case') or os.environ.get('HOME') != str(HOME) or
             Path('/sys/class/dmi/id/sys_vendor').read_text().strip() != 'QEMU' or
-            uuid.UUID(marker) != uuid.UUID(actual) or os.uname().machine != 'x86_64'):
+            Path('/tmp/parity-case').stat().st_uid != 2000 or HOME.stat().st_uid != 2000 or
+            os.uname().machine != 'x86_64'):
         raise RuntimeError('requires the isolated uid-2000 x86_64 QEMU guest')
 
 
@@ -44,6 +51,20 @@ def parse_output(data):
 
 
 def setup():
+    record = {'stage': 'parser-start', 'complete': False}
+    save('setup.json', record)
+    try:
+        setup_checked(record)
+    except BaseException as exc:
+        if isinstance(exc, subprocess.TimeoutExpired):
+            record['timeout'] = {'stdout_base64': base64.b64encode(exc.stdout or b'').decode(),
+                                 'stderr_base64': base64.b64encode(exc.stderr or b'').decode()}
+        record['error'] = repr(exc)
+        save('setup.json', record)
+        raise
+
+
+def setup_checked(record):
     positive = [(b'', set()), (b'4\n21\n', {4, 21}), (b'21\n4\n', {4, 21})]
     negative = [b'4', b'4\n4\n', b'04\n', b'0\n', b'4 5\n', b'4\nnoise\n',
                 b'2147483648\n', b'4\n' * 2100, b'\xff\n']
@@ -56,26 +77,31 @@ def setup():
         except ValueError:
             continue
         raise RuntimeError('PID parser accepted negative control')
-    save('parser-controls.json', {'positive': len(positive), 'negative': len(negative), 'ok': True})
+    record.update(stage='parser-complete', parser={'positive': len(positive), 'negative': len(negative), 'ok': True})
+    save('setup.json', record)
     source = '/opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.c'
+    record['stage'] = 'compile-start'; save('setup.json', record)
     build = subprocess.run(['/usr/bin/cc', '-O2', '-Wall', '-Wextra', '-o', 'guard', source],
                            capture_output=True, timeout=20)
-    (HOME / 'cc.out').write_bytes(build.stdout)
-    (HOME / 'cc.err').write_bytes(build.stderr)
-    (HOME / 'cc.status').write_text(str(build.returncode) + '\n')
+    record['compile'] = raw_result(build); record['stage'] = 'compile-complete'; save('setup.json', record)
     if build.returncode != 0:
         raise RuntimeError('guard compilation unavailable')
+    record['stage'] = 'guard-control-start'; save('setup.json', record)
     result = subprocess.run(['./guard', '--check'], capture_output=True, timeout=10)
-    (HOME / 'guard-control.out').write_bytes(result.stdout)
-    (HOME / 'guard-control.err').write_bytes(result.stderr)
-    (HOME / 'guard-control.status').write_text(str(result.returncode) + '\n')
+    record['guard_control'] = raw_result(result); record['stage'] = 'guard-control-complete'; save('setup.json', record)
     if result.returncode != 0 or result.stderr or len(result.stdout.splitlines()) != 6:
         raise RuntimeError('signal guard control unavailable')
+    record['stage'] = 'guard-exec-start'; save('setup.json', record)
     allowed = subprocess.run(['./guard', '/usr/bin/true'], capture_output=True, timeout=10)
-    save('guard-exec.json', {'status': allowed.returncode, 'stdout_hex': allowed.stdout.hex(),
-                             'stderr_hex': allowed.stderr.hex()})
+    record['guard_exec'] = raw_result(allowed); record['stage'] = 'guard-exec-complete'; save('setup.json', record)
     if allowed.returncode != 0 or allowed.stdout or allowed.stderr:
         raise RuntimeError('guarded exec control unavailable')
+    record.update(stage='complete', complete=True); save('setup.json', record)
+
+
+def raw_result(result):
+    return {'status': result.returncode, 'stdout_base64': base64.b64encode(result.stdout).decode(),
+            'stderr_base64': base64.b64encode(result.stderr).decode()}
 
 
 def stat_record(pid, sid):
@@ -114,12 +140,15 @@ def prepare(mode, pid):
     entries[str(MISSING)]['cmdline_hex'] = None
     add(GONE, outside)
     (ROOT / str(GONE) / 'stat').unlink()
-    (ROOT / str(GONE) / 'stat').symlink_to('vanished-stat')
+    if mode == 'race':
+        os.mkfifo(ROOT / str(GONE) / 'stat', 0o600)
+    else:
+        (ROOT / str(GONE) / 'stat').symlink_to('vanished-stat')
     entries[str(GONE)]['stat_hex'] = None
     add(DENIED, outside)
     (ROOT / str(DENIED) / 'cmdline').chmod(0)
     (ROOT / '123junk').mkdir()
-    omitted = {'baseline': [], 'comma': ELIGIBLE[:2], 'repeat': ELIGIBLE[1:4],
+    omitted = {'baseline': [], 'race': [], 'comma': ELIGIBLE[:2], 'repeat': ELIGIBLE[1:4],
                'none': ELIGIBLE[:], 'unreadable': []}[mode]
     expected = sorted(set(ELIGIBLE) - set(omitted)) if mode != 'unreadable' else []
     if mode == 'unreadable':
@@ -134,7 +163,10 @@ def prepare(mode, pid):
         for key, entry in entries.items():
             folder = ROOT / key
             if entry['stat_hex'] is None:
-                if not (folder / 'stat').is_symlink() or (folder / 'stat').exists():
+                path = folder / 'stat'
+                if mode == 'race' and int(key) == GONE:
+                    if not stat.S_ISFIFO(path.lstat().st_mode): raise RuntimeError('race stat is not FIFO')
+                elif not path.is_symlink() or path.exists():
                     raise RuntimeError('disappeared stat control failed')
             elif (folder / 'stat').read_bytes().hex() != entry['stat_hex']:
                 raise RuntimeError('stat fixture control failed')
@@ -154,8 +186,99 @@ def prepare(mode, pid):
                 raise RuntimeError('cmdline fixture control failed')
     save('fixture.json', {'mode': mode, 'caller_pid': pid, 'caller_sid': sid,
                           'real_stat_hex': raw.hex(), 'outside_sid': outside,
+                          'root_uid': ROOT.stat().st_uid, 'root_mode': stat.S_IMODE(ROOT.stat().st_mode),
                           'entries': entries, 'omitted': omitted, 'fixture_preconditions': 'verified'})
     save('oracle.json', {'selected': expected, 'status': 1 if mode == 'unreadable' else 0 if expected else 2})
+
+
+def race_writer():
+    record = {'stage': 'start', 'complete': False}
+    save('race.json', record)
+    try:
+        fixture = json.loads((HOME / 'fixture.json').read_text())
+        if fixture['mode'] != 'race' or fixture['fixture_preconditions'] != 'verified':
+            raise RuntimeError('race fixture was not prepared')
+        path = ROOT / str(GONE) / 'stat'
+        cmd = ROOT / str(GONE) / 'cmdline'
+        if not stat.S_ISFIFO(path.lstat().st_mode) or cmd.read_bytes() != b'fixture\0':
+            raise RuntimeError('race record precondition failed')
+        deadline = time.monotonic() + 8
+        while True:
+            try:
+                fd = os.open(path, os.O_WRONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+                break
+            except OSError as exc:
+                if exc.errno != errno.ENXIO or time.monotonic() >= deadline:
+                    raise
+                time.sleep(.01)
+        try:
+            record.update(stage='reader-open', reader_open=True); save('race.json', record)
+            cmd.unlink()
+            if cmd.exists(): raise RuntimeError('cmdline was not removed')
+            record.update(stage='cmdline-removed', cmdline_removed=True); save('race.json', record)
+            payload = stat_record(GONE, fixture['outside_sid'])
+            count = os.write(fd, payload)
+            if count != len(payload): raise RuntimeError('short race stat write')
+            record.update(stage='complete', complete=True, stat_hex=payload.hex(), bytes_written=count)
+            save('race.json', record)
+        finally:
+            os.close(fd)
+    except BaseException as exc:
+        record['error'] = repr(exc)
+        save('race.json', record)
+        raise
+
+
+def recheck(mode, pid, observation):
+    record = {'mode': mode, 'pid': pid, 'observation': observation, 'ok': False}
+    try:
+        fixture = json.loads((HOME / 'fixture.json').read_text())
+        if (fixture['mode'] != mode or fixture['caller_pid'] != pid or pid != os.getppid() or
+                fixture['caller_sid'] != os.getsid(pid) or observation not in {'baseline', 'candidate'}):
+            raise RuntimeError('caller identity or fixture mismatch')
+        raw = Path(f'/proc/{pid}/stat').read_bytes()
+        m = re.fullmatch(rb'([0-9]+) \(.*\) [^ ]+ ([0-9]+) ([0-9]+) ([0-9]+) .*\n', raw)
+        if not m or int(m[1]) != pid or int(m[4]) != fixture['caller_sid']:
+            raise RuntimeError('caller stat or session changed')
+        record['real_stat_hex'] = raw.hex()
+        record['root_uid'] = ROOT.stat().st_uid
+        record['root_mode'] = stat.S_IMODE(ROOT.stat().st_mode)
+        if record['root_uid'] != 2000 or record['root_mode'] != fixture['root_mode']:
+            raise RuntimeError('fixture root ownership or mode changed')
+        if mode == 'unreadable':
+            if stat.S_IMODE(ROOT.stat().st_mode) != 0: raise RuntimeError('root mode changed')
+            try: list(ROOT.iterdir())
+            except PermissionError: pass
+            else: raise RuntimeError('root became readable')
+        else:
+            if {p.name for p in ROOT.iterdir()} != set(fixture['entries']) | {'123junk'}:
+                raise RuntimeError('fixture entries changed')
+            for key, entry in fixture['entries'].items():
+                folder = ROOT / key
+                path = folder / 'stat'
+                if entry['stat_hex'] is None:
+                    if mode == 'race' and int(key) == GONE:
+                        if not stat.S_ISFIFO(path.lstat().st_mode): raise RuntimeError('race FIFO missing')
+                    elif not path.is_symlink() or path.exists(): raise RuntimeError('vanished stat changed')
+                elif path.read_bytes().hex() != entry['stat_hex']:
+                    raise RuntimeError('stat changed')
+                cmd = folder / 'cmdline'
+                if entry['cmdline_hex'] is None:
+                    if cmd.exists(): raise RuntimeError('missing cmdline appeared')
+                elif int(key) == DENIED:
+                    if stat.S_IMODE(cmd.stat().st_mode) != 0: raise RuntimeError('denied mode changed')
+                    try: cmd.read_bytes()
+                    except PermissionError: pass
+                    else: raise RuntimeError('denied cmdline readable')
+                elif cmd.read_bytes().hex() != entry['cmdline_hex']:
+                    raise RuntimeError('cmdline changed')
+        record['ok'] = True
+    except BaseException as exc:
+        record['error'] = repr(exc)
+        raise
+    finally:
+        with (HOME / 'rechecks.jsonl').open('a') as f:
+            f.write(json.dumps(record, sort_keys=True) + '\n')
 
 
 def verify(mode):
@@ -167,6 +290,28 @@ def verify(mode):
     err = (HOME / 'candidate.err').read_bytes()
     status_raw = (HOME / 'candidate.status').read_bytes()
     failures = []
+    infrastructure_errors = []
+    if mode == 'race':
+        race = json.loads((HOME / 'race.json').read_text())
+        if (race.get('complete') is not True or race.get('stage') != 'complete' or
+                race.get('reader_open') is not True or race.get('cmdline_removed') is not True or
+                race.get('stat_hex') != stat_record(GONE, fixture['outside_sid']).hex() or
+                race.get('bytes_written') != len(stat_record(GONE, fixture['outside_sid'])) or
+                (HOME / 'race.status').read_bytes() != b'0\n' or
+                (HOME / 'race.err').read_bytes()):
+            infrastructure_errors.append('race control incomplete')
+    baseline = None
+    if mode == 'none':
+        base_out = (HOME / 'baseline.out').read_bytes()
+        base_err = (HOME / 'baseline.err').read_bytes()
+        base_status = (HOME / 'baseline.status').read_bytes()
+        try:
+            baseline = sorted(parse_output(base_out))
+        except ValueError as exc:
+            failures.append('baseline: ' + str(exc))
+        if baseline != ELIGIBLE: failures.append('baseline selected set mismatch')
+        if base_status != b'0\n': failures.append('baseline status mismatch')
+        if base_err: failures.append('baseline unexpected stderr')
     try:
         actual = sorted(parse_output(out))
     except ValueError as exc:
@@ -178,8 +323,12 @@ def verify(mode):
         if not err or b'opendir' not in err: failures.append('missing unreadable-root diagnostic')
     elif err:
         failures.append('unexpected candidate stderr')
-    save('assertions.json', {'mode': mode, 'selected': actual, 'expected': oracle['selected'],
-                             'status_raw_hex': status_raw.hex(), 'stderr_hex': err.hex(), 'failures': failures})
+    save('assertions.json', {'mode': mode, 'baseline_selected': baseline, 'selected': actual, 'expected': oracle['selected'],
+                             'status_raw_hex': status_raw.hex(), 'stderr_hex': err.hex(), 'failures': failures,
+                             'infrastructure_errors': infrastructure_errors})
+    if infrastructure_errors:
+        print('fixture incomplete: ' + '; '.join(infrastructure_errors), file=sys.stderr)
+        return 90
     if failures:
         print('candidate mismatch: ' + '; '.join(failures), file=sys.stderr)
         return 1
@@ -195,6 +344,10 @@ def main():
         prepare(sys.argv[2], int(sys.argv[3])); return 0
     if len(sys.argv) == 3 and sys.argv[1] == 'verify' and sys.argv[2] in MODES:
         return verify(sys.argv[2])
+    if len(sys.argv) == 5 and sys.argv[1] == 'recheck':
+        recheck(sys.argv[2], int(sys.argv[3]), sys.argv[4]); return 0
+    if sys.argv[1:] == ['race-writer']:
+        race_writer(); return 0
     raise ValueError('invalid helper arguments')
 
 
