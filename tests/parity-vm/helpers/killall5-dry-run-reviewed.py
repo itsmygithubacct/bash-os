@@ -7,10 +7,14 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
+import socket
+import struct
 import stat
 import subprocess
 import sys
 import time
+import threading
 import uuid
 
 HOME = Path('/tmp/parity-home')
@@ -140,6 +144,29 @@ def setup_checked(record, nonleader_control):
         if (child_control.get('ok') is not True or child_control.get('sid', 0) <= 0 or
                 child_control.get('pid') == child_control.get('sid')):
             raise RuntimeError('nonleader session control failed')
+        record['stage'] = 'nonleader-witness-control-start'; save('setup.json', record)
+        helper = '/opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py'
+        probe_script = '/usr/bin/python3 "$1" witness-probe "$$"; rc=$?; exit "$rc"'
+        init_script = ('/usr/bin/setsid --wait /usr/bin/python3 "$1" leader-run setup '
+                       '/usr/bin/bash --noprofile --norc -c "$2" witness-control "$1" &\n'
+                       'pid=$!; rc=0; wait "$pid" || rc=$?; exit "$rc"')
+        witness = subprocess.run(['/usr/bin/unshare', '--user', '--map-user=2000', '--map-group=2000',
+                                  '--mount', '--pid', '--fork', '--mount-proc', '/usr/bin/bash',
+                                  '--noprofile', '--norc', '-c', init_script, 'namespace-init', helper, probe_script],
+                                 capture_output=True, timeout=22)
+        record['nonleader_witness_control'] = raw_result(witness)
+        witness_log = HOME / 'leader-witness-setup.jsonl'
+        record['nonleader_witness_log_base64'] = base64.b64encode(witness_log.read_bytes()).decode() if witness_log.exists() else None
+        record['stage'] = 'nonleader-witness-control-complete'; save('setup.json', record)
+        if witness.returncode != 0 or witness.stderr:
+            raise RuntimeError('guarded nonleader witness control unavailable')
+        control = json.loads(witness.stdout)
+        records = [json.loads(line) for line in witness_log.read_text().splitlines()]
+        if (control.get('ok') is not True or len(records) != 3 or
+                [r.get('event') for r in records] != ['ready', 'sample', 'reap'] or
+                records[1]['response']['nonce'] != control['witness']['nonce'] or
+                records[2]['child_status'] != 0 or records[2]['thread_stopped'] is not True or records[2]['errors']):
+            raise RuntimeError('guarded nonleader witness control failed')
     record.update(stage='complete', complete=True); save('setup.json', record)
 
 
@@ -217,7 +244,161 @@ def session_check_nonleader(outer):
                       'uid': os.getuid(), 'euid': os.geteuid()}, sort_keys=True))
 
 
-def prepare(mode, pid):
+def proc_snapshot(pid):
+    raw = Path(f'/proc/{pid}/stat').read_bytes()
+    match = re.fullmatch(rb'([0-9]+) \(.*\) ([^ ]+) ([0-9]+) ([0-9]+) ([0-9]+) (.*)\n', raw)
+    if not match or int(match[1]) != pid:
+        raise RuntimeError('invalid process stat')
+    rest = match[6].split()
+    if len(rest) < 16 or match[2] in (b'Z', b'X'):
+        raise RuntimeError('process is not live')
+    return {'pid': pid, 'state': match[2].decode(), 'parent': int(match[3]),
+            'session': int(match[5]), 'starttime': int(rest[15]), 'stat_hex': raw.hex()}
+
+
+def socket_path(tag):
+    if tag not in {'setup', 'candidate'}:
+        raise RuntimeError('invalid witness tag')
+    return HOME / ('leader-witness-' + tag + '.sock')
+
+
+def log_witness(tag, event):
+    with (HOME / ('leader-witness-' + tag + '.jsonl')).open('a') as f:
+        f.write(json.dumps(event, sort_keys=True) + '\n')
+
+
+def receive_message(conn):
+    data = bytearray()
+    while not data.endswith(b'\n') and len(data) < 32768:
+        chunk = conn.recv(min(4096, 32768 - len(data)))
+        if not chunk:
+            break
+        data.extend(chunk)
+    if not data.endswith(b'\n') or data.count(b'\n') != 1:
+        raise RuntimeError('invalid witness message framing')
+    return json.loads(data)
+
+
+def witness_query(caller, stage):
+    tag = os.environ.get('KILLALL5_WITNESS_TAG')
+    if caller != os.getppid() or stage not in {'probe', 'prepare', 'recheck-candidate'}:
+        raise RuntimeError('invalid witness query')
+    sid, caller_raw, leader_raw = session_identity(caller, 'nonleader')
+    nonce = secrets.token_hex(16)
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+        conn.settimeout(4)
+        conn.connect(str(socket_path(tag)))
+        server, uid, gid = struct.unpack('3i', conn.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
+        if server != sid or uid != 2000:
+            raise RuntimeError('witness is not the owned session leader')
+        conn.sendall((json.dumps({'caller_pid': caller, 'stage': stage, 'nonce': nonce}) + '\n').encode())
+        result = receive_message(conn)
+    if (result.get('nonce') != nonce or result.get('stage') != stage or
+            result.get('leader_pid') != sid or result.get('caller_pid') != caller or
+            result.get('requester_pid') != os.getpid() or result.get('peer_uid') != 2000 or
+            result.get('leader_pid_namespace') != os.readlink('/proc/self/ns/pid') or
+            result.get('leader_pid_namespace') != os.readlink(f'/proc/{caller}/ns/pid')):
+        raise RuntimeError('witness response does not match kernel credentials and caller')
+    for local, key in ((caller_raw, 'caller_stat'), (leader_raw, 'leader_stat')):
+        own = re.fullmatch(rb'([0-9]+) \(.*\) ([^ ]+) ([0-9]+) ([0-9]+) ([0-9]+) (.*)\n', local)
+        remote = result[key]
+        if (not own or int(own[1]) != remote['pid'] or int(own[3]) != remote['parent'] or
+                int(own[5]) != remote['session'] or int(own[6].split()[15]) != remote['starttime']):
+            raise RuntimeError('witness process identity changed')
+    result['client_pid_namespace'] = os.readlink('/proc/self/ns/pid')
+    result['client_caller_pid_namespace'] = os.readlink(f'/proc/{caller}/ns/pid')
+    result['client_caller_stat_hex'] = caller_raw.hex()
+    result['client_leader_stat_hex'] = leader_raw.hex()
+    result['client_caller_getsid'] = os.getsid(caller)
+    result['client_leader_getsid'] = os.getsid(sid)
+    result['server_peer_pid'] = server
+    result['server_peer_uid'] = uid
+    result['server_peer_gid'] = gid
+    return result
+
+
+def witness_probe(caller):
+    result = witness_query(caller, 'probe')
+    print(json.dumps({'ok': True, 'witness': result}, sort_keys=True))
+
+
+def leader_run(tag, command):
+    if tag not in {'setup', 'candidate'} or not command or os.getpid() != os.getsid(0):
+        raise RuntimeError('witness supervisor is not the session leader')
+    leader = os.getpid()
+    path = socket_path(tag)
+    path.unlink(missing_ok=True)
+    log = HOME / ('leader-witness-' + tag + '.jsonl')
+    log.unlink(missing_ok=True)
+    failure = []
+    stopped = threading.Event()
+    child_ready = threading.Event()
+    child_pid = []
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+        listener.bind(str(path)); path.chmod(0o600); listener.listen(2); listener.settimeout(0.2)
+        def serve():
+            try:
+                namespace = os.readlink('/proc/self/ns/pid')
+                initial = proc_snapshot(leader)
+                log_witness(tag, {'event': 'ready', 'leader_pid': leader, 'leader_stat': initial,
+                                  'leader_pid_namespace': namespace, 'leader_getsid': os.getsid(leader)})
+                while not stopped.is_set():
+                    try:
+                        conn, _ = listener.accept()
+                    except socket.timeout:
+                        continue
+                    with conn:
+                        conn.settimeout(4)
+                        peer, uid, gid = struct.unpack('3i', conn.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
+                        request = receive_message(conn)
+                        if not child_ready.wait(3):
+                            raise RuntimeError('supervisor child not ready')
+                        requester = proc_snapshot(peer)
+                        caller = proc_snapshot(requester['parent'])
+                        leader_stat = proc_snapshot(leader)
+                        if (uid != 2000 or caller['pid'] != child_pid[0] or caller['parent'] != leader or
+                                request.get('caller_pid') != caller['pid'] or
+                                request.get('stage') not in {'probe', 'prepare', 'recheck-candidate'} or
+                                not re.fullmatch(r'[0-9a-f]{32}', request.get('nonce', '')) or
+                                any(x['session'] != leader for x in (requester, caller, leader_stat)) or
+                                os.getsid(peer) != leader or os.getsid(caller['pid']) != leader or
+                                os.getsid(leader) != leader or leader_stat['starttime'] != initial['starttime']):
+                            raise RuntimeError('witness requester is not the owned guarded child')
+                        response = {'stage': request['stage'], 'nonce': request['nonce'],
+                                    'leader_pid': leader, 'caller_pid': caller['pid'], 'requester_pid': peer,
+                                    'peer_uid': uid, 'peer_gid': gid, 'leader_getsid': os.getsid(leader),
+                                    'caller_getsid': os.getsid(caller['pid']), 'requester_getsid': os.getsid(peer),
+                                    'leader_pid_namespace': namespace,
+                                    'leader_stat': leader_stat, 'caller_stat': caller, 'requester_stat': requester}
+                        log_witness(tag, {'event': 'sample', 'response': response})
+                        conn.sendall((json.dumps(response, sort_keys=True) + '\n').encode())
+            except BaseException as exc:
+                failure.append(repr(exc))
+                log_witness(tag, {'event': 'error', 'error': repr(exc)})
+        worker = threading.Thread(target=serve, daemon=True)
+        worker.start()
+        child = None
+        try:
+            env = os.environ.copy(); env['KILLALL5_WITNESS_TAG'] = tag
+            child = subprocess.Popen(['./guard', *command], env=env)
+            child_pid.append(child.pid); child_ready.set()
+            status = child.wait(timeout=18)
+        except BaseException:
+            if child is not None and child.poll() is None:
+                child.kill(); child.wait()
+            raise
+        finally:
+            stopped.set(); worker.join(timeout=5); path.unlink(missing_ok=True)
+            log_witness(tag, {'event': 'reap', 'leader_pid': leader,
+                              'child_pid': child.pid if child is not None else None,
+                              'child_status': child.returncode if child is not None else None,
+                              'thread_stopped': not worker.is_alive(), 'errors': failure})
+        if worker.is_alive() or failure:
+            raise RuntimeError('witness supervisor incomplete')
+        return status if status >= 0 else 128 - status
+
+
+def prepare_checked(mode, pid, checkpoint=None):
     if mode not in MODES or pid <= 1 or pid != os.getppid():
         raise RuntimeError('caller PID mismatch')
     namespace = json.loads((HOME / 'events.jsonl').read_text().splitlines()[0])
@@ -227,7 +408,10 @@ def prepare(mode, pid):
             namespace['inner'] != caller_namespace):
         raise RuntimeError('caller PID namespace mismatch')
     sid, raw, leader_raw = session_identity(pid, mode)
-    leader_namespace = os.readlink(f'/proc/{sid}/ns/pid')
+    if checkpoint is not None:
+        checkpoint['stage'] = 'leader-witness'; save('prepare-state.json', checkpoint)
+    leader_witness = witness_query(pid, 'prepare') if mode == 'nonleader' else None
+    leader_namespace = leader_witness['leader_pid_namespace'] if leader_witness is not None else os.readlink(f'/proc/{sid}/ns/pid')
     if leader_namespace != namespace['inner']:
         raise RuntimeError('session leader is outside caller PID namespace')
     match = re.fullmatch(rb'([0-9]+) \(.*\) [^ ]+ ([0-9]+) ([0-9]+) ([0-9]+) .*\n', raw)
@@ -297,8 +481,24 @@ def prepare(mode, pid):
                           'caller_pid_namespace': caller_namespace, 'leader_pid_namespace': leader_namespace,
                           'real_stat_hex': raw.hex(), 'leader_stat_hex': leader_raw.hex(), 'outside_sid': outside,
                           'root_uid': ROOT.stat().st_uid, 'root_mode': stat.S_IMODE(ROOT.stat().st_mode),
-                          'entries': entries, 'omitted': omitted, 'fixture_preconditions': 'verified'})
+                          'entries': entries, 'omitted': omitted, 'fixture_preconditions': 'verified',
+                          **({'leader_witness': leader_witness} if leader_witness is not None else {})})
     save('oracle.json', {'selected': expected, 'status': 1 if mode == 'unreadable' else 0 if expected else 2})
+
+
+def prepare(mode, pid):
+    if mode != 'nonleader':
+        return prepare_checked(mode, pid)
+    checkpoint = {'mode': mode, 'caller_pid': pid, 'stage': 'begin', 'complete': False}
+    save('prepare-state.json', checkpoint)
+    try:
+        prepare_checked(mode, pid, checkpoint)
+        checkpoint.update(stage='complete', complete=True)
+    except BaseException as exc:
+        checkpoint['error'] = repr(exc)
+        raise
+    finally:
+        save('prepare-state.json', checkpoint)
 
 
 def race_writer():
@@ -360,7 +560,11 @@ def recheck(mode, pid, observation):
         record['real_stat_hex'] = raw.hex()
         record['pid_namespace'] = os.readlink('/proc/self/ns/pid')
         record['caller_pid_namespace'] = os.readlink(f'/proc/{pid}/ns/pid')
-        record['leader_pid_namespace'] = os.readlink(f'/proc/{sid}/ns/pid')
+        if mode == 'nonleader':
+            record['leader_witness'] = witness_query(pid, 'recheck-' + observation)
+            record['leader_pid_namespace'] = record['leader_witness']['leader_pid_namespace']
+        else:
+            record['leader_pid_namespace'] = os.readlink(f'/proc/{sid}/ns/pid')
         if (record['pid_namespace'] != fixture['pid_namespace'] or
                 record['pid_namespace'] != record['caller_pid_namespace'] or
                 record['pid_namespace'] != record['leader_pid_namespace']):
@@ -490,6 +694,10 @@ def verify(mode):
 
 def main():
     require_guest()
+    if len(sys.argv) >= 5 and sys.argv[1] == 'leader-run':
+        return leader_run(sys.argv[2], sys.argv[3:])
+    if len(sys.argv) == 3 and sys.argv[1] == 'witness-probe':
+        witness_probe(int(sys.argv[2])); return 0
     if sys.argv[1:] in (['setup'], ['setup', 'nonleader']):
         setup(sys.argv[1:] == ['setup', 'nonleader']); return 0
     if len(sys.argv) == 4 and sys.argv[1] == 'prepare':
