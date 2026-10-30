@@ -1,0 +1,980 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "devices-hwclock-show-ordinary-utc-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and clock-set request: show-ordinary-utc",
+      "covers": [
+        "hwclock/show-raw-rtc-calendar"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"show\", \"rtc\": [8, 7, 6, 5, 3, 123, 0, 0, 0], \"status\": 0}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --show --utc --rtc /tmp/parity-case/rtc --noadjfile' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == $'2023-04-05T06:07:08\\nsynthetic syscall checks ok' && ! -s \"$HOME/child.err\" ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-show-leap-local-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and clock-set request: show-leap-local",
+      "covers": [
+        "hwclock/show-raw-rtc-calendar"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"show\", \"rtc\": [59, 58, 23, 29, 1, 124, 0, 0, 0], \"status\": 0}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock -r --localtime --rtc /tmp/parity-case/rtc --noadjfile' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == $'2024-02-29T23:58:59\\nsynthetic syscall checks ok' && ! -s \"$HOME/child.err\" ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-show-leap-utc-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and clock-set request: show-leap-utc",
+      "covers": [
+        "hwclock/show-raw-rtc-calendar"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"show\", \"rtc\": [59, 58, 23, 29, 1, 124, 0, 0, 0], \"status\": 0}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --show --utc --rtc /tmp/parity-case/rtc --noadjfile' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == $'2024-02-29T23:58:59\\nsynthetic syscall checks ok' && ! -s \"$HOME/child.err\" ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-show-ordinary-local-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and clock-set request: show-ordinary-local",
+      "covers": [
+        "hwclock/show-raw-rtc-calendar"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"show\", \"rtc\": [8, 7, 6, 5, 3, 123, 0, 0, 0], \"status\": 0}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock -r --localtime --rtc /tmp/parity-case/rtc --noadjfile' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == $'2023-04-05T06:07:08\\nsynthetic syscall checks ok' && ! -s \"$HOME/child.err\" ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-show-invalid-month-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and clock-set request: show-invalid-month",
+      "covers": [
+        "hwclock/show-raw-rtc-calendar"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"show\", \"rtc\": [0, 0, 0, 1, 12, 124, 0, 0, 0], \"status\": 1}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --show --utc --rtc /tmp/parity-case/rtc --noadjfile' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == \"synthetic syscall checks ok\" && $(<\"$HOME/child.err\") == *\"invalid RTC calendar\"* ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-show-invalid-day-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and clock-set request: show-invalid-day",
+      "covers": [
+        "hwclock/show-raw-rtc-calendar"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"show\", \"rtc\": [0, 0, 0, 30, 1, 124, 0, 0, 0], \"status\": 1}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock -r --localtime --rtc /tmp/parity-case/rtc --noadjfile' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == \"synthetic syscall checks ok\" && $(<\"$HOME/child.err\") == *\"invalid RTC calendar\"* ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-epoch-pre-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and clock-set request: epoch-pre",
+      "covers": [
+        "hwclock/hctosys-utc-epoch"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --hctosys --utc --rtc /tmp/parity-case/rtc --noadjfile' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == \"synthetic syscall checks ok\" && ! -s \"$HOME/child.err\" ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-epoch-leap-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and clock-set request: epoch-leap",
+      "covers": [
+        "hwclock/hctosys-utc-epoch"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"hctosys\", \"rtc\": [0, 0, 0, 29, 1, 100, 0, 0, 0], \"status\": 0, \"epoch\": 951782400}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --hctosys --utc --rtc /tmp/parity-case/rtc --noadjfile' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == \"synthetic syscall checks ok\" && ! -s \"$HOME/child.err\" ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-epoch-2038-before-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and clock-set request: epoch-2038-before",
+      "covers": [
+        "hwclock/hctosys-utc-epoch"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"hctosys\", \"rtc\": [7, 14, 3, 19, 0, 138, 0, 0, 0], \"status\": 0, \"epoch\": 2147483647}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --hctosys --utc --rtc /tmp/parity-case/rtc --noadjfile' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == \"synthetic syscall checks ok\" && ! -s \"$HOME/child.err\" ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-epoch-2038-after-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and clock-set request: epoch-2038-after",
+      "covers": [
+        "hwclock/hctosys-utc-epoch"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"hctosys\", \"rtc\": [8, 14, 3, 19, 0, 138, 0, 0, 0], \"status\": 0, \"epoch\": 2147483648}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --hctosys --utc --rtc /tmp/parity-case/rtc --noadjfile' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == \"synthetic syscall checks ok\" && ! -s \"$HOME/child.err\" ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-epoch-invalid-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and clock-set request: epoch-invalid",
+      "covers": [
+        "hwclock/hctosys-utc-epoch"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"hctosys\", \"rtc\": [0, 0, 0, 30, 1, 124, 0, 0, 0], \"status\": 1}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --hctosys --utc --rtc /tmp/parity-case/rtc --noadjfile' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == \"synthetic syscall checks ok\" && $(<\"$HOME/child.err\") == *\"invalid RTC calendar\"* ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-adj-valid-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Adjtime validation before RTC open: valid",
+      "covers": [
+        "hwclock/adjtime-validation-before-rtc"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"show\", \"rtc\": [8, 7, 6, 5, 3, 123, 0, 0, 0], \"status\": 0}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n",
+        "adjtime": "  0  1  0  \n 1  \nUTC\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --show --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == $'2023-04-05T06:07:08\\nsynthetic syscall checks ok' && ! -s \"$HOME/child.err\" ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-adj-missing-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Adjtime validation before RTC open: missing",
+      "covers": [
+        "hwclock/adjtime-validation-before-rtc"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"show\", \"rtc\": [8, 7, 6, 5, 3, 123, 0, 0, 0], \"status\": 0}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --show --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == $'2023-04-05T06:07:08\\nsynthetic syscall checks ok' && ! -s \"$HOME/child.err\" ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-adj-nan-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Adjtime validation before RTC open: nan",
+      "covers": [
+        "hwclock/adjtime-validation-before-rtc"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"validate\", \"rtc\": [8, 7, 6, 5, 3, 123, 0, 0, 0], \"status\": 1}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n",
+        "adjtime": "nan 1 0\n1\nUTC\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --show --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == \"synthetic syscall checks ok\" && $(<\"$HOME/child.err\") == *\"invalid adjtime drift line\"* ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-adj-infinity-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Adjtime validation before RTC open: infinity",
+      "covers": [
+        "hwclock/adjtime-validation-before-rtc"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"validate\", \"rtc\": [8, 7, 6, 5, 3, 123, 0, 0, 0], \"status\": 1}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n",
+        "adjtime": "inf 1 0\n1\nUTC\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --show --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == \"synthetic syscall checks ok\" && $(<\"$HOME/child.err\") == *\"invalid adjtime drift line\"* ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-adj-integer-overflow-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Adjtime validation before RTC open: integer-overflow",
+      "covers": [
+        "hwclock/adjtime-validation-before-rtc"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"validate\", \"rtc\": [8, 7, 6, 5, 3, 123, 0, 0, 0], \"status\": 1}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n",
+        "adjtime": "0 9999999999999999999999999 0\n1\nUTC\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --show --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == \"synthetic syscall checks ok\" && $(<\"$HOME/child.err\") == *\"invalid adjtime drift line\"* ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-adj-calibration-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Adjtime validation before RTC open: calibration",
+      "covers": [
+        "hwclock/adjtime-validation-before-rtc"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"validate\", \"rtc\": [8, 7, 6, 5, 3, 123, 0, 0, 0], \"status\": 1}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n",
+        "adjtime": "0 1 0\nnope\nUTC\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --show --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == \"synthetic syscall checks ok\" && $(<\"$HOME/child.err\") == *\"invalid adjtime calibration line\"* ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-adj-mode-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Adjtime validation before RTC open: mode",
+      "covers": [
+        "hwclock/adjtime-validation-before-rtc"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"validate\", \"rtc\": [8, 7, 6, 5, 3, 123, 0, 0, 0], \"status\": 1}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n",
+        "adjtime": "0 1 0\n1\nBOGUS\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --show --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == \"synthetic syscall checks ok\" && $(<\"$HOME/child.err\") == *\"invalid adjtime mode line\"* ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-adj-nul-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Adjtime validation before RTC open: nul",
+      "covers": [
+        "hwclock/adjtime-validation-before-rtc"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"validate\", \"rtc\": [8, 7, 6, 5, 3, 123, 0, 0, 0], \"status\": 1}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n",
+        "adjtime": "0 1 0\u0000\n1\nUTC\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --show --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == \"synthetic syscall checks ok\" && $(<\"$HOME/child.err\") == *\"invalid adjtime file\"* ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-adj-drift-tail-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Adjtime validation before RTC open: drift-tail",
+      "covers": [
+        "hwclock/adjtime-validation-before-rtc"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"validate\", \"rtc\": [8, 7, 6, 5, 3, 123, 0, 0, 0], \"status\": 1}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n",
+        "adjtime": "0 1 0 junk\n1\nUTC\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --show --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == \"synthetic syscall checks ok\" && $(<\"$HOME/child.err\") == *\"invalid adjtime drift line\"* ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-adj-trailing-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Adjtime validation before RTC open: trailing",
+      "covers": [
+        "hwclock/adjtime-validation-before-rtc"
+      ],
+      "oracle": "Fixed synthetic Linux rtc_time input and independently calculated Gregorian epoch; setter is intercepted and not executed.",
+      "comparison": "Capture child output, status, syscall order, RTC fd identity and clock_settime timespec; all RTC and setter successes are synthetic, not kernel-device evidence.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-synthetic-r1.py": "5101a5f835c4224b5a070fce84c29b762d10fd715163be848b14432f90112155"
+      },
+      "files": {
+        "clock.json": "{\"mode\": \"validate\", \"rtc\": [8, 7, 6, 5, 3, 123, 0, 0, 0], \"status\": 1}\n",
+        "rtc": "",
+        "clock-control.py": "# Guest-only, invoked by the synthetic observer to verify writeback and interception.\nimport ctypes, os\nclass T(ctypes.Structure):\n    _fields_=[('sec',ctypes.c_long),('nsec',ctypes.c_long)]\nlib=ctypes.CDLL(None,use_errno=True)\nlib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]\nlib.ioctl.restype=ctypes.c_int\nlib.clock_settime.argtypes=[ctypes.c_int,ctypes.POINTER(T)]\nlib.clock_settime.restype=ctypes.c_int\nfd=os.open('/tmp/parity-case/rtc',os.O_RDONLY)\na=(ctypes.c_int*9)()\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nos.close(fd)\nassert list(a)==[59,59,23,31,11,69,0,0,0]\nt=T(-1,0)\nassert lib.clock_settime(0,ctypes.byref(t))==0\n",
+        "clock-control.json": "{\"mode\": \"hctosys\", \"rtc\": [59, 59, 23, 31, 11, 69, 0, 0, 0], \"status\": 0, \"epoch\": -1}\n",
+        "adjtime": "0 1 0\n1\nUTC\nextra\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp clock.json clock-original.json\n/bin/cp clock-control.json clock.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py /usr/bin/python3 /tmp/parity-case/clock-control.py || exit 125\n/bin/cp clock-original.json clock.json\n/bin/mv \"$HOME/clock-events.jsonl\" \"$HOME/control-events.jsonl\"\n/bin/mv \"$HOME/clock-check.json\" \"$HOME/control-check.json\"\n/bin/mv \"$HOME/clock-child-status\" \"$HOME/control-status\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-synthetic-r1.py \"$BASH\" --noprofile --norc -c 'hwclock --show --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime' >\"$HOME/child.out\" 2>\"$HOME/child.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 ]] || exit 1\n[[ $(<\"$HOME/child.out\") == \"synthetic syscall checks ok\" && $(<\"$HOME/child.err\") == *\"invalid adjtime trailing data\"* ]] || exit 1\nprintf 'synthetic clock case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic clock case ok\n",
+      "stderr": "",
+      "timeout": 30,
+      "diagnostic_files": [
+        "child.out",
+        "child.err",
+        "observer.status",
+        "clock-events.jsonl",
+        "clock-child-status",
+        "clock-check.json",
+        "control-events.jsonl",
+        "control-check.json",
+        "control-status"
+      ]
+    }
+  ]
+}

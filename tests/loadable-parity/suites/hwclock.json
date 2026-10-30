@@ -39,15 +39,61 @@
     },
     {
       "id": "show-raw-rtc-calendar",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise --show and -r against fixed ordinary and leap-day RTC calendars, checking the raw YYYY-MM-DDTHH:MM:SS format and that UTC/local flags do not alter the raw display.",
-      "reason": "Only help metadata executed. A deterministic RTC read is obtainable with an unprivileged per-side seccomp user-notification ioctl mock; no device or privileged driver needed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "devices-hwclock-show-invalid-day-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-show-invalid-month-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-show-leap-local-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-show-leap-utc-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-show-ordinary-local-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-show-ordinary-utc-r1"
+        }
+      ]
     },
     {
       "id": "hctosys-utc-epoch",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Convert fixed RTC calendars in UTC to exact seconds with zero nanoseconds, including pre-epoch, leap-century, and 2038 boundary values, while checking syscall order and no setter call for invalid calendars.",
-      "reason": "Not executed; reachable with the per-side seccomp user-notification mock recording clock_settime instead of performing it."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "devices-hwclock-epoch-2038-after-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-epoch-2038-before-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-epoch-invalid-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-epoch-leap-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-epoch-pre-r1"
+        }
+      ]
     },
     {
       "id": "hctosys-local-dst",
@@ -92,7 +138,7 @@
       "id": "adjtime-validation-before-rtc",
       "kind": "deferred",
       "purpose": "Check the documented three-line adjtime format, accepted whitespace and missing-file defaults, and rejection of malformed, nonfinite, overflowing, NUL-containing, or trailing data before RTC access.",
-      "reason": "Not executed; almost entirely reachable in the existing legacy runner because adjtime parsing precedes RTC access and a non-device --rtc path makes RTC access visible through its diagnostic."
+      "reason": "Valid LOCAL and mode-line whitespace remain unobserved; missing-file default UTC and zero drift remain unobserved."
     },
     {
       "id": "rtc-and-adjfile-failure-cleanup",

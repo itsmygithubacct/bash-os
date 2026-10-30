@@ -7,8 +7,8 @@ reviewed requirements, evidence links and specific remaining gaps. The
 saved static and dynamic VM runs. The initial qualification tables in the VM
 guide describe the earlier fixture set.
 
-The current review covers 383 of the 600 topics on both builds: static 196 PASS / 187 FAIL;
-dynamic 197 PASS / 186 FAIL. The other 217 retain unresolved requirements. These are topic counts,
+The current review covers 385 of the 600 topics on both builds: static 198 PASS / 187 FAIL;
+dynamic 199 PASS / 186 FAIL. The other 215 retain unresolved requirements. These are topic counts,
 not additional behavioral test results.
 
 The syslog review adds bounded three-record FIFO observations for startup, SIGHUP and periodic replay on both builds. Sender attribution is inferred from pinned serial source and isolated networking; HUP was queued while the daemon was stopped.
@@ -38,6 +38,8 @@ which printed `-1.900000000`. The `now-clock-error` case is a supporting
 control and is not counted as requirement evidence.
 
 The hwclock effects review records positive and negative drift correction and fractional remainder handling on both builds using a synthetic RTC. It also adds partial system-to-RTC and failure-path evidence. System time is bracketed; RTC and clock effects are synthetic. Injected close EIO skips the real close and does not establish descriptor cleanup after a real close failure.
+
+The hwclock calendar review verifies raw display and UTC conversion for fixed synthetic RTC inputs on both builds. Malformed adjtime inputs were rejected before RTC open; valid LOCAL, mode-line whitespace and missing-file defaults remain partial. The RTC and clock replies are synthetic and do not establish physical RTC or system-clock changes.
 
 A historical case becomes `MIGRATED` only when every requirement has an explicit
 assertion and valid execution evidence on both builds. Its replacement cases

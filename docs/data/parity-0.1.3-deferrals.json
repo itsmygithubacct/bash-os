@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "34bfa193c0c2cf58f5ef377a69bca7245cf4e280a28b5bca8e339a39ac3abd1b",
+  "ledger_sha256": "1d9baba80fdadc871ae9298bd7b11512774ef534b001fcd296ed5d871a58d2b4",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 101,
-    "full": 383,
-    "none": 116
+    "partial": 102,
+    "full": 385,
+    "none": 113
   },
   "migrations": {
-    "deferred": 217,
-    "replacement": 383
+    "deferred": 215,
+    "replacement": 385
   },
   "pending_full_topics": [],
   "builds": {
@@ -7804,6 +7804,24 @@
             "RTC and clock replies are synthetic and do not establish physical RTC modification or a real host clock effect.",
             "Filesystem effects are observed in guest scratch only.",
             "Synthetic close EIO skips real close; it does not demonstrate descriptor cleanup following a real close failure.",
+            "Framework status is not by itself independent candidate attribution; rely on the full paired raw review and preserve reached failures and incomplete cases.",
+            "Root fixtures remain held; retain prior evidence and unproved original requirements."
+          ]
+        },
+        {
+          "name": "device-v8-rtc-calendar-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 21,
+          "evidence_format": "primary-qualified-device-v8-rtc-calendar-v1",
+          "primary_receipt_sha256": "b4e8ccb6763593f8c7123c0e121ffce28e5b676a158e87443ab4093eca469f1c",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "aeb68cc3-9c48-4eed-a9cd-dcf2604e994f",
+          "record_sha256": "2fa5e5b3a69c2efe5bb8a56d646332900801374785c78cdd1cd424b860e4acd7",
+          "evidence_sha256": "98c4d865cad42470387f933d7387a78a5c1f75dcccde14181d164ec951363bad",
+          "limitations": [
+            "RTC and clock replies are synthetic and do not establish physical RTC modification or a real host clock effect.",
             "Framework status is not by itself independent candidate attribution; rely on the full paired raw review and preserve reached failures and incomplete cases.",
             "Root fixtures remain held; retain prior evidence and unproved original requirements."
           ]
@@ -25113,45 +25131,157 @@
         {
           "topic": "hwclock/adjtime-validation-before-rtc",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A valid three-line adjtime (drift last_adjust remainder / last_calib / UTC|LOCAL), with accepted surrounding whitespace, is accepted and the command proceeds to RTC access.",
-              "coverage": "missing",
-              "gap": "No case. Reachable in the legacy runner: with --rtc pointing at a regular fixture file, proceeding is observable as the 'RTC_RD_TIME: Inappropriate ioctl for device' diagnostic.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Valid LOCAL adjtime and surrounding whitespace on the mode line are not witnessed.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-valid-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "A missing adjtime file yields the documented defaults (UTC, no drift) and proceeds.",
-              "coverage": "missing",
-              "gap": "Same legacy technique (missing --adjfile path).",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The missing-file show case uses explicit --utc and does not independently establish the default UTC mode or zero drift.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-missing-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "Malformed drift/calibration/mode lines, nonfinite values (nan, inf), overflowing integers, embedded NUL and non-space trailing data are rejected with status 1 and a specific 'invalid adjtime ...' diagnostic before any RTC open.",
-              "coverage": "missing",
-              "gap": "Reachable in legacy: use --rtc pointing at a missing path, so any RTC open would instead report ENOENT for that path; exact stderr contract distinguishes the two.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-nan-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-infinity-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-integer-overflow-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-calibration-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-mode-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-nul-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-drift-tail-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-trailing-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Call counting: zero opens of the RTC path for every invalid file.",
-              "coverage": "missing",
-              "gap": "The diagnostic-based proof above is indirect; a direct count needs SECCOMP-NOTIFY on openat (plain driver).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-nan-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-infinity-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-integer-overflow-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-calibration-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-mode-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-nul-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-drift-tail-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-trailing-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -25262,37 +25392,94 @@
         },
         {
           "topic": "hwclock/hctosys-utc-epoch",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "--hctosys --utc converts fixed RTC calendars to clock_settime(CLOCK_REALTIME) timespecs with exact seconds and tv_nsec 0, matching calendar.timegm for pre-epoch (1969-12-31T23:59:59 -> -1), leap-century (2000-02-29), and 2038 boundary (2038-01-19T03:14:07/08) values.",
-              "coverage": "missing",
-              "gap": "clock_settime is seccomp-EPERM in legacy and EPERM for uid 2000 (no CAP_SYS_TIME); a recording mock is required: SECCOMP-NOTIFY under the plain driver, unprivileged.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-pre-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-leap-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-2038-before-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-2038-after-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Syscall order: RTC open + RTC_RD_TIME before clock_settime; exactly one setter call on success.",
-              "coverage": "missing",
-              "gap": "Same recorder log.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-pre-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-leap-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-2038-before-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-2038-after-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Invalid calendars produce failure with no clock_settime request.",
-              "coverage": "missing",
-              "gap": "Same recorder.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-invalid-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -25415,37 +25602,100 @@
         },
         {
           "topic": "hwclock/show-raw-rtc-calendar",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "--show and -r print the RTC calendar returned by RTC_RD_TIME as YYYY-MM-DDTHH:MM:SS for ordinary and leap-day (2024-02-29) calendars.",
-              "coverage": "missing",
-              "gap": "Needs a deterministic RTC_RD_TIME result. A regular file cannot answer the ioctl (ENOTTY) and the real guest /dev/rtc0 ticks and is root-only; the SECCOMP-NOTIFY helper supplies the struct unprivileged under the plain driver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-ordinary-utc-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-leap-local-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-leap-utc-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-ordinary-local-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "--utc / --localtime flags do not alter the raw display.",
-              "coverage": "missing",
-              "gap": "Same mock.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-ordinary-utc-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-leap-local-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-leap-utc-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-ordinary-local-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Invalid RTC calendars (e.g. month 13, Feb 30) are rejected with status 1 and no output.",
-              "coverage": "missing",
-              "gap": "Same mock.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-invalid-month-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-invalid-day-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -57190,9 +57440,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 217,
+        "UNRESOLVED": 215,
         "FAIL": 187,
-        "PASS": 196
+        "PASS": 198
       },
       "migration_without_complete_evidence": []
     },
@@ -64986,6 +65236,24 @@
             "RTC and clock replies are synthetic and do not establish physical RTC modification or a real host clock effect.",
             "Filesystem effects are observed in guest scratch only.",
             "Synthetic close EIO skips real close; it does not demonstrate descriptor cleanup following a real close failure.",
+            "Framework status is not by itself independent candidate attribution; rely on the full paired raw review and preserve reached failures and incomplete cases.",
+            "Root fixtures remain held; retain prior evidence and unproved original requirements."
+          ]
+        },
+        {
+          "name": "device-v8-rtc-calendar-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 21,
+          "evidence_format": "primary-qualified-device-v8-rtc-calendar-v1",
+          "primary_receipt_sha256": "b4e8ccb6763593f8c7123c0e121ffce28e5b676a158e87443ab4093eca469f1c",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "d67b0b05-7996-4ec8-b926-91a915031743",
+          "record_sha256": "1a3b14fdd7b4498d28bdc9df1b459967664ed8d7de9c19036c5ad126764dbb51",
+          "evidence_sha256": "54ce95d7daba6eedcf364f7bd3ee8d1add8ca8b6e8a408eaa3584ba4bed5e310",
+          "limitations": [
+            "RTC and clock replies are synthetic and do not establish physical RTC modification or a real host clock effect.",
             "Framework status is not by itself independent candidate attribution; rely on the full paired raw review and preserve reached failures and incomplete cases.",
             "Root fixtures remain held; retain prior evidence and unproved original requirements."
           ]
@@ -82295,45 +82563,157 @@
         {
           "topic": "hwclock/adjtime-validation-before-rtc",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A valid three-line adjtime (drift last_adjust remainder / last_calib / UTC|LOCAL), with accepted surrounding whitespace, is accepted and the command proceeds to RTC access.",
-              "coverage": "missing",
-              "gap": "No case. Reachable in the legacy runner: with --rtc pointing at a regular fixture file, proceeding is observable as the 'RTC_RD_TIME: Inappropriate ioctl for device' diagnostic.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Valid LOCAL adjtime and surrounding whitespace on the mode line are not witnessed.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-valid-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "A missing adjtime file yields the documented defaults (UTC, no drift) and proceeds.",
-              "coverage": "missing",
-              "gap": "Same legacy technique (missing --adjfile path).",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The missing-file show case uses explicit --utc and does not independently establish the default UTC mode or zero drift.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-missing-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r3",
               "behavior": "Malformed drift/calibration/mode lines, nonfinite values (nan, inf), overflowing integers, embedded NUL and non-space trailing data are rejected with status 1 and a specific 'invalid adjtime ...' diagnostic before any RTC open.",
-              "coverage": "missing",
-              "gap": "Reachable in legacy: use --rtc pointing at a missing path, so any RTC open would instead report ENOENT for that path; exact stderr contract distinguishes the two.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-nan-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-infinity-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-integer-overflow-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-calibration-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-mode-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-nul-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-drift-tail-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-trailing-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Call counting: zero opens of the RTC path for every invalid file.",
-              "coverage": "missing",
-              "gap": "The diagnostic-based proof above is indirect; a direct count needs SECCOMP-NOTIFY on openat (plain driver).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-nan-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-infinity-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-integer-overflow-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-calibration-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-mode-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-nul-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-drift-tail-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-adj-trailing-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -82444,37 +82824,94 @@
         },
         {
           "topic": "hwclock/hctosys-utc-epoch",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "--hctosys --utc converts fixed RTC calendars to clock_settime(CLOCK_REALTIME) timespecs with exact seconds and tv_nsec 0, matching calendar.timegm for pre-epoch (1969-12-31T23:59:59 -> -1), leap-century (2000-02-29), and 2038 boundary (2038-01-19T03:14:07/08) values.",
-              "coverage": "missing",
-              "gap": "clock_settime is seccomp-EPERM in legacy and EPERM for uid 2000 (no CAP_SYS_TIME); a recording mock is required: SECCOMP-NOTIFY under the plain driver, unprivileged.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-pre-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-leap-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-2038-before-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-2038-after-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Syscall order: RTC open + RTC_RD_TIME before clock_settime; exactly one setter call on success.",
-              "coverage": "missing",
-              "gap": "Same recorder log.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-pre-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-leap-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-2038-before-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-2038-after-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Invalid calendars produce failure with no clock_settime request.",
-              "coverage": "missing",
-              "gap": "Same recorder.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-epoch-invalid-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -82597,37 +83034,100 @@
         },
         {
           "topic": "hwclock/show-raw-rtc-calendar",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "--show and -r print the RTC calendar returned by RTC_RD_TIME as YYYY-MM-DDTHH:MM:SS for ordinary and leap-day (2024-02-29) calendars.",
-              "coverage": "missing",
-              "gap": "Needs a deterministic RTC_RD_TIME result. A regular file cannot answer the ioctl (ENOTTY) and the real guest /dev/rtc0 ticks and is root-only; the SECCOMP-NOTIFY helper supplies the struct unprivileged under the plain driver.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-ordinary-utc-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-leap-local-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-leap-utc-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-ordinary-local-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "--utc / --localtime flags do not alter the raw display.",
-              "coverage": "missing",
-              "gap": "Same mock.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-ordinary-utc-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-leap-local-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-leap-utc-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-ordinary-local-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Invalid RTC calendars (e.g. month 13, Feb 30) are rejected with status 1 and no output.",
-              "coverage": "missing",
-              "gap": "Same mock.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-invalid-month-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "devices-hwclock-show-invalid-day-r1",
+                  "status": "PASS",
+                  "run": "device-v8-rtc-calendar-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -114372,9 +114872,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 217,
+        "UNRESOLVED": 215,
         "FAIL": 186,
-        "PASS": 197
+        "PASS": 199
       },
       "migration_without_complete_evidence": []
     }

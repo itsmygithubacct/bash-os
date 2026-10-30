@@ -6,7 +6,7 @@ The diagnostic function checks fixed saved inputs but returns no ledger evidence
 The public loaders intentionally fail closed until primary receipts and their actual
 schemas, complete raw adjudications, and current-scope proofs are source reviewed.
 """
-import json, stat, tarfile
+import json, math, re, stat, tarfile
 from pathlib import Path, PurePosixPath
 from primary_controller_evidence import CHECKS, canonical, deny_noncore, file_sha, pinned, require, safe_member, sha, tar_members, unit_proof
 
@@ -76,7 +76,11 @@ def decode_json(data):
             out[key]=value
         return out
     def reject_constant(value): raise ValueError('invalid JSON number: '+value)
-    return json.loads(data,object_pairs_hook=unique,parse_constant=reject_constant)
+    def finite_float(value):
+        result=float(value)
+        if not math.isfinite(result): raise ValueError('nonfinite JSON number')
+        return result
+    return json.loads(data,object_pairs_hook=unique,parse_constant=reject_constant,parse_float=finite_float)
 
 def _profile(key):
     require(key=='effects','unknown RTC profile')
@@ -92,6 +96,21 @@ def _inventory(root,items):
         elif expected['type']=='file': require(stat.S_ISREG(st.st_mode) and st.st_nlink==1 and st.st_size==expected['bytes'] and file_sha(p)==expected['sha256'],'result bytes differ: '+name)
         else: raise ValueError('unsupported result kind')
 
+# Canonical complete copied-control path, type and mode inventory from the
+# frozen accepted source; file contents remain bound by control-files.json.
+CONTROL_TREE_SHA256 = '60d778efd8ae9ee229edf55f03af1bec74cd7e9e858c2a3c6adcaca1b8addc2a'
+def _control_tree(root):
+    require(root.is_dir() and not root.is_symlink(), 'control root differs')
+    entries = {}
+    for path in root.rglob('*'):
+        info = path.lstat()
+        if stat.S_ISDIR(info.st_mode): kind = 'directory'
+        elif stat.S_ISREG(info.st_mode) and info.st_nlink == 1: kind = 'file'
+        else: raise ValueError('unsupported control tree member')
+        entries[path.relative_to(root).as_posix()] = {'type':kind, 'mode':format(stat.S_IMODE(info.st_mode),'04o')}
+    require(canonical(entries)==CONTROL_TREE_SHA256, 'complete copied control tree differs')
+    return entries
+
 def _source(p,receipt,spec):
     source_accept=Path(receipt['source_acceptance_path']); require(source_accept.is_absolute(),'source acceptance path must be absolute')
     root=source_accept.parent; source_inventory=Path(spec['source_inventory_path']); require(source_inventory.is_absolute() and source_inventory.name=='freeze-inventory.json','source inventory path differs'); src=source_inventory.parent
@@ -105,6 +124,7 @@ def _source(p,receipt,spec):
         path=Path(entry['path']) if 'path' in entry else src/name
         require(path.is_file() and path.stat().st_size==entry['bytes'] and file_sha(path)==entry['sha256'],'frozen source differs: '+name)
     control=decode_json(pinned(root/'control-files.json',p['control_inventory'],'copied control inventory'))
+    _control_tree(root/'control')
     require({x.relative_to(root/'control').as_posix() for x in (root/'control').rglob('*') if x.is_file()}==set(control),'copied control inventory membership differs')
     for name,digest in control.items():
         rel=PurePosixPath(name);require(not rel.is_absolute() and '..' not in rel.parts and str(rel)==name,'unsafe control path')
@@ -123,10 +143,10 @@ def _run(p,build,root,control,manifest,review):
     require(all(rec.get(k) is True for k in flags) and rec['guest_status']==0 and not (path/'overlay.qcow2').exists() and not (path/'prepared.snapshot.qcow2').exists(),'integrity/disposal differs')
     require(file_sha(path/'candidate.snapshot')==CORES[build] and file_sha(path/'payload.tar')==rec['payload_sha256'] and file_sha(path/'evidence.tar')==rec['evidence_validation']['archive_sha256'],'candidate/archive differs')
     identity=rec['identity'];rb=identity['attestation']['readback'];token=(u+'\n').encode().hex()
-    require(identity['marker_matches'] is True and identity['product_uuid_matches'] is True and identity['host_shared_mounts']==[] and rb['token']==u and rb['marker_hex']==rb['dmi_hex']==rb['attestation_hex']==token,'identity differs')
+    require(identity['marker_matches'] is True and identity['product_uuid_matches'] is True and identity['host_shared_mounts']==[] and rb['schema']=='bashos-vm-identity-attestation-v1' and rb['token']==u and rb['marker_hex']==rb['dmi_hex']==rb['attestation_hex']==token and all(rb[k].get('uid')==0 and rb[k].get('gid')==0 and rb[k].get('mode')==0o444 and rb[k].get('nlink')==1 and rb[k].get('type')=='regular' for k in ('marker','attestation')),'identity differs')
     ns=decode_json(pinned(path/'namespace-proof-208.json',rec['namespace_proof_sha256'],'namespace'));outer=decode_json(pinned(path/'parent-namespace.json',rec['parent_namespace_sha256'],'parent namespace'));att=decode_json(pinned(path/'namespace-attestation-208.json',rec['namespace_attestation_sha256'],'namespace attestation'));priv=decode_json(pinned(path/'privilege-proof.json',rec['privilege_proof_sha256'],'privilege'))
-    require(ns==rec['namespace_proof']['evaluation'] and outer==rec['namespace_proof']['parent'] and ns['token']==ns['dmi_uuid']==att['token']==u and ns['namespaces']==att['namespaces'] and ns['outer_namespaces']==att['outer_namespaces'] and ns['proc_interfaces']==ns['sysfs_interfaces']==['lo'] and all(ns['namespaces'][k]!=outer[k] and ns['outer_namespaces'][k]==outer[k] for k in ('pid','net','mnt')),'namespace differs')
-    require(priv==rec['privilege_proof'] and (priv['uid'],priv['euid'],priv['gid'],priv['egid'])==(2000,2000,2000,2000) and priv['groups']==[] and priv['cap_eff']=='0000000000000000' and priv['no_new_privs']=='1','privilege differs')
+    require(ns==rec['namespace_proof']['evaluation'] and outer==rec['namespace_proof']['parent'] and ns['schema']=='bashos-syslog208-namespace-v1' and att['schema']=='bashos-syslog-namespace-attestation-v1' and ns['token']==ns['dmi_uuid']==att['token']==u and ns['uid']==ns['euid']==outer['uid']==outer['euid']==0 and ns['pid1_uid']==['0']*4 and ns['attestation']['sha256']==rec['namespace_attestation_sha256'] and all(ns['attestation'].get(k)==v for k,v in {'uid':0,'gid':0,'mode':0o444,'nlink':1}.items()) and ns['namespaces']==att['namespaces'] and ns['outer_namespaces']==att['outer_namespaces'] and ns['proc_interfaces']==ns['sysfs_interfaces']==['lo'] and all(isinstance(ns['namespaces'][k],str) and re.fullmatch(k+r':\[[0-9]+\]',ns['namespaces'][k]) and ns['namespaces'][k]!=outer[k] and ns['outer_namespaces'][k]==outer[k] for k in ('pid','net','mnt')),'namespace differs')
+    require(priv==rec['privilege_proof'] and priv['vm_uuid']==u and (priv['uid'],priv['euid'],priv['gid'],priv['egid'])==(2000,2000,2000,2000) and priv['groups']==[] and priv['cap_eff']=='0000000000000000' and priv['no_new_privs']=='1','privilege differs')
     decode_json(pinned(path/'run.log.unit-proof.json',rec['guest_unit_proofs']['run.log.unit-proof.json'],'unit JSON'))
     unit_proof(path/'run.log.unit-proof.json',rec['guest_unit_proofs']['run.log.unit-proof.json'],u,'bashos-evaluation-'+u[:8]+'.service',0)
     comp=rec['compatibility']; decode_json(pinned(path/'compat/run.log.unit-proof.json',comp['proof_hashes']['run.log.unit-proof.json'],'compatibility unit JSON'))

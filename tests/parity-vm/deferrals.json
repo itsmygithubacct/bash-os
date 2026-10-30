@@ -16804,44 +16804,156 @@
         "purpose": "Check the documented three-line adjtime format, accepted whitespace and missing-file defaults, and rejection of malformed, nonfinite, overflowing, NUL-containing, or trailing data before RTC access.",
         "reason": "Requires private relative adjtime fixtures plus an RTC open/ioctl mock with call counters, so the test can verify invalid files are rejected before device access without opening a real RTC."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Not executed; almost entirely reachable in the existing legacy runner because adjtime parsing precedes RTC access and a non-device --rtc path makes RTC access visible through its diagnostic.",
+      "current_reason": "Valid LOCAL and mode-line whitespace remain unobserved; missing-file default UTC and zero drift remain unobserved.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A valid three-line adjtime (drift last_adjust remainder / last_calib / UTC|LOCAL), with accepted surrounding whitespace, is accepted and the command proceeds to RTC access.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case. Reachable in the legacy runner: with --rtc pointing at a regular fixture file, proceeding is observable as the 'RTC_RD_TIME: Inappropriate ioctl for device' diagnostic.",
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-valid-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "91dab9c3a8d0d9514af4a178a0ab3d614360f45409530c857cee6429a34bbb55"
+            }
+          ],
+          "gap": "Valid LOCAL adjtime and surrounding whitespace on the mode line are not witnessed.",
           "next_step": "implement_fixture"
         },
         {
           "id": "r2",
           "behavior": "A missing adjtime file yields the documented defaults (UTC, no drift) and proceeds.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same legacy technique (missing --adjfile path).",
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-missing-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "cf146522678ae0a8bae83ecb435a759b59becf96c198d63e54ade20bfef6accc"
+            }
+          ],
+          "gap": "The missing-file show case uses explicit --utc and does not independently establish the default UTC mode or zero drift.",
           "next_step": "implement_fixture"
         },
         {
           "id": "r3",
           "behavior": "Malformed drift/calibration/mode lines, nonfinite values (nan, inf), overflowing integers, embedded NUL and non-space trailing data are rejected with status 1 and a specific 'invalid adjtime ...' diagnostic before any RTC open.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Reachable in legacy: use --rtc pointing at a missing path, so any RTC open would instead report ENOENT for that path; exact stderr contract distinguishes the two.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-nan-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "eb13937203f5f14352153b2f52b3032d30c22944e3c1e9675b336d295c38d8b8"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-infinity-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "59d0df53e4610f0746d543666cd647e5a7ac823f04d3f407f07b90c295921d90"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-integer-overflow-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "83ae2308cdcc3ede60c065465e40c06a6e606f972f9f00658b3a4bffb7a383a5"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-calibration-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "9b43dffd5df7330832bc46e957b97b50a97fef0276536f470a61a3693e4bd9bf"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-mode-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "e1f49b64c043aac12932db7633a126ba1e05e4c45e380cb6f5070125ea2b5288"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-nul-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "696e091e59786c28727e19b3df8610171255e133ae568c148be6da2b5cd568dd"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-drift-tail-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "d19b116f7a630a034e4589a27d2cdae4c1f47bb53a6c285693e569e09dcb0d06"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-trailing-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "b36bff89f8674e79a144b70c7ea356153a383e6842c5894dd52081498a1af498"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r4",
           "behavior": "Call counting: zero opens of the RTC path for every invalid file.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The diagnostic-based proof above is indirect; a direct count needs SECCOMP-NOTIFY on openat (plain driver).",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-nan-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "eb13937203f5f14352153b2f52b3032d30c22944e3c1e9675b336d295c38d8b8"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-infinity-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "59d0df53e4610f0746d543666cd647e5a7ac823f04d3f407f07b90c295921d90"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-integer-overflow-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "83ae2308cdcc3ede60c065465e40c06a6e606f972f9f00658b3a4bffb7a383a5"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-calibration-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "9b43dffd5df7330832bc46e957b97b50a97fef0276536f470a61a3693e4bd9bf"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-mode-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "e1f49b64c043aac12932db7633a126ba1e05e4c45e380cb6f5070125ea2b5288"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-nul-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "696e091e59786c28727e19b3df8610171255e133ae568c148be6da2b5cd568dd"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-drift-tail-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "d19b116f7a630a034e4589a27d2cdae4c1f47bb53a6c285693e569e09dcb0d06"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adj-trailing-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "b36bff89f8674e79a144b70c7ea356153a383e6842c5894dd52081498a1af498"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         }
       ],
-      "notes": "Source: loadables/hwclock.c: adjtime parsed before any RTC access (:700-712 calls bhc_parse_adjtime before the action switch; missing file -> defaults :253-258); --rtc/-f PATH :630-650; RTC read/write via open + ioctl RTC_RD_TIME/RTC_SET_TIME :384-424; show prints raw '%04d-%02d-%02dT%02d:%02d:%02d' :427-445; hctosys clock_settime :456-477; systohc clock_gettime -> RTC_SET_TIME -> adjtime reset :479-505; adjust :507-541; local conversion mktime(tm_isdst=-1) with calendar re-check :111-150; atomic adjtime replacement via mkstemp/fchown/fchmod/rename :312-361."
+      "notes": "Source: loadables/hwclock.c: adjtime parsed before any RTC access (:700-712 calls bhc_parse_adjtime before the action switch; missing file -> defaults :253-258); --rtc/-f PATH :630-650; RTC read/write via open + ioctl RTC_RD_TIME/RTC_SET_TIME :384-424; show prints raw '%04d-%02d-%02dT%02d:%02d:%02d' :427-445; hctosys clock_settime :456-477; systohc clock_gettime -> RTC_SET_TIME -> adjtime reset :479-505; adjust :507-541; local conversion mktime(tm_isdst=-1) with calendar re-check :111-150; atomic adjtime replacement via mkstemp/fchown/fchmod/rename :312-361. Proposed bounded synthetic calendar observations: physical RTC and system-clock effects are not demonstrated."
     },
     {
       "topic": "hwclock/adjust-fractional-drift",
@@ -16962,36 +17074,93 @@
         "purpose": "Convert fixed RTC calendars in UTC to exact seconds with zero nanoseconds, including pre-epoch, leap-century, and 2038 boundary values, while checking syscall order and no setter call for invalid calendars.",
         "reason": "Requires a disposable VM or syscall mock that intercepts RTC_RD_TIME and clock_settime and records requested timespecs. A future fixture must independently compute expected epochs with Gregorian/POSIX UTC conversion and must never set the host system clock."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Not executed; reachable with the per-side seccomp user-notification mock recording clock_settime instead of performing it.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original requirements have bounded paired evidence using synthetic RTC and clock notifications; no physical RTC or real system-clock change is established.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "--hctosys --utc converts fixed RTC calendars to clock_settime(CLOCK_REALTIME) timespecs with exact seconds and tv_nsec 0, matching calendar.timegm for pre-epoch (1969-12-31T23:59:59 -> -1), leap-century (2000-02-29), and 2038 boundary (2038-01-19T03:14:07/08) values.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "clock_settime is seccomp-EPERM in legacy and EPERM for uid 2000 (no CAP_SYS_TIME); a recording mock is required: SECCOMP-NOTIFY under the plain driver, unprivileged.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-epoch-pre-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "b5b82862f2862380d8ab574e183518caebd27ae2608be014a9a77441e089d067"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-epoch-leap-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "602c71524d5f08995b64ed303266d7ab5654e21c289ba075b94c9a80c4fad765"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-epoch-2038-before-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "bbce9e60f6e9c0f481dd58e269c24e604e151642905b644dfa3f279d56fe7632"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-epoch-2038-after-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "13c34170914579f9f65c3ed11af3af4fe5bae468c158073eec97e8bad420ce28"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r2",
           "behavior": "Syscall order: RTC open + RTC_RD_TIME before clock_settime; exactly one setter call on success.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same recorder log.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-epoch-pre-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "b5b82862f2862380d8ab574e183518caebd27ae2608be014a9a77441e089d067"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-epoch-leap-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "602c71524d5f08995b64ed303266d7ab5654e21c289ba075b94c9a80c4fad765"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-epoch-2038-before-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "bbce9e60f6e9c0f481dd58e269c24e604e151642905b644dfa3f279d56fe7632"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-epoch-2038-after-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "13c34170914579f9f65c3ed11af3af4fe5bae468c158073eec97e8bad420ce28"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r3",
           "behavior": "Invalid calendars produce failure with no clock_settime request.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same recorder.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-epoch-invalid-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "b7592f1cacebb7666a75f108ee530fbdcc99046434e8864e6162011d5da8d571"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         }
       ],
-      "notes": "Source: loadables/hwclock.c: adjtime parsed before any RTC access (:700-712 calls bhc_parse_adjtime before the action switch; missing file -> defaults :253-258); --rtc/-f PATH :630-650; RTC read/write via open + ioctl RTC_RD_TIME/RTC_SET_TIME :384-424; show prints raw '%04d-%02d-%02dT%02d:%02d:%02d' :427-445; hctosys clock_settime :456-477; systohc clock_gettime -> RTC_SET_TIME -> adjtime reset :479-505; adjust :507-541; local conversion mktime(tm_isdst=-1) with calendar re-check :111-150; atomic adjtime replacement via mkstemp/fchown/fchmod/rename :312-361."
+      "notes": "Source: loadables/hwclock.c: adjtime parsed before any RTC access (:700-712 calls bhc_parse_adjtime before the action switch; missing file -> defaults :253-258); --rtc/-f PATH :630-650; RTC read/write via open + ioctl RTC_RD_TIME/RTC_SET_TIME :384-424; show prints raw '%04d-%02d-%02dT%02d:%02d:%02d' :427-445; hctosys clock_settime :456-477; systohc clock_gettime -> RTC_SET_TIME -> adjtime reset :479-505; adjust :507-541; local conversion mktime(tm_isdst=-1) with calendar re-check :111-150; atomic adjtime replacement via mkstemp/fchown/fchmod/rename :312-361. Proposed bounded synthetic calendar observations: physical RTC and system-clock effects are not demonstrated."
     },
     {
       "topic": "hwclock/rtc-and-adjfile-failure-cleanup",
@@ -17121,36 +17290,99 @@
         "purpose": "Exercise --show and -r against fixed ordinary and leap-day RTC calendars, checking the raw YYYY-MM-DDTHH:MM:SS format and that UTC/local flags do not alter the raw display.",
         "reason": "Requires a disposable VM with a synthetic RTC device or an RTC_RD_TIME ioctl mock returning deterministic calendars. The fixture must not open a host RTC; the oracle is the documented raw calendar format."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Only help metadata executed. A deterministic RTC read is obtainable with an unprivileged per-side seccomp user-notification ioctl mock; no device or privileged driver needed.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original requirements have bounded paired evidence using synthetic RTC and clock notifications; no physical RTC or real system-clock change is established.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "--show and -r print the RTC calendar returned by RTC_RD_TIME as YYYY-MM-DDTHH:MM:SS for ordinary and leap-day (2024-02-29) calendars.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs a deterministic RTC_RD_TIME result. A regular file cannot answer the ioctl (ENOTTY) and the real guest /dev/rtc0 ticks and is root-only; the SECCOMP-NOTIFY helper supplies the struct unprivileged under the plain driver.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-show-ordinary-utc-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "75a6c961a750b48f7043e68ee15adf79cc01aa1b8f20ebbe5c1dccdef55b1bf5"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-show-leap-local-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "a4f1347423552b61d271ec4f540eed11a233b3dfb9bca1f984c9c7ca983de9d5"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-show-leap-utc-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "335a60102722628a0896e294782bff39b8bc28e972641e0f833a21efdc6c0ab1"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-show-ordinary-local-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "1aec917e2889d7b23a784849eef287f6f70da25bdc9fcf1935566676824d6b2f"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r2",
           "behavior": "--utc / --localtime flags do not alter the raw display.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same mock.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-show-ordinary-utc-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "75a6c961a750b48f7043e68ee15adf79cc01aa1b8f20ebbe5c1dccdef55b1bf5"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-show-leap-local-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "a4f1347423552b61d271ec4f540eed11a233b3dfb9bca1f984c9c7ca983de9d5"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-show-leap-utc-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "335a60102722628a0896e294782bff39b8bc28e972641e0f833a21efdc6c0ab1"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-show-ordinary-local-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "1aec917e2889d7b23a784849eef287f6f70da25bdc9fcf1935566676824d6b2f"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r3",
           "behavior": "Invalid RTC calendars (e.g. month 13, Feb 30) are rejected with status 1 and no output.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same mock.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-show-invalid-month-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "2b0b593bb61a5139a709be89876318a5717ee218e0777a5c4898696849e14dfd"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-show-invalid-day-r1",
+              "assertion": "Bounded synthetic calendar evidence; primary receipt and strict reader required before use.",
+              "definition_sha256": "9fa430382cffa2114bd5877de2bc0e6a10d9248e8e8950b2ba8efcf91a855070"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         }
       ],
-      "notes": "Source: loadables/hwclock.c: adjtime parsed before any RTC access (:700-712 calls bhc_parse_adjtime before the action switch; missing file -> defaults :253-258); --rtc/-f PATH :630-650; RTC read/write via open + ioctl RTC_RD_TIME/RTC_SET_TIME :384-424; show prints raw '%04d-%02d-%02dT%02d:%02d:%02d' :427-445; hctosys clock_settime :456-477; systohc clock_gettime -> RTC_SET_TIME -> adjtime reset :479-505; adjust :507-541; local conversion mktime(tm_isdst=-1) with calendar re-check :111-150; atomic adjtime replacement via mkstemp/fchown/fchmod/rename :312-361."
+      "notes": "Source: loadables/hwclock.c: adjtime parsed before any RTC access (:700-712 calls bhc_parse_adjtime before the action switch; missing file -> defaults :253-258); --rtc/-f PATH :630-650; RTC read/write via open + ioctl RTC_RD_TIME/RTC_SET_TIME :384-424; show prints raw '%04d-%02d-%02dT%02d:%02d:%02d' :427-445; hctosys clock_settime :456-477; systohc clock_gettime -> RTC_SET_TIME -> adjtime reset :479-505; adjust :507-541; local conversion mktime(tm_isdst=-1) with calendar re-check :111-150; atomic adjtime replacement via mkstemp/fchown/fchmod/rename :312-361. Proposed bounded synthetic calendar observations: physical RTC and system-clock effects are not demonstrated."
     },
     {
       "topic": "hwclock/systohc-and-adjtime-reset",
