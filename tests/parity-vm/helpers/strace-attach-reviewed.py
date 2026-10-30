@@ -13,20 +13,19 @@ import struct
 import subprocess
 import sys
 import time
-import uuid
+
+from ns_guest_identity_r1 import verify as verify_guest_identity
 
 HOME = Path('/tmp/parity-home')
 LIMIT = 512 * 1024
 
 
 def guard():
-    marker = Path('/etc/bashos-parity-vm').read_text().strip()
-    actual = Path('/sys/class/dmi/id/product_uuid').read_text().strip()
-    if (os.getuid() != 2000 or os.geteuid() != 2000 or
-            Path.cwd() != Path('/tmp/parity-case') or os.environ.get('HOME') != str(HOME) or
-            Path('/sys/class/dmi/id/sys_vendor').read_text().strip() != 'QEMU' or
-            uuid.UUID(marker) != uuid.UUID(actual) or os.uname().machine != 'x86_64'):
+    # This fixture attaches only as the unprivileged guest account. The shared
+    # identity guard validates the controller-protected attestation and marker.
+    if os.getuid() != 2000 or os.geteuid() != 2000 or os.uname().machine != 'x86_64':
         raise RuntimeError('requires isolated uid-2000 x86_64 parity guest')
+    verify_guest_identity()
 
 
 def save(name, value):

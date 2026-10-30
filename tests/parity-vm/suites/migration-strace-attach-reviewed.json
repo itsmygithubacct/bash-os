@@ -33,8 +33,9 @@
         "assertions.json"
       ],
       "helpers_sha256": {
-        "helpers/strace-attach-reviewed.py": "74972242a476ebb621cc72ffdc00cb4f172f6c681ae2249449413f21e5514cf1",
-        "helpers/strace-attach-reviewed.c": "3cd1a5777cdc3ecb6e1dafcf38abb1fabe6d904037a3e3ffe739eefbf548ae85"
+        "helpers/strace-attach-reviewed.py": "52973c0e3cf4743d6e53107308222d52549547ef01bff50e3cb41e17c5154cee",
+        "helpers/strace-attach-reviewed.c": "917645a0e57bc511af0a84fbdae7d7a7a9f67eefa5b287a87ca67ddc6888430c",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
       },
       "id": "migration-strace-attach-existing-r1",
       "purpose": "Attach to an already-running owned process and trace until it exits naturally.",
@@ -75,8 +76,9 @@
         "assertions.json"
       ],
       "helpers_sha256": {
-        "helpers/strace-attach-reviewed.py": "74972242a476ebb621cc72ffdc00cb4f172f6c681ae2249449413f21e5514cf1",
-        "helpers/strace-attach-reviewed.c": "3cd1a5777cdc3ecb6e1dafcf38abb1fabe6d904037a3e3ffe739eefbf548ae85"
+        "helpers/strace-attach-reviewed.py": "52973c0e3cf4743d6e53107308222d52549547ef01bff50e3cb41e17c5154cee",
+        "helpers/strace-attach-reviewed.c": "917645a0e57bc511af0a84fbdae7d7a7a9f67eefa5b287a87ca67ddc6888430c",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
       },
       "id": "migration-strace-attach-existing-r2",
       "purpose": "Attach the existing threads of the already-running process.",

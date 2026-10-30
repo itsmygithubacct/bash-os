@@ -10,7 +10,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
 #include <sys/ptrace.h>
@@ -18,25 +17,72 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/user.h>
+#include <sys/utsname.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
+/* Read controller-protected identity files without following symlinks.
+   The controller attests DMI identity before creating the /run file; the
+   unprivileged fixture compares it with the protected /etc marker. */
+static int read_identity(const char *directory, const char *name, char value[37]) {
+    int dirfd = -1, fd = -1, ok = 0;
+    struct stat parent, before, after, entry;
+    unsigned char data[38]; size_t used = 0;
+    dirfd = open(directory, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (dirfd < 0 || fstat(dirfd, &parent) < 0 || parent.st_uid != 0 ||
+        parent.st_gid != 0 || (parent.st_mode & 0022)) goto out;
+    fd = openat(dirfd, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0 || fstat(fd, &before) < 0 || !S_ISREG(before.st_mode) ||
+        before.st_uid != 0 || before.st_gid != 0 || (before.st_mode & 07777) != 0444 ||
+        before.st_nlink != 1 || before.st_size != 37) goto out;
+    while (used < sizeof data) {
+        ssize_t n = read(fd, data + used, sizeof data - used);
+        if (n < 0 && errno == EINTR) continue;
+        if (n < 0) goto out;
+        if (n == 0) break;
+        used += (size_t)n;
+    }
+    if (fstat(fd, &after) < 0 || fstatat(dirfd, name, &entry, AT_SYMLINK_NOFOLLOW) < 0 ||
+        entry.st_dev != after.st_dev || entry.st_ino != after.st_ino ||
+        entry.st_mode != after.st_mode || entry.st_uid != after.st_uid ||
+        entry.st_gid != after.st_gid || entry.st_nlink != after.st_nlink ||
+        entry.st_size != after.st_size || entry.st_mtim.tv_sec != after.st_mtim.tv_sec ||
+        entry.st_mtim.tv_nsec != after.st_mtim.tv_nsec || before.st_dev != after.st_dev ||
+        before.st_ino != after.st_ino || before.st_size != after.st_size ||
+        before.st_mtim.tv_sec != after.st_mtim.tv_sec ||
+        before.st_mtim.tv_nsec != after.st_mtim.tv_nsec ||
+        after.st_uid != 0 || after.st_gid != 0 || !S_ISREG(after.st_mode) ||
+        (after.st_mode & 07777) != 0444 || after.st_nlink != 1 ||
+        used != 37 || data[36] != '\n') goto out;
+    for (int i = 0; i < 36; i++) {
+        if (i == 8 || i == 13 || i == 18 || i == 23) {
+            if (data[i] != '-') goto out;
+        } else if (!((data[i] >= '0' && data[i] <= '9') ||
+                     (data[i] >= 'a' && data[i] <= 'f'))) goto out;
+    }
+    memcpy(value, data, 37);
+    ok = 1;
+out:
+    if (fd >= 0) close(fd);
+    if (dirfd >= 0) close(dirfd);
+    return ok;
+}
+
 static void guard(void) {
-    char vendor[32], marker[64], uuid[64], cwd[128];
-    FILE *f = fopen("/sys/class/dmi/id/sys_vendor", "r");
-    if (!f || !fgets(vendor, sizeof vendor, f)) exit(90);
-    fclose(f);
-    f = fopen("/etc/bashos-parity-vm", "r");
-    if (!f || !fgets(marker, sizeof marker, f)) exit(90);
-    fclose(f);
-    f = fopen("/sys/class/dmi/id/product_uuid", "r");
-    if (!f || !fgets(uuid, sizeof uuid, f)) exit(90);
-    fclose(f);
-    if (getuid() != 2000 || geteuid() != 2000 || strcmp(vendor, "QEMU\n") ||
-        strlen(marker) != 37 || strcasecmp(marker, uuid) ||
+    char vendor[32], marker[37], attestation[37], cwd[128];
+    struct utsname host;
+    if (getuid() != 2000 || geteuid() != 2000 || getgid() != getegid() ||
         !getcwd(cwd, sizeof cwd) || strcmp(cwd, "/tmp/parity-case") ||
-        !getenv("HOME") || strcmp(getenv("HOME"), "/tmp/parity-home")) exit(90);
+        !getenv("HOME") || strcmp(getenv("HOME"), "/tmp/parity-home") ||
+        uname(&host) < 0 || strcmp(host.machine, "x86_64") ||
+        !read_identity("/etc", "bashos-parity-vm", marker) ||
+        !read_identity("/run", "bashos-parity-vm-identity", attestation) ||
+        memcmp(marker, attestation, sizeof marker)) exit(90);
+    FILE *f = fopen("/sys/class/dmi/id/sys_vendor", "r");
+    if (!f || !fgets(vendor, sizeof vendor, f)) { if (f) fclose(f); exit(90); }
+    fclose(f);
+    if (strcmp(vendor, "QEMU\n")) exit(90);
 }
 /* [worker gate, leader gate, worker ready, leader ready]. */
 _Static_assert(sizeof(atomic_int) == 4, "fixture requires 32-bit atomic int");
