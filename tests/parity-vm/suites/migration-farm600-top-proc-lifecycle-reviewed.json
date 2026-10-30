@@ -1,0 +1,371 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-farm600-top-proc-lifecycle-malformed",
+      "loadable": "top",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Skip both a truncated stat record and a record without parentheses while retaining a valid process.",
+      "covers": [
+        "top/proc-record-and-pid-lifecycle"
+      ],
+      "oracle": "Explicit proc(5) field positions 3-24 and independent numerical expectations. The guest-only ptrace controller stops its own tracee before the second /proc/stat open, installs a separately checked literal second snapshot, and records syscall bytes. In the vanish case it removes private PID 777 only after a returned getdents64 buffer contains that name and before the stopped tracee can open it. A separately traced native reader verifies both input epochs and the transition in each observation.",
+      "comparison": "Compare raw candidate status, complete header/rows and independent values; evidence requires the suite primary gate to reconcile raw input bytes, process directory records, actions and ordering. Native/setup or observation errors and unobserved later stages are not product failures. Exact syscall forms outside the controller model are inconclusive.",
+      "requires": [
+        "python3",
+        "gcc",
+        "unshare",
+        "mount"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-top-proc-lifecycle-reviewed.py setup malformed\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-top-proc-lifecycle-reviewed.py assess malformed\n",
+      "stdout": "malformed-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "snapshots.json",
+        "compile.json",
+        "namespace.json",
+        "mount.json",
+        "native.out",
+        "native.err",
+        "native.trace",
+        "native.json",
+        "preconditions.json",
+        "candidate.out",
+        "candidate.err",
+        "candidate.trace",
+        "candidate.json",
+        "assertions.json",
+        "failures.jsonl"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-top-proc-lifecycle-reviewed.py": "11222dfa349841692b189a9cd58551e064a988afe9e18e8f1e0328cb239ef98b",
+        "helpers/farm600-top-proc-lifecycle-reviewed.c": "7f4105642673bb504857b7dff1233f991b7903bf073e84ab5bcb2792297db14e"
+      },
+      "literal_requirement": "r1"
+    },
+    {
+      "id": "migration-farm600-top-proc-lifecycle-vanish",
+      "loadable": "top",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Skip a synthetic PID removed after enumeration but before its stat open.",
+      "covers": [
+        "top/proc-record-and-pid-lifecycle"
+      ],
+      "oracle": "Explicit proc(5) field positions 3-24 and independent numerical expectations. The guest-only ptrace controller stops its own tracee before the second /proc/stat open, installs a separately checked literal second snapshot, and records syscall bytes. In the vanish case it removes private PID 777 only after a returned getdents64 buffer contains that name and before the stopped tracee can open it. A separately traced native reader verifies both input epochs and the transition in each observation.",
+      "comparison": "Compare raw candidate status, complete header/rows and independent values; evidence requires the suite primary gate to reconcile raw input bytes, process directory records, actions and ordering. Native/setup or observation errors and unobserved later stages are not product failures. Exact syscall forms outside the controller model are inconclusive.",
+      "requires": [
+        "python3",
+        "gcc",
+        "unshare",
+        "mount"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-top-proc-lifecycle-reviewed.py setup vanish\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-top-proc-lifecycle-reviewed.py assess vanish\n",
+      "stdout": "vanish-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "snapshots.json",
+        "compile.json",
+        "namespace.json",
+        "mount.json",
+        "native.out",
+        "native.err",
+        "native.trace",
+        "native.json",
+        "preconditions.json",
+        "candidate.out",
+        "candidate.err",
+        "candidate.trace",
+        "candidate.json",
+        "assertions.json",
+        "failures.jsonl"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-top-proc-lifecycle-reviewed.py": "11222dfa349841692b189a9cd58551e064a988afe9e18e8f1e0328cb239ef98b",
+        "helpers/farm600-top-proc-lifecycle-reviewed.c": "7f4105642673bb504857b7dff1233f991b7903bf073e84ab5bcb2792297db14e"
+      },
+      "literal_requirement": "r2"
+    },
+    {
+      "id": "migration-farm600-top-proc-lifecycle-empty",
+      "loadable": "top",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Render the complete header and no rows for an empty process set.",
+      "covers": [
+        "top/proc-record-and-pid-lifecycle"
+      ],
+      "oracle": "Explicit proc(5) field positions 3-24 and independent numerical expectations. The guest-only ptrace controller stops its own tracee before the second /proc/stat open, installs a separately checked literal second snapshot, and records syscall bytes. In the vanish case it removes private PID 777 only after a returned getdents64 buffer contains that name and before the stopped tracee can open it. A separately traced native reader verifies both input epochs and the transition in each observation.",
+      "comparison": "Compare raw candidate status, complete header/rows and independent values; evidence requires the suite primary gate to reconcile raw input bytes, process directory records, actions and ordering. Native/setup or observation errors and unobserved later stages are not product failures. Exact syscall forms outside the controller model are inconclusive.",
+      "requires": [
+        "python3",
+        "gcc",
+        "unshare",
+        "mount"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-top-proc-lifecycle-reviewed.py setup empty\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-top-proc-lifecycle-reviewed.py assess empty\n",
+      "stdout": "empty-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "snapshots.json",
+        "compile.json",
+        "namespace.json",
+        "mount.json",
+        "native.out",
+        "native.err",
+        "native.trace",
+        "native.json",
+        "preconditions.json",
+        "candidate.out",
+        "candidate.err",
+        "candidate.trace",
+        "candidate.json",
+        "assertions.json",
+        "failures.jsonl"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-top-proc-lifecycle-reviewed.py": "11222dfa349841692b189a9cd58551e064a988afe9e18e8f1e0328cb239ef98b",
+        "helpers/farm600-top-proc-lifecycle-reviewed.c": "7f4105642673bb504857b7dff1233f991b7903bf073e84ab5bcb2792297db14e"
+      },
+      "literal_requirement": "r3"
+    },
+    {
+      "id": "migration-farm600-top-proc-lifecycle-proc-rollback",
+      "loadable": "top",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Clamp a process CPU counter rollback to zero.",
+      "covers": [
+        "top/proc-record-and-pid-lifecycle"
+      ],
+      "oracle": "Explicit proc(5) field positions 3-24 and independent numerical expectations. The guest-only ptrace controller stops its own tracee before the second /proc/stat open, installs a separately checked literal second snapshot, and records syscall bytes. In the vanish case it removes private PID 777 only after a returned getdents64 buffer contains that name and before the stopped tracee can open it. A separately traced native reader verifies both input epochs and the transition in each observation.",
+      "comparison": "Compare raw candidate status, complete header/rows and independent values; evidence requires the suite primary gate to reconcile raw input bytes, process directory records, actions and ordering. Native/setup or observation errors and unobserved later stages are not product failures. Exact syscall forms outside the controller model are inconclusive.",
+      "requires": [
+        "python3",
+        "gcc",
+        "unshare",
+        "mount"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-top-proc-lifecycle-reviewed.py setup proc-rollback\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-top-proc-lifecycle-reviewed.py assess proc-rollback\n",
+      "stdout": "proc-rollback-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "snapshots.json",
+        "compile.json",
+        "namespace.json",
+        "mount.json",
+        "native.out",
+        "native.err",
+        "native.trace",
+        "native.json",
+        "preconditions.json",
+        "candidate.out",
+        "candidate.err",
+        "candidate.trace",
+        "candidate.json",
+        "assertions.json",
+        "failures.jsonl"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-top-proc-lifecycle-reviewed.py": "11222dfa349841692b189a9cd58551e064a988afe9e18e8f1e0328cb239ef98b",
+        "helpers/farm600-top-proc-lifecycle-reviewed.c": "7f4105642673bb504857b7dff1233f991b7903bf073e84ab5bcb2792297db14e"
+      },
+      "literal_requirement": "r4"
+    },
+    {
+      "id": "migration-farm600-top-proc-lifecycle-cpu-rollback",
+      "loadable": "top",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Avoid negative or huge rates when the system CPU counter rolls back.",
+      "covers": [
+        "top/proc-record-and-pid-lifecycle"
+      ],
+      "oracle": "Explicit proc(5) field positions 3-24 and independent numerical expectations. The guest-only ptrace controller stops its own tracee before the second /proc/stat open, installs a separately checked literal second snapshot, and records syscall bytes. In the vanish case it removes private PID 777 only after a returned getdents64 buffer contains that name and before the stopped tracee can open it. A separately traced native reader verifies both input epochs and the transition in each observation.",
+      "comparison": "Compare raw candidate status, complete header/rows and independent values; evidence requires the suite primary gate to reconcile raw input bytes, process directory records, actions and ordering. Native/setup or observation errors and unobserved later stages are not product failures. Exact syscall forms outside the controller model are inconclusive.",
+      "requires": [
+        "python3",
+        "gcc",
+        "unshare",
+        "mount"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-top-proc-lifecycle-reviewed.py setup cpu-rollback\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-top-proc-lifecycle-reviewed.py assess cpu-rollback\n",
+      "stdout": "cpu-rollback-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "snapshots.json",
+        "compile.json",
+        "namespace.json",
+        "mount.json",
+        "native.out",
+        "native.err",
+        "native.trace",
+        "native.json",
+        "preconditions.json",
+        "candidate.out",
+        "candidate.err",
+        "candidate.trace",
+        "candidate.json",
+        "assertions.json",
+        "failures.jsonl"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-top-proc-lifecycle-reviewed.py": "11222dfa349841692b189a9cd58551e064a988afe9e18e8f1e0328cb239ef98b",
+        "helpers/farm600-top-proc-lifecycle-reviewed.c": "7f4105642673bb504857b7dff1233f991b7903bf073e84ab5bcb2792297db14e"
+      },
+      "literal_requirement": "r4"
+    },
+    {
+      "id": "migration-farm600-top-proc-lifecycle-guest",
+      "loadable": "top",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Exclude guest and guest_nice from machine CPU total because they are already included in user/nice.",
+      "covers": [
+        "top/proc-record-and-pid-lifecycle"
+      ],
+      "oracle": "Explicit proc(5) field positions 3-24 and independent numerical expectations. The guest-only ptrace controller stops its own tracee before the second /proc/stat open, installs a separately checked literal second snapshot, and records syscall bytes. In the vanish case it removes private PID 777 only after a returned getdents64 buffer contains that name and before the stopped tracee can open it. A separately traced native reader verifies both input epochs and the transition in each observation.",
+      "comparison": "Compare raw candidate status, complete header/rows and independent values; evidence requires the suite primary gate to reconcile raw input bytes, process directory records, actions and ordering. Native/setup or observation errors and unobserved later stages are not product failures. Exact syscall forms outside the controller model are inconclusive.",
+      "requires": [
+        "python3",
+        "gcc",
+        "unshare",
+        "mount"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-top-proc-lifecycle-reviewed.py setup guest\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-top-proc-lifecycle-reviewed.py assess guest\n",
+      "stdout": "guest-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "snapshots.json",
+        "compile.json",
+        "namespace.json",
+        "mount.json",
+        "native.out",
+        "native.err",
+        "native.trace",
+        "native.json",
+        "preconditions.json",
+        "candidate.out",
+        "candidate.err",
+        "candidate.trace",
+        "candidate.json",
+        "assertions.json",
+        "failures.jsonl"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-top-proc-lifecycle-reviewed.py": "11222dfa349841692b189a9cd58551e064a988afe9e18e8f1e0328cb239ef98b",
+        "helpers/farm600-top-proc-lifecycle-reviewed.c": "7f4105642673bb504857b7dff1233f991b7903bf073e84ab5bcb2792297db14e"
+      },
+      "literal_requirement": "r5"
+    },
+    {
+      "id": "migration-farm600-top-proc-lifecycle-lifecycle",
+      "loadable": "top",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Give newly created and reused PIDs zero initial CPU delta, with a stable process as a positive control.",
+      "covers": [
+        "top/proc-record-and-pid-lifecycle"
+      ],
+      "oracle": "Explicit proc(5) field positions 3-24 and independent numerical expectations. The guest-only ptrace controller stops its own tracee before the second /proc/stat open, installs a separately checked literal second snapshot, and records syscall bytes. In the vanish case it removes private PID 777 only after a returned getdents64 buffer contains that name and before the stopped tracee can open it. A separately traced native reader verifies both input epochs and the transition in each observation.",
+      "comparison": "Compare raw candidate status, complete header/rows and independent values; evidence requires the suite primary gate to reconcile raw input bytes, process directory records, actions and ordering. Native/setup or observation errors and unobserved later stages are not product failures. Exact syscall forms outside the controller model are inconclusive.",
+      "requires": [
+        "python3",
+        "gcc",
+        "unshare",
+        "mount"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-top-proc-lifecycle-reviewed.py setup lifecycle\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-top-proc-lifecycle-reviewed.py assess lifecycle\n",
+      "stdout": "lifecycle-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "snapshots.json",
+        "compile.json",
+        "namespace.json",
+        "mount.json",
+        "native.out",
+        "native.err",
+        "native.trace",
+        "native.json",
+        "preconditions.json",
+        "candidate.out",
+        "candidate.err",
+        "candidate.trace",
+        "candidate.json",
+        "assertions.json",
+        "failures.jsonl"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-top-proc-lifecycle-reviewed.py": "11222dfa349841692b189a9cd58551e064a988afe9e18e8f1e0328cb239ef98b",
+        "helpers/farm600-top-proc-lifecycle-reviewed.c": "7f4105642673bb504857b7dff1233f991b7903bf073e84ab5bcb2792297db14e"
+      },
+      "literal_requirement": "r6"
+    }
+  ],
+  "evidence_gate": {
+    "schema": "farm600-top-proc-lifecycle-evidence-v1",
+    "authority": "A primary data-only review must independently verify raw artifacts, controls and each literal clause. Generic runner PASS/FAIL is not coverage.",
+    "common": [
+      "Check both helper hashes, fixture and candidate identities, guest identity, setup success and each reached-stage artifact without truncation. Require parser controls, compiled observer success, isolated namespace map and mount, exact independent snapshot files, and a successful native observation on the same mount for that case. failures.jsonl is required only if a stage emits a failure, and later artifacts are conditional on the stage reached.",
+      "Read native.trace and candidate.trace as complete ordered JSONL; correlate each start PID, program, successful open result, fd, read result and full data bytes, close, syscall epoch and final exit. Match candidate input bytes against exact snapshot values and the snapshot-two action manifest; independently decode getdents64 bytes. Reject any unsupported, missing, truncated, malformed or ambiguous records and any failed observer or action. Confirm exec is the pinned candidate (or the native reader for the control), and require matching observed status/cmdline bytes for assertions that depend on those row fields.",
+      "Require two successful /proc/stat opens and exact controlled CPU bytes with the successful transition action between them; compare both returned directory sets and all relevant PID stat bytes to the independent snapshots. Empty or missing observation is inconclusive, not a pass or a candidate failure."
+    ],
+    "requirements": {
+      "r1": "Require both malformed stat bytes and the valid control stat bytes to be read in each snapshot; prove complete directory enumeration and confirm only the valid process row and count. This exercises malformed/truncated stat; other malformed metadata forms remain separately unqualified unless independently reviewed.",
+      "r2": "In both native and candidate raw trace, decode a first-epoch getdents64 record containing 777. Require the successful private deletion action while the tracee is stopped before getdents64 resumes, followed after resumption by open /proc/777/stat returning -ENOENT. Verify the deletion manifest, target absent from the second snapshot and final output, and all directory records.",
+      "r3": "Require both raw directory enumerations to contain no numeric names, both CPU reads and the complete documented header with procs 0, one column header and zero process rows.",
+      "r4": "For each rollback case require observed CPU and PID bytes from both epochs and full output; process decrease 100->70 with system +200 gives 0.0%, and system decrease 1000->800 with process +20 gives 0.0%, excluding negative and huge values.",
+      "r5": "Require CPU first-eight totals 1000->1200 while guest fields rise 30->150 and PID time rises 30->80; expected CPU is 50/200=25.0%, not the 15.6% produced by double-counting guest.",
+      "r6": "Require epoch-one PID 202 starttime 2001 and time 100; epoch-two PID 202 starttime 9002 and time 900, PID 303 appears only in epoch two; each is 0.0%. Stable PID 101 advances 20->40 with system +200 and is 10.0%. Check complete output and ties."
+    },
+    "classification": "A fixture or trace capability error, unexpected transition, undelivered input, unobservable race, missing trace record or malformed artifact is ERROR/inconclusive. A separately proven early option/status rejection may be attributed without claiming later observations. No per-value or row mismatch is attributed before all inputs relevant to that assertion and proper delivery are proven. Retain all original requirement identities and failures.",
+    "limits": [
+      "The observer handles direct-child x86_64 open/openat, read, getdents64 and close; unsupported descriptor operations, relative/unknown paths or any fork are inconclusive.",
+      "The controlled transition occurs at a second /proc/stat open; an implementation sampling differently or retaining one descriptor can be unobserved and must not be labeled a product failure.",
+      "Malformed status/cmdline semantics are not specified by frozen documentation; this fixture does not claim them as covered."
+    ]
+  }
+}
