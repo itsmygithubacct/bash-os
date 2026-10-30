@@ -12,7 +12,7 @@
       ],
       "purpose": "Verify -x stops recursion at a nested filesystem on a different device.",
       "oracle": "Per-observation private user and mount namespace with owned tmpfs, independently checked lstat device and allocated-block accounting, GNU du with and without -x, and fresh inotify watches on the foreign mount and nested directory. Metadata-only and native traversal controls validate observation in each invocation.",
-      "comparison": "Setup retains candidate stdout, stderr and status plus complete inotify events from the same private mount. Metadata-only native stat must produce no foreign events and native du traversal must open both watched directories. Candidate -x must produce no foreign access/open events; unrestricted traversal must open both directories. Complete listing and exact accounting remain required. Setup and observer failures are setup ERROR; product mismatches are assessed FAIL. Primary must independently gate evidence on complete setup, control and raw diagnostics.",
+      "comparison": "Setup captures candidate output, status, inotify records and native controls in the same private mount; exact accounting and traversal are assessed independently. The proposed primary-owned data-only gate is helpers/ncdu-boundary-reviewed.gate.md, pinned in helpers_sha256. The generic runner does not apply that gate or change its raw labels; no result qualifies without primary review and application of the gate.",
       "requires": [
         "python3",
         "unshare",
@@ -22,8 +22,9 @@
         "stat"
       ],
       "helpers_sha256": {
-        "helpers/ncdu-boundary-reviewed.py": "9aa2efdee26856b7d4d22669c06937b5683fc3b0c2419214dc808712c749418c",
-        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
+        "helpers/ncdu-boundary-reviewed.py": "8df3c43a2f63ccefaaa088cabcbb05483858c3fe7219a3a880f9c8cb094d21c6",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762",
+        "helpers/ncdu-boundary-reviewed.gate.md": "414fd33fe0b0601de60caf40ef41b239ab6692057e97f70286ea71cb96b87c43"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/ncdu-boundary-reviewed.py setup x\n",
       "setup_timeout": 60,
@@ -62,7 +63,7 @@
       ],
       "purpose": "Verify traversal without -x counts the nested filesystem.",
       "oracle": "Per-observation private user and mount namespace with owned tmpfs, independently checked lstat device and allocated-block accounting, GNU du with and without -x, and fresh inotify watches on the foreign mount and nested directory. Metadata-only and native traversal controls validate observation in each invocation.",
-      "comparison": "Setup retains candidate stdout, stderr and status plus complete inotify events from the same private mount. Metadata-only native stat must produce no foreign events and native du traversal must open both watched directories. Candidate -x must produce no foreign access/open events; unrestricted traversal must open both directories. Complete listing and exact accounting remain required. Setup and observer failures are setup ERROR; product mismatches are assessed FAIL. Primary must independently gate evidence on complete setup, control and raw diagnostics.",
+      "comparison": "Setup captures candidate output, status, inotify records and native controls in the same private mount; exact accounting and traversal are assessed independently. The proposed primary-owned data-only gate is helpers/ncdu-boundary-reviewed.gate.md, pinned in helpers_sha256. The generic runner does not apply that gate or change its raw labels; no result qualifies without primary review and application of the gate.",
       "requires": [
         "python3",
         "unshare",
@@ -72,8 +73,9 @@
         "stat"
       ],
       "helpers_sha256": {
-        "helpers/ncdu-boundary-reviewed.py": "9aa2efdee26856b7d4d22669c06937b5683fc3b0c2419214dc808712c749418c",
-        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
+        "helpers/ncdu-boundary-reviewed.py": "8df3c43a2f63ccefaaa088cabcbb05483858c3fe7219a3a880f9c8cb094d21c6",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762",
+        "helpers/ncdu-boundary-reviewed.gate.md": "414fd33fe0b0601de60caf40ef41b239ab6692057e97f70286ea71cb96b87c43"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/ncdu-boundary-reviewed.py setup full\n",
       "setup_timeout": 60,

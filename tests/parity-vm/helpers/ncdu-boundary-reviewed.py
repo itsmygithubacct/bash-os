@@ -3,6 +3,7 @@
 """Guest-only, independently accounted ncdu mount-boundary fixture."""
 import base64
 import ctypes
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -124,7 +125,7 @@ def event_records(raw, watches):
 
 class DirectoryObserver:
     """Fresh inotify watches; stat is silent while directory opens are visible."""
-    def __init__(self, tree):
+    def __init__(self, tree, stats):
         self.libc = ctypes.CDLL(None, use_errno=True)
         self.libc.inotify_init1.argtypes = [ctypes.c_int]
         self.libc.inotify_init1.restype = ctypes.c_int
@@ -134,16 +135,28 @@ class DirectoryObserver:
         if self.fd < 0:
             raise OSError(ctypes.get_errno(), 'inotify_init1')
         self.watches = {}
+        self.identities = {}
         self.raw = bytearray()
         self.closed = False
         try:
             for name in ('foreign', 'foreign/deep'):
-                wd = self.libc.inotify_add_watch(self.fd, os.fsencode(tree / name), IN_OPEN | IN_ACCESS)
+                path = tree / name
+                before = os.lstat(path)
+                expected = stats['tree/' + name]
+                if (not stat.S_ISDIR(before.st_mode) or before.st_dev != expected['dev'] or
+                    before.st_ino != expected['ino']):
+                    raise RuntimeError('watch path identity differs from fixture ' + name)
+                wd = self.libc.inotify_add_watch(self.fd, os.fsencode(path), IN_OPEN | IN_ACCESS)
                 if wd < 0:
                     raise OSError(ctypes.get_errno(), 'inotify_add_watch ' + name)
                 if wd in self.watches:
                     raise RuntimeError('duplicate watch descriptor')
+                after = os.lstat(path)
+                if (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino):
+                    raise RuntimeError('watch path changed during installation ' + name)
                 self.watches[wd] = name
+                self.identities[name] = {'wd': wd, 'dev': before.st_dev, 'ino': before.st_ino}
+            self.fdinfo = Path('/proc/self/fdinfo/%d' % self.fd).read_text()
         except Exception:
             os.close(self.fd)
             raise
@@ -165,18 +178,19 @@ class DirectoryObserver:
             os.close(self.fd)
             self.closed = True
         events = event_records(raw, self.watches)
-        return {'complete': True, 'watches': self.watches, 'events': events,
+        return {'complete': True, 'watches': self.watches, 'identities': self.identities,
+                'fdinfo': self.fdinfo, 'events': events,
                 'raw_base64': base64.b64encode(raw).decode(), 'bytes': len(raw)}
 
 
-def observation(tree, label, report, action):
+def observation(tree, stats, label, report, action):
     """Preserve stage and observer failures even when setup aborts."""
     item = {'state': 'starting', 'complete': False}
     report['observations'][label] = item
     save('observer.json', (json.dumps(report, sort_keys=True, indent=2) + '\n').encode())
     watcher = None
     try:
-        watcher = DirectoryObserver(tree)
+        watcher = DirectoryObserver(tree, stats)
         item['state'] = 'running'
         save('observer.json', (json.dumps(report, sort_keys=True, indent=2) + '\n').encode())
         outcome = action()
@@ -287,7 +301,7 @@ def setup_inner(mode, outer_user, outer_mount):
                 'stdout_base64': base64.b64encode(result.stdout).decode(),
                 'stderr_base64': base64.b64encode(result.stderr).decode()}
 
-    negative = observation(tree, 'metadata-only', observer, metadata_control)
+    negative = observation(tree, stats, 'metadata-only', observer, metadata_control)
     expected_stat = ('%d:%d\n' % (stats['tree/foreign']['dev'], stats['tree/foreign']['ino'])).encode()
     if (negative['outcome'] != {'returncode': 0,
                                  'stdout_base64': base64.b64encode(expected_stat).decode(),
@@ -304,7 +318,7 @@ def setup_inner(mode, outer_user, outer_mount):
                 return {'returncode': result.returncode,
                         'stdout_base64': base64.b64encode(result.stdout).decode(),
                         'stderr_base64': base64.b64encode(result.stderr).decode()}
-            positive = observation(tree, 'native-traversal', observer, positive_control)
+            positive = observation(tree, stats, 'native-traversal', observer, positive_control)
             if not opened(positive, 'foreign') or not opened(positive, 'foreign/deep'):
                 raise RuntimeError('native traversal observer control failed')
             outcome = positive['outcome']
@@ -357,9 +371,15 @@ def setup_inner(mode, outer_user, outer_mount):
                     pass
                 raise RuntimeError('candidate left processes in its observation group')
             status['group_empty'] = True
-            save('candidate.status', (json.dumps(status, sort_keys=True) + '\n').encode())
+        capture = {}
+        for stream in ('out', 'err'):
+            data = (HOME / ('ncdu-boundary-candidate.' + stream)).read_bytes()
+            capture[stream] = {'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest(),
+                               'limit_reached': len(data) >= LIMIT}
+        status['capture'] = capture
+        save('candidate.status', (json.dumps(status, sort_keys=True) + '\n').encode())
         return status
-    observation(tree, 'candidate', observer, candidate_call)
+    observation(tree, stats, 'candidate', observer, candidate_call)
 
 
 def setup(mode):
