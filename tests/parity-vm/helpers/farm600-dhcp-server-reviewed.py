@@ -2,17 +2,20 @@
 # SPDX-License-Identifier: MIT
 """Guest-only offline DHCP response observations for the farm600 contract."""
 import binascii
+import base64
 import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
+import time
+import uuid
 
 CASE = Path('/tmp/parity-case')
 HOME = Path('/tmp/parity-home')
 HELPER = '/opt/bashos-parity/harness/helpers/farm600-dhcp-server-reviewed.py'
-IDENTITY = '/opt/bashos-parity/harness/helpers/ns_guest_identity_r1.py'
 PREFIX = 'farm600-dhcp-server-'
 MAC = bytes.fromhex('020000000011')
 XID = bytes.fromhex('183a5b7c')
@@ -20,9 +23,37 @@ COOKIE = bytes.fromhex('63825363')
 
 
 def guard():
-    subprocess.run(['/usr/bin/python3', IDENTITY], check=True, timeout=5)
-    if os.getuid() != 2000 or os.geteuid() != 2000 or Path.cwd() != CASE or os.environ.get('HOME') != str(HOME):
+    if (os.getuid() != 2000 or os.geteuid() != 2000 or os.getgid() != os.getegid()
+            or Path.cwd() != CASE or os.environ.get('HOME') != str(HOME)):
         raise RuntimeError('guest scratch identity failed')
+    def identity(directory, name):
+        parent = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            ds = os.fstat(parent)
+            if ds.st_uid != 0 or ds.st_gid != 0 or stat.S_IMODE(ds.st_mode) & 0o022:
+                raise RuntimeError('unprotected identity directory')
+            fd = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
+            try:
+                before = os.fstat(fd)
+                if (not stat.S_ISREG(before.st_mode) or before.st_uid != 0 or before.st_gid != 0 or
+                    stat.S_IMODE(before.st_mode) != 0o444 or before.st_nlink != 1 or before.st_size != 37):
+                    raise RuntimeError('unprotected identity file')
+                data = os.read(fd, 38)
+                after = os.fstat(fd)
+                if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
+                    raise RuntimeError('identity changed during read')
+            finally:
+                os.close(fd)
+        finally:
+            os.close(parent)
+        if len(data) != 37 or not data.endswith(b'\n'):
+            raise RuntimeError('invalid identity bytes')
+        value = data[:-1].decode('ascii')
+        if str(uuid.UUID(value)) != value:
+            raise RuntimeError('noncanonical guest identity')
+        return value
+    if identity('/etc', 'bashos-parity-vm') != identity('/run', 'bashos-parity-vm-identity'):
+        raise RuntimeError('controller guest identity mismatch')
 
 
 def write(name, data):
@@ -100,13 +131,74 @@ def save_hook():
     write('hook.json', (json.dumps(row, sort_keys=True) + '\n').encode())
 
 
+def lease_control():
+    """Prove creation and rename in the lease file's parent directory."""
+    first = CASE / 'farm600-lease-control.tmp'
+    final = CASE / 'farm600-lease-control.done'
+    if first.exists() or first.is_symlink() or final.exists() or final.is_symlink():
+        raise RuntimeError('lease control names already exist')
+    fd = os.open(first, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        payload = b'lease-write-rename-control\n'
+        if os.write(fd, payload) != len(payload):
+            raise RuntimeError('short lease control write')
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.rename(first, final)
+    s = final.lstat()
+    if not stat.S_ISREG(s.st_mode) or final.read_bytes() != payload:
+        raise RuntimeError('lease control rename/readback failed')
+    final.unlink()
+    return {'create_write_fsync_rename_readback': 'ok', 'dev': s.st_dev,
+            'ino': s.st_ino, 'size': s.st_size}
+
+
+def snapshot_lease(mode):
+    guard()
+    if mode not in ('hook-commit', 'hook-failure', 'hook-missing'):
+        raise RuntimeError('invalid snapshot mode')
+    path = CASE / 'leases'
+    result = {'mode': mode, 'wall_ns': time.time_ns(), 'monotonic_ns': time.monotonic_ns()}
+    try:
+        before = path.lstat()
+    except FileNotFoundError:
+        result['state'] = 'missing'
+    else:
+        if not stat.S_ISREG(before.st_mode):
+            result['state'] = 'nonregular'
+            result['mode_bits'] = before.st_mode
+        else:
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            try:
+                opened = os.fstat(fd)
+                if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
+                    raise RuntimeError('lease file changed during snapshot')
+                data = bytearray()
+                while len(data) <= 4096:
+                    chunk = os.read(fd, 4097 - len(data))
+                    if not chunk:
+                        break
+                    data.extend(chunk)
+                after = os.fstat(fd)
+                if (opened.st_size, opened.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
+                    raise RuntimeError('lease file changed during read')
+            finally:
+                os.close(fd)
+            result.update(state='regular', dev=opened.st_dev, ino=opened.st_ino,
+                          size=opened.st_size, bytes_read=len(data),
+                          data_base64=base64.b64encode(data).decode())
+    write('lease-snapshot.json', (json.dumps(result, sort_keys=True) + '\n').encode())
+
+
 def setup(mode):
     guard()
     if mode not in ('relay-a', 'relay-b', 'pxe-match', 'pxe-other',
                     'hook-commit', 'hook-failure', 'hook-missing'):
         raise RuntimeError('invalid mode')
-    if (CASE / 'leases').exists() or (CASE / 'leases.tmp').exists():
+    if any(p.exists() or p.is_symlink() for p in (CASE / 'leases', CASE / 'leases.tmp')):
         raise RuntimeError('lease database is not fresh')
+    lease_check = lease_control() if mode.startswith('hook-') else None
     if options(b'\x35\x01\x02\xff\x00') != {53: b'\x02'}:
         raise RuntimeError('option parser positive control failed')
     for bad in (b'', b'\x35', b'\x35\x02\x01', b'\x35\x01\x02\x35\x01\x02\xff', b'\xff\x01'):
@@ -150,7 +242,9 @@ def setup(mode):
               'hook_environment': control_hook,
               'stdout_hex': proc.stdout.hex(), 'stderr_hex': proc.stderr.hex()}) + '\n').encode())
     control = {'mode': mode, 'request_hex': pkt.hex(), 'config': config(mode),
-               'expected_giaddr_hex': giaddr.hex(), 'kind': kind, 'parser_control': 'ok'}
+               'expected_giaddr_hex': giaddr.hex(), 'kind': kind, 'parser_control': 'ok',
+               'lease_control': lease_check, 'wall_ns': time.time_ns(),
+               'monotonic_ns': time.monotonic_ns()}
     write('control.json', (json.dumps(control, sort_keys=True) + '\n').encode())
 
 
@@ -204,6 +298,19 @@ def verify(mode, status):
     else:
         if packet[16:20] != bytes.fromhex('c0000264'):
             raise ValueError('wrong ACK address')
+        snap = json.loads((HOME / (PREFIX + 'lease-snapshot.json')).read_text())
+        wall_delta = snap['wall_ns'] - control['wall_ns']
+        mono_delta = snap['monotonic_ns'] - control['monotonic_ns']
+        if snap['mode'] != mode or mono_delta < 0 or abs(wall_delta - mono_delta) > 2000000000:
+            raise RuntimeError('lease observation clock/control mismatch')
+        if snap['state'] != 'regular':
+            raise ValueError('committed lease file missing or nonregular')
+        lease = base64.b64decode(snap['data_base64'], validate=True)
+        if snap['size'] != len(lease) or snap['bytes_read'] != len(lease) or len(lease) > 4096:
+            raise RuntimeError('incomplete lease capture')
+        match = re.fullmatch(rb'02:00:00:00:00:11 192\.0\.2\.100 ([0-9]+) fixture-host\n', lease)
+        if not match or not (control['wall_ns'] // 1000000000 - 2 <= int(match.group(1)) - 3600 <= snap['wall_ns'] // 1000000000 + 2):
+            raise ValueError('committed lease content or expiry differs')
         if mode != 'hook-missing':
             data = json.loads((HOME / (PREFIX + 'hook.json')).read_text())
             expected = {'ACTION': 'commit', 'MAC': '02:00:00:00:00:11', 'IP': '192.0.2.100',
@@ -221,6 +328,8 @@ if __name__ == '__main__':
             setup(sys.argv[2])
         elif len(sys.argv) == 4 and sys.argv[1] == 'verify':
             verify(sys.argv[2], sys.argv[3])
+        elif len(sys.argv) == 3 and sys.argv[1] == 'snapshot':
+            snapshot_lease(sys.argv[2])
         elif len(sys.argv) == 3 and sys.argv[1] == 'hook' and sys.argv[2] in ('ok', 'fail'):
             save_hook()
             sys.exit(23 if sys.argv[2] == 'fail' else 0)
