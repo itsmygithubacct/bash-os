@@ -82,22 +82,22 @@ def setup_checked(record):
     source = '/opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.c'
     record['stage'] = 'compile-start'; save('setup.json', record)
     build = subprocess.run(['/usr/bin/cc', '-O2', '-Wall', '-Wextra', '-o', 'guard', source],
-                           capture_output=True, timeout=20)
+                           capture_output=True, timeout=15)
     record['compile'] = raw_result(build); record['stage'] = 'compile-complete'; save('setup.json', record)
     if build.returncode != 0:
         raise RuntimeError('guard compilation unavailable')
     record['stage'] = 'guard-control-start'; save('setup.json', record)
-    result = subprocess.run(['./guard', '--check'], capture_output=True, timeout=10)
+    result = subprocess.run(['./guard', '--check'], capture_output=True, timeout=6)
     record['guard_control'] = raw_result(result); record['stage'] = 'guard-control-complete'; save('setup.json', record)
     if result.returncode != 0 or result.stderr or len(result.stdout.splitlines()) != 6:
         raise RuntimeError('signal guard control unavailable')
     record['stage'] = 'scope-control-start'; save('setup.json', record)
-    scope = subprocess.run(['./guard', '--check-scope'], capture_output=True, timeout=10)
+    scope = subprocess.run(['./guard', '--check-scope'], capture_output=True, timeout=6)
     record['scope_control'] = raw_result(scope); record['stage'] = 'scope-control-complete'; save('setup.json', record)
     if scope.returncode != 0 or scope.stderr or len(scope.stdout.splitlines()) != 7:
         raise RuntimeError('proc confinement control unavailable')
     record['stage'] = 'guard-exec-start'; save('setup.json', record)
-    allowed = subprocess.run(['./guard', '/usr/bin/true'], capture_output=True, timeout=10)
+    allowed = subprocess.run(['./guard', '/usr/bin/true'], capture_output=True, timeout=6)
     record['guard_exec'] = raw_result(allowed); record['stage'] = 'guard-exec-complete'; save('setup.json', record)
     if allowed.returncode != 0 or allowed.stdout or allowed.stderr:
         raise RuntimeError('guarded exec control unavailable')
@@ -106,13 +106,24 @@ def setup_checked(record):
     control = subprocess.run(['/usr/bin/unshare', '--user', '--map-user=2000', '--map-group=2000',
                               '--mount', '--pid', '--fork', '--mount-proc',
                               '/usr/bin/python3', '/opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py',
-                              'namespace-check', outer, 'setup'], capture_output=True, timeout=12)
+                              'namespace-check', outer, 'setup'], capture_output=True, timeout=8)
     record['namespace_control'] = raw_result(control); record['stage'] = 'namespace-control-complete'; save('setup.json', record)
     if control.returncode != 0 or control.stderr:
         raise RuntimeError('private PID/proc namespace unavailable')
     observed = json.loads(control.stdout)
     if observed.get('ok') is not True or observed.get('mode') != 'setup':
         raise RuntimeError('private PID/proc namespace control failed')
+    record['stage'] = 'session-control-start'; save('setup.json', record)
+    session = subprocess.run(['/usr/bin/unshare', '--user', '--map-user=2000', '--map-group=2000',
+                              '--mount', '--pid', '--fork', '--mount-proc', '/usr/bin/setsid', '--wait',
+                              '/usr/bin/python3', '/opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py',
+                              'session-check', outer], capture_output=True, timeout=8)
+    record['session_control'] = raw_result(session); record['stage'] = 'session-control-complete'; save('setup.json', record)
+    if session.returncode != 0 or session.stderr:
+        raise RuntimeError('visible session control unavailable')
+    control_session = json.loads(session.stdout)
+    if control_session.get('ok') is not True or control_session.get('sid', 0) <= 0 or control_session.get('sid') != control_session.get('pid'):
+        raise RuntimeError('visible session control failed')
     record.update(stage='complete', complete=True); save('setup.json', record)
 
 
@@ -145,6 +156,31 @@ def namespace_check(outer, mode):
                       'own_stat_hex':own_stat.hex()}, sort_keys=True))
 
 
+def session_identity(pid):
+    sid = os.getsid(pid)
+    if sid <= 0 or sid != pid or os.getsid(sid) != sid:
+        raise RuntimeError('caller is not a visible positive session leader')
+    raw = Path(f'/proc/{sid}/stat').read_bytes()
+    match = re.fullmatch(rb'([0-9]+) \(.*\) [^ ]+ ([0-9]+) ([0-9]+) ([0-9]+) .*\n', raw)
+    if not match or int(match[1]) != sid or int(match[4]) != sid:
+        raise RuntimeError('session leader stat does not match getsid')
+    return sid, raw
+
+
+def session_check(outer):
+    if not re.fullmatch(r'pid:\[[0-9]+\]', outer):
+        raise RuntimeError('invalid outer PID namespace record')
+    inner = os.readlink('/proc/self/ns/pid')
+    pid = os.getpid()
+    sid, raw = session_identity(pid)
+    visible = sorted(int(x) for x in os.listdir('/proc') if x.isascii() and x.isdigit())
+    if inner == outer or visible != sorted({1, pid}):
+        raise RuntimeError('session control did not enter a private PID/proc namespace')
+    print(json.dumps({'ok': True, 'pid': pid, 'sid': sid, 'leader_getsid': os.getsid(sid),
+                      'leader_stat_hex': raw.hex(), 'outer': outer, 'inner': inner,
+                      'visible': visible, 'uid': os.getuid(), 'euid': os.geteuid()}, sort_keys=True))
+
+
 def prepare(mode, pid):
     if mode not in MODES or pid <= 1 or pid != os.getppid():
         raise RuntimeError('caller PID mismatch')
@@ -153,8 +189,7 @@ def prepare(mode, pid):
             namespace.get('mode') != 'candidate' or namespace.get('inner') != os.readlink('/proc/self/ns/pid') or
             namespace['inner'] != os.readlink(f'/proc/{pid}/ns/pid')):
         raise RuntimeError('caller PID namespace mismatch')
-    sid = os.getsid(pid)
-    raw = Path(f'/proc/{pid}/stat').read_bytes()
+    sid, raw = session_identity(pid)
     match = re.fullmatch(rb'([0-9]+) \(.*\) [^ ]+ ([0-9]+) ([0-9]+) ([0-9]+) .*\n', raw)
     if not match or int(match[1]) != pid or int(match[4]) != sid:
         raise RuntimeError('real caller SID control failed')
@@ -217,7 +252,8 @@ def prepare(mode, pid):
                 raise RuntimeError('denied cmdline remains readable')
         elif cmd.read_bytes().hex() != entry['cmdline_hex']:
             raise RuntimeError('cmdline fixture control failed')
-    save('fixture.json', {'mode': mode, 'caller_pid': pid, 'caller_sid': sid, 'pid_namespace': namespace['inner'],
+    save('fixture.json', {'mode': mode, 'caller_pid': pid, 'caller_sid': sid, 'session_leader_pid': sid,
+                          'leader_getsid': os.getsid(sid), 'pid_namespace': namespace['inner'],
                           'real_stat_hex': raw.hex(), 'outside_sid': outside,
                           'root_uid': ROOT.stat().st_uid, 'root_mode': stat.S_IMODE(ROOT.stat().st_mode),
                           'entries': entries, 'omitted': omitted, 'fixture_preconditions': 'verified'})
@@ -267,9 +303,14 @@ def recheck(mode, pid, observation):
     try:
         fixture = json.loads((HOME / 'fixture.json').read_text())
         if (fixture['mode'] != mode or fixture['caller_pid'] != pid or pid != os.getppid() or
-                fixture['caller_sid'] != os.getsid(pid) or observation not in {'baseline', 'candidate'}):
+                fixture['caller_sid'] <= 0 or fixture['caller_sid'] != pid or
+                fixture['session_leader_pid'] != pid or fixture['caller_sid'] != os.getsid(pid) or
+                observation not in {'baseline', 'candidate'}):
             raise RuntimeError('caller identity or fixture mismatch')
-        raw = Path(f'/proc/{pid}/stat').read_bytes()
+        sid, raw = session_identity(pid)
+        record['caller_sid'] = sid
+        record['session_leader_pid'] = sid
+        record['leader_getsid'] = os.getsid(sid)
         m = re.fullmatch(rb'([0-9]+) \(.*\) [^ ]+ ([0-9]+) ([0-9]+) ([0-9]+) .*\n', raw)
         if not m or int(m[1]) != pid or int(m[4]) != fixture['caller_sid']:
             raise RuntimeError('caller stat or session changed')
@@ -327,7 +368,7 @@ def seal_unreadable(pid):
     try:
         fixture = json.loads((HOME / 'fixture.json').read_text())
         if (fixture['mode'] != 'unreadable' or fixture['caller_pid'] != pid or
-                pid != os.getppid() or os.getsid(pid) != fixture['caller_sid'] or
+                pid != os.getppid() or session_identity(pid)[0] != fixture['caller_sid'] or
                 ROOT.stat().st_uid != 2000 or stat.S_IMODE(ROOT.stat().st_mode) != fixture['root_mode']):
             raise RuntimeError('root transition identity or mode mismatch')
         ROOT.chmod(0)
@@ -417,6 +458,8 @@ def main():
         race_writer(); return 0
     if len(sys.argv) == 4 and sys.argv[1] == 'namespace-check':
         namespace_check(sys.argv[2], sys.argv[3]); return 0
+    if len(sys.argv) == 3 and sys.argv[1] == 'session-check':
+        session_check(sys.argv[2]); return 0
     raise ValueError('invalid helper arguments')
 
 
