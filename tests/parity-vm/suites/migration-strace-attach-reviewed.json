@@ -9,7 +9,7 @@
       "covers": [
         "strace/attach-existing-pid"
       ],
-      "oracle": "Guest-only compiled two-thread tracee uses a FIFO gate, creates both threads before attachment, explicitly authorizes only the tracer PID with PR_SET_PTRACER, then issues known getpid/getppid calls and exits without signals. Guest setup runs parser controls and a native sibling ptrace tracer against an independently owned tracee, checking both calls and both natural exits; any native preflight failure is setup ERROR. Each candidate run independently checks parentage, live task IDs, no prior tracer, and samples per-thread TracerPid before gate release. A separate owner records actual tracee exit and raw output.",
+      "oracle": "The guest setup compiles a deterministic two-thread fixture and runs parser controls plus a native sibling ptrace control, including complete syscall returns and natural thread exits. For each case, setup starts the actual candidate shell blocked on stdin and a separate owned tracee, verifies live distinct tasks, ownership, untraced state and closed shared-memory gates, then invokes -p on that same tracee. It samples per-TID TracerPid in both task orders before release, releases worker then leader only after worker exit, and records actual fixture and candidate status, timeout and raw stdout/stderr. Failed infrastructure checks fail setup; a valid completed fixture with a candidate mismatch is retained for candidate assessment. PR_SET_PTRACER authorizes only the candidate PID. The primary approved native oracle substitution is conditional on reviewed guest evidence and does not claim GNU strace equivalence.",
       "requires": [
         "gcc",
         "python3"
@@ -17,35 +17,30 @@
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py setup\n",
       "stderr": "",
       "expected_status": 0,
-      "timeout": 30,
-      "setup_timeout": 45,
+      "timeout": 12,
+      "setup_timeout": 60,
       "diagnostic_files": [
+        "setup-controls.json",
         "parser-controls.json",
         "gcc.out",
         "gcc.err",
         "native-control.json",
-        "preconditions.json",
-        "supervisor.out",
-        "supervisor.err",
-        "prepare.err",
-        "monitor.json",
         "candidate.out",
         "candidate.err",
-        "candidate.status",
         "fixture.out",
         "fixture.err",
-        "fixture.status",
         "assertions.json"
       ],
       "helpers_sha256": {
-        "helpers/strace-attach-reviewed.py": "4264f8c00f5bf9c6f73d8587ed6e8e832d11abdf9bba9bb44b3d8305a5b09366",
-        "helpers/strace-attach-reviewed.c": "531b0210568dfc832d668b2488622eb916dd8616ef093c27a8e22c758a5eddc7"
+        "helpers/strace-attach-reviewed.py": "a82062f244b3bfe8b28b0356438518e8177b3dca017e71af7f4086a6f4854635",
+        "helpers/strace-attach-reviewed.c": "322054cd64bd2e53820623f2493f510993529c8647355a13157f5113c9789d0e"
       },
       "id": "migration-strace-attach-existing-r1",
       "purpose": "Attach to an already-running owned process and trace until it exits naturally.",
-      "comparison": "Require independently established leader attachment before release, leader getpid and exit trace records, natural fixture status and both fixture markers, successful tracer status and empty candidate stdout.",
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py launch \"$$\" >\"$HOME/supervisor.out\" 2>\"$HOME/supervisor.err\" &\nsupervisor=$!\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py prepare \"$supervisor\" \"$$\" >\"$HOME/prepare.out\" 2>\"$HOME/prepare.err\"; then\n  wait \"$supervisor\" 2>/dev/null || :\n  exit 97\nfi\nread -r fixture_pid < \"$HOME/fixture.pid\"\nulimit -f 512 || exit 97\nrc=0\nstrace -p \"$fixture_pid\" >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/candidate.status\"\nwait \"$supervisor\" 2>/dev/null || :\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py verify r1\n",
-      "stdout": "r1-ok\n"
+      "comparison": "Require the controlled invocation to have a complete setup record and native control, then a complete line-anchored leader getpid with its actual PID, followed by its zero exit event, leader attachment observation, zero candidate status, and empty candidate stdout. Reject tracer errors, incomplete records and missing final newline.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py verify r1\n",
+      "stdout": "r1-ok\n",
+      "primary_evidence_gate": "Primary must independently gate raw records; generic runner labels alone are not evidence. For each invocation reject as infrastructure/incomplete if setup status is nonzero or timed out; any diagnostic is missing, unreadable or truncated; setup-controls is malformed, incomplete, has an error, lacks invoked=true or candidate status/timeout, or does not establish the two distinct task IDs, shared gates [0,0,1,1], owner/tracer parentage, matching task IDs, and initial TracerPid=0; parser controls are missing/incomplete or a positive or negative control failed; native-control is incomplete, has an error or nonzero statuses, or its raw control/fixture outputs do not establish the expected calls, returns, both exits and both markers; either release, worker disappearance before leader release, fixture zero exit, fixture markers or clean fixture stderr is missing; or either candidate output reaches the capture limit. Assess only the files appropriate to a failed setup stage, retaining all available raw diagnostics; incomplete setup never supplies product evidence. After successful setup also reject missing/malformed/truncated assertions or classification infrastructure_error, wrong requirement or disagreement with independent parsing of raw candidate output and recorded identities. Neither zero tracer samples nor failure to attach is an infrastructure rejection: with successful fixture controls, classify those and complete malformed/error candidate output or candidate timeout as candidate mismatch. A match requires all case-specific complete ordered events, observed attachment and candidate status/output checks. These rules require a primary implementation and review; they do not change runner labels or claim GNU output equivalence."
     },
     {
       "loadable": "strace",
@@ -55,7 +50,7 @@
       "covers": [
         "strace/attach-existing-pid"
       ],
-      "oracle": "Guest-only compiled two-thread tracee uses a FIFO gate, creates both threads before attachment, explicitly authorizes only the tracer PID with PR_SET_PTRACER, then issues known getpid/getppid calls and exits without signals. Guest setup runs parser controls and a native sibling ptrace tracer against an independently owned tracee, checking both calls and both natural exits; any native preflight failure is setup ERROR. Each candidate run independently checks parentage, live task IDs, no prior tracer, and samples per-thread TracerPid before gate release. A separate owner records actual tracee exit and raw output.",
+      "oracle": "The guest setup compiles a deterministic two-thread fixture and runs parser controls plus a native sibling ptrace control, including complete syscall returns and natural thread exits. For each case, setup starts the actual candidate shell blocked on stdin and a separate owned tracee, verifies live distinct tasks, ownership, untraced state and closed shared-memory gates, then invokes -p on that same tracee. It samples per-TID TracerPid in both task orders before release, releases worker then leader only after worker exit, and records actual fixture and candidate status, timeout and raw stdout/stderr. Failed infrastructure checks fail setup; a valid completed fixture with a candidate mismatch is retained for candidate assessment. PR_SET_PTRACER authorizes only the candidate PID. The primary approved native oracle substitution is conditional on reviewed guest evidence and does not claim GNU strace equivalence.",
       "requires": [
         "gcc",
         "python3"
@@ -63,35 +58,30 @@
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py setup\n",
       "stderr": "",
       "expected_status": 0,
-      "timeout": 30,
-      "setup_timeout": 45,
+      "timeout": 12,
+      "setup_timeout": 60,
       "diagnostic_files": [
+        "setup-controls.json",
         "parser-controls.json",
         "gcc.out",
         "gcc.err",
         "native-control.json",
-        "preconditions.json",
-        "supervisor.out",
-        "supervisor.err",
-        "prepare.err",
-        "monitor.json",
         "candidate.out",
         "candidate.err",
-        "candidate.status",
         "fixture.out",
         "fixture.err",
-        "fixture.status",
         "assertions.json"
       ],
       "helpers_sha256": {
-        "helpers/strace-attach-reviewed.py": "4264f8c00f5bf9c6f73d8587ed6e8e832d11abdf9bba9bb44b3d8305a5b09366",
-        "helpers/strace-attach-reviewed.c": "531b0210568dfc832d668b2488622eb916dd8616ef093c27a8e22c758a5eddc7"
+        "helpers/strace-attach-reviewed.py": "a82062f244b3bfe8b28b0356438518e8177b3dca017e71af7f4086a6f4854635",
+        "helpers/strace-attach-reviewed.c": "322054cd64bd2e53820623f2493f510993529c8647355a13157f5113c9789d0e"
       },
       "id": "migration-strace-attach-existing-r2",
       "purpose": "Attach the existing threads of the already-running process.",
-      "comparison": "In addition to the leader checks require both original task IDs simultaneously identify the candidate shell as tracer before release, a worker getppid record and a worker exit record. No -f is used.",
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py launch \"$$\" >\"$HOME/supervisor.out\" 2>\"$HOME/supervisor.err\" &\nsupervisor=$!\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py prepare \"$supervisor\" \"$$\" >\"$HOME/prepare.out\" 2>\"$HOME/prepare.err\"; then\n  wait \"$supervisor\" 2>/dev/null || :\n  exit 97\nfi\nread -r fixture_pid < \"$HOME/fixture.pid\"\nulimit -f 512 || exit 97\nrc=0\nstrace -p \"$fixture_pid\" >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/candidate.status\"\nwait \"$supervisor\" 2>/dev/null || :\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py verify r2\n",
-      "stdout": "r2-ok\n"
+      "comparison": "Also require both original TIDs observed attached in successive opposite-order samples before release, a complete worker getppid returning the owner PID, worker zero exit before leader call, and no -f. Reject tracer errors, incomplete records and missing final newline.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py verify r2\n",
+      "stdout": "r2-ok\n",
+      "primary_evidence_gate": "Primary must independently gate raw records; generic runner labels alone are not evidence. For each invocation reject as infrastructure/incomplete if setup status is nonzero or timed out; any diagnostic is missing, unreadable or truncated; setup-controls is malformed, incomplete, has an error, lacks invoked=true or candidate status/timeout, or does not establish the two distinct task IDs, shared gates [0,0,1,1], owner/tracer parentage, matching task IDs, and initial TracerPid=0; parser controls are missing/incomplete or a positive or negative control failed; native-control is incomplete, has an error or nonzero statuses, or its raw control/fixture outputs do not establish the expected calls, returns, both exits and both markers; either release, worker disappearance before leader release, fixture zero exit, fixture markers or clean fixture stderr is missing; or either candidate output reaches the capture limit. Assess only the files appropriate to a failed setup stage, retaining all available raw diagnostics; incomplete setup never supplies product evidence. After successful setup also reject missing/malformed/truncated assertions or classification infrastructure_error, wrong requirement or disagreement with independent parsing of raw candidate output and recorded identities. Neither zero tracer samples nor failure to attach is an infrastructure rejection: with successful fixture controls, classify those and complete malformed/error candidate output or candidate timeout as candidate mismatch. A match requires all case-specific complete ordered events, observed attachment and candidate status/output checks. These rules require a primary implementation and review; they do not change runner labels or claim GNU output equivalence."
     }
   ]
 }
