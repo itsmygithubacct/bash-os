@@ -33,7 +33,7 @@
         "assertions.json"
       ],
       "helpers_sha256": {
-        "helpers/strace-attach-reviewed.py": "83e83c1080672e602306026385870447bd801cbbb34d47a08a6ae8b887870ab4",
+        "helpers/strace-attach-reviewed.py": "f19145f78a06ad3883db8b8db2e6b50b418faae440c2f94cc224291644094193",
         "helpers/strace-attach-reviewed.c": "917645a0e57bc511af0a84fbdae7d7a7a9f67eefa5b287a87ca67ddc6888430c",
         "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
       },
@@ -42,7 +42,176 @@
       "comparison": "Require the controlled invocation to have a complete setup record and native control, then a complete line-anchored leader getpid with its actual PID, followed by its zero exit event, leader attachment observation, zero candidate status, and empty candidate stdout. Reject tracer errors, incomplete records and missing final newline. An independently attributed non-resumption of a released task is a candidate mismatch, never a match.",
       "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py verify r1\n",
       "stdout": "r1-ok\n",
-      "primary_evidence_gate": "Primary must independently implement and review this data-only gate; generic runner labels alone are not evidence. Common inputs: setup result/status and timeout, setup-controls.json including stage events and monitor samples, parser-controls.json, stall-controls.json, gcc.out/gcc.err, native-control.json, candidate.out/candidate.err, fixture.out/fixture.err and assertions.json, including each diagnostic missing/error/truncation flag and raw bytes. For completed setup reject missing, malformed or truncated inputs; nonzero/timed-out setup; incomplete/error controls; failed parser or stall positive/negative controls including late_stop; native nonzero statuses or raw native output inconsistent with controlled calls, return values, exits and markers; setup-controls lacking complete=true, invoked=true, candidate status/timeout, or valid initial [0,0,1,1] gates, two distinct original task IDs, task identity, common owner parentage, and initial TracerPid zero; or either candidate capture at the 512 KiB limit. For outcome=completed require worker and leader releases, worker disappearance before leader release, natural fixture exit zero before candidate cleanup and exactly the two fixture markers with empty fixture stderr. Independently parse complete candidate output against recorded identities and check the case-specific ordered calls/exits, attachment samples and status; zero or partial attachment, or candidate timeout after independently confirmed natural fixture completion, is candidate mismatch, not infrastructure failure. For outcome=candidate_stall do not require natural fixture completion under the candidate, later leader release, full exit trace or newline. Require worker_release and, for a leader stall, worker_gone_before_leader_release and leader_release; ordered stage events with release before wait, wait before the first monitor sample, observation after the last sample, and tracer cleanup after observation. Independently validate stall and identical monitor records: result is candidate_stall, stage and original target TID match, monitor deadline equals wait_started plus the required 4 s worker or 5 s leader interval plus 1 s, the first sample starts after wait_started, and timeout_ns equals the last sample end and does not exceed the deadline. Require at least three chronological samples; each must have start <= end, capture duration <= 500 ms, gaps <= 500 ms, no capture error, live fixture and candidate, matching owned task/leader/tracer identities and parentage, no foreign TracerPid and no tracing-stop state with TracerPid zero, and gate words [1,0,1,1] for worker or [1,1,1,1] for leader. The first sample in tracing stop with TracerPid equal to the candidate is the baseline and must end within 500 ms after wait_started; reject a later initial stop. Every sample from that baseline onward must remain in candidate-owned tracing stop with both context-switch counters unchanged. The last sample start minus the baseline sample end must be at least 4 s for worker or 5 s for leader; this excludes late or short observations. Require the recorded post-observation cleanup to request tracer SIGKILL with status -9, candidate_timeout=true and candidate_status_origin=cleanup_sigkill. Retain separate post-kill fixture status and recovery actions without calling them natural exit under tracing. An established stall is candidate mismatch even if post-kill recovery is incomplete or the raw trace ends mid-record. A fixture-stage timeout without this full observed interval, delayed baseline, gaps or changing counters, missing stage records, vanished or running tasks, different tracers, missing live status, invalid pre-intervention gate data, failed observer or inability to reap owned processes is infrastructure/inconclusive, not product failure. For either outcome reject absent/malformed/truncated assertions, wrong requirement, infrastructure_error or disagreement with independent raw-data assessment. Successful setup with valid controls and an attributable stall must not be rejected merely because natural fixture completion or full trace text is absent. For failed setup retain stage-appropriate available diagnostics without treating missing later-stage files as product evidence. No GNU output equivalence is claimed. The stall-controls.json encoding is strace-attach-stall-controls-zlib-v1: the complete original control record is canonical ASCII JSON (sorted keys, compact separators), zlib-compressed and base64-encoded in a bounded envelope. Require a complete nontruncated diagnostic of at most 524288 bytes, exact schema and codec, strictly decoded base64, compressed length at most 327680 bytes and its SHA-256, bounded zlib decompression to at most 8388608 bytes with end-of-stream and no trailing or unconsumed data, exact raw length and SHA-256, valid duplicate-free canonical JSON, and envelope/payload completeness. Independently reconstruct all original preconditions, 14 positive/negative sample inputs and outcomes and seven event-record inputs and outcomes. Verify exact named input sets including late_stop and all record omissions, and independently rerun the predicates over every input and verify expected results, ordered events and cleanup. Require all six guest wire checks (roundtrip, omitted_payload, corrupted_stream, omitted_input, omitted_record, corrupted_outcome) to be true and independently exercise equivalent integrity and omission checks, including mutations with recalculated hashes; guest self-labels are not a substitute for independent control validation. Any malformed, missing, oversized, truncated or corrupt envelope, unsuccessful reconstruction, omitted input, failed negative control or unsupported decoder is infrastructure/inconclusive, not product failure. The old plain-control audit is not compatible with this envelope; a separately reviewed primary gate and fresh guest evidence are required."
+      "primary_evidence_gate": "Primary must independently implement and review this data-only gate; generic runner labels alone are not evidence. Common inputs: setup result/status and timeout, setup-controls.json including stage events and monitor samples, parser-controls.json, stall-controls.json, gcc.out/gcc.err, native-control.json, candidate.out/candidate.err, fixture.out/fixture.err and assertions.json, including each diagnostic missing/error/truncation flag and raw bytes. For completed setup reject missing, malformed or truncated inputs; nonzero/timed-out setup; incomplete/error controls; failed parser or stall positive/negative controls including late_stop; native nonzero statuses or raw native output inconsistent with controlled calls, return values, exits and markers; setup-controls lacking complete=true, invoked=true, candidate status/timeout, or valid initial [0,0,1,1] gates, two distinct original task IDs, task identity, common owner parentage, and initial TracerPid zero; or either candidate capture at the 512 KiB limit. For outcome=completed require worker and leader releases, worker disappearance before leader release, natural fixture exit zero before candidate cleanup and exactly the two fixture markers with empty fixture stderr. Independently parse complete candidate output against recorded identities and check the case-specific ordered calls/exits, attachment samples and status; zero or partial attachment, or candidate timeout after independently confirmed natural fixture completion, is candidate mismatch, not infrastructure failure. For outcome=candidate_stall do not require natural fixture completion under the candidate, later leader release, full exit trace or newline. Require worker_release and, for a leader stall, worker_gone_before_leader_release and leader_release; ordered stage events with release before wait, wait before the first monitor sample, observation after the last sample, and tracer cleanup after observation. Independently validate stall and identical monitor records: result is candidate_stall, stage and original target TID match, monitor deadline equals wait_started plus the required 4 s worker or 5 s leader interval plus 1 s, the first sample starts after wait_started, and timeout_ns equals the last sample end and does not exceed the deadline. Require at least three chronological samples; each must have start <= end, capture duration <= 500 ms, gaps <= 500 ms, no capture error, live fixture and candidate, matching owned task/leader/tracer identities and parentage, no foreign TracerPid and no tracing-stop state with TracerPid zero, and gate words [1,0,1,1] for worker or [1,1,1,1] for leader. The first sample in tracing stop with TracerPid equal to the candidate is the baseline and must end within 500 ms after wait_started; reject a later initial stop. Every sample from that baseline onward must remain in candidate-owned tracing stop with both context-switch counters unchanged. The last sample start minus the baseline sample end must be at least 4 s for worker or 5 s for leader; this excludes late or short observations. Require the recorded post-observation cleanup to request tracer SIGKILL with status -9, candidate_timeout=true and candidate_status_origin=cleanup_sigkill. Retain separate post-kill fixture status and recovery actions without calling them natural exit under tracing. An established stall is candidate mismatch even if post-kill recovery is incomplete or the raw trace ends mid-record. A fixture-stage timeout without this full observed interval, delayed baseline, gaps or changing counters, missing stage records, vanished or running tasks, different tracers, missing live status, invalid pre-intervention gate data, failed observer or inability to reap owned processes is infrastructure/inconclusive, not product failure. For either outcome reject absent/malformed/truncated assertions, wrong requirement, infrastructure_error or disagreement with independent raw-data assessment. Successful setup with valid controls and an attributable stall must not be rejected merely because natural fixture completion or full trace text is absent. For failed setup retain stage-appropriate available diagnostics without treating missing later-stage files as product evidence. No GNU output equivalence is claimed. The stall-controls.json encoding is strace-attach-stall-controls-zlib-v1: the complete original control record is canonical ASCII JSON (sorted keys, compact separators), zlib-compressed and base64-encoded in a bounded envelope. Require a complete nontruncated diagnostic of at most 524288 bytes, exact schema and codec, strictly decoded base64, compressed length at most 327680 bytes and its SHA-256, bounded zlib decompression to at most 8388608 bytes with end-of-stream and no trailing or unconsumed data, exact raw length and SHA-256, valid duplicate-free canonical JSON, and envelope/payload completeness. Independently reconstruct all original preconditions, 14 positive/negative sample inputs and outcomes and seven event-record inputs and outcomes. Verify exact named input sets including late_stop and all record omissions, and independently rerun the predicates over every input and verify expected results, ordered events and cleanup. Require all eleven guest wire checks named in stall_control_blueprint to be true and independently exercise the positive and all negative constructions, including semantic substitutions and malformed vectors with canonical bytes, compression, lengths and hashes recalculated; guest self-labels are not a substitute for independent control validation. Independently reconstruct and compare the entire exact typed control record against stall_control_blueprint before evaluating outcomes. The late_stop and sampling_gap controls must have the exact stated timing and only the stated deltas; a false predicate outcome with substituted inputs is insufficient. Any malformed, missing, oversized, truncated or corrupt envelope, unsuccessful reconstruction, omitted input, failed negative control or unsupported decoder is infrastructure/inconclusive, not product failure. The old plain-control audit is not compatible with this envelope; a separately reviewed primary gate and fresh guest evidence are required.",
+      "stall_control_blueprint": {
+        "schema": "strace-attach-stall-control-blueprint-v1",
+        "comparison": "Independently build the entire expected decoded record from this specification and compare exact canonical JSON bytes including types, fields and lengths before running either predicate. All unmentioned fields and samples must be byte-for-byte equal to their stated positive basis. Do not accept names/outcomes/hashes alone.",
+        "preconditions": {
+          "leader": 101,
+          "worker": 102,
+          "owner_pid": 99,
+          "tracer_pid": 201
+        },
+        "sample_baselines": {
+          "leader_task": {
+            "Pid": 101,
+            "Tgid": 101,
+            "PPid": 99,
+            "TracerPid": 201,
+            "State": "t (tracing stop)",
+            "voluntary_ctxt_switches": 7,
+            "nonvoluntary_ctxt_switches": 2
+          },
+          "worker_task": "identical to leader_task except Pid=102",
+          "tracer": {
+            "Pid": 201,
+            "Tgid": 201,
+            "PPid": 99,
+            "TracerPid": 0,
+            "State": "S (sleeping)"
+          },
+          "fixture_alive": true,
+          "tracer_alive": true,
+          "worker_shared": [
+            1,
+            0,
+            1,
+            1
+          ],
+          "leader_shared": [
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        "positive_sample_recipe": {
+          "worker_count": 42,
+          "leader_count": 52,
+          "first_start_ns": 1100000000,
+          "stride_ns": 100000000,
+          "sample_duration_ns": 1000000,
+          "wait_started_ns": 1000000000,
+          "worker_deadline_ns": 6000000000,
+          "leader_deadline_ns": 7000000000,
+          "timeout_ns": "last sample end",
+          "result": "candidate_stall",
+          "target_tid": "preconditions[stage]",
+          "task": "stage task baseline",
+          "leader": "leader task baseline",
+          "tracer": "tracer baseline",
+          "other_fields": "exactly the listed alive flags, shared, start_ns and end_ns"
+        },
+        "sample_negative_basis": "Each negative is an independent deep copy of the exact worker positive before applying only the following named delta.",
+        "sample_negative_deltas": {
+          "running": "samples[1].task.State = R (running)",
+          "wrong_tracer": "samples[0].task.TracerPid = 202",
+          "resumed": "samples[2].task.voluntary_ctxt_switches = 8",
+          "candidate_dead": "samples[0].tracer_alive = false",
+          "gate_closed": "samples[1].shared[0] = 0",
+          "wrong_owner": "samples[2].leader.PPid = 98",
+          "short_observation": "remove the last sample and set timeout_ns to new last end",
+          "insufficient_samples": "retain only sample 0 and set timeout_ns to its end",
+          "wrong_target": "target_tid = 999",
+          "late_stop": "set samples[0:6].task.State to R (running), append six otherwise identical stopped samples at indices 42..47 with unchanged 100000000 ns stride and 1000000 ns duration, and set timeout_ns to last end. First stop ends at 1701000000, 701000000 ns after wait start; last start 5800000000 minus first stopped end is 4099000000 ns; timeout 5801000000 <= deadline 6000000000. All intervening samples and gaps remain valid.",
+          "sampling_gap": "add 401000001 ns to both start_ns and end_ns of every sample from index 3 through the end and set timeout_ns to last end. The unique enlarged gap from sample 2 end to sample 3 start is 500000001 ns; durations and later order remain valid and the full post-stop interval and deadline remain valid.",
+          "capture_error": "add samples[2].capture_error = unavailable"
+        },
+        "positive_record_recipe": {
+          "worker_record": {
+            "base": "worker positive",
+            "events": [
+              [
+                "worker-release",
+                500000000
+              ],
+              [
+                "worker-wait",
+                1100000000
+              ],
+              [
+                "worker-stall-observation",
+                "worker timeout_ns + 1"
+              ],
+              [
+                "worker-stall-cleanup",
+                "worker timeout_ns + 2"
+              ]
+            ],
+            "worker_release": true,
+            "leader_release": false,
+            "worker_gone_before_leader_release": false
+          },
+          "leader_record": {
+            "base": "leader positive",
+            "events": [
+              [
+                "worker-release",
+                500000000
+              ],
+              [
+                "worker-wait",
+                800000000
+              ],
+              [
+                "leader-release",
+                900000000
+              ],
+              [
+                "fixture-completion",
+                1100000000
+              ],
+              [
+                "leader-stall-observation",
+                "leader timeout_ns + 1"
+              ],
+              [
+                "leader-stall-cleanup",
+                "leader timeout_ns + 2"
+              ]
+            ],
+            "worker_release": true,
+            "leader_release": true,
+            "worker_gone_before_leader_release": true
+          },
+          "common": {
+            "stall": "deep copy of base proof",
+            "monitors": "one key matching stage, containing deep copy of base proof",
+            "preconditions": "exact preconditions above",
+            "candidate_timeout": true,
+            "candidate_status_origin": "cleanup_sigkill",
+            "candidate_status": -9,
+            "stall_cleanup": {
+              "tracer_kill_requested": true,
+              "tracer_status_after_kill": -9
+            }
+          }
+        },
+        "record_negative_deltas": {
+          "monitor_mismatch": "worker_record, change monitors.worker.result to completed",
+          "missing_release": "worker_record, change worker_release to false",
+          "missing_worker_exit": "leader_record, change worker_gone_before_leader_release to false",
+          "missing_cleanup": "worker_record, change stall_cleanup.tracer_kill_requested to false",
+          "cleanup_too_early": "worker_record, change the final cleanup event time_ns to stall.samples[0].start_ns"
+        },
+        "outcomes": "Exactly true for worker and leader sample positives and worker_record and leader_record positives; all other named outcomes false; top-level complete true. Require exact field sets, full record structure and JSON scalar types, then independently rerun both predicates and verify outcomes.",
+        "wire_negative_controls": [
+          "omitted_payload",
+          "corrupted_stream",
+          "omitted_input",
+          "omitted_record",
+          "corrupted_outcome",
+          "substituted_negative",
+          "substituted_record",
+          "malformed_sample",
+          "wrong_positive_type",
+          "late_stop_short_span"
+        ],
+        "wire_positive_controls": [
+          "roundtrip"
+        ],
+        "independent_negative_reconstruction": "Primary independently substitutes wrong_target as late_stop and monitor_mismatch as missing_release with unchanged false outcomes; removes late_stop sample State; replaces a positive true with integer 1; and removes the last late_stop sample with corrected timeout. Rebuild canonical JSON, zlib stream, lengths and both hashes for each. Each must be rejected by exact blueprint comparison even when names/outcomes/hashes are valid; do not rely on guest labels."
+      }
     },
     {
       "loadable": "strace",
@@ -76,7 +245,7 @@
         "assertions.json"
       ],
       "helpers_sha256": {
-        "helpers/strace-attach-reviewed.py": "83e83c1080672e602306026385870447bd801cbbb34d47a08a6ae8b887870ab4",
+        "helpers/strace-attach-reviewed.py": "f19145f78a06ad3883db8b8db2e6b50b418faae440c2f94cc224291644094193",
         "helpers/strace-attach-reviewed.c": "917645a0e57bc511af0a84fbdae7d7a7a9f67eefa5b287a87ca67ddc6888430c",
         "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
       },
@@ -85,7 +254,176 @@
       "comparison": "Also require both original TIDs observed attached in successive opposite-order samples before release, a complete worker getppid returning the owner PID, worker zero exit before leader call, and no -f. Reject tracer errors, incomplete records and missing final newline. An independently attributed non-resumption of a released task is a candidate mismatch, never a match.",
       "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py verify r2\n",
       "stdout": "r2-ok\n",
-      "primary_evidence_gate": "Primary must independently implement and review this data-only gate; generic runner labels alone are not evidence. Common inputs: setup result/status and timeout, setup-controls.json including stage events and monitor samples, parser-controls.json, stall-controls.json, gcc.out/gcc.err, native-control.json, candidate.out/candidate.err, fixture.out/fixture.err and assertions.json, including each diagnostic missing/error/truncation flag and raw bytes. For completed setup reject missing, malformed or truncated inputs; nonzero/timed-out setup; incomplete/error controls; failed parser or stall positive/negative controls including late_stop; native nonzero statuses or raw native output inconsistent with controlled calls, return values, exits and markers; setup-controls lacking complete=true, invoked=true, candidate status/timeout, or valid initial [0,0,1,1] gates, two distinct original task IDs, task identity, common owner parentage, and initial TracerPid zero; or either candidate capture at the 512 KiB limit. For outcome=completed require worker and leader releases, worker disappearance before leader release, natural fixture exit zero before candidate cleanup and exactly the two fixture markers with empty fixture stderr. Independently parse complete candidate output against recorded identities and check the case-specific ordered calls/exits, attachment samples and status; zero or partial attachment, or candidate timeout after independently confirmed natural fixture completion, is candidate mismatch, not infrastructure failure. For outcome=candidate_stall do not require natural fixture completion under the candidate, later leader release, full exit trace or newline. Require worker_release and, for a leader stall, worker_gone_before_leader_release and leader_release; ordered stage events with release before wait, wait before the first monitor sample, observation after the last sample, and tracer cleanup after observation. Independently validate stall and identical monitor records: result is candidate_stall, stage and original target TID match, monitor deadline equals wait_started plus the required 4 s worker or 5 s leader interval plus 1 s, the first sample starts after wait_started, and timeout_ns equals the last sample end and does not exceed the deadline. Require at least three chronological samples; each must have start <= end, capture duration <= 500 ms, gaps <= 500 ms, no capture error, live fixture and candidate, matching owned task/leader/tracer identities and parentage, no foreign TracerPid and no tracing-stop state with TracerPid zero, and gate words [1,0,1,1] for worker or [1,1,1,1] for leader. The first sample in tracing stop with TracerPid equal to the candidate is the baseline and must end within 500 ms after wait_started; reject a later initial stop. Every sample from that baseline onward must remain in candidate-owned tracing stop with both context-switch counters unchanged. The last sample start minus the baseline sample end must be at least 4 s for worker or 5 s for leader; this excludes late or short observations. Require the recorded post-observation cleanup to request tracer SIGKILL with status -9, candidate_timeout=true and candidate_status_origin=cleanup_sigkill. Retain separate post-kill fixture status and recovery actions without calling them natural exit under tracing. An established stall is candidate mismatch even if post-kill recovery is incomplete or the raw trace ends mid-record. A fixture-stage timeout without this full observed interval, delayed baseline, gaps or changing counters, missing stage records, vanished or running tasks, different tracers, missing live status, invalid pre-intervention gate data, failed observer or inability to reap owned processes is infrastructure/inconclusive, not product failure. For either outcome reject absent/malformed/truncated assertions, wrong requirement, infrastructure_error or disagreement with independent raw-data assessment. Successful setup with valid controls and an attributable stall must not be rejected merely because natural fixture completion or full trace text is absent. For failed setup retain stage-appropriate available diagnostics without treating missing later-stage files as product evidence. No GNU output equivalence is claimed. The stall-controls.json encoding is strace-attach-stall-controls-zlib-v1: the complete original control record is canonical ASCII JSON (sorted keys, compact separators), zlib-compressed and base64-encoded in a bounded envelope. Require a complete nontruncated diagnostic of at most 524288 bytes, exact schema and codec, strictly decoded base64, compressed length at most 327680 bytes and its SHA-256, bounded zlib decompression to at most 8388608 bytes with end-of-stream and no trailing or unconsumed data, exact raw length and SHA-256, valid duplicate-free canonical JSON, and envelope/payload completeness. Independently reconstruct all original preconditions, 14 positive/negative sample inputs and outcomes and seven event-record inputs and outcomes. Verify exact named input sets including late_stop and all record omissions, and independently rerun the predicates over every input and verify expected results, ordered events and cleanup. Require all six guest wire checks (roundtrip, omitted_payload, corrupted_stream, omitted_input, omitted_record, corrupted_outcome) to be true and independently exercise equivalent integrity and omission checks, including mutations with recalculated hashes; guest self-labels are not a substitute for independent control validation. Any malformed, missing, oversized, truncated or corrupt envelope, unsuccessful reconstruction, omitted input, failed negative control or unsupported decoder is infrastructure/inconclusive, not product failure. The old plain-control audit is not compatible with this envelope; a separately reviewed primary gate and fresh guest evidence are required."
+      "primary_evidence_gate": "Primary must independently implement and review this data-only gate; generic runner labels alone are not evidence. Common inputs: setup result/status and timeout, setup-controls.json including stage events and monitor samples, parser-controls.json, stall-controls.json, gcc.out/gcc.err, native-control.json, candidate.out/candidate.err, fixture.out/fixture.err and assertions.json, including each diagnostic missing/error/truncation flag and raw bytes. For completed setup reject missing, malformed or truncated inputs; nonzero/timed-out setup; incomplete/error controls; failed parser or stall positive/negative controls including late_stop; native nonzero statuses or raw native output inconsistent with controlled calls, return values, exits and markers; setup-controls lacking complete=true, invoked=true, candidate status/timeout, or valid initial [0,0,1,1] gates, two distinct original task IDs, task identity, common owner parentage, and initial TracerPid zero; or either candidate capture at the 512 KiB limit. For outcome=completed require worker and leader releases, worker disappearance before leader release, natural fixture exit zero before candidate cleanup and exactly the two fixture markers with empty fixture stderr. Independently parse complete candidate output against recorded identities and check the case-specific ordered calls/exits, attachment samples and status; zero or partial attachment, or candidate timeout after independently confirmed natural fixture completion, is candidate mismatch, not infrastructure failure. For outcome=candidate_stall do not require natural fixture completion under the candidate, later leader release, full exit trace or newline. Require worker_release and, for a leader stall, worker_gone_before_leader_release and leader_release; ordered stage events with release before wait, wait before the first monitor sample, observation after the last sample, and tracer cleanup after observation. Independently validate stall and identical monitor records: result is candidate_stall, stage and original target TID match, monitor deadline equals wait_started plus the required 4 s worker or 5 s leader interval plus 1 s, the first sample starts after wait_started, and timeout_ns equals the last sample end and does not exceed the deadline. Require at least three chronological samples; each must have start <= end, capture duration <= 500 ms, gaps <= 500 ms, no capture error, live fixture and candidate, matching owned task/leader/tracer identities and parentage, no foreign TracerPid and no tracing-stop state with TracerPid zero, and gate words [1,0,1,1] for worker or [1,1,1,1] for leader. The first sample in tracing stop with TracerPid equal to the candidate is the baseline and must end within 500 ms after wait_started; reject a later initial stop. Every sample from that baseline onward must remain in candidate-owned tracing stop with both context-switch counters unchanged. The last sample start minus the baseline sample end must be at least 4 s for worker or 5 s for leader; this excludes late or short observations. Require the recorded post-observation cleanup to request tracer SIGKILL with status -9, candidate_timeout=true and candidate_status_origin=cleanup_sigkill. Retain separate post-kill fixture status and recovery actions without calling them natural exit under tracing. An established stall is candidate mismatch even if post-kill recovery is incomplete or the raw trace ends mid-record. A fixture-stage timeout without this full observed interval, delayed baseline, gaps or changing counters, missing stage records, vanished or running tasks, different tracers, missing live status, invalid pre-intervention gate data, failed observer or inability to reap owned processes is infrastructure/inconclusive, not product failure. For either outcome reject absent/malformed/truncated assertions, wrong requirement, infrastructure_error or disagreement with independent raw-data assessment. Successful setup with valid controls and an attributable stall must not be rejected merely because natural fixture completion or full trace text is absent. For failed setup retain stage-appropriate available diagnostics without treating missing later-stage files as product evidence. No GNU output equivalence is claimed. The stall-controls.json encoding is strace-attach-stall-controls-zlib-v1: the complete original control record is canonical ASCII JSON (sorted keys, compact separators), zlib-compressed and base64-encoded in a bounded envelope. Require a complete nontruncated diagnostic of at most 524288 bytes, exact schema and codec, strictly decoded base64, compressed length at most 327680 bytes and its SHA-256, bounded zlib decompression to at most 8388608 bytes with end-of-stream and no trailing or unconsumed data, exact raw length and SHA-256, valid duplicate-free canonical JSON, and envelope/payload completeness. Independently reconstruct all original preconditions, 14 positive/negative sample inputs and outcomes and seven event-record inputs and outcomes. Verify exact named input sets including late_stop and all record omissions, and independently rerun the predicates over every input and verify expected results, ordered events and cleanup. Require all eleven guest wire checks named in stall_control_blueprint to be true and independently exercise the positive and all negative constructions, including semantic substitutions and malformed vectors with canonical bytes, compression, lengths and hashes recalculated; guest self-labels are not a substitute for independent control validation. Independently reconstruct and compare the entire exact typed control record against stall_control_blueprint before evaluating outcomes. The late_stop and sampling_gap controls must have the exact stated timing and only the stated deltas; a false predicate outcome with substituted inputs is insufficient. Any malformed, missing, oversized, truncated or corrupt envelope, unsuccessful reconstruction, omitted input, failed negative control or unsupported decoder is infrastructure/inconclusive, not product failure. The old plain-control audit is not compatible with this envelope; a separately reviewed primary gate and fresh guest evidence are required.",
+      "stall_control_blueprint": {
+        "schema": "strace-attach-stall-control-blueprint-v1",
+        "comparison": "Independently build the entire expected decoded record from this specification and compare exact canonical JSON bytes including types, fields and lengths before running either predicate. All unmentioned fields and samples must be byte-for-byte equal to their stated positive basis. Do not accept names/outcomes/hashes alone.",
+        "preconditions": {
+          "leader": 101,
+          "worker": 102,
+          "owner_pid": 99,
+          "tracer_pid": 201
+        },
+        "sample_baselines": {
+          "leader_task": {
+            "Pid": 101,
+            "Tgid": 101,
+            "PPid": 99,
+            "TracerPid": 201,
+            "State": "t (tracing stop)",
+            "voluntary_ctxt_switches": 7,
+            "nonvoluntary_ctxt_switches": 2
+          },
+          "worker_task": "identical to leader_task except Pid=102",
+          "tracer": {
+            "Pid": 201,
+            "Tgid": 201,
+            "PPid": 99,
+            "TracerPid": 0,
+            "State": "S (sleeping)"
+          },
+          "fixture_alive": true,
+          "tracer_alive": true,
+          "worker_shared": [
+            1,
+            0,
+            1,
+            1
+          ],
+          "leader_shared": [
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        "positive_sample_recipe": {
+          "worker_count": 42,
+          "leader_count": 52,
+          "first_start_ns": 1100000000,
+          "stride_ns": 100000000,
+          "sample_duration_ns": 1000000,
+          "wait_started_ns": 1000000000,
+          "worker_deadline_ns": 6000000000,
+          "leader_deadline_ns": 7000000000,
+          "timeout_ns": "last sample end",
+          "result": "candidate_stall",
+          "target_tid": "preconditions[stage]",
+          "task": "stage task baseline",
+          "leader": "leader task baseline",
+          "tracer": "tracer baseline",
+          "other_fields": "exactly the listed alive flags, shared, start_ns and end_ns"
+        },
+        "sample_negative_basis": "Each negative is an independent deep copy of the exact worker positive before applying only the following named delta.",
+        "sample_negative_deltas": {
+          "running": "samples[1].task.State = R (running)",
+          "wrong_tracer": "samples[0].task.TracerPid = 202",
+          "resumed": "samples[2].task.voluntary_ctxt_switches = 8",
+          "candidate_dead": "samples[0].tracer_alive = false",
+          "gate_closed": "samples[1].shared[0] = 0",
+          "wrong_owner": "samples[2].leader.PPid = 98",
+          "short_observation": "remove the last sample and set timeout_ns to new last end",
+          "insufficient_samples": "retain only sample 0 and set timeout_ns to its end",
+          "wrong_target": "target_tid = 999",
+          "late_stop": "set samples[0:6].task.State to R (running), append six otherwise identical stopped samples at indices 42..47 with unchanged 100000000 ns stride and 1000000 ns duration, and set timeout_ns to last end. First stop ends at 1701000000, 701000000 ns after wait start; last start 5800000000 minus first stopped end is 4099000000 ns; timeout 5801000000 <= deadline 6000000000. All intervening samples and gaps remain valid.",
+          "sampling_gap": "add 401000001 ns to both start_ns and end_ns of every sample from index 3 through the end and set timeout_ns to last end. The unique enlarged gap from sample 2 end to sample 3 start is 500000001 ns; durations and later order remain valid and the full post-stop interval and deadline remain valid.",
+          "capture_error": "add samples[2].capture_error = unavailable"
+        },
+        "positive_record_recipe": {
+          "worker_record": {
+            "base": "worker positive",
+            "events": [
+              [
+                "worker-release",
+                500000000
+              ],
+              [
+                "worker-wait",
+                1100000000
+              ],
+              [
+                "worker-stall-observation",
+                "worker timeout_ns + 1"
+              ],
+              [
+                "worker-stall-cleanup",
+                "worker timeout_ns + 2"
+              ]
+            ],
+            "worker_release": true,
+            "leader_release": false,
+            "worker_gone_before_leader_release": false
+          },
+          "leader_record": {
+            "base": "leader positive",
+            "events": [
+              [
+                "worker-release",
+                500000000
+              ],
+              [
+                "worker-wait",
+                800000000
+              ],
+              [
+                "leader-release",
+                900000000
+              ],
+              [
+                "fixture-completion",
+                1100000000
+              ],
+              [
+                "leader-stall-observation",
+                "leader timeout_ns + 1"
+              ],
+              [
+                "leader-stall-cleanup",
+                "leader timeout_ns + 2"
+              ]
+            ],
+            "worker_release": true,
+            "leader_release": true,
+            "worker_gone_before_leader_release": true
+          },
+          "common": {
+            "stall": "deep copy of base proof",
+            "monitors": "one key matching stage, containing deep copy of base proof",
+            "preconditions": "exact preconditions above",
+            "candidate_timeout": true,
+            "candidate_status_origin": "cleanup_sigkill",
+            "candidate_status": -9,
+            "stall_cleanup": {
+              "tracer_kill_requested": true,
+              "tracer_status_after_kill": -9
+            }
+          }
+        },
+        "record_negative_deltas": {
+          "monitor_mismatch": "worker_record, change monitors.worker.result to completed",
+          "missing_release": "worker_record, change worker_release to false",
+          "missing_worker_exit": "leader_record, change worker_gone_before_leader_release to false",
+          "missing_cleanup": "worker_record, change stall_cleanup.tracer_kill_requested to false",
+          "cleanup_too_early": "worker_record, change the final cleanup event time_ns to stall.samples[0].start_ns"
+        },
+        "outcomes": "Exactly true for worker and leader sample positives and worker_record and leader_record positives; all other named outcomes false; top-level complete true. Require exact field sets, full record structure and JSON scalar types, then independently rerun both predicates and verify outcomes.",
+        "wire_negative_controls": [
+          "omitted_payload",
+          "corrupted_stream",
+          "omitted_input",
+          "omitted_record",
+          "corrupted_outcome",
+          "substituted_negative",
+          "substituted_record",
+          "malformed_sample",
+          "wrong_positive_type",
+          "late_stop_short_span"
+        ],
+        "wire_positive_controls": [
+          "roundtrip"
+        ],
+        "independent_negative_reconstruction": "Primary independently substitutes wrong_target as late_stop and monitor_mismatch as missing_release with unchanged false outcomes; removes late_stop sample State; replaces a positive true with integer 1; and removes the last late_stop sample with corrected timeout. Rebuild canonical JSON, zlib stream, lengths and both hashes for each. Each must be rejected by exact blueprint comparison even when names/outcomes/hashes are valid; do not rely on guest labels."
+      }
     }
   ]
 }

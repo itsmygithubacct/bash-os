@@ -31,7 +31,9 @@ CONTROL_RECORDS = frozenset(('worker_record', 'leader_record', 'monitor_mismatch
                              'missing_release', 'missing_worker_exit', 'missing_cleanup',
                              'cleanup_too_early'))
 CONTROL_WIRE_TESTS = frozenset(('roundtrip', 'omitted_payload', 'corrupted_stream',
-                                'omitted_input', 'omitted_record', 'corrupted_outcome'))
+                                'omitted_input', 'omitted_record', 'corrupted_outcome',
+                                'substituted_negative', 'substituted_record', 'malformed_sample',
+                                'wrong_positive_type', 'late_stop_short_span'))
 
 
 def guard():
@@ -247,6 +249,96 @@ def unique_json_object(items):
     return result
 
 
+
+def expected_stall_control_record():
+    """Independent fixed blueprint for auditable input and mutation identity.
+
+    Never derive the expected values from the observed envelope or predicate
+    results. The suite's primary gate specifies this same recipe separately.
+    """
+    pre = {'leader': 101, 'worker': 102, 'owner_pid': 99, 'tracer_pid': 201}
+    leader = {'Pid':101, 'Tgid':101, 'PPid':99, 'TracerPid':201, 'State':'t (tracing stop)',
+              'voluntary_ctxt_switches':7, 'nonvoluntary_ctxt_switches':2}
+    tracer = {'Pid':201, 'Tgid':201, 'PPid':99, 'TracerPid':0, 'State':'S (sleeping)'}
+    def positive(stage):
+        duration = 4_000_000_000 if stage == 'worker' else 5_000_000_000
+        target = dict(leader, Pid=pre[stage])
+        samples = []
+        for index in range(duration // 100_000_000 + 2):
+            begin = 1_100_000_000 + index * 100_000_000
+            samples.append({'task':copy.deepcopy(target), 'leader':copy.deepcopy(leader),
+                            'tracer':copy.deepcopy(tracer), 'fixture_alive':True, 'tracer_alive':True,
+                            'shared':[1, 0 if stage == 'worker' else 1, 1, 1],
+                            'start_ns':begin, 'end_ns':begin + 1_000_000})
+        return {'stage':stage,'target_tid':pre[stage],'wait_started_ns':1_000_000_000,
+                'deadline_ns':2_000_000_000 + duration,'timeout_ns':samples[-1]['end_ns'],
+                'samples':samples,'result':'candidate_stall'}
+    worker, leader_proof = positive('worker'), positive('leader')
+    inputs = {'worker':worker, 'leader':leader_proof}
+    for name in CONTROL_INPUTS - {'worker', 'leader'}:
+        inputs[name] = copy.deepcopy(worker)
+    inputs['running']['samples'][1]['task']['State'] = 'R (running)'
+    inputs['wrong_tracer']['samples'][0]['task']['TracerPid'] = 202
+    inputs['resumed']['samples'][2]['task']['voluntary_ctxt_switches'] = 8
+    inputs['candidate_dead']['samples'][0]['tracer_alive'] = False
+    inputs['gate_closed']['samples'][1]['shared'][0] = 0
+    inputs['wrong_owner']['samples'][2]['leader']['PPid'] = 98
+    short = inputs['short_observation']; short['samples'].pop(); short['timeout_ns'] = short['samples'][-1]['end_ns']
+    few = inputs['insufficient_samples']; few['samples'] = few['samples'][:1]; few['timeout_ns'] = few['samples'][-1]['end_ns']
+    inputs['wrong_target']['target_tid'] = 999
+    late = inputs['late_stop']
+    for sample in late['samples'][:6]: sample['task']['State'] = 'R (running)'
+    for index in range(42, 48):
+        sample = copy.deepcopy(worker['samples'][-1])
+        sample['start_ns'] = 1_100_000_000 + index * 100_000_000
+        sample['end_ns'] = sample['start_ns'] + 1_000_000
+        late['samples'].append(sample)
+    late['timeout_ns'] = late['samples'][-1]['end_ns']
+    gap = inputs['sampling_gap']
+    for sample in gap['samples'][3:]:
+        sample['start_ns'] += 401_000_001
+        sample['end_ns'] += 401_000_001
+    gap['timeout_ns'] = gap['samples'][-1]['end_ns']
+    inputs['capture_error']['samples'][2]['capture_error'] = 'unavailable'
+    def full(stage, item):
+        timeline = [('worker-release',500_000_000), ('worker-wait',1_100_000_000 if stage == 'worker' else 800_000_000)]
+        if stage == 'leader': timeline += [('leader-release',900_000_000), ('fixture-completion',1_100_000_000)]
+        timeline += [(stage+'-stall-observation',item['timeout_ns']+1),
+                     (stage+'-stall-cleanup',item['timeout_ns']+2)]
+        return {'stall':copy.deepcopy(item),'monitors':{stage:copy.deepcopy(item)},'preconditions':copy.deepcopy(pre),
+                'events':[{'stage':name,'time_ns':ns} for name,ns in timeline],
+                'worker_release':True,'leader_release':stage == 'leader',
+                'worker_gone_before_leader_release':stage == 'leader',
+                'candidate_timeout':True,'candidate_status_origin':'cleanup_sigkill',
+                'candidate_status':-9,'stall_cleanup':{'tracer_kill_requested':True,'tracer_status_after_kill':-9}}
+    records = {'worker_record':full('worker',worker),'leader_record':full('leader',leader_proof)}
+    for name in ('monitor_mismatch','missing_release','missing_cleanup','cleanup_too_early'):
+        records[name] = copy.deepcopy(records['worker_record'])
+    records['missing_worker_exit'] = copy.deepcopy(records['leader_record'])
+    records['monitor_mismatch']['monitors']['worker']['result'] = 'completed'
+    records['missing_release']['worker_release'] = False
+    records['missing_worker_exit']['worker_gone_before_leader_release'] = False
+    records['missing_cleanup']['stall_cleanup']['tracer_kill_requested'] = False
+    records['cleanup_too_early']['events'][-1]['time_ns'] = records['cleanup_too_early']['stall']['samples'][0]['start_ns']
+    return {'preconditions':pre,'inputs':inputs,'outcomes':{k:k in ('worker','leader') for k in inputs},
+            'record_inputs':records,'record_outcomes':{k:k in ('worker_record','leader_record') for k in records},
+            'complete':True}
+
+
+def validate_control_semantics(record, canonical_raw):
+    expected = expected_stall_control_record()
+    expected_raw = json.dumps(expected, sort_keys=True, separators=(',', ':'), ensure_ascii=True).encode('ascii')
+    # Comparing canonical bytes also rejects JSON booleans substituted for ints.
+    if canonical_raw != expected_raw:
+        raise ValueError('stall control vectors differ from exact independent blueprint')
+    for name, proof in record['inputs'].items():
+        if attributable_stall(proof, record['preconditions']) is not record['outcomes'][name]:
+            raise ValueError('stall control predicate mismatch: ' + name)
+    for name, value in record['record_inputs'].items():
+        if stall_record_valid(value) is not record['record_outcomes'][name]:
+            raise ValueError('stall record predicate mismatch: ' + name)
+
+
 def decode_control_envelope(envelope):
     fields = {'schema', 'codec', 'complete', 'raw_bytes', 'raw_sha256', 'compressed_bytes',
               'compressed_sha256', 'payload_base64'}
@@ -276,6 +368,7 @@ def decode_control_envelope(envelope):
         raise ValueError('stall control cases or outcomes differ')
     if json.dumps(record, sort_keys=True, separators=(',', ':'), ensure_ascii=True).encode('ascii') != raw:
         raise ValueError('noncanonical stall control payload')
+    validate_control_semantics(record, raw)
     return record
 
 
@@ -292,6 +385,19 @@ def control_wire_tests(record):
     bad = copy.deepcopy(record); del bad['inputs']['late_stop']; mutations['omitted_input'] = control_envelope(bad)
     bad = copy.deepcopy(record); del bad['record_inputs']['missing_cleanup']; mutations['omitted_record'] = control_envelope(bad)
     bad = copy.deepcopy(record); bad['outcomes']['late_stop'] = True; mutations['corrupted_outcome'] = control_envelope(bad)
+    # Recompute every envelope hash: these corruptions are semantically wrong,
+    # not transport-integrity failures or changed expected outcome booleans.
+    bad = copy.deepcopy(record); bad['inputs']['late_stop'] = copy.deepcopy(bad['inputs']['wrong_target'])
+    mutations['substituted_negative'] = control_envelope(bad)
+    bad = copy.deepcopy(record); bad['record_inputs']['missing_release'] = copy.deepcopy(bad['record_inputs']['monitor_mismatch'])
+    mutations['substituted_record'] = control_envelope(bad)
+    bad = copy.deepcopy(record); del bad['inputs']['late_stop']['samples'][0]['task']['State']
+    mutations['malformed_sample'] = control_envelope(bad)
+    bad = copy.deepcopy(record); bad['inputs']['worker']['samples'][0]['fixture_alive'] = 1
+    mutations['wrong_positive_type'] = control_envelope(bad)
+    bad = copy.deepcopy(record); bad['inputs']['late_stop']['samples'].pop()
+    bad['inputs']['late_stop']['timeout_ns'] = bad['inputs']['late_stop']['samples'][-1]['end_ns']
+    mutations['late_stop_short_span'] = control_envelope(bad)
     for name, value in mutations.items():
         try: decode_control_envelope(value)
         except (ValueError, KeyError, TypeError, zlib.error): continue
@@ -338,6 +444,13 @@ def stall_controls():
             item['end_ns'] += 100000000
             x['samples'].append(item)
         x['timeout_ns'] = x['samples'][-1]['end_ns']
+    def sampling_gap(x):
+        # Preserve duration, order and full post-stop span while isolating one
+        # 500000001 ns gap; the unchanged timeout must track the shifted tail.
+        for sample in x['samples'][3:]:
+            sample['start_ns'] += 401000001
+            sample['end_ns'] += 401000001
+        x['timeout_ns'] = x['samples'][-1]['end_ns']
     for label, mutate in [
         ('running', lambda x: x['samples'][1]['task'].update(State='R (running)')),
         ('wrong_tracer', lambda x: x['samples'][0]['task'].update(TracerPid=202)),
@@ -348,7 +461,7 @@ def stall_controls():
         ('short_observation', short), ('insufficient_samples', few),
         ('wrong_target', lambda x: x.update(target_tid=999)),
         ('late_stop', late_stop),
-        ('sampling_gap', lambda x: x['samples'][3].update(start_ns=x['samples'][2]['end_ns'] + 500000001)),
+        ('sampling_gap', sampling_gap),
         ('capture_error', lambda x: x['samples'][2].update(capture_error='unavailable')),
     ]:
         item = copy.deepcopy(positive_worker); mutate(item); negative[label] = item
