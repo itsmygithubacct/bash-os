@@ -36,7 +36,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -132,7 +132,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -194,7 +194,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -256,7 +256,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -318,7 +318,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -380,7 +380,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -439,10 +439,11 @@
         "network-stage.json",
         "network-controls.json",
         "network-observation.json",
-        "network-assessment.json"
+        "network-assessment.json",
+        "network-native-target.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -490,7 +491,13 @@
               "address": "192.0.2.20"
             }
           ],
-          "before_after_fixture_unchanged": true
+          "before_after_fixture_unchanged": true,
+          "snapshot_artifact": "network-native-target.json",
+          "snapshot_labels": [
+            "native-target-before",
+            "native-target-after"
+          ],
+          "snapshot_equality": "fixture_baseline == before.snapshot == after.snapshot; and observation.before when candidate reached"
         },
         "candidate_command": "builtin bashio set-addr no_such_if 192.0.2.20 255.255.255.0",
         "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-addr no_such_if 192.0.2.20 255.255.255.0; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
@@ -529,10 +536,11 @@
         "network-stage.json",
         "network-controls.json",
         "network-observation.json",
-        "network-assessment.json"
+        "network-assessment.json",
+        "network-native-target.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -580,7 +588,13 @@
               "address": "192.0.2.20"
             }
           ],
-          "before_after_fixture_unchanged": true
+          "before_after_fixture_unchanged": true,
+          "snapshot_artifact": "network-native-target.json",
+          "snapshot_labels": [
+            "native-target-before",
+            "native-target-after"
+          ],
+          "snapshot_equality": "fixture_baseline == before.snapshot == after.snapshot; and observation.before when candidate reached"
         },
         "candidate_command": "builtin bashio set-addr bn0 192.0.2.20 255.255.255.0",
         "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-addr bn0 192.0.2.20 255.255.255.0; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
@@ -622,7 +636,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -685,7 +699,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -748,7 +762,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -811,7 +825,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -874,7 +888,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -937,7 +951,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -1015,7 +1029,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -1092,10 +1106,11 @@
         "network-stage.json",
         "network-controls.json",
         "network-observation.json",
-        "network-assessment.json"
+        "network-assessment.json",
+        "network-native-target.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -1158,7 +1173,13 @@
               "dev_hex": "626e30"
             }
           ],
-          "before_after_fixture_unchanged": true
+          "before_after_fixture_unchanged": true,
+          "snapshot_artifact": "network-native-target.json",
+          "snapshot_labels": [
+            "native-target-before",
+            "native-target-after"
+          ],
+          "snapshot_equality": "fixture_baseline == before.snapshot == after.snapshot; and observation.before when candidate reached"
         },
         "candidate_command": "builtin bashio set-route 192.0.2.1 -i bn0",
         "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-route 192.0.2.1 -i bn0; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
@@ -1197,10 +1218,11 @@
         "network-stage.json",
         "network-controls.json",
         "network-observation.json",
-        "network-assessment.json"
+        "network-assessment.json",
+        "network-native-target.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -1263,7 +1285,13 @@
               "dev_hex": "626e30"
             }
           ],
-          "before_after_fixture_unchanged": true
+          "before_after_fixture_unchanged": true,
+          "snapshot_artifact": "network-native-target.json",
+          "snapshot_labels": [
+            "native-target-before",
+            "native-target-after"
+          ],
+          "snapshot_equality": "fixture_baseline == before.snapshot == after.snapshot; and observation.before when candidate reached"
         },
         "candidate_command": "builtin bashio set-route 203.0.113.1 -i bn0",
         "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-route 203.0.113.1 -i bn0; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
@@ -1302,10 +1330,11 @@
         "network-stage.json",
         "network-controls.json",
         "network-observation.json",
-        "network-assessment.json"
+        "network-assessment.json",
+        "network-native-target.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-ns.py": "fd76cd6a2ee016d154b7104e970ddf0c586beec9d55a5534a6ebaf3663f96812",
         "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
         "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
       },
@@ -1368,7 +1397,13 @@
               "dev_hex": "626e30"
             }
           ],
-          "before_after_fixture_unchanged": true
+          "before_after_fixture_unchanged": true,
+          "snapshot_artifact": "network-native-target.json",
+          "snapshot_labels": [
+            "native-target-before",
+            "native-target-after"
+          ],
+          "snapshot_equality": "fixture_baseline == before.snapshot == after.snapshot; and observation.before when candidate reached"
         },
         "candidate_command": "builtin bashio set-route 192.0.2.1 -i bn0",
         "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-route 192.0.2.1 -i bn0; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
@@ -1377,18 +1412,19 @@
     }
   ],
   "primary_evidence_gate": {
-    "format": "bashio-network-evidence-gate-v3",
+    "format": "bashio-network-evidence-gate-v4",
     "owner": "primary",
     "execution": "data-only; do not execute or import the guest helper",
     "required_inputs": [
       "Exact case JSON and SHA-256 for each pinned helper and suite; frozen candidate hash and VM provenance.",
-      "Runner setup/candidate result and seven named diagnostic records including base64 bytes, missing/error flags, captured byte counts and truncation flags.",
+      "Runner setup/candidate result and all case-listed diagnostic records including base64 bytes, missing/error flags, captured byte counts and truncation flags; targeted cases additionally list network-native-target.json.",
       "Each decoded network control and candidate record including raw trace bytes, parsed events, stdout/stderr, status/termination, snapshots and assessment."
     ],
     "retention_rules": [
-      "For a completed stage require all seven diagnostic files, each regular, readable, present, nontruncated and valid JSON; reject inconsistent byte counts or hashes. Reject duplicate JSON keys and duplicate required control labels.",
+      "For a completed stage require all case-listed diagnostic files, each regular, readable, present, nontruncated and valid JSON; reject inconsistent byte counts or hashes. Reject duplicate JSON keys and duplicate required control labels.",
       "For a failed setup, require only records from stages actually reached; retain available compiler, parser, outer, stage, control and candidate records without inventing absent later records. Missing stage-appropriate records mean ERROR/incomplete, not candidate mismatch.",
-      "A trace or stream prefix intentionally captured after a timeout or output/trace limit is explicitly partial in its record; it is not an externally truncated diagnostic file. It can support a failure only when actual begin-marker evidence exists; it can never support a PASS."
+      "A trace or stream prefix intentionally captured after a timeout or output/trace limit is explicitly partial in its record; it is not an externally truncated diagnostic file. It can support a failure only when actual begin-marker evidence exists; it can never support a PASS.",
+      "For a native-target setup failure, require network-native-target.json once its capture stage has started; inspect state, before/control/after progress, snapshots and errors conditionally. Before is retained before any native-target attempt. After is attempted and incrementally retained even if the target observer/control fails; a before-capture failure has no target invocation and no after requirement. Missing reached-stage diagnostics are ERROR/incomplete."
     ],
     "identity_rules": {
       "outer_uid": 2000,
@@ -1423,7 +1459,9 @@
       "scenario_positive": 18,
       "scenario_negative": 36,
       "operation_limit_controls": 3,
-      "post_operation_limit_controls": 3
+      "post_operation_limit_controls": 3,
+      "target_snapshot_positive": 1,
+      "target_snapshot_negative": 4
     },
     "native_controls": {
       "native-mark-empty": {
@@ -1706,6 +1744,47 @@
       "candidate_observer_timeout_seconds": 8,
       "namespace_setup_timeout_seconds": 52,
       "single_diagnostic_write_limit_bytes": 900000
+    },
+    "native_target_snapshots": {
+      "artifact": "network-native-target.json",
+      "required_scenarios": [
+        "addr-nodev",
+        "addr-perm",
+        "route-repeat",
+        "route-unreachable",
+        "route-perm"
+      ],
+      "binding": {
+        "scenario": "Must match case scenario.",
+        "control_label": "Must equal native-target and bind to exactly one corresponding network-controls trace record.",
+        "before_label": "native-target-before",
+        "after_label": "native-target-after",
+        "completion_event_labels": [
+          "native-target-before-snapshot-complete",
+          "native-target-after-snapshot-complete"
+        ],
+        "ordering": "Before snapshot completion event precedes native-target control event, which precedes after snapshot completion event. Check matching scenario and digest in each completion event. Check each labeled ip observation for bn0, bn1 and routes occurs in its corresponding snapshot interval.",
+        "digest": "For each complete snapshot, SHA-256 over ASCII JSON with sorted keys, ensure_ascii=true and separators comma/colon without spaces must equal both the item sha256 and its ordered controls event snapshot_sha256."
+      },
+      "complete_snapshot_checks": [
+        "Each labeled item has state complete and step complete; its snapshot contains exactly bn0 and bn1 interfaces, each with parsed ip JSON, integer ioctl flags and flags_raw_b64, a parsed routes list, raw proc_route text and parsed kernel_defaults.",
+        "Independently decode each flags_raw_b64 as the full 40-byte x86_64 ifreq, require its NUL-terminated name to match the interface, and decode the unsigned native-little-endian flags at offset 16; it must equal the recorded flags integer.",
+        "Independently parse each saved proc_route and require it to agree with kernel_defaults; parse each uniquely labeled raw ip command stdout and require it to agree with the snapshot interface JSON and routes.",
+        "Compare complete before and after snapshots as full values, including both raw and decoded flags, both interface JSON records, routes, raw proc_route and parsed defaults. Independently require exact equality; do not trust the equal field.",
+        "Require fixture_baseline to equal the before snapshot. If candidate was reached, independently require network-observation.before to equal that same snapshot. Also verify scenario-specific baseline and native-target ioctl status and request fields against the per-case data."
+      ],
+      "success_state": {
+        "state": "complete",
+        "control_state": "complete",
+        "control_request_matches": true,
+        "equal": true
+      },
+      "failure_rules": [
+        "A missing, truncated, malformed, mislabeled, mismatched, incomplete, incorrectly ordered or unequal required snapshot or failed native-target control is setup ERROR/incomplete and cannot establish candidate product failure or coverage.",
+        "For setup errors after capture begins, retain the latest partial item with its step, partial snapshot and error; preserve fixture_baseline and any raw controls event records already produced. If the target was attempted, require an after attempt and preserve its complete or partial result even when native-target itself failed.",
+        "If before capture fails or differs from fixture_baseline, no target invocation is attempted and the after snapshot remains not-started. Do not demand records for unattempted later stages or infer native-target behavior.",
+        "On a control mismatch or observer error, the artifact remains setup-error after the after attempt, and candidate is not executed. Compare any complete before and after for diagnosis, but never reinterpret the control failure as a candidate failure."
+      ]
     }
   }
 }

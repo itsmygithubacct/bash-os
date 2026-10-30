@@ -5,6 +5,7 @@ import base64
 import copy
 import errno
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -218,21 +219,38 @@ def kernel_defaults(text):
     return defaults
 
 
-def snapshot(events):
-    interfaces = {}
+def snapshot(events, progress=None, label=None):
+    result = {'interfaces': {}, 'routes': None, 'proc_route': None, 'kernel_defaults': None}
+    def record(step):
+        if progress is not None:
+            progress(step, result)
+    record('start')
     for name in ('bn0', 'bn1'):
-        data = json.loads(ip(events, '-j', '-4', 'addr', 'show', 'dev', name))
+        argv = ['-j', '-4', 'addr', 'show', 'dev', name]
+        raw_addr = (run([IP, *argv], events, label + '-' + name + '-addr')
+                    if label else ip(events, *argv))
+        data = json.loads(raw_addr)
         if not isinstance(data, list) or len(data) != 1 or data[0].get('ifname') != name or not isinstance(data[0].get('addr_info'), list):
             raise RuntimeError('bad interface data')
+        result['interfaces'][name] = {'json': data[0], 'flags': None, 'flags_raw_b64': None}
+        record(name + '-address')
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             raw = fcntl.ioctl(sock.fileno(), 0x8913, struct.pack('16s24x', name.encode()))
-        interfaces[name] = {'json': data[0], 'flags': struct.unpack_from('H', raw, 16)[0]}
-    routes_raw = ip(events, '-j', '-4', 'route', 'show', 'table', 'main')
-    routes = route_records(routes_raw)
+        result['interfaces'][name]['flags'] = struct.unpack_from('H', raw, 16)[0]
+        result['interfaces'][name]['flags_raw_b64'] = base64.b64encode(raw).decode()
+        record(name + '-flags')
+    argv = ['-j', '-4', 'route', 'show', 'table', 'main']
+    routes_raw = run([IP, *argv], events, label + '-routes') if label else ip(events, *argv)
+    result['routes'] = route_records(routes_raw)
+    record('routes')
     proc = Path('/proc/net/route').read_text()
+    result['proc_route'] = proc
+    record('proc-route-raw')
     if not proc.startswith('Iface\t') or len(proc) > 65536:
         raise RuntimeError('route table unavailable')
-    return {'interfaces': interfaces, 'routes': routes, 'proc_route': proc, 'kernel_defaults': kernel_defaults(proc)}
+    result['kernel_defaults'] = kernel_defaults(proc)
+    record('complete')
+    return result
 
 
 def ios(record):
@@ -266,6 +284,85 @@ def native_marked(events, label, args, mode, guard):
             base64.b64decode(rec['stdout_b64']) or base64.b64decode(rec['stderr_b64'])):
         raise RuntimeError('marked native observer control failed: ' + label)
     return rec
+
+
+def target_snapshots_equal(before, after):
+    return (before.get('state') == 'complete' and after.get('state') == 'complete' and
+            before.get('snapshot') is not None and before['snapshot'] == after.get('snapshot'))
+
+
+def native_target(events, scenario, baseline, args, mode, req, expected_errno):
+    target = {'scenario': scenario, 'control_label': 'native-target', 'arguments': args,
+              'mode': mode, 'state': 'capturing-before', 'control': {'state': 'not-started'},
+              'before': {'label': 'native-target-before', 'state': 'not-started'},
+              'after': {'label': 'native-target-after', 'state': 'not-started'},
+              'fixture_baseline': baseline, 'equal': None}
+    write('network-native-target.json', target)
+
+    def capture(phase):
+        item = target[phase]
+        item['state'] = 'capturing'
+        write('network-native-target.json', target)
+        def progress(step, value):
+            item['step'] = step
+            item['snapshot'] = value
+            if step == 'complete':
+                payload = json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True).encode('ascii')
+                item['sha256'] = hashlib.sha256(payload).hexdigest()
+                events.append({'label': item['label'] + '-snapshot-complete', 'scenario': scenario,
+                               'snapshot_sha256': item['sha256']})
+                write('network-controls.json', events)
+            write('network-native-target.json', target)
+        try:
+            value = snapshot(events, progress, item['label'])
+            item['state'] = 'complete'
+            write('network-native-target.json', target)
+            return value
+        except Exception as exc:
+            item.update({'state': 'error', 'error': repr(exc)})
+            write('network-native-target.json', target)
+            raise
+
+    try:
+        target_before = capture('before')
+        if target_before != baseline:
+            raise RuntimeError('native-target before snapshot differs from fixture baseline')
+        target['state'] = 'control-running'
+        target['control']['state'] = 'running'
+        write('network-native-target.json', target)
+        control_error = None
+        try:
+            ctrl = native_marked(events, 'native-target', args, mode, 'bn0')
+            seq = ios(ctrl)
+            ok = (len(seq) == 1 and
+                  (route_check(seq[0], args[2], args[1], expected_errno) if req == ROUTE else
+                   ioctl_check(seq[0], ADDR, expected_errno, args[1], args[2])))
+            status = ctrl['events'][-1]['status']
+            target['control'].update({'state': 'complete', 'status': status,
+                                      'expected_status': expected_errno, 'request_matches': ok})
+            if status != expected_errno or not ok:
+                control_error = 'native-target status or request mismatch'
+        except Exception as exc:
+            target['control'].update({'state': 'error', 'error': repr(exc)})
+            control_error = 'native-target observer or control failed'
+        write('network-native-target.json', target)
+        target['state'] = 'capturing-after'
+        write('network-native-target.json', target)
+        # Always inspect after a control attempt, including one that failed or
+        # returned an unexpected status; its partial effects remain observable.
+        capture('after')
+        target['equal'] = target_snapshots_equal(target['before'], target['after'])
+        write('network-native-target.json', target)
+        if control_error:
+            raise RuntimeError(control_error)
+        if not target['equal']:
+            raise RuntimeError('native-target changed the fixture')
+        target['state'] = 'complete'
+        write('network-native-target.json', target)
+    except Exception as exc:
+        target.update({'state': 'setup-error', 'error': repr(exc)})
+        write('network-native-target.json', target)
+        raise
 
 
 def defaults(state):
@@ -412,6 +509,18 @@ def parser_controls():
     for key, value in [('dev_hex', 'bn0'.encode().hex()), ('flags', 1), ('mask', '255.255.255.0'), ('errno', 17)]:
         bad = dict(sample); bad[key] = value
         if route_check(bad, '192.0.2.1', 'bn1', 0): raise RuntimeError('route request negative control: ' + key)
+    target_before = {'state': 'complete', 'snapshot': {'interfaces': {'bn0': {'flags': 65}}, 'proc_route': 'route-a'}}
+    target_after = copy.deepcopy(target_before)
+    if not target_snapshots_equal(target_before, target_after):
+        raise RuntimeError('native target snapshot positive control')
+    invalid_targets = []
+    bad = copy.deepcopy(target_after); bad['state'] = 'capturing'; invalid_targets.append(bad)
+    bad = copy.deepcopy(target_after); bad['snapshot']['interfaces']['bn0']['flags'] = 1; invalid_targets.append(bad)
+    bad = copy.deepcopy(target_after); bad['snapshot']['proc_route'] = 'route-b'; invalid_targets.append(bad)
+    invalid_targets.append({'state': 'complete', 'snapshot': None})
+    for bad in invalid_targets:
+        if target_snapshots_equal(target_before, bad):
+            raise RuntimeError('native target snapshot accepted invalid control')
     # Exercise the complete candidate assertion for every scenario, with a
     # correct synthetic record and two independently incorrect records.
     for name, (_, expected, fragment, kind) in CASES.items():
@@ -461,6 +570,7 @@ def parser_controls():
                                             'window_controls': 1, 'startup_limit_controls': 3,
                                             'operation_limit_controls': 3, 'post_operation_limit_controls': 3,
                                             'early_exit_controls': 2,
+                                            'target_snapshot_positive': 1, 'target_snapshot_negative': 4,
                                             'proc_route_positive': 1, 'proc_route_negative': 3,
                                             'scenario_positive': len(CASES), 'scenario_negative': 2 * len(CASES)})
 
@@ -577,13 +687,8 @@ def inner(name, outer_net, outer_user):
         }
         if name in targeted:
             args, mode, req, expected_errno = targeted[name]
-            ctrl = native_marked(events, 'native-target', args, mode, 'bn0')
-            seq = ios(ctrl)
-            ok = (len(seq) == 1 and
-                  (route_check(seq[0], args[2], args[1], expected_errno) if req == ROUTE else
-                   ioctl_check(seq[0], ADDR, expected_errno, args[1], args[2])))
-            if ctrl['events'][-1]['status'] != expected_errno or not ok or snapshot(events) != before:
-                raise RuntimeError('scenario-specific native error control failed')
+            stage['stage'] = 'native-target'; write('network-stage.json', stage)
+            native_target(events, name, before, args, mode, req, expected_errno)
         stage['stage'] = 'candidate'; write('network-stage.json', stage)
         cmd = CASES[name][0]
         mode = 'drop' if name.endswith('-perm') else 'keep'
