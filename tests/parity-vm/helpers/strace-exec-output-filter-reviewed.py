@@ -15,7 +15,8 @@ CONTROL = '#define _GNU_SOURCE\n#include <errno.h>\n#include <signal.h>\n#includ
 EXPECTED = ['execve', 'write', 'openat', 'exit_group']
 PREFIX = r'(?:\[pid\s+\d+\]\s+|\d+\s+)?'
 CALL_START = re.compile(PREFIX + r'([a-z_][a-z_0-9]*)\(')
-BANNER = re.compile(PREFIX + r'\+\+\+ (?:exited with 42|exec) \+\+\+\Z')
+BANNER = re.compile(PREFIX + r'\+\+\+ (exited with 42|exec) \+\+\+\Z')
+LINE_PREFIX = re.compile(r'(?:(?:\[pid\s+([0-9]+)\]|([0-9]+))\s+)?')
 UUID = re.compile(r'[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\Z')
 ATOM = re.compile(r'(?:[A-Za-z_][A-Za-z_0-9]*|-?(?:0x[0-9a-fA-F]+|[0-9]+))(?:\|(?:[A-Za-z_][A-Za-z_0-9]*|0x[0-9a-fA-F]+|[0-9]+))*\Z')
 RESULT = re.compile(r'\s+=\s+(?:\?|-1(?:\s+errno=[0-9]+|\s+[A-Z][A-Z_0-9]*(?:\s+\([A-Za-z0-9 .:/_-]+\))?)?|-?[0-9]+|0x[0-9a-fA-F]+)\s*\Z')
@@ -36,21 +37,56 @@ def require_guest():
         raise ValueError('requires the isolated uid-2000 x86_64 parity guest')
 
 
-def records(data):
+def parse_records(data, locations=None):
     if len(data) > 1024 * 1024:
         raise ValueError('trace exceeds size limit')
     text = data.decode('utf-8', errors='strict')
     if not text or not text.endswith('\n'):
         raise ValueError('empty or unterminated trace')
     result = []
-    for line in text.splitlines():
+    banners = []
+    pid = None
+    prefixed = None
+    exec_seen = False
+    exit_seen = False
+    for line_index, line in enumerate(text.splitlines()):
         if len(line) > 8192:
             raise ValueError('trace line exceeds size limit')
-        if BANNER.fullmatch(line):
+        prefix = LINE_PREFIX.match(line)
+        number = prefix.group(1) or prefix.group(2)
+        has_pid = number is not None
+        if prefixed is None:
+            prefixed = has_pid
+        elif prefixed != has_pid:
+            raise ValueError('mixed prefixed and unprefixed trace lines')
+        if has_pid:
+            number = int(number)
+            if number <= 0 or (pid is not None and number != pid):
+                raise ValueError('foreign or invalid trace PID')
+            pid = number
+        banner = BANNER.fullmatch(line)
+        if banner:
+            kind = 'exec' if banner.group(1) == 'exec' else 'exit'
+            if exit_seen:
+                raise ValueError('banner follows exit banner')
+            if kind == 'exec':
+                if exec_seen or (result and (len(result) != 1 or result[0][0] != 'execve')):
+                    raise ValueError('duplicate or misplaced exec banner')
+                exec_seen = True
+            else:
+                if not result:
+                    raise ValueError('exit banner before syscalls')
+                exit_seen = True
+            location = locations[line_index] if locations is not None else {'line': line_index + 1, 'source': 'standalone'}
+            banners.append({'kind': kind, 'pid': number, **location})
             continue
+        if exit_seen:
+            raise ValueError('syscall follows exit banner')
         m = CALL_START.match(line)
         if not m:
             raise ValueError('unexpected trace line: ' + line)
+        if m.group(1) == 'execve' and exec_seen:
+            raise ValueError('execve follows exec banner')
         args = []
         i = m.end()
         while True:
@@ -111,7 +147,11 @@ def records(data):
         result.append((m.group(1), args))
         if len(result) > 64:
             raise ValueError('too many trace records')
-    return result
+    return result, banners
+
+
+def records(data):
+    return parse_records(data)[0]
 
 
 def require_names(data, names):
@@ -129,6 +169,7 @@ def semantic_records(data):
         raise ValueError('empty or unterminated trace')
     lines = text.splitlines()
     assembled = []
+    locations = []
     events = []
     i = 0
     while i < len(lines):
@@ -149,13 +190,20 @@ def semantic_records(data):
                            'continuation_line': i + 2,
                            'reason': 'same-PID exec banner interrupted the execve result'})
             assembled.append(joined)
+            locations.append({'line': i + 1, 'source': 'record'})
+            # Preserve the removed banner as an explicitly accounted event in
+            # the full-stream parse, immediately after the assembled call.
+            assembled.append('[pid ' + match.group(2) + '] +++ exec +++')
+            locations.append({'line': i + 1, 'source': 'interrupted'})
             i += 2
         else:
             assembled.append(line)
+            locations.append({'line': i + 1, 'source': 'standalone'})
             i += 1
     # Reparse the complete stream after assembly: extra, malformed, or hidden
     # calls must still fail the same bounded grammar and sequence checks.
-    return records(('\n'.join(assembled) + '\n').encode('utf-8')), events
+    rows, banners = parse_records(('\n'.join(assembled) + '\n').encode('utf-8'), locations)
+    return rows, events, banners
 
 
 def require_row_names(rows, names):
@@ -214,14 +262,46 @@ def setup(home):
     require_names(pointer_annotated, EXPECTED)
     require_decode(pointer_annotated)
     interrupted = good.replace(b') = 0\n', b')[pid 123] +++ exec +++\n = 0\n', 1)
-    rows, events = semantic_records(interrupted)
+    rows, events, banners = semantic_records(interrupted)
     require_row_names(rows, EXPECTED)
     require_decode_rows(rows)
     quoted_interrupted = interrupted.replace(b'"STRACE-MARK\\n"', b'"getpid() and \\\"read(0)\\\""')
-    quoted_rows, _ = semantic_records(quoted_interrupted)
+    quoted_rows, _, _ = semantic_records(quoted_interrupted)
     require_row_names(quoted_rows, EXPECTED)
     if len(events) != 1 or events[0]['pid'] != '123':
         raise ValueError('interrupted exec assembly was not recorded')
+    if banners != [{'kind': 'exec', 'pid': 123, 'line': 1, 'source': 'interrupted'},
+                   {'kind': 'exit', 'pid': 123, 'line': 6, 'source': 'standalone'}]:
+        raise ValueError('interrupted exec banner accounting mismatch')
+    exec_banner = b'[pid 123] +++ exec +++\n'
+    exit_banner = b'[pid 123] +++ exited with 42 +++\n'
+    standalone = good.replace(b'[pid 123] write(', exec_banner + b'[pid 123] write(', 1)
+    plain = good.replace(exit_banner, b'')
+    unprefixed = good.replace(b'[pid 123] ', b'')
+    no_prefix_or_banner = plain.replace(b'[pid 123] ', b'')
+    numbered = good.replace(b'[pid 123] ', b'123 ')
+    parts = good.splitlines(keepends=True)
+    filtered = exec_banner + parts[1] + parts[2] + exit_banner
+    filtered_plain = parts[1] + parts[2]
+    filtered_unprefixed = filtered.replace(b'[pid 123] ', b'')
+    for sample, expected in [(standalone, EXPECTED), (plain, EXPECTED),
+                             (unprefixed, EXPECTED), (no_prefix_or_banner, EXPECTED),
+                             (numbered, EXPECTED), (filtered, ['write', 'openat']),
+                             (filtered_plain, ['write', 'openat']),
+                             (filtered_unprefixed, ['write', 'openat'])]:
+        require_names(sample, expected)
+        sample_rows, sample_events, sample_banners = semantic_records(sample)
+        require_row_names(sample_rows, expected)
+        if sample_events:
+            raise ValueError('standalone banner was misidentified as interruption')
+    _, _, standalone_banners = semantic_records(standalone)
+    if standalone_banners != [{'kind': 'exec', 'pid': 123, 'line': 2, 'source': 'standalone'},
+                              {'kind': 'exit', 'pid': 123, 'line': 6, 'source': 'standalone'}]:
+        raise ValueError('standalone banner accounting mismatch')
+    _, _, unprefixed_banners = semantic_records(filtered_unprefixed)
+    if ([banner['kind'] for banner in unprefixed_banners] != ['exec', 'exit'] or
+            any(banner['pid'] is not None for banner in unprefixed_banners)):
+        raise ValueError('unprefixed banner accounting mismatch')
     try:
         require_names(interrupted, EXPECTED)
     except (ValueError, UnicodeError):
@@ -229,7 +309,7 @@ def setup(home):
     else:
         raise ValueError('strict line parser accepted an interrupted record')
     pointer_write = interrupted.replace(b'"STRACE-MARK\\n"', b'0x402000')
-    pointer_rows, _ = semantic_records(pointer_write)
+    pointer_rows, _, _ = semantic_records(pointer_write)
     require_row_names(pointer_rows, EXPECTED)
     try:
         require_decode_rows(pointer_rows)
@@ -254,11 +334,51 @@ def setup(home):
     ]
     for bad in semantic_negatives:
         try:
-            bad_rows, _ = semantic_records(bad)
+            bad_rows, _, _ = semantic_records(bad)
             require_row_names(bad_rows, EXPECTED)
         except (ValueError, UnicodeError):
             continue
         raise ValueError('semantic parser accepted invalid interrupted trace')
+    banner_negatives = [
+        (standalone.replace(exec_banner, exec_banner + exec_banner), EXPECTED, False),
+        (standalone.replace(exec_banner, b'[pid 999] +++ exec +++\n'), EXPECTED, False),
+        (good.replace(exit_banner, b'[pid 999] +++ exited with 42 +++\n'), EXPECTED, False),
+        (good + exit_banner, EXPECTED, False),
+        (good.replace(parts[1], exit_banner + parts[1]), EXPECTED, False),
+        (good.replace(parts[2], exec_banner + parts[2]), EXPECTED, False),
+        (exec_banner + good, EXPECTED, False),
+        (good + exec_banner, EXPECTED, False),
+        (exit_banner + good, EXPECTED, False),
+        (good.replace(b'[pid 123] write(', b'write(', 1), EXPECTED, False),
+        (good.replace(exit_banner, b'+++ exited with 42 +++\n'), EXPECTED, False),
+        (unprefixed.replace(b'+++ exited with 42 +++\n', exit_banner), EXPECTED, False),
+        (good.replace(b'[pid 123] openat(', b'[pid 124] openat(', 1), EXPECTED, False),
+        (filtered.replace(exec_banner, exec_banner + exec_banner), ['write', 'openat'], False),
+        (filtered.replace(parts[2], exec_banner + parts[2]), ['write', 'openat'], False),
+        (filtered + exit_banner, ['write', 'openat'], False),
+        (filtered_unprefixed + b'+++ exited with 42 +++\n', ['write', 'openat'], False),
+        (filtered_unprefixed.replace(b'+++ exec +++\n', b'+++ exec +++\n+++ exec +++\n'),
+         ['write', 'openat'], False),
+        (interrupted.replace(b'\n = 0\n', b'\n = 0\n' + exec_banner), EXPECTED, True),
+        (interrupted.replace(b'\n = 0\n', b'\n = 0\n[pid 999] +++ exec +++\n'), EXPECTED, True),
+        (interrupted.replace(exit_banner, b'[pid 999] +++ exited with 42 +++\n'), EXPECTED, True),
+        (interrupted + exit_banner, EXPECTED, True),
+    ]
+    for bad, expected, has_interruption in banner_negatives:
+        try:
+            bad_rows, _, _ = semantic_records(bad)
+            require_row_names(bad_rows, expected)
+        except (ValueError, UnicodeError):
+            pass
+        else:
+            raise ValueError('semantic parser accepted invalid banner accounting')
+        if not has_interruption:
+            try:
+                require_names(bad, expected)
+            except (ValueError, UnicodeError):
+                pass
+            else:
+                raise ValueError('strict parser accepted invalid banner accounting')
     negatives = [b'', good.rstrip(b'\n'), good + b'write(1, 0, 1) = 1\n',
                  good.replace(b'write(', b'unknown(', 1),
                  good.replace(b'exit_group(42) = ?\n', b''),
@@ -315,6 +435,7 @@ def setup(home):
         'positive': 7, 'negative': len(negatives),
         'decode_negative': len(decode_negatives), 'semantic_positive': 3,
         'semantic_negative': len(semantic_negatives),
+        'banner_positive': 8, 'banner_negative': len(banner_negatives),
         'strict_interruption_rejected': True}) + '\n')
     Path('tracee-core.s').write_text(ASSEMBLY)
     Path('native-trace.c').write_text(CONTROL)
@@ -376,8 +497,8 @@ def verify(home, mode):
         observations['semantic_assembly'] = {'error': 'trace destination is missing or unreadable'}
     else:
         try:
-            semantic_rows, events = semantic_records(trace)
-            observations['semantic_assembly'] = {'events': events}
+            semantic_rows, events, banners = semantic_records(trace)
+            observations['semantic_assembly'] = {'events': events, 'banners': banners}
         except (ValueError, UnicodeError) as error:
             observations['semantic_assembly'] = {'error': str(error)}
 
