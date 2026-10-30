@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "37dcac64fd5411f3eb95e50172b24f6fd6c973d27dd79e85339a342306402d19",
+  "ledger_sha256": "dda5ddfdf59e697c87170ed8ed29edbbbb2eba49afc7bbdb55194daf596c7a58",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
     "partial": 94,
-    "full": 400,
-    "none": 106
+    "full": 401,
+    "none": 105
   },
   "migrations": {
-    "deferred": 200,
-    "replacement": 400
+    "deferred": 199,
+    "replacement": 401
   },
   "pending_full_topics": [],
   "builds": {
@@ -8152,6 +8152,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793395819.6537511
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "killall5-nonleader-v2-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 7,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "e7e150c97a75c036fa4774a88a68e0118e8a2541326bbc8bbab3a58d2d3d0c9d",
+            "provenance.json": "479e403bf4705a6b2a2a260fc6c361ba5e1af57fb0f93101ae162d6537ab0b04",
+            "payload.tar": "99c31047e24525fff507e3316cf43c68a9fcd8ad0dcbae04326bfed6f56b18d0",
+            "evidence.tar": "d0534f3979bbc049ec8f8caac5f88f3423d0fdd9823278a58fb6d61e191c6741"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793400359.8795195
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -29141,55 +29167,126 @@
         },
         {
           "topic": "killall5/dry_run_selection",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "--dry-run lists eligible PIDs without signalling.",
-              "coverage": "missing",
-              "gap": "Not executed. killall5 honours BASHOS_PROC_ROOT for dry-run (pgrep.c bp_walk only refuses delivery), so a synthetic contract is implementable in the existing legacy runner.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-baseline",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "The caller's whole session and self are excluded.",
-              "coverage": "missing",
-              "gap": "Not executed. The session comes from the real getsid(0), so synthetic records must carry that live SID (readable from /proc/$$/stat inside the case).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-baseline",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-nonleader",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Kernel threads (empty cmdline) are excluded.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-baseline",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "-o omit lists (comma-separated, repeated, attached) are honoured.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-comma",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-repeat",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-none",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Malformed or disappearing records are skipped; status 0 if any selected, 2 if none, 1 if proc unreadable.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-baseline",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-race",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-none",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-unreadable",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -58088,9 +58185,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 200,
+        "UNRESOLVED": 199,
         "FAIL": 190,
-        "PASS": 210
+        "PASS": 211
       },
       "migration_without_complete_evidence": []
     },
@@ -66232,6 +66329,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793396084.9228282
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "killall5-nonleader-v2-r2-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 7,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "0902052bfafa3aab11e32c0ec500a4a2c8d6385eac651b1ac9538d7fbef23397",
+            "provenance.json": "392d30817fb0c87691733cb21fac799aea3f728419b2b7ba6848d1c66c297f2e",
+            "payload.tar": "82b267973117abb71062083649168d169aaf08796420a61c07a8c6970a10a32c",
+            "evidence.tar": "25801ad50530cccc1733930c6a275df6169e6d788ea4b6158a6881206dae6f95"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793400444.022534
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -87221,55 +87344,126 @@
         },
         {
           "topic": "killall5/dry_run_selection",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "--dry-run lists eligible PIDs without signalling.",
-              "coverage": "missing",
-              "gap": "Not executed. killall5 honours BASHOS_PROC_ROOT for dry-run (pgrep.c bp_walk only refuses delivery), so a synthetic contract is implementable in the existing legacy runner.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-baseline",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "The caller's whole session and self are excluded.",
-              "coverage": "missing",
-              "gap": "Not executed. The session comes from the real getsid(0), so synthetic records must carry that live SID (readable from /proc/$$/stat inside the case).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-baseline",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-nonleader",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Kernel threads (empty cmdline) are excluded.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-baseline",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "-o omit lists (comma-separated, repeated, attached) are honoured.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-comma",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-repeat",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-none",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Malformed or disappearing records are skipped; status 0 if any selected, 2 if none, 1 if proc unreadable.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-baseline",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-race",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-none",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-killall5-dry-run-reviewed-unreadable",
+                  "status": "PASS",
+                  "run": "killall5-nonleader-v2-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -116168,9 +116362,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 200,
+        "UNRESOLVED": 199,
         "FAIL": 189,
-        "PASS": 211
+        "PASS": 212
       },
       "migration_without_complete_evidence": []
     }

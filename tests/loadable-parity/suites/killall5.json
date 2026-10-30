@@ -43,9 +43,38 @@
     },
     {
       "id": "dry_run_selection",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify read-only target selection and omit-list handling without enumerating the runner's process set.",
-      "reason": "No killall5 operation executed. The dry-run path is read-only and already supports BASHOS_PROC_ROOT, so the original deferral reason (no fixture adapter) no longer applies to the candidate side. No GNU killall5 oracle exists; sysvinit-utils killall5 in the image has no dry-run."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-killall5-dry-run-reviewed-baseline"
+        },
+        {
+          "group": "shell",
+          "id": "migration-killall5-dry-run-reviewed-comma"
+        },
+        {
+          "group": "shell",
+          "id": "migration-killall5-dry-run-reviewed-none"
+        },
+        {
+          "group": "shell",
+          "id": "migration-killall5-dry-run-reviewed-nonleader"
+        },
+        {
+          "group": "shell",
+          "id": "migration-killall5-dry-run-reviewed-race"
+        },
+        {
+          "group": "shell",
+          "id": "migration-killall5-dry-run-reviewed-repeat"
+        },
+        {
+          "group": "shell",
+          "id": "migration-killall5-dry-run-reviewed-unreadable"
+        }
+      ]
     },
     {
       "id": "signal_delivery",

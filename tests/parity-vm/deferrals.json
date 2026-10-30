@@ -20374,47 +20374,118 @@
         "purpose": "Verify read-only target selection and omit-list handling without enumerating the runner's process set.",
         "reason": "Requires a future disposable PID-namespace VM or reviewed /proc fixture adapter plus an independent selection oracle. Exercise --dry-run with synthetic entries covering caller-session and self exclusion, empty-cmdline kernel-thread exclusion, omitted PIDs, malformed/disappearing records, and eligible outside-session PIDs. This suite does not invoke the operation."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No killall5 operation executed. The dry-run path is read-only and already supports BASHOS_PROC_ROOT, so the original deferral reason (no fixture adapter) no longer applies to the candidate side. No GNU killall5 oracle exists; sysvinit-utils killall5 in the image has no dry-run.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All five original dry-run requirements have paired, independently audited observations on the frozen x86_64 candidates. An isolated non-root namespace, confined synthetic proc tree and independent selection oracle exercise read-only selection, session exclusion, omit lists and error statuses.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "--dry-run lists eligible PIDs without signalling.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed. killall5 honours BASHOS_PROC_ROOT for dry-run (pgrep.c bp_walk only refuses delivery), so a synthetic contract is implementable in the existing legacy runner."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-killall5-dry-run-reviewed-baseline",
+              "assertion": "Both frozen builds list the four independently specified eligible synthetic PIDs. The confined dry-run invocation completes normally; private process-scope observations and six signal-denial controls verify the fixture boundary.",
+              "definition_sha256": "d77c770705b742c94b4a16546308852b1cd66929409210f606bab7379f7989f6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "The caller's whole session and self are excluded.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed. The session comes from the real getsid(0), so synthetic records must carry that live SID (readable from /proc/$$/stat inside the case)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-killall5-dry-run-reviewed-baseline",
+              "assertion": "Both frozen builds exclude self and synthetic entries in the live caller session.",
+              "definition_sha256": "d77c770705b742c94b4a16546308852b1cd66929409210f606bab7379f7989f6"
+            },
+            {
+              "group": "shell",
+              "id": "migration-killall5-dry-run-reviewed-nonleader",
+              "assertion": "Both frozen builds exclude the complete caller session when the caller is not its leader. Reciprocal peer credentials, unique nonces and raw live PID/session/starttime samples bind the independent supervisor witness through preparation, recheck and successful reap.",
+              "definition_sha256": "76dfc2dd9f0c49345f1efc483719d8dc3254ecb90a83aeaef8e8fe1ae004f276"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Kernel threads (empty cmdline) are excluded.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-killall5-dry-run-reviewed-baseline",
+              "assertion": "Both frozen builds omit the synthetic empty-cmdline record representing the kernel-thread selection condition.",
+              "definition_sha256": "d77c770705b742c94b4a16546308852b1cd66929409210f606bab7379f7989f6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "-o omit lists (comma-separated, repeated, attached) are honoured.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-killall5-dry-run-reviewed-comma",
+              "assertion": "Both frozen builds return the independently specified selected PID set for comma-separated, repeated and attached omit arguments, including an all-omitted case with a same-shell positive baseline.",
+              "definition_sha256": "8909b031549e7048e45ee03de3a3690fa5e34728726c767dae22eea94438e44e"
+            },
+            {
+              "group": "shell",
+              "id": "migration-killall5-dry-run-reviewed-repeat",
+              "assertion": "Both frozen builds return the independently specified selected PID set for comma-separated, repeated and attached omit arguments, including an all-omitted case with a same-shell positive baseline.",
+              "definition_sha256": "480ea9d6577e369e8a938e385337ef486b7181b3b138580e3e12720112637595"
+            },
+            {
+              "group": "shell",
+              "id": "migration-killall5-dry-run-reviewed-none",
+              "assertion": "Both frozen builds return the independently specified selected PID set for comma-separated, repeated and attached omit arguments, including an all-omitted case with a same-shell positive baseline.",
+              "definition_sha256": "85893ebc0c7c83d83de89263f0d22b1b438c6850449728d00df16aab7f05ae90"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Malformed or disappearing records are skipped; status 0 if any selected, 2 if none, 1 if proc unreadable.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-killall5-dry-run-reviewed-baseline",
+              "assertion": "Both frozen builds match the independent expected PID set and status for malformed/missing records, the controlled FIFO disappearance, all-omitted output and unreadable proc. Statuses 0, 2 and 1 and the unreadable diagnostic are verified from complete raw streams with same-shell positive controls.",
+              "definition_sha256": "d77c770705b742c94b4a16546308852b1cd66929409210f606bab7379f7989f6"
+            },
+            {
+              "group": "shell",
+              "id": "migration-killall5-dry-run-reviewed-race",
+              "assertion": "Both frozen builds match the independent expected PID set and status for malformed/missing records, the controlled FIFO disappearance, all-omitted output and unreadable proc. Statuses 0, 2 and 1 and the unreadable diagnostic are verified from complete raw streams with same-shell positive controls.",
+              "definition_sha256": "a11073878f1eed48bb46cd9f2e50c065bece4bf684406546aa949b8a7acf107c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-killall5-dry-run-reviewed-none",
+              "assertion": "Both frozen builds match the independent expected PID set and status for malformed/missing records, the controlled FIFO disappearance, all-omitted output and unreadable proc. Statuses 0, 2 and 1 and the unreadable diagnostic are verified from complete raw streams with same-shell positive controls.",
+              "definition_sha256": "85893ebc0c7c83d83de89263f0d22b1b438c6850449728d00df16aab7f05ae90"
+            },
+            {
+              "group": "shell",
+              "id": "migration-killall5-dry-run-reviewed-unreadable",
+              "assertion": "Both frozen builds match the independent expected PID set and status for malformed/missing records, the controlled FIFO disappearance, all-omitted output and unreadable proc. Statuses 0, 2 and 1 and the unreadable diagnostic are verified from complete raw streams with same-shell positive controls.",
+              "definition_sha256": "ea0d3e53d18e1b3c39f1c54bd030dd0ff98225a8b7d95f511f650d8f419fc92c"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "pgrep.c bp_walk BP_MODE_KILLALL5 branch, bp_read_session_id, bp_parse_omit_list; killall5.c doc."
+      "notes": "pgrep.c bp_walk BP_MODE_KILLALL5 branch, bp_read_session_id, bp_parse_omit_list; killall5.c doc. The independent raw gate binds source, plans, candidates, image, protected VM identity and complete diagnostic envelopes. An authenticated live supervisor witness qualifies the nonleader session case. The signal guard is a confinement control, not a complete syscall trace; the FIFO observation covers one bounded disappearance schedule. Earlier nonleader failures before candidate invocation and the first dynamic run with shutdown request 255 remain unqualified. Signal-delivery coverage is unchanged."
     },
     {
       "topic": "killall5/signal_delivery",
