@@ -23,6 +23,7 @@ POINTER = re.compile(r'(?:NULL|0x[0-9a-fA-F]+|-?[0-9]+)\Z')
 ARGV = re.compile(r'\[\s*"\./tracee-core"\s*\]')
 ENV_ANNOTATION = re.compile(r'\s+/\*\s*[0-9]{1,6}\s+vars?\s*\*/')
 ENV_POINTER = re.compile(r'(?:NULL|0x[0-9a-fA-F]+|-?[0-9]+)(?:\s+/\*\s*[0-9]{1,6}\s+vars?\s*\*/)?\Z')
+INTERRUPTED_EXEC = re.compile(r'(\[pid ([0-9]+)\] execve\(.*\))\[pid ([0-9]+)\] \+\+\+ exec \+\+\+\Z')
 
 
 def require_guest():
@@ -119,8 +120,51 @@ def require_names(data, names):
         raise ValueError('syscall sequence: expected %r, observed %r' % (names, seen))
 
 
-def require_decode(data):
-    rows = records(data)
+def semantic_records(data):
+    """Assemble only the observed same-PID exec event and its exact return."""
+    if len(data) > 1024 * 1024:
+        raise ValueError('trace exceeds size limit')
+    text = data.decode('utf-8', errors='strict')
+    if not text or not text.endswith('\n'):
+        raise ValueError('empty or unterminated trace')
+    lines = text.splitlines()
+    assembled = []
+    events = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if len(line) > 8192:
+            raise ValueError('trace line exceeds size limit')
+        match = INTERRUPTED_EXEC.fullmatch(line)
+        if match:
+            if events or match.group(2) != match.group(3):
+                raise ValueError('duplicate or mismatched exec interruption')
+            if i + 1 >= len(lines) or lines[i + 1] != ' = 0':
+                raise ValueError('missing or invalid exec continuation')
+            joined = match.group(1) + lines[i + 1]
+            entry = records((joined + '\n').encode('utf-8'))
+            if len(entry) != 1 or entry[0][0] != 'execve':
+                raise ValueError('invalid interrupted exec record')
+            events.append({'pid': match.group(2), 'entry_line': i + 1,
+                           'continuation_line': i + 2,
+                           'reason': 'same-PID exec banner interrupted the execve result'})
+            assembled.append(joined)
+            i += 2
+        else:
+            assembled.append(line)
+            i += 1
+    # Reparse the complete stream after assembly: extra, malformed, or hidden
+    # calls must still fail the same bounded grammar and sequence checks.
+    return records(('\n'.join(assembled) + '\n').encode('utf-8')), events
+
+
+def require_row_names(rows, names):
+    seen = [name for name, _ in rows]
+    if seen != names:
+        raise ValueError('syscall sequence: expected %r, observed %r' % (names, seen))
+
+
+def require_decode_rows(rows):
     if [name for name, _ in rows] != EXPECTED:
         raise ValueError('decoded trace lacks the expected ordered calls')
     args = dict(rows)
@@ -137,6 +181,10 @@ def require_decode(data):
         raise ValueError('incorrect openat arguments')
     if args['exit_group'] != ['42']:
         raise ValueError('incorrect exit_group arguments')
+
+
+def require_decode(data):
+    require_decode_rows(records(data))
 
 
 def setup(home):
@@ -165,6 +213,52 @@ def setup(home):
     pointer_annotated = good.replace(b'0x1, 0x2', b'0x1, 0x2 /* 0 vars */')
     require_names(pointer_annotated, EXPECTED)
     require_decode(pointer_annotated)
+    interrupted = good.replace(b') = 0\n', b')[pid 123] +++ exec +++\n = 0\n', 1)
+    rows, events = semantic_records(interrupted)
+    require_row_names(rows, EXPECTED)
+    require_decode_rows(rows)
+    quoted_interrupted = interrupted.replace(b'"STRACE-MARK\\n"', b'"getpid() and \\\"read(0)\\\""')
+    quoted_rows, _ = semantic_records(quoted_interrupted)
+    require_row_names(quoted_rows, EXPECTED)
+    if len(events) != 1 or events[0]['pid'] != '123':
+        raise ValueError('interrupted exec assembly was not recorded')
+    try:
+        require_names(interrupted, EXPECTED)
+    except (ValueError, UnicodeError):
+        pass
+    else:
+        raise ValueError('strict line parser accepted an interrupted record')
+    pointer_write = interrupted.replace(b'"STRACE-MARK\\n"', b'0x402000')
+    pointer_rows, _ = semantic_records(pointer_write)
+    require_row_names(pointer_rows, EXPECTED)
+    try:
+        require_decode_rows(pointer_rows)
+    except ValueError as error:
+        if str(error) != 'incorrect write arguments':
+            raise
+    else:
+        raise ValueError('decode accepted a pointer instead of the write string')
+    semantic_negatives = [
+        interrupted.replace(b')[pid 123] +++ exec +++', b')[pid 124] +++ exec +++'),
+        interrupted.replace(b'\n = 0\n', b'\n'),
+        interrupted.replace(b'\n = 0\n', b'\n = 1\n'),
+        interrupted.replace(b'\n = 0\n', b'\n[pid 124] = 0\n'),
+        interrupted.replace(b'\n = 0\n', b'\n[pid 123] read(0, 0, 1) = 0\n = 0\n'),
+        interrupted.replace(b'0x1, 0x2', b'getpid(), 0x2'),
+        interrupted.replace(b'0x1, 0x2', b'0x1, read(0, 0, 1)'),
+        interrupted.replace(b'execve(', b'write(', 1),
+        interrupted.replace(b'\n = 0\n', b'\n = 0 read(0, 0, 1) = 0\n'),
+        interrupted.replace(b'+++ exec +++', b'+++ exec +++[pid 123] +++ exec +++', 1),
+        interrupted + interrupted.split(b'\n', 2)[0] + b'\n = 0\n',
+        interrupted.replace(b'\n = 0\n', b'\n = 0\n[pid 123] read(0, 0, 1) = 0\n'),
+    ]
+    for bad in semantic_negatives:
+        try:
+            bad_rows, _ = semantic_records(bad)
+            require_row_names(bad_rows, EXPECTED)
+        except (ValueError, UnicodeError):
+            continue
+        raise ValueError('semantic parser accepted invalid interrupted trace')
     negatives = [b'', good.rstrip(b'\n'), good + b'write(1, 0, 1) = 1\n',
                  good.replace(b'write(', b'unknown(', 1),
                  good.replace(b'exit_group(42) = ?\n', b''),
@@ -219,7 +313,9 @@ def setup(home):
         raise ValueError('decode parser accepted invalid control')
     (home / 'parser-controls.json').write_text(json.dumps({
         'positive': 7, 'negative': len(negatives),
-        'decode_negative': len(decode_negatives)}) + '\n')
+        'decode_negative': len(decode_negatives), 'semantic_positive': 3,
+        'semantic_negative': len(semantic_negatives),
+        'strict_interruption_rejected': True}) + '\n')
     Path('tracee-core.s').write_text(ASSEMBLY)
     Path('native-trace.c').write_text(CONTROL)
     with (home / 'gcc.out').open('wb') as out, (home / 'gcc.err').open('wb') as err:
@@ -275,13 +371,22 @@ def verify(home, mode):
                         stderr_bytes=len(err) if err is not None else None,
                         trace_bytes=len(trace) if trace is not None else None,
                         destination='route.trace' if routed else 'stderr')
+    semantic_rows = None
+    if trace is None:
+        observations['semantic_assembly'] = {'error': 'trace destination is missing or unreadable'}
+    else:
+        try:
+            semantic_rows, events = semantic_records(trace)
+            observations['semantic_assembly'] = {'events': events}
+        except (ValueError, UnicodeError) as error:
+            observations['semantic_assembly'] = {'error': str(error)}
 
-    def check(name, assertion):
+    def check(name, assertion, required=True):
         try:
             assertion()
-            observations['checks'][name] = {'ok': True}
+            observations['checks'][name] = {'ok': True, 'required': required}
         except (ValueError, UnicodeError) as error:
-            observations['checks'][name] = {'ok': False, 'error': str(error)}
+            observations['checks'][name] = {'ok': False, 'required': required, 'error': str(error)}
 
     def marker():
         if out != MARKER:
@@ -296,14 +401,19 @@ def verify(home, mode):
             raise ValueError('stderr is not empty with -o')
 
     def selected_trace():
+        if semantic_rows is None:
+            raise ValueError(observations['semantic_assembly']['error'])
+        require_row_names(semantic_rows, expected_names)
+
+    def strict_trace():
         if trace is None:
             raise ValueError('trace destination is missing or unreadable')
         require_names(trace, expected_names)
 
     def decoded_trace():
-        if trace is None:
-            raise ValueError('trace destination is missing or unreadable')
-        require_decode(trace)
+        if semantic_rows is None:
+            raise ValueError(observations['semantic_assembly']['error'])
+        require_decode_rows(semantic_rows)
 
     def routed_trace():
         # Check the two independently above as well, so neither failure hides
@@ -314,10 +424,11 @@ def verify(home, mode):
     check('controlled_marker', marker)
     check('controlled_status', exit_status)
     check('selected_trace_destination', selected_trace)
+    check('strict_physical_lines', strict_trace, required=False)
     if routed:
         check('routing_stderr_empty', empty_stderr)
     target = {
-        'exec-lines': selected_trace,
+        'exec-lines': strict_trace,
         'exec-decode': decoded_trace,
         'exec-status': exit_status,
         'output-route': routed_trace,
@@ -330,7 +441,7 @@ def verify(home, mode):
     check('requirement', target)
     (home / 'assertions.json').write_text(json.dumps(observations, indent=2) + '\n')
     failures = [(name, result['error']) for name, result in observations['checks'].items()
-                if not result['ok']]
+                if result['required'] and not result['ok']]
     if failures:
         for name, error in failures:
             print(name + ': ' + error)
