@@ -417,7 +417,10 @@ def parse_rows(data):
     if not data or not data.endswith(b'\n') or any(c<32 and c not in (9,10) for c in data):
         raise ValueError('empty, unterminated or control-containing output')
     text=data.decode('utf-8','strict')
-    lines=text.splitlines(); cols=[i for i,line in enumerate(lines) if re.fullmatch(r'\s*PID\s+USER\s+%CPU\s+RSS\s+S\s+COMMAND\s*',line)]
+    if any(separator in text for separator in ('\u0085','\u2028','\u2029')):
+        raise ValueError('non-LF line separator in output')
+    lines=text.split('\n')[:-1]
+    cols=[i for i,line in enumerate(lines) if re.fullmatch(r'\s*PID\s+USER\s+%CPU\s+RSS\s+S\s+COMMAND\s*',line)]
     if len(cols)!=1: raise ValueError('missing or duplicate header')
     head=lines[:cols[0]]
     if (len(head) not in (3,4) or
@@ -445,8 +448,13 @@ def parser_controls():
     row=b'  101 root 10.0 16 S steady --fixture\n'
     if parse_rows(header+row)[1]!=[(101,'root',10.0,16,'S','steady --fixture')]: raise RuntimeError('positive row parser')
     if parse_rows(header)[1]!=[]: raise RuntimeError('empty row parser control')
-    for bad in (b'',header+row+row,row+header+b'extra\n',header+b'broken\n',
-                header.replace(b'(--once snapshot)\n',b'extra\n'),header+row[:-1],header+b'\xff\n'):
+    bad_outputs=[b'',header+row+row,row+header+b'extra\n',header+b'broken\n',
+                 header.replace(b'(--once snapshot)\n',b'extra\n'),header+row[:-1],header+b'\xff\n']
+    for separator in ('\u0085','\u2028','\u2029'):
+        encoded=separator.encode('utf-8')
+        bad_outputs.append(header.replace(b'\n',encoded,1))
+        bad_outputs.append(header[:-1]+encoded+row)
+    for bad in bad_outputs:
         try: parse_rows(bad)
         except (ValueError,UnicodeError): continue
         raise RuntimeError('negative row parser')
@@ -459,7 +467,8 @@ def parser_controls():
     literal = b'101 (steady) S 1 1 1 0 -1 0 0 0 0 0 10 10 0 0 20 0 1 0 1001 1048576 4\n'
     if proc_stat(101,'steady','S',10,10,1001,4)!=literal:
         raise RuntimeError('proc(5) field position control')
-    dump('parser-controls.json',{'positive':2,'negative':7,'dirent_positive':1,'dirent_negative':2,'literal_proc5_control':True,'complete':True})
+    dump('parser-controls.json',{'positive':2,'negative':len(bad_outputs),'unicode_separator_negative':6,
+         'dirent_positive':1,'dirent_negative':2,'literal_proc5_control':True,'complete':True})
 
 
 def assess(scenario):

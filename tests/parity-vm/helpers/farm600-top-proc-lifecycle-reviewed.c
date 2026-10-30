@@ -3,8 +3,10 @@
  * The tracee is our direct child; the controller never traces other tasks.
  */
 #define _GNU_SOURCE
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/magic.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
