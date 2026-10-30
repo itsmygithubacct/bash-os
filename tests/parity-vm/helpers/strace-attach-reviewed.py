@@ -3,6 +3,7 @@
 """Guest-only preflight, controlled candidate observation and assessment."""
 import base64
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -13,11 +14,24 @@ import struct
 import subprocess
 import sys
 import time
+import zlib
 
 from ns_guest_identity_r1 import verify as verify_guest_identity
 
 HOME = Path('/tmp/parity-home')
 LIMIT = 512 * 1024
+CONTROL_RAW_LIMIT = 8 * 1024 * 1024
+CONTROL_COMPRESSED_LIMIT = 320 * 1024
+CONTROL_DOCUMENT_LIMIT = 512 * 1024
+CONTROL_INPUTS = frozenset(('worker', 'leader', 'running', 'wrong_tracer', 'resumed',
+                            'candidate_dead', 'gate_closed', 'wrong_owner', 'short_observation',
+                            'insufficient_samples', 'wrong_target', 'late_stop', 'sampling_gap',
+                            'capture_error'))
+CONTROL_RECORDS = frozenset(('worker_record', 'leader_record', 'monitor_mismatch',
+                             'missing_release', 'missing_worker_exit', 'missing_cleanup',
+                             'cleanup_too_early'))
+CONTROL_WIRE_TESTS = frozenset(('roundtrip', 'omitted_payload', 'corrupted_stream',
+                                'omitted_input', 'omitted_record', 'corrupted_outcome'))
 
 
 def guard():
@@ -210,6 +224,81 @@ def stall_record_valid(record):
         return False
 
 
+def control_envelope(record):
+    # The payload is the complete original control record, not a reduced summary.
+    raw = json.dumps(record, sort_keys=True, separators=(',', ':'), ensure_ascii=True).encode('ascii')
+    if len(raw) > CONTROL_RAW_LIMIT:
+        raise ValueError('stall control raw size exceeds bound')
+    packed = zlib.compress(raw, 9)
+    if len(packed) > CONTROL_COMPRESSED_LIMIT:
+        raise ValueError('stall control compressed size exceeds bound')
+    return {'schema': 'strace-attach-stall-controls-zlib-v1', 'codec': 'zlib',
+            'complete': record.get('complete') is True,
+            'raw_bytes': len(raw), 'raw_sha256': hashlib.sha256(raw).hexdigest(),
+            'compressed_bytes': len(packed), 'compressed_sha256': hashlib.sha256(packed).hexdigest(),
+            'payload_base64': base64.b64encode(packed).decode('ascii')}
+
+
+def unique_json_object(items):
+    result = {}
+    for key, value in items:
+        if key in result: raise ValueError('duplicate stall control key')
+        result[key] = value
+    return result
+
+
+def decode_control_envelope(envelope):
+    fields = {'schema', 'codec', 'complete', 'raw_bytes', 'raw_sha256', 'compressed_bytes',
+              'compressed_sha256', 'payload_base64'}
+    if (not isinstance(envelope, dict) or set(envelope) not in (fields, fields | {'wire_checks'})
+        or envelope.get('schema') != 'strace-attach-stall-controls-zlib-v1'
+        or envelope.get('codec') != 'zlib' or envelope.get('complete') is not True
+        or type(envelope.get('raw_bytes')) is not int or not 0 < envelope['raw_bytes'] <= CONTROL_RAW_LIMIT
+        or type(envelope.get('compressed_bytes')) is not int or not 0 < envelope['compressed_bytes'] <= CONTROL_COMPRESSED_LIMIT):
+        raise ValueError('invalid stall control envelope')
+    packed = base64.b64decode(envelope['payload_base64'], validate=True)
+    if len(packed) != envelope['compressed_bytes'] or hashlib.sha256(packed).hexdigest() != envelope['compressed_sha256']:
+        raise ValueError('stall control compressed bytes differ')
+    decoder = zlib.decompressobj()
+    raw = decoder.decompress(packed, CONTROL_RAW_LIMIT + 1)
+    if (len(raw) > CONTROL_RAW_LIMIT or not decoder.eof or decoder.unconsumed_tail or decoder.unused_data
+        or len(raw) != envelope['raw_bytes'] or hashlib.sha256(raw).hexdigest() != envelope['raw_sha256']):
+        raise ValueError('stall control uncompressed bytes differ')
+    record = json.loads(raw, object_pairs_hook=unique_json_object)
+    if (not isinstance(record, dict) or set(record) != {'preconditions', 'inputs', 'outcomes',
+            'record_inputs', 'record_outcomes', 'complete'} or record['complete'] is not True
+        or record['preconditions'] != {'leader':101, 'worker':102, 'owner_pid':99, 'tracer_pid':201}
+        or not all(isinstance(record[k], dict) for k in ('inputs', 'outcomes', 'record_inputs', 'record_outcomes'))
+        or set(record['inputs']) != CONTROL_INPUTS or set(record['outcomes']) != CONTROL_INPUTS
+        or set(record['record_inputs']) != CONTROL_RECORDS or set(record['record_outcomes']) != CONTROL_RECORDS
+        or any(record['outcomes'][k] is not (k in ('worker','leader')) for k in CONTROL_INPUTS)
+        or any(record['record_outcomes'][k] is not (k in ('worker_record','leader_record')) for k in CONTROL_RECORDS)):
+        raise ValueError('stall control cases or outcomes differ')
+    if json.dumps(record, sort_keys=True, separators=(',', ':'), ensure_ascii=True).encode('ascii') != raw:
+        raise ValueError('noncanonical stall control payload')
+    return record
+
+
+def control_wire_tests(record):
+    envelope = control_envelope(record)
+    if decode_control_envelope(envelope) != record: raise ValueError('stall control roundtrip differs')
+    mutations = {}
+    bad = copy.deepcopy(envelope); del bad['payload_base64']; mutations['omitted_payload'] = bad
+    bad = copy.deepcopy(envelope)
+    packed = base64.b64decode(bad['payload_base64'], validate=True)[:-1]
+    bad.update(payload_base64=base64.b64encode(packed).decode('ascii'), compressed_bytes=len(packed),
+               compressed_sha256=hashlib.sha256(packed).hexdigest())
+    mutations['corrupted_stream'] = bad
+    bad = copy.deepcopy(record); del bad['inputs']['late_stop']; mutations['omitted_input'] = control_envelope(bad)
+    bad = copy.deepcopy(record); del bad['record_inputs']['missing_cleanup']; mutations['omitted_record'] = control_envelope(bad)
+    bad = copy.deepcopy(record); bad['outcomes']['late_stop'] = True; mutations['corrupted_outcome'] = control_envelope(bad)
+    for name, value in mutations.items():
+        try: decode_control_envelope(value)
+        except (ValueError, KeyError, TypeError, zlib.error): continue
+        raise ValueError('stall control wire negative accepted: ' + name)
+    return {name: True for name in CONTROL_WIRE_TESTS}
+
+
 def stall_controls():
     pre = {'leader': 101, 'worker': 102, 'owner_pid': 99, 'tracer_pid': 201}
     leader = {'Pid': 101, 'Tgid': 101, 'PPid': 99, 'TracerPid': 201, 'State': 't (tracing stop)',
@@ -301,11 +390,24 @@ def stall_controls():
             if result != (label in ('worker_record', 'leader_record')):
                 raise ValueError('stall record control failed: ' + label)
         record['complete'] = True
+        wire_checks = control_wire_tests(record)
     except Exception as exc:
+        record['complete'] = False
         record['error'] = '%s: %s' % (type(exc).__name__, exc)
         raise
     finally:
-        save('stall-controls.json', record)
+        try:
+            envelope = control_envelope(record)
+            if record['complete']:
+                envelope['wire_checks'] = wire_checks
+            encoded = (json.dumps(envelope, indent=2, sort_keys=True) + '\n').encode('ascii')
+            if len(encoded) > CONTROL_DOCUMENT_LIMIT:
+                raise ValueError('stall control document size exceeds bound')
+            save('stall-controls.json', envelope)
+        except Exception as exc:
+            save('stall-controls.json', {'schema':'strace-attach-stall-controls-zlib-v1',
+                 'complete':False, 'error':'control capture failed: %s: %s' % (type(exc).__name__, exc)})
+            raise
 
 
 def stage(record, name):
@@ -619,7 +721,14 @@ def verify(requirement):
     try:
         record = json.loads((HOME / 'setup-controls.json').read_text())
         native = json.loads((HOME / 'native-control.json').read_text())
-        controls = json.loads((HOME / 'stall-controls.json').read_text())
+        control_bytes = (HOME / 'stall-controls.json').read_bytes()
+        if len(control_bytes) > CONTROL_DOCUMENT_LIMIT: raise ValueError('stall control document exceeds bound')
+        envelope = json.loads(control_bytes, object_pairs_hook=unique_json_object)
+        controls = decode_control_envelope(envelope)
+        if (not isinstance(envelope.get('wire_checks'), dict) or
+                set(envelope['wire_checks']) != CONTROL_WIRE_TESTS or
+                any(value is not True for value in envelope['wire_checks'].values())):
+            raise ValueError('stall control wire checks incomplete')
         if not record['complete'] or record['error'] or not record['invoked'] or not native['complete'] or not controls['complete']:
             raise ValueError('incomplete infrastructure controls')
         pre = record['preconditions']
@@ -650,7 +759,7 @@ def verify(requirement):
             failures.extend(name for name, passed in checks.items() if not passed)
         else:
             raise ValueError('unknown candidate observation outcome')
-    except (OSError, KeyError, ValueError, UnicodeError) as exc:
+    except (OSError, KeyError, TypeError, ValueError, UnicodeError, zlib.error) as exc:
         classification = 'infrastructure_error'
         failures.append('assessment_infrastructure_error: ' + str(exc))
     if not failures:
