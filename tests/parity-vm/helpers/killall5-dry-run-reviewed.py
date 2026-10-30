@@ -43,7 +43,7 @@ def parse_output(data):
     if data == b'':
         return set()
     if len(data) > 4096 or not re.fullmatch(rb'[1-9][0-9]*\n(?:[1-9][0-9]*\n)*', data):
-        raise ValueError('malformed or truncated PID list')
+        raise ValueError('noncanonical or oversized PID list')
     values = [int(x) for x in data.splitlines()]
     if len(values) != len(set(values)) or any(x > 2147483647 for x in values):
         raise ValueError('duplicate or out-of-range PID')
@@ -91,11 +91,28 @@ def setup_checked(record):
     record['guard_control'] = raw_result(result); record['stage'] = 'guard-control-complete'; save('setup.json', record)
     if result.returncode != 0 or result.stderr or len(result.stdout.splitlines()) != 6:
         raise RuntimeError('signal guard control unavailable')
+    record['stage'] = 'scope-control-start'; save('setup.json', record)
+    scope = subprocess.run(['./guard', '--check-scope'], capture_output=True, timeout=10)
+    record['scope_control'] = raw_result(scope); record['stage'] = 'scope-control-complete'; save('setup.json', record)
+    if scope.returncode != 0 or scope.stderr or len(scope.stdout.splitlines()) != 7:
+        raise RuntimeError('proc confinement control unavailable')
     record['stage'] = 'guard-exec-start'; save('setup.json', record)
     allowed = subprocess.run(['./guard', '/usr/bin/true'], capture_output=True, timeout=10)
     record['guard_exec'] = raw_result(allowed); record['stage'] = 'guard-exec-complete'; save('setup.json', record)
     if allowed.returncode != 0 or allowed.stdout or allowed.stderr:
         raise RuntimeError('guarded exec control unavailable')
+    record['stage'] = 'namespace-control-start'; save('setup.json', record)
+    outer = os.readlink('/proc/self/ns/pid')
+    control = subprocess.run(['/usr/bin/unshare', '--user', '--map-user=2000', '--map-group=2000',
+                              '--mount', '--pid', '--fork', '--mount-proc',
+                              '/usr/bin/python3', '/opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py',
+                              'namespace-check', outer, 'setup'], capture_output=True, timeout=12)
+    record['namespace_control'] = raw_result(control); record['stage'] = 'namespace-control-complete'; save('setup.json', record)
+    if control.returncode != 0 or control.stderr:
+        raise RuntimeError('private PID/proc namespace unavailable')
+    observed = json.loads(control.stdout)
+    if observed.get('ok') is not True or observed.get('mode') != 'setup':
+        raise RuntimeError('private PID/proc namespace control failed')
     record.update(stage='complete', complete=True); save('setup.json', record)
 
 
@@ -108,9 +125,34 @@ def stat_record(pid, sid):
     return f'{pid} (fixture name) S 1 1 {sid} 0 0 0\n'.encode()
 
 
+def namespace_check(outer, mode):
+    if mode not in {'setup', 'candidate'} or not re.fullmatch(r'pid:\[[0-9]+\]', outer):
+        raise RuntimeError('invalid outer PID namespace record')
+    inner = os.readlink('/proc/self/ns/pid')
+    pid, parent = os.getpid(), os.getppid()
+    visible = sorted(int(x) for x in os.listdir('/proc') if x.isascii() and x.isdigit())
+    expected = [1] if mode == 'setup' else [1, pid]
+    if inner == outer or (mode == 'setup' and (pid != 1 or parent != 0)) or \
+            (mode == 'candidate' and (pid <= 1 or parent != 1)) or visible != expected:
+        raise RuntimeError('PID namespace or private procfs control failed')
+    own_stat = Path('/proc/self/stat').read_bytes()
+    match = re.match(rb'([0-9]+) \(', own_stat)
+    if not match or int(match[1]) != pid:
+        raise RuntimeError('procfs does not describe this PID namespace')
+    print(json.dumps({'stage':'namespace-ok', 'ok':True, 'mode':mode, 'outer':outer,
+                      'inner':inner, 'pid':pid, 'parent':parent, 'uid':os.getuid(),
+                      'euid':os.geteuid(), 'visible':visible,
+                      'own_stat_hex':own_stat.hex()}, sort_keys=True))
+
+
 def prepare(mode, pid):
     if mode not in MODES or pid <= 1 or pid != os.getppid():
         raise RuntimeError('caller PID mismatch')
+    namespace = json.loads((HOME / 'events.jsonl').read_text().splitlines()[0])
+    if (namespace.get('stage') != 'namespace-ok' or namespace.get('ok') is not True or
+            namespace.get('mode') != 'candidate' or namespace.get('inner') != os.readlink('/proc/self/ns/pid') or
+            namespace['inner'] != os.readlink(f'/proc/{pid}/ns/pid')):
+        raise RuntimeError('caller PID namespace mismatch')
     sid = os.getsid(pid)
     raw = Path(f'/proc/{pid}/stat').read_bytes()
     match = re.fullmatch(rb'([0-9]+) \(.*\) [^ ]+ ([0-9]+) ([0-9]+) ([0-9]+) .*\n', raw)
@@ -151,40 +193,31 @@ def prepare(mode, pid):
     omitted = {'baseline': [], 'race': [], 'comma': ELIGIBLE[:2], 'repeat': ELIGIBLE[1:4],
                'none': ELIGIBLE[:], 'unreadable': []}[mode]
     expected = sorted(set(ELIGIBLE) - set(omitted)) if mode != 'unreadable' else []
-    if mode == 'unreadable':
-        ROOT.chmod(0)
-        try:
-            list(ROOT.iterdir())
-        except PermissionError:
-            pass
-        else:
-            raise RuntimeError('proc root is not unreadable')
-    else:
-        for key, entry in entries.items():
-            folder = ROOT / key
-            if entry['stat_hex'] is None:
-                path = folder / 'stat'
-                if mode == 'race' and int(key) == GONE:
-                    if not stat.S_ISFIFO(path.lstat().st_mode): raise RuntimeError('race stat is not FIFO')
-                elif not path.is_symlink() or path.exists():
-                    raise RuntimeError('disappeared stat control failed')
-            elif (folder / 'stat').read_bytes().hex() != entry['stat_hex']:
-                raise RuntimeError('stat fixture control failed')
-            cmd = folder / 'cmdline'
-            if entry['cmdline_hex'] is None:
-                if cmd.exists(): raise RuntimeError('missing cmdline control failed')
-            elif int(key) == DENIED:
-                if stat.S_IMODE(cmd.stat().st_mode) != 0:
-                    raise RuntimeError('denied cmdline mode control failed')
-                try:
-                    cmd.read_bytes()
-                except PermissionError:
-                    pass
-                else:
-                    raise RuntimeError('denied cmdline remains readable')
-            elif cmd.read_bytes().hex() != entry['cmdline_hex']:
-                raise RuntimeError('cmdline fixture control failed')
-    save('fixture.json', {'mode': mode, 'caller_pid': pid, 'caller_sid': sid,
+    for key, entry in entries.items():
+        folder = ROOT / key
+        if entry['stat_hex'] is None:
+            path = folder / 'stat'
+            if mode == 'race' and int(key) == GONE:
+                if not stat.S_ISFIFO(path.lstat().st_mode): raise RuntimeError('race stat is not FIFO')
+            elif not path.is_symlink() or path.exists():
+                raise RuntimeError('disappeared stat control failed')
+        elif (folder / 'stat').read_bytes().hex() != entry['stat_hex']:
+            raise RuntimeError('stat fixture control failed')
+        cmd = folder / 'cmdline'
+        if entry['cmdline_hex'] is None:
+            if cmd.exists(): raise RuntimeError('missing cmdline control failed')
+        elif int(key) == DENIED:
+            if stat.S_IMODE(cmd.stat().st_mode) != 0:
+                raise RuntimeError('denied cmdline mode control failed')
+            try:
+                cmd.read_bytes()
+            except PermissionError:
+                pass
+            else:
+                raise RuntimeError('denied cmdline remains readable')
+        elif cmd.read_bytes().hex() != entry['cmdline_hex']:
+            raise RuntimeError('cmdline fixture control failed')
+    save('fixture.json', {'mode': mode, 'caller_pid': pid, 'caller_sid': sid, 'pid_namespace': namespace['inner'],
                           'real_stat_hex': raw.hex(), 'outside_sid': outside,
                           'root_uid': ROOT.stat().st_uid, 'root_mode': stat.S_IMODE(ROOT.stat().st_mode),
                           'entries': entries, 'omitted': omitted, 'fixture_preconditions': 'verified'})
@@ -241,14 +274,22 @@ def recheck(mode, pid, observation):
         if not m or int(m[1]) != pid or int(m[4]) != fixture['caller_sid']:
             raise RuntimeError('caller stat or session changed')
         record['real_stat_hex'] = raw.hex()
+        record['pid_namespace'] = os.readlink('/proc/self/ns/pid')
+        if (record['pid_namespace'] != fixture['pid_namespace'] or
+                record['pid_namespace'] != os.readlink(f'/proc/{pid}/ns/pid')):
+            raise RuntimeError('caller PID namespace changed')
         record['root_uid'] = ROOT.stat().st_uid
         record['root_mode'] = stat.S_IMODE(ROOT.stat().st_mode)
-        if record['root_uid'] != 2000 or record['root_mode'] != fixture['root_mode']:
+        target_unreadable = mode == 'unreadable' and observation == 'candidate'
+        expected_mode = 0 if target_unreadable else fixture['root_mode']
+        if record['root_uid'] != 2000 or record['root_mode'] != expected_mode:
             raise RuntimeError('fixture root ownership or mode changed')
-        if mode == 'unreadable':
+        if target_unreadable:
             if stat.S_IMODE(ROOT.stat().st_mode) != 0: raise RuntimeError('root mode changed')
             try: list(ROOT.iterdir())
-            except PermissionError: pass
+            except PermissionError as exc:
+                if exc.errno != errno.EACCES: raise
+                record['root_open_errno'] = exc.errno
             else: raise RuntimeError('root became readable')
         else:
             if {p.name for p in ROOT.iterdir()} != set(fixture['entries']) | {'123junk'}:
@@ -281,6 +322,29 @@ def recheck(mode, pid, observation):
             f.write(json.dumps(record, sort_keys=True) + '\n')
 
 
+def seal_unreadable(pid):
+    record = {'mode': 'unreadable', 'pid': pid, 'observation': 'seal', 'ok': False}
+    try:
+        fixture = json.loads((HOME / 'fixture.json').read_text())
+        if (fixture['mode'] != 'unreadable' or fixture['caller_pid'] != pid or
+                pid != os.getppid() or os.getsid(pid) != fixture['caller_sid'] or
+                ROOT.stat().st_uid != 2000 or stat.S_IMODE(ROOT.stat().st_mode) != fixture['root_mode']):
+            raise RuntimeError('root transition identity or mode mismatch')
+        ROOT.chmod(0)
+        try: list(ROOT.iterdir())
+        except PermissionError as exc:
+            if exc.errno != errno.EACCES: raise
+            record.update(root_mode=stat.S_IMODE(ROOT.stat().st_mode), root_uid=ROOT.stat().st_uid,
+                          root_open_errno=exc.errno, ok=True)
+        else: raise RuntimeError('root remained readable')
+    except BaseException as exc:
+        record['error'] = repr(exc)
+        raise
+    finally:
+        with (HOME / 'rechecks.jsonl').open('a') as f:
+            f.write(json.dumps(record, sort_keys=True) + '\n')
+
+
 def verify(mode):
     fixture = json.loads((HOME / 'fixture.json').read_text())
     oracle = json.loads((HOME / 'oracle.json').read_text())
@@ -301,7 +365,7 @@ def verify(mode):
                 (HOME / 'race.err').read_bytes()):
             infrastructure_errors.append('race control incomplete')
     baseline = None
-    if mode == 'none':
+    if mode in {'none', 'unreadable'}:
         base_out = (HOME / 'baseline.out').read_bytes()
         base_err = (HOME / 'baseline.err').read_bytes()
         base_status = (HOME / 'baseline.status').read_bytes()
@@ -320,7 +384,8 @@ def verify(mode):
     if actual != oracle['selected']: failures.append('selected set mismatch')
     if status_raw != f"{oracle['status']}\n".encode(): failures.append('status mismatch')
     if mode == 'unreadable':
-        if not err or b'opendir' not in err: failures.append('missing unreadable-root diagnostic')
+        if b'opendir /tmp/parity-case/proc-fixture: Permission denied' not in err:
+            failures.append('diagnostic lacks intended root and EACCES')
     elif err:
         failures.append('unexpected candidate stderr')
     save('assertions.json', {'mode': mode, 'baseline_selected': baseline, 'selected': actual, 'expected': oracle['selected'],
@@ -346,8 +411,12 @@ def main():
         return verify(sys.argv[2])
     if len(sys.argv) == 5 and sys.argv[1] == 'recheck':
         recheck(sys.argv[2], int(sys.argv[3]), sys.argv[4]); return 0
+    if len(sys.argv) == 3 and sys.argv[1] == 'seal':
+        seal_unreadable(int(sys.argv[2])); return 0
     if sys.argv[1:] == ['race-writer']:
         race_writer(); return 0
+    if len(sys.argv) == 4 and sys.argv[1] == 'namespace-check':
+        namespace_check(sys.argv[2], sys.argv[3]); return 0
     raise ValueError('invalid helper arguments')
 
 
