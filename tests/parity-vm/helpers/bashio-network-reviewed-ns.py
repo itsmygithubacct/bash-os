@@ -299,6 +299,31 @@ def kernel_defaults(text):
     return defaults
 
 
+def interface_ipv4(name, addresses, link=None):
+    """Decode ip -4 output; an empty result needs a separate link proof."""
+    if type(addresses) is not list or len(addresses) > 1:
+        raise ValueError('invalid IPv4 interface response')
+    if addresses:
+        item = addresses[0]
+        if (type(item) is not dict or item.get('ifname') != name or
+                type(item.get('ifindex')) is not int or item['ifindex'] <= 0 or
+                type(item.get('flags')) is not list or any(type(flag) is not str for flag in item['flags']) or
+                type(item.get('addr_info')) is not list or
+                any(type(a) is not dict or a.get('family') != 'inet' for a in item['addr_info']) or
+                link is not None):
+            raise ValueError('invalid IPv4 interface record')
+        return {'json': item, 'address_query': 'record', 'link_json': None}
+    if (type(link) is not list or len(link) != 1 or type(link[0]) is not dict or
+            link[0].get('ifname') != name or type(link[0].get('ifindex')) is not int or
+            link[0]['ifindex'] <= 0 or type(link[0].get('flags')) is not list or
+            any(type(flag) is not str for flag in link[0]['flags'])):
+        raise ValueError('empty IPv4 response without matching link')
+    # This view is explicitly derived, not an ip address output record. The
+    # unmodified link and the empty IPv4 response remain independently auditable.
+    return {'json': {'ifname': name, 'ifindex': link[0]['ifindex'], 'addr_info': []},
+            'address_query': 'empty', 'link_json': link[0]}
+
+
 def snapshot(events, progress=None, label=None):
     result = {'interfaces': {}, 'routes': None, 'proc_route': None, 'kernel_defaults': None}
     def record(step):
@@ -310,14 +335,23 @@ def snapshot(events, progress=None, label=None):
         raw_addr = (run([IP, *argv], events, label + '-' + name + '-addr')
                     if label else ip(events, *argv))
         data = json.loads(raw_addr)
-        if not isinstance(data, list) or len(data) != 1 or data[0].get('ifname') != name or not isinstance(data[0].get('addr_info'), list):
-            raise RuntimeError('bad interface data')
-        result['interfaces'][name] = {'json': data[0], 'flags': None, 'flags_raw_b64': None}
+        link = None
+        if type(data) is list and not data:
+            link_argv = ['-j', 'link', 'show', 'dev', name]
+            raw_link = (run([IP, *link_argv], events, label + '-' + name + '-link')
+                        if label else ip(events, *link_argv))
+            link = json.loads(raw_link)
+        result['interfaces'][name] = {**interface_ipv4(name, data, link), 'flags': None, 'flags_raw_b64': None}
         record(name + '-address')
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             raw = fcntl.ioctl(sock.fileno(), 0x8913, struct.pack('16s24x', name.encode()))
+        if len(raw) != 40 or raw[:16].split(b'\0', 1)[0] != name.encode():
+            raise RuntimeError('interface flags identity mismatch')
         result['interfaces'][name]['flags'] = struct.unpack_from('H', raw, 16)[0]
         result['interfaces'][name]['flags_raw_b64'] = base64.b64encode(raw).decode()
+        source = result['interfaces'][name]['link_json'] or result['interfaces'][name]['json']
+        if bool(result['interfaces'][name]['flags'] & 1) != ('UP' in source['flags']):
+            raise RuntimeError('interface link/flags disagree')
         record(name + '-flags')
     argv = ['-j', '-4', 'route', 'show', 'table', 'main']
     routes_raw = run([IP, *argv], events, label + '-routes') if label else ip(events, *argv)
@@ -522,6 +556,25 @@ def assess_observation(name, obs):
 
 
 def parser_controls():
+    link = [{'ifname':'bn0', 'ifindex':3, 'flags':['BROADCAST', 'NOARP']}]
+    with_addr = [{'ifname':'bn0', 'ifindex':3, 'flags':['UP'],
+                  'addr_info':[{'family':'inet','local':'192.0.2.20','prefixlen':24}]}]
+    if (interface_ipv4('bn0', [], link) !=
+            {'json':{'ifname':'bn0','ifindex':3,'addr_info':[]}, 'address_query':'empty', 'link_json':link[0]} or
+            interface_ipv4('bn0', with_addr) !=
+            {'json':with_addr[0], 'address_query':'record', 'link_json':None}):
+        raise RuntimeError('IPv4 interface parser positive control')
+    invalid_interfaces = [({}, None), ([{}, {}], None), ([{'ifname':'bn1','ifindex':3,'flags':[],'addr_info':[]}], None),
+                          ([{'ifname':'bn0','ifindex':3,'flags':[]}], None),
+                          ([{'ifname':'bn0','ifindex':3,'flags':[],'addr_info':[{'family':'inet6'}]}], None),
+                          ([], None), ([], [{'ifname':'bn1','ifindex':3,'flags':[]}]),
+                          ([], [{'ifname':'bn0','ifindex':True,'flags':[]}]),
+                          ([], link * 2), ([{'ifname':'bn0','ifindex':3,'flags':[],'addr_info':[{}]}], None),
+                          ([], [{'ifname':'bn0','ifindex':3}])]
+    for addresses, proof in invalid_interfaces:
+        try: interface_ipv4('bn0', addresses, proof)
+        except (ValueError, KeyError, TypeError): continue
+        raise RuntimeError('IPv4 interface parser accepted negative control')
     valid = b'{"type":"exec","cap_eff":"00001000"}\n{"type":"marker","phase":"begin"}\n{"type":"marker","phase":"end"}\n{"type":"exit","status":0,"signal":0}\n'
     if len(parse_trace(valid)) != 4 or route_records('[{"dst":"default","gateway":"192.0.2.1","dev":"bn0"}]')[0]['dev'] != 'bn0':
         raise RuntimeError('positive parser control failed')
@@ -644,7 +697,8 @@ def parser_controls():
         if seq: wrong_request['events'][2]['request'] ^= 1
         else: wrong_request['events'].insert(2, event(ADDR))
         if not assess_observation(name, wrong_request): raise RuntimeError('scenario assertion ioctl negative: ' + name)
-    write('network-parser-controls.json', {'trace_positive': 1, 'trace_negative': 7, 'route_positive': 1,
+    write('network-parser-controls.json', {'ipv4_interface_positive': 2, 'ipv4_interface_negative': len(invalid_interfaces),
+                                            'trace_positive': 1, 'trace_negative': 7, 'route_positive': 1,
                                             'route_negative': 3, 'assertion_positive': 1,
                                             'assertion_negative': 5, 'request_positive': 1, 'request_negative': 4,
                                             'window_controls': 1, 'startup_limit_controls': 3,
