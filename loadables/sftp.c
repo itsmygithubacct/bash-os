@@ -671,10 +671,32 @@ static void sftp_print_help (void)
     stdout);
 }
 
-/* Split a single sftp command line into argv. Quoting: backslash
- * escapes the next char; otherwise whitespace separates tokens. No
- * embedded variables / glob — matches openssh sftp's quoting model
- * close enough for our verbs. Caller frees argv (entries are owned). */
+/* Split a single sftp command line into argv.
+ * Outside quotes, a backslash escapes the next character and whitespace
+ * separates tokens. Single and double quotes group one argument, so a
+ * path with spaces stays one token, and the quote marks are not part of
+ * the argument. Inside single quotes a backslash is kept, except \'
+ * which is one quote character. Inside double quotes only \" drops the
+ * backslash. There is no glob expansion. An unclosed quote is an error.
+ * Caller frees argv (entries are owned). */
+static int
+split_push (char ***argv, int *argc, size_t *cap, blob *tok)
+{
+  if ((size_t) *argc + 1 >= *cap)
+    {
+      size_t ncap = *cap * 2;
+      char **q = realloc (*argv, ncap * sizeof **argv);
+      if (!q) return -1;
+      *argv = q;
+      *cap = ncap;
+    }
+  char *copy = tok->p ? strdup (tok->p) : strdup ("");
+  if (!copy) return -1;
+  (*argv)[(*argc)++] = copy;
+  blob_reset (tok);
+  return 0;
+}
+
 static int split_line (const char *line, char ***out_argv, int *out_argc)
 {
   *out_argv = NULL; *out_argc = 0;
@@ -685,42 +707,72 @@ static int split_line (const char *line, char ***out_argv, int *out_argc)
   const char *p = line;
   blob tok = {0};
   int in_tok = 0;
+  enum { SPLIT_UNQUOTED, SPLIT_SINGLE, SPLIT_DOUBLE } quote = SPLIT_UNQUOTED;
   while (*p)
     {
-      if (isspace ((unsigned char) *p))
+      if (quote == SPLIT_UNQUOTED && isspace ((unsigned char) *p))
         {
           if (in_tok)
             {
-              if ((size_t) argc + 1 >= cap)
-                { cap *= 2; char **q = realloc (argv, cap * sizeof *argv);
-                  if (!q) { free (argv); blob_free (&tok); return -1; }
-                  argv = q; }
-              argv[argc++] = tok.p ? strdup (tok.p) : strdup ("");
-              blob_reset (&tok);
+              if (split_push (&argv, &argc, &cap, &tok) < 0) goto fail;
               in_tok = 0;
             }
           p++;
           continue;
         }
+      if (quote == SPLIT_UNQUOTED && (*p == '"' || *p == '\''))
+        {
+          quote = (*p == '"') ? SPLIT_DOUBLE : SPLIT_SINGLE;
+          in_tok = 1;
+          p++;
+          continue;
+        }
+      if (quote == SPLIT_SINGLE && *p == '\'')
+        { quote = SPLIT_UNQUOTED; in_tok = 1; p++; continue; }
+      if (quote == SPLIT_DOUBLE && *p == '"')
+        { quote = SPLIT_UNQUOTED; in_tok = 1; p++; continue; }
       if (*p == '\\' && p[1])
-        { blob_append (&tok, p + 1, 1); p += 2; in_tok = 1; continue; }
-      blob_append (&tok, p, 1);
+        {
+          if (quote == SPLIT_SINGLE)
+            {
+              if (p[1] == '\'')
+                { if (blob_append (&tok, "'", 1) < 0) goto fail; }
+              else
+                { if (blob_append (&tok, p, 2) < 0) goto fail; }
+            }
+          else if (quote == SPLIT_DOUBLE)
+            {
+              if (p[1] == '"')
+                { if (blob_append (&tok, "\"", 1) < 0) goto fail; }
+              else
+                { if (blob_append (&tok, p, 2) < 0) goto fail; }
+            }
+          else if (blob_append (&tok, p + 1, 1) < 0)
+            goto fail;
+          in_tok = 1;
+          p += 2;
+          continue;
+        }
+      if (blob_append (&tok, p, 1) < 0) goto fail;
       in_tok = 1;
       p++;
     }
-  if (in_tok)
+  if (quote != SPLIT_UNQUOTED)
     {
-      if ((size_t) argc + 1 >= cap)
-        { cap *= 2; char **q = realloc (argv, cap * sizeof *argv);
-          if (!q) { free (argv); blob_free (&tok); return -1; }
-          argv = q; }
-      argv[argc++] = tok.p ? strdup (tok.p) : strdup ("");
+      builtin_error ("sftp: unterminated quoted argument");
+      goto fail;
     }
+  if (in_tok && split_push (&argv, &argc, &cap, &tok) < 0) goto fail;
   argv[argc] = NULL;
   blob_free (&tok);
   *out_argv = argv;
   *out_argc = argc;
   return 0;
+fail:
+  for (int i = 0; i < argc; i++) free (argv[i]);
+  free (argv);
+  blob_free (&tok);
+  return -1;
 }
 
 static void free_argv (char **argv, int argc)
