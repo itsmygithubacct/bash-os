@@ -132,34 +132,48 @@ def task_status(pid, tid):
 
 
 def attributable_stall(proof, pre):
-    """A bounded ptrace stop, tied to the actual released owned task."""
+    """Require a timely observed stop sustained across the full bounded interval."""
     try:
-        stage = proof['stage']
-        if stage not in ('worker', 'leader'):
+        which = proof['stage']
+        if which not in ('worker', 'leader') or proof['target_tid'] != pre[which]:
             return False
-        target = pre[stage]
-        minimum_ns = (4 if stage == 'worker' else 5) * 1000000000
-        if proof['target_tid'] != target or proof['timeout_ns'] - proof['wait_started_ns'] < minimum_ns:
-            return False
+        required = (4 if which == 'worker' else 5) * 1000000000
+        max_gap = 500000000
         samples = proof['samples']
-        if len(samples) != 3 or samples[0]['time_ns'] < proof['timeout_ns'] or samples[-1]['time_ns'] - samples[0]['time_ns'] < 200000000:
+        if len(samples) < 3 or samples[0]['start_ns'] < proof['wait_started_ns']:
             return False
-        if not all(a['time_ns'] < b['time_ns'] for a, b in zip(samples, samples[1:])):
+        if (proof['deadline_ns'] != proof['wait_started_ns'] + required + 1000000000 or
+                proof['timeout_ns'] != samples[-1]['end_ns'] or proof['timeout_ns'] > proof['deadline_ns']):
             return False
-        first_task = samples[0]['task']
-        switches = (first_task['voluntary_ctxt_switches'], first_task['nonvoluntary_ctxt_switches'])
-        for sample in samples:
+        baseline = None
+        for index, sample in enumerate(samples):
+            if (sample.get('capture_error') or sample['end_ns'] < sample['start_ns'] or
+                    sample['end_ns'] - sample['start_ns'] > max_gap or
+                    (index and (sample['start_ns'] < samples[index - 1]['end_ns'] or
+                                sample['start_ns'] - samples[index - 1]['end_ns'] > max_gap))):
+                return False
             task, leader, tracer = sample['task'], sample['leader'], sample['tracer']
-            gates = sample['shared']
             if (not sample['fixture_alive'] or not sample['tracer_alive'] or
-                    task['Pid'] != target or task['Tgid'] != pre['leader'] or task['PPid'] != pre['owner_pid'] or
-                    task['TracerPid'] != pre['tracer_pid'] or not task['State'].startswith('t ') or
-                    (task['voluntary_ctxt_switches'], task['nonvoluntary_ctxt_switches']) != switches or
+                    task['Pid'] != pre[which] or task['Tgid'] != pre['leader'] or task['PPid'] != pre['owner_pid'] or
+                    task['TracerPid'] not in (0, pre['tracer_pid']) or
                     leader['Pid'] != pre['leader'] or leader['Tgid'] != pre['leader'] or leader['PPid'] != pre['owner_pid'] or
                     tracer['Pid'] != pre['tracer_pid'] or tracer['Tgid'] != pre['tracer_pid'] or tracer['PPid'] != pre['owner_pid'] or
-                    gates != ([1, 0, 1, 1] if stage == 'worker' else [1, 1, 1, 1])):
+                    sample['shared'] != ([1, 0, 1, 1] if which == 'worker' else [1, 1, 1, 1])):
                 return False
-        return True
+            stopped = task['TracerPid'] == pre['tracer_pid'] and task['State'].startswith('t ')
+            if task['State'].startswith('t ') and not stopped:
+                return False
+            if baseline is None and stopped:
+                baseline = index
+                if sample['end_ns'] - proof['wait_started_ns'] > max_gap:
+                    return False
+                switches = (task['voluntary_ctxt_switches'], task['nonvoluntary_ctxt_switches'])
+            elif baseline is not None and (not stopped or
+                    (task['voluntary_ctxt_switches'], task['nonvoluntary_ctxt_switches']) != switches):
+                return False
+        if baseline is None:
+            return False
+        return samples[-1]['start_ns'] - samples[baseline]['end_ns'] >= required
     except (KeyError, TypeError, ValueError, IndexError):
         return False
 
@@ -168,6 +182,8 @@ def stall_record_valid(record):
     try:
         proof, pre, cleanup = record['stall'], record['preconditions'], record['stall_cleanup']
         which = proof['stage']
+        if proof.get('result') != 'candidate_stall' or record['monitors'][which] != proof:
+            return False
         events = record['events']
         order = [entry['stage'] for entry in events]
         needed = (['worker-release', 'worker-wait', 'worker-stall-observation', 'worker-stall-cleanup']
@@ -183,9 +199,9 @@ def stall_record_valid(record):
         if (not record['worker_release'] or
                 (which == 'leader' and (not record['worker_gone_before_leader_release'] or not record['leader_release'])) or
                 (which == 'worker' and record.get('leader_release', False)) or
-                not (times[release_event] <= proof['wait_started_ns'] <= times[wait_event] <= proof['timeout_ns']) or
-                not (proof['timeout_ns'] <= times[which + '-stall-observation'] <= proof['samples'][0]['time_ns']) or
-                times[which + '-stall-cleanup'] <= proof['samples'][-1]['time_ns'] or
+                not (times[release_event] <= proof['wait_started_ns'] <= times[wait_event] <= proof['samples'][0]['start_ns']) or
+                proof['timeout_ns'] > times[which + '-stall-observation'] or
+                times[which + '-stall-cleanup'] <= times[which + '-stall-observation'] or
                 not cleanup['tracer_kill_requested'] or cleanup['tracer_status_after_kill'] != -signal.SIGKILL or
                 not record['candidate_timeout'] or record['candidate_status_origin'] != 'cleanup_sigkill' or
                 record['candidate_status'] != -signal.SIGKILL):
@@ -208,13 +224,32 @@ def stall_controls():
         sample = {'task': target, 'leader': leader, 'tracer': tracer, 'fixture_alive': True,
                   'tracer_alive': True, 'shared': [1, 0 if stage == 'worker' else 1, 1, 1]}
         samples = []
-        for offset in (0, 150000000, 300000000):
-            item = copy.deepcopy(sample); item['time_ns'] = 1000000000 + threshold + offset
+        for offset in range(0, threshold + 100000001, 100000000):
+            item = copy.deepcopy(sample)
+            item['start_ns'] = 1100000000 + offset
+            item['end_ns'] = item['start_ns'] + 1000000
             samples.append(item)
         return {'stage': stage, 'target_tid': pre[stage], 'wait_started_ns': 1000000000,
-                'timeout_ns': 1000000000 + threshold, 'samples': samples}
+                'deadline_ns': 1000000000 + threshold + 1000000000,
+                'timeout_ns': samples[-1]['end_ns'], 'samples': samples, 'result': 'candidate_stall'}
     positive_worker, positive_leader = proof('worker'), proof('leader')
     negative = {}
+    def short(x):
+        x['samples'].pop()
+        x['timeout_ns'] = x['samples'][-1]['end_ns']
+    def few(x):
+        x['samples'] = x['samples'][:1]
+        x['timeout_ns'] = x['samples'][-1]['end_ns']
+    def late_stop(x):
+        # A late stop followed by a full interval must still be inconclusive.
+        for sample in x['samples'][:6]:
+            sample['task']['State'] = 'R (running)'
+        for _ in range(6):
+            item = copy.deepcopy(x['samples'][-1])
+            item['start_ns'] += 100000000
+            item['end_ns'] += 100000000
+            x['samples'].append(item)
+        x['timeout_ns'] = x['samples'][-1]['end_ns']
     for label, mutate in [
         ('running', lambda x: x['samples'][1]['task'].update(State='R (running)')),
         ('wrong_tracer', lambda x: x['samples'][0]['task'].update(TracerPid=202)),
@@ -222,10 +257,11 @@ def stall_controls():
         ('candidate_dead', lambda x: x['samples'][0].update(tracer_alive=False)),
         ('gate_closed', lambda x: x['samples'][1]['shared'].__setitem__(0, 0)),
         ('wrong_owner', lambda x: x['samples'][2]['leader'].update(PPid=98)),
-        ('insufficient_wait', lambda x: x.update(timeout_ns=x['wait_started_ns'] + 1)),
-        ('insufficient_samples', lambda x: x['samples'].pop()),
+        ('short_observation', short), ('insufficient_samples', few),
         ('wrong_target', lambda x: x.update(target_tid=999)),
-        ('short_observation', lambda x: x['samples'][2].update(time_ns=x['samples'][0]['time_ns'] + 190000000)),
+        ('late_stop', late_stop),
+        ('sampling_gap', lambda x: x['samples'][3].update(start_ns=x['samples'][2]['end_ns'] + 500000001)),
+        ('capture_error', lambda x: x['samples'][2].update(capture_error='unavailable')),
     ]:
         item = copy.deepcopy(positive_worker); mutate(item); negative[label] = item
     record = {'preconditions': pre, 'inputs': {'worker': positive_worker, 'leader': positive_leader, **negative},
@@ -243,9 +279,9 @@ def stall_controls():
                 events[1] = ('worker-wait', 1100000000)
             else:
                 events += [('leader-release', 900000000), ('fixture-completion', 1100000000)]
-            events += [(which + '-stall-observation', item['timeout_ns']),
-                       (which + '-stall-cleanup', item['samples'][-1]['time_ns'] + 1)]
-            return {'stall': copy.deepcopy(item), 'preconditions': pre,
+            events += [(which + '-stall-observation', item['timeout_ns'] + 1),
+                       (which + '-stall-cleanup', item['timeout_ns'] + 2)]
+            return {'stall': copy.deepcopy(item), 'monitors': {which: copy.deepcopy(item)}, 'preconditions': pre,
                     'events': [{'stage': name, 'time_ns': ns} for name, ns in events],
                     'worker_release': True, 'leader_release': which == 'leader',
                     'worker_gone_before_leader_release': which == 'leader',
@@ -253,10 +289,11 @@ def stall_controls():
                     'candidate_status': -signal.SIGKILL,
                     'stall_cleanup': {'tracer_kill_requested': True, 'tracer_status_after_kill': -signal.SIGKILL}}
         full = {'worker_record': full_record(positive_worker), 'leader_record': full_record(positive_leader)}
+        bad = copy.deepcopy(full['worker_record']); bad['monitors']['worker']['result'] = 'completed'; full['monitor_mismatch'] = bad
         bad = copy.deepcopy(full['worker_record']); bad['worker_release'] = False; full['missing_release'] = bad
         bad = copy.deepcopy(full['leader_record']); bad['worker_gone_before_leader_release'] = False; full['missing_worker_exit'] = bad
         bad = copy.deepcopy(full['worker_record']); bad['stall_cleanup']['tracer_kill_requested'] = False; full['missing_cleanup'] = bad
-        bad = copy.deepcopy(full['worker_record']); bad['events'][-1]['time_ns'] = bad['stall']['samples'][0]['time_ns']; full['cleanup_too_early'] = bad
+        bad = copy.deepcopy(full['worker_record']); bad['events'][-1]['time_ns'] = bad['stall']['samples'][0]['start_ns']; full['cleanup_too_early'] = bad
         record['record_inputs'] = full
         record['record_outcomes'] = {}
         for label, item in full.items():
@@ -278,25 +315,43 @@ def stage(record, name):
     save('setup-controls.json', record)
 
 
-def snapshot_stall(record, fixture, tracer, which, wait_started_ns):
+def monitor_wait(record, fixture, tracer, which, wait_started_ns):
+    """Sample from gate release until completion or a full observed stop interval."""
     pre = record['preconditions']
+    required_ns = (4 if which == 'worker' else 5) * 1000000000
+    deadline_ns = wait_started_ns + required_ns + 1000000000
     proof = {'stage': which, 'target_tid': pre[which], 'wait_started_ns': wait_started_ns,
-             'timeout_ns': time.monotonic_ns(), 'samples': []}
-    record['stall'] = proof
-    stage(record, which + '-stall-observation')
-    for index in range(3):
-        sample = {'time_ns': time.monotonic_ns(), 'fixture_alive': fixture.poll() is None,
-                  'tracer_alive': tracer.poll() is None, 'shared': shared_read('candidate'),
-                  'task': task_status(fixture.pid, pre[which]),
-                  'leader': task_status(fixture.pid, pre['leader']),
-                  'tracer': task_status(tracer.pid, tracer.pid)}
+             'deadline_ns': deadline_ns, 'samples': []}
+    record.setdefault('monitors', {})[which] = proof
+    task_path = Path('/proc/%d/task/%d' % (fixture.pid, pre[which]))
+    while time.monotonic_ns() < deadline_ns:
+        if which == 'worker' and not task_path.exists():
+            proof['result'] = 'completed'
+            return 'completed'
+        if fixture.poll() is not None:
+            if which == 'worker':
+                raise ValueError('fixture exited before worker completion')
+            proof['result'] = 'completed'
+            return 'completed'
+        sample = {'start_ns': time.monotonic_ns()}
+        try:
+            sample.update(fixture_alive=fixture.poll() is None, tracer_alive=tracer.poll() is None,
+                          shared=shared_read('candidate'), task=task_status(fixture.pid, pre[which]),
+                          leader=task_status(fixture.pid, pre['leader']), tracer=task_status(tracer.pid, tracer.pid))
+        except (OSError, KeyError, ValueError) as exc:
+            sample['capture_error'] = '%s: %s' % (type(exc).__name__, exc)
+        sample['end_ns'] = time.monotonic_ns()
         proof['samples'].append(sample)
-        save('setup-controls.json', record)
-        if index < 2:
-            time.sleep(.15)
-    if not attributable_stall(proof, pre):
-        raise ValueError(which + ' timeout has inconclusive attribution')
-    return proof
+        proof['timeout_ns'] = sample['end_ns']
+        if attributable_stall(proof, pre):
+            proof['result'] = 'candidate_stall'
+            record['stall'] = proof
+            stage(record, which + '-stall-observation')
+            return 'candidate_stall'
+        time.sleep(.1)
+    proof['result'] = 'inconclusive'
+    stage(record, which + '-monitor-inconclusive')
+    raise ValueError(which + ' timeout has inconclusive attribution')
 
 
 def clean_stall(record, fixture, tracer, which):
@@ -491,13 +546,7 @@ def observe(record):
             record['worker_release'] = True
             worker_started = time.monotonic_ns()
             stage(record, 'worker-wait')
-            worker_task = Path('/proc/%d/task/%d' % (fixture.pid, pre['worker']))
-            while worker_task.exists() and time.monotonic_ns() - worker_started < 4000000000:
-                if fixture.poll() is not None:
-                    raise ValueError('fixture exited before worker completion')
-                time.sleep(.01)
-            if worker_task.exists():
-                snapshot_stall(record, fixture, tracer, 'worker', worker_started)
+            if monitor_wait(record, fixture, tracer, 'worker', worker_started) == 'candidate_stall':
                 clean_stall(record, fixture, tracer, 'worker')
                 record['outcome'] = 'candidate_stall'
             else:
@@ -507,10 +556,7 @@ def observe(record):
                 record['leader_release'] = True
                 leader_started = time.monotonic_ns()
                 stage(record, 'fixture-completion')
-                try:
-                    fixture.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    snapshot_stall(record, fixture, tracer, 'leader', leader_started)
+                if monitor_wait(record, fixture, tracer, 'leader', leader_started) == 'candidate_stall':
                     clean_stall(record, fixture, tracer, 'leader')
                     record['outcome'] = 'candidate_stall'
                 if record['outcome'] != 'candidate_stall':
