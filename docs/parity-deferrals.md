@@ -7,8 +7,8 @@ reviewed requirements, evidence links and specific remaining gaps. The
 saved static and dynamic VM runs. The initial qualification tables in the VM
 guide describe the earlier fixture set.
 
-The current review covers 402 of the 600 topics on both builds: static 211 PASS / 191 FAIL;
-dynamic 212 PASS / 190 FAIL. The other 198 retain unresolved requirements. These are topic counts,
+The current review covers 404 of the 600 topics on both builds: static 212 PASS / 192 FAIL;
+dynamic 213 PASS / 191 FAIL. The other 196 retain unresolved requirements. These are topic counts,
 not additional behavioral test results.
 
 The syslog review adds bounded three-record FIFO observations for startup, SIGHUP and periodic replay on both builds. Sender attribution is inferred from pinned serial source and isolated networking; HUP was queued while the daemon was stopped.
@@ -58,6 +58,8 @@ The ncdu boundary review checks both `-x` and unrestricted traversal in a privat
 The killall5 dry-run review checks read-only target selection in a confined synthetic proc tree on both builds. The seven cases cover session and self exclusion, empty command lines, omit lists, malformed or disappearing entries and exit statuses. A live supervisor witness binds the nonleader caller to its actual session. Signal-denial controls protect the fixture; they do not establish signal-delivery behavior or a complete syscall trace. The disappearance case exercises one bounded schedule.
 
 The SFTP navigation review adds complete native BASHSSH1 request and response frames for the selected-directory listing, checked against a tree-backed OpenSSH control on both builds. Escaped paths pass; quoted cd sends a malformed command and still fails. The quoted case never reaches the intended listing. Earlier session evidence remains, while binary upload/download gaps are unchanged. These local fixture transports do not establish SSH authentication, encryption or path confinement.
+
+The Bash I/O network review exercises address and route operations inside a mapped network namespace, with independent native controls, complete marked ioctl traces and before/after snapshots. The route cases pass. A malformed mask is rejected only after the address ioctl succeeds and changes the interface, so the original validation-before-ioctl requirement fails on both builds. The historical note describing partial mutation is retained alongside that literal requirement; it does not turn the failure into a pass. Earlier setup errors remain unqualified.
 
 A historical case becomes `MIGRATED` only when every requirement has an explicit
 assertion and valid execution evidence on both builds. Its replacement cases

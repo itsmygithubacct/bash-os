@@ -105,14 +105,88 @@
     {
       "id": "set-addr-deferred",
       "purpose": "The command issues interface-address and interface-flag ioctls, which must not be attempted here.",
-      "kind": "deferred",
-      "reason": "Never executed. All obligations are reachable without a new driver: an unprivileged user+network namespace gives the candidate CAP_NET_ADMIN over its own private netns only."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-addr-bad-ip"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-addr-bad-mask"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-addr-missing"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-addr-missing-ip"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-addr-missing-mask"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-addr-nodev"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-addr-perm"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-addr-success"
+        }
+      ]
     },
     {
       "id": "set-route-deferred",
       "purpose": "The command issues a route-add ioctl and must not alter network routing in this run.",
-      "kind": "deferred",
-      "reason": "Never executed. A private user+network namespace provides the needed CAP_NET_ADMIN over an isolated routing table; no guest routing changes."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-route-auto"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-route-bad-gateway"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-route-extra"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-route-iface"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-route-long-iface"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-route-missing"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-route-missing-iface"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-route-perm"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-route-repeat"
+        },
+        {
+          "group": "shell",
+          "id": "migration-bashio-network-reviewed-route-unreachable"
+        }
+      ]
     },
     {
       "id": "raw-binary-output",

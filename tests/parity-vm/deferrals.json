@@ -1455,36 +1455,87 @@
         "kind": "deferred",
         "reason": "Requires a future disposable VM with a dedicated virtual interface and an ioctl mock/capture that verifies address, netmask, and flag requests without configuring any host or real interface."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Never executed. All obligations are reachable without a new driver: an unprivileged user+network namespace gives the candidate CAP_NET_ADMIN over its own private netns only.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original requirement has complete paired observations inside an isolated mapped network namespace, with independent native controls and marked ioctl records. Address validation retains its observed bad-mask failure; successful companion observations do not erase it.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "set-addr IFACE IP MASK issues SIOCSIFADDR, SIOCSIFNETMASK and SIOCSIFFLAGS(IFF_UP|IFF_RUNNING) so the interface ends up with the given IPv4 address/netmask and up.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case. CAP_NET_ADMIN is needed only over the target network namespace; a fresh user+net namespace owned by uid 2000 provides it without touching guest interfaces.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-addr-success",
+              "assertion": "Both frozen builds match the original obligation for this completed addr-success scenario: set-addr IFACE IP MASK issues SIOCSIFADDR, SIOCSIFNETMASK and SIOCSIFFLAGS(IFF_UP|IFF_RUNNING) so the interface ends up with the given IPv4 address/netmask and up. Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "dbebddc2d1e6f2e03236f203d3c2fcade97a0ba0198c12d764038ea27b50d7a8"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r2",
           "behavior": "Argument validation before any ioctl: missing operands -> status 2; malformed IP or MASK -> 'bad IP'/'bad MASK' status 2.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; fully unprivileged (validation precedes ioctls; for MASK note SIOCSIFADDR already ran, see notes).",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-addr-missing",
+              "assertion": "Both frozen builds match the original obligation for this completed addr-missing scenario: Argument validation before any ioctl: missing operands -> status 2; malformed IP or MASK -> 'bad IP'/'bad MASK' status 2. Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "30fd37856ecf50a4d5b94c470de485eb892b9e84951271cf32626eafcb7f2d2d"
+            },
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-addr-missing-ip",
+              "assertion": "Both frozen builds match the original obligation for this completed addr-missing-ip scenario: Argument validation before any ioctl: missing operands -> status 2; malformed IP or MASK -> 'bad IP'/'bad MASK' status 2. Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "7fc5bad2a8ba8e6d4e5f5b2f65da53c90930464905467b5a4d5a79ac501948c4"
+            },
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-addr-missing-mask",
+              "assertion": "Both frozen builds match the original obligation for this completed addr-missing-mask scenario: Argument validation before any ioctl: missing operands -> status 2; malformed IP or MASK -> 'bad IP'/'bad MASK' status 2. Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "c804c74d87db763186074f738e3d997e8fd41e42f4107ad82ba4fca3db2e2f00"
+            },
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-addr-bad-ip",
+              "assertion": "Both frozen builds match the original obligation for this completed addr-bad-ip scenario: Argument validation before any ioctl: missing operands -> status 2; malformed IP or MASK -> 'bad IP'/'bad MASK' status 2. Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "ec58c96b3b08aabe726099b8f5eb16cb4255dc0e7854119728f73d8ecc53d29e"
+            },
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-addr-bad-mask",
+              "assertion": "Both frozen builds return status 2 and bad MASK after a successful marked SIOCSIFADDR sets the address. Complete before/after snapshots confirm the partial mutation. This fails the original requirement to validate before any ioctl; the separate historical partial-mutation note is retained without changing that literal.",
+              "definition_sha256": "63fd55127d68ee7665edc01ee759dad0d042a0e03430c91964e7e7cbcb6e52a0"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r3",
           "behavior": "Kernel errors surface with status 1 and the ioctl name: nonexistent interface (ENODEV) and missing privilege (EPERM).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case. EPERM is observable in the legacy runner or plain driver without a user namespace; ENODEV inside the user+net namespace.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-addr-nodev",
+              "assertion": "Both frozen builds match the original obligation for this completed addr-nodev scenario: Kernel errors surface with status 1 and the ioctl name: nonexistent interface (ENODEV) and missing privilege (EPERM). Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "1c4bef825023958fa0d2db848944d7ce0f46e6a1ebc986772587935c78582d6a"
+            },
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-addr-perm",
+              "assertion": "Both frozen builds match the original obligation for this completed addr-perm scenario: Kernel errors surface with status 1 and the ioctl name: nonexistent interface (ENODEV) and missing privilege (EPERM). Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "aca77c6c07b075494dfc221c459e76e1d427cb56203eb5fa4378f98cfaadafd7"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         }
       ],
-      "notes": "Source: loadables/bashio.c:487-548. Caveat for r2: MASK is validated only after SIOCSIFADDR succeeded (bashio.c:521-529), so a bad MASK leaves the address applied - the fixture should assert the observed partial state rather than assume validation precedes all ioctls. Preflight: dummy module autoload from a non-initial user namespace is kernel/config dependent; record it. VM-global state is not touched."
+      "notes": "Source: loadables/bashio.c:487-548. Caveat for r2: MASK is validated only after SIOCSIFADDR succeeded (bashio.c:521-529), so a bad MASK leaves the address applied - the fixture should assert the observed partial state rather than assume validation precedes all ioctls. Preflight: dummy module autoload from a non-initial user namespace is kernel/config dependent; record it. VM-global state is not touched. Primary accepted the two frozen builds after independent raw-data review, exact source/candidate/image/artifact binding, protected guest identity and clean teardown. The audit applies to these complete fixed captures and is not a general gate for arbitrary interrupted or partial captures. Earlier address setup ERROR records and historical route observations remain immutable. The malformed-mask address mutation contradicts the original validation-before-ioctl literal and remains FAIL despite the separate historical note describing that behavior."
     },
     {
       "topic": "bashio/set-route-deferred",
@@ -1494,44 +1545,108 @@
         "kind": "deferred",
         "reason": "Requires a future disposable VM with an isolated routing table and a reviewed ioctl mock/capture that verifies the default-route fields and optional interface without changing host or real network state."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Never executed. A private user+network namespace provides the needed CAP_NET_ADMIN over an isolated routing table; no guest routing changes.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Every original route requirement has complete paired observations inside an isolated mapped network namespace, with independent native controls, marked ioctl records and route snapshots. The fixed cases match their reviewed predicates.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "set-route GATEWAY issues SIOCADDRT with dst/genmask 0.0.0.0, RTF_UP|RTF_GATEWAY, producing a default route via GATEWAY.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; reachable in a private user+net namespace with an up interface on the gateway's subnet.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-route-auto",
+              "assertion": "Both frozen builds match the original obligation for this completed route-auto scenario: set-route GATEWAY issues SIOCADDRT with dst/genmask 0.0.0.0, RTF_UP|RTF_GATEWAY, producing a default route via GATEWAY. Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "4b844f1c41e59bb2a07fcc9522c06e34614b85df60319594348f057dc1383cf5"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r2",
           "behavior": "-i IFACE sets rt_dev so the route is bound to that interface.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-route-iface",
+              "assertion": "Both frozen builds match the original obligation for this completed route-iface scenario: -i IFACE sets rt_dev so the route is bound to that interface. Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "a4610b64016222753478a73e696e6040d2e5a06d90c70e828b5ffe05132e4647"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r3",
           "behavior": "EEXIST from an already present default route is treated as success (status 0).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; repeat the call in the same namespace.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-route-repeat",
+              "assertion": "Both frozen builds match the original obligation for this completed route-repeat scenario: EEXIST from an already present default route is treated as success (status 0). Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "b4625ec2128308d5fb2b1c8387100bd60188d38977572b84bd5711fb242cbce6"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r4",
           "behavior": "Argument/kernel errors: no GATEWAY or '-i' without IFACE -> 2; extra operand -> 2; bad GATEWAY -> 2; overlong IFACE -> 2; unreachable gateway (ENETUNREACH) or no privilege (EPERM) -> 1 with 'SIOCADDRT via'.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; parsing errors are unprivileged (legacy runner), kernel errors in the user+net namespace or as plain uid 2000.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-route-missing",
+              "assertion": "Both frozen builds match the original obligation for this completed route-missing scenario: Argument/kernel errors: no GATEWAY or '-i' without IFACE -> 2; extra operand -> 2; bad GATEWAY -> 2; overlong IFACE -> 2; unreachable gateway (ENETUNREACH) or no privilege (EPERM) -> 1 with 'SIOCADDRT via'. Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "e3f4603992de5fac711e468e8d589613592755807970faa1e581fa3a16afb670"
+            },
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-route-missing-iface",
+              "assertion": "Both frozen builds match the original obligation for this completed route-missing-iface scenario: Argument/kernel errors: no GATEWAY or '-i' without IFACE -> 2; extra operand -> 2; bad GATEWAY -> 2; overlong IFACE -> 2; unreachable gateway (ENETUNREACH) or no privilege (EPERM) -> 1 with 'SIOCADDRT via'. Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "cc8612c5fbb897550117213a81259cd628b2aeef5d86c2027433d276e3c0b11c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-route-extra",
+              "assertion": "Both frozen builds match the original obligation for this completed route-extra scenario: Argument/kernel errors: no GATEWAY or '-i' without IFACE -> 2; extra operand -> 2; bad GATEWAY -> 2; overlong IFACE -> 2; unreachable gateway (ENETUNREACH) or no privilege (EPERM) -> 1 with 'SIOCADDRT via'. Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "114c0bc8beb68de6ada70b73f64461382d00f8683866d2996abd82f6b73c7289"
+            },
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-route-bad-gateway",
+              "assertion": "Both frozen builds match the original obligation for this completed route-bad-gateway scenario: Argument/kernel errors: no GATEWAY or '-i' without IFACE -> 2; extra operand -> 2; bad GATEWAY -> 2; overlong IFACE -> 2; unreachable gateway (ENETUNREACH) or no privilege (EPERM) -> 1 with 'SIOCADDRT via'. Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "558dbe752a535d1843e9f77db380c595264373365bca3803b0570790d31492bd"
+            },
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-route-long-iface",
+              "assertion": "Both frozen builds match the original obligation for this completed route-long-iface scenario: Argument/kernel errors: no GATEWAY or '-i' without IFACE -> 2; extra operand -> 2; bad GATEWAY -> 2; overlong IFACE -> 2; unreachable gateway (ENETUNREACH) or no privilege (EPERM) -> 1 with 'SIOCADDRT via'. Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "94028893398fe016a65ae123613c039cf32e7b15a0fd9eb34965a705ed7dfcd4"
+            },
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-route-unreachable",
+              "assertion": "Both frozen builds match the original obligation for this completed route-unreachable scenario: Argument/kernel errors: no GATEWAY or '-i' without IFACE -> 2; extra operand -> 2; bad GATEWAY -> 2; overlong IFACE -> 2; unreachable gateway (ENETUNREACH) or no privilege (EPERM) -> 1 with 'SIOCADDRT via'. Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "283c332f80c85bf9534aa7981940f69be8b203a479e05e9c6160e0deddae4582"
+            },
+            {
+              "group": "shell",
+              "id": "migration-bashio-network-reviewed-route-perm",
+              "assertion": "Both frozen builds match the original obligation for this completed route-perm scenario: Argument/kernel errors: no GATEWAY or '-i' without IFACE -> 2; extra operand -> 2; bad GATEWAY -> 2; overlong IFACE -> 2; unreachable gateway (ENETUNREACH) or no privilege (EPERM) -> 1 with 'SIOCADDRT via'. Independent native controls, complete marked ioctl records, raw status and diagnostic streams, and before/after snapshots support the fixed-run observation.",
+              "definition_sha256": "5c53a50af45fb435593b755cedd24c6c7667dc91a4c199ce5d13f8a59e20a2cd"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         }
       ],
-      "notes": "Source: loadables/bashio.c:550-610 (EEXIST tolerated at :603-608). Interface fallback to lo is not valid here (a default route needs an on-link gateway); dummy module availability must be preflighted and absence reported SKIP."
+      "notes": "Source: loadables/bashio.c:550-610 (EEXIST tolerated at :603-608). Interface fallback to lo is not valid here (a default route needs an on-link gateway); dummy module availability must be preflighted and absence reported SKIP. Primary accepted the two frozen builds after independent raw-data review, exact source/candidate/image/artifact binding, protected guest identity and clean teardown. The audit applies to these complete fixed captures and is not a general gate for arbitrary interrupted or partial captures. Earlier address setup ERROR records and historical route observations remain immutable. The malformed-mask address mutation contradicts the original validation-before-ioctl literal and remains FAIL despite the separate historical note describing that behavior."
     },
     {
       "topic": "bashjson/jq-wrapper-integration",

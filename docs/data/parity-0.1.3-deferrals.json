@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "0a46eaa14b59226abf5837d5eb79794e10c32868bdd38cd903ab2e554b655400",
+  "ledger_sha256": "bd6a6a9363735c830cec1d9466962e7f28ef233ce2e6903037cd160f6e63501a",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
     "partial": 93,
-    "full": 402,
-    "none": 105
+    "full": 404,
+    "none": 103
   },
   "migrations": {
-    "deferred": 198,
-    "replacement": 402
+    "deferred": 196,
+    "replacement": 404
   },
   "pending_full_topics": [],
   "builds": {
@@ -8209,6 +8209,32 @@
           "candidate_unchanged": true,
           "candidate_matches_guest": true,
           "prepared_unchanged": true
+        },
+        {
+          "name": "bashio-network-runtime-v4-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 18,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "3ebf08185ccd36d0be8e36b7e728322bc2411e66551b080bd7acbb18f5f9b557",
+            "provenance.json": "42adba504000488956edf8f0baf8cef66f4808f07f15f566fb101ae9183565b1",
+            "payload.tar": "cbc99e4bc499edc0e36c30e492ddb220a6578f9bd3d6820682ba0e0e7807f30a",
+            "evidence.tar": "4ebca95fb792605c2f72d6854f97a0cc11b2658d76197f9477b0188efc0eb397"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793400888.5843837
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
         }
       ],
       "entries": [
@@ -9713,82 +9739,197 @@
         },
         {
           "topic": "bashio/set-addr-deferred",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "set-addr IFACE IP MASK issues SIOCSIFADDR, SIOCSIFNETMASK and SIOCSIFFLAGS(IFF_UP|IFF_RUNNING) so the interface ends up with the given IPv4 address/netmask and up.",
-              "coverage": "missing",
-              "gap": "No case. CAP_NET_ADMIN is needed only over the target network namespace; a fresh user+net namespace owned by uid 2000 provides it without touching guest interfaces.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-addr-success",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Argument validation before any ioctl: missing operands -> status 2; malformed IP or MASK -> 'bad IP'/'bad MASK' status 2.",
-              "coverage": "missing",
-              "gap": "No case; fully unprivileged (validation precedes ioctls; for MASK note SIOCSIFADDR already ran, see notes).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-addr-missing",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-addr-missing-ip",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-addr-missing-mask",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-addr-bad-ip",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-addr-bad-mask",
+                  "status": "FAIL",
+                  "run": "bashio-network-runtime-v4-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Kernel errors surface with status 1 and the ioctl name: nonexistent interface (ENODEV) and missing privilege (EPERM).",
-              "coverage": "missing",
-              "gap": "No case. EPERM is observable in the legacy runner or plain driver without a user namespace; ENODEV inside the user+net namespace.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-addr-nodev",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-addr-perm",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashio/set-route-deferred",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "set-route GATEWAY issues SIOCADDRT with dst/genmask 0.0.0.0, RTF_UP|RTF_GATEWAY, producing a default route via GATEWAY.",
-              "coverage": "missing",
-              "gap": "No case; reachable in a private user+net namespace with an up interface on the gateway's subnet.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-auto",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "-i IFACE sets rt_dev so the route is bound to that interface.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-iface",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "EEXIST from an already present default route is treated as success (status 0).",
-              "coverage": "missing",
-              "gap": "No case; repeat the call in the same namespace.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-repeat",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Argument/kernel errors: no GATEWAY or '-i' without IFACE -> 2; extra operand -> 2; bad GATEWAY -> 2; overlong IFACE -> 2; unreachable gateway (ENETUNREACH) or no privilege (EPERM) -> 1 with 'SIOCADDRT via'.",
-              "coverage": "missing",
-              "gap": "No case; parsing errors are unprivileged (legacy runner), kernel errors in the user+net namespace or as plain uid 2000.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-missing",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-missing-iface",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-extra",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-bad-gateway",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-long-iface",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-unreachable",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-perm",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -58229,9 +58370,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 198,
-        "FAIL": 191,
-        "PASS": 211
+        "UNRESOLVED": 196,
+        "FAIL": 192,
+        "PASS": 212
       },
       "migration_without_complete_evidence": []
     },
@@ -66430,6 +66571,32 @@
           "candidate_unchanged": true,
           "candidate_matches_guest": true,
           "prepared_unchanged": true
+        },
+        {
+          "name": "bashio-network-runtime-v4-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 18,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "31e0431deab08fbfc5ecd0fb34661bfe96650a4ce8397530ae5be42812cb2f61",
+            "provenance.json": "4ce78a7a6b035784cb370683beeaca4ebc186b049a9504ac2c7d74cd5d772df4",
+            "payload.tar": "ad7f3aa36071cfc7eb1b2b44fd1281bb6aa03781952292a9d64a2faf6362d7dc",
+            "evidence.tar": "14534b33ba7a99eaa6aa6e61dae140db9433799df8596f2f8ef143b9e952639c"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793400927.6705256
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
         }
       ],
       "entries": [
@@ -67934,82 +68101,197 @@
         },
         {
           "topic": "bashio/set-addr-deferred",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "set-addr IFACE IP MASK issues SIOCSIFADDR, SIOCSIFNETMASK and SIOCSIFFLAGS(IFF_UP|IFF_RUNNING) so the interface ends up with the given IPv4 address/netmask and up.",
-              "coverage": "missing",
-              "gap": "No case. CAP_NET_ADMIN is needed only over the target network namespace; a fresh user+net namespace owned by uid 2000 provides it without touching guest interfaces.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-addr-success",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Argument validation before any ioctl: missing operands -> status 2; malformed IP or MASK -> 'bad IP'/'bad MASK' status 2.",
-              "coverage": "missing",
-              "gap": "No case; fully unprivileged (validation precedes ioctls; for MASK note SIOCSIFADDR already ran, see notes).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-addr-missing",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-addr-missing-ip",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-addr-missing-mask",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-addr-bad-ip",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-addr-bad-mask",
+                  "status": "FAIL",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Kernel errors surface with status 1 and the ioctl name: nonexistent interface (ENODEV) and missing privilege (EPERM).",
-              "coverage": "missing",
-              "gap": "No case. EPERM is observable in the legacy runner or plain driver without a user namespace; ENODEV inside the user+net namespace.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-addr-nodev",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-addr-perm",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "bashio/set-route-deferred",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "set-route GATEWAY issues SIOCADDRT with dst/genmask 0.0.0.0, RTF_UP|RTF_GATEWAY, producing a default route via GATEWAY.",
-              "coverage": "missing",
-              "gap": "No case; reachable in a private user+net namespace with an up interface on the gateway's subnet.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-auto",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "-i IFACE sets rt_dev so the route is bound to that interface.",
-              "coverage": "missing",
-              "gap": "No case.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-iface",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "EEXIST from an already present default route is treated as success (status 0).",
-              "coverage": "missing",
-              "gap": "No case; repeat the call in the same namespace.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-repeat",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Argument/kernel errors: no GATEWAY or '-i' without IFACE -> 2; extra operand -> 2; bad GATEWAY -> 2; overlong IFACE -> 2; unreachable gateway (ENETUNREACH) or no privilege (EPERM) -> 1 with 'SIOCADDRT via'.",
-              "coverage": "missing",
-              "gap": "No case; parsing errors are unprivileged (legacy runner), kernel errors in the user+net namespace or as plain uid 2000.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-missing",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-missing-iface",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-extra",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-bad-gateway",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-long-iface",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-unreachable",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-bashio-network-reviewed-route-perm",
+                  "status": "PASS",
+                  "run": "bashio-network-runtime-v4-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -116450,9 +116732,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 198,
-        "FAIL": 190,
-        "PASS": 212
+        "UNRESOLVED": 196,
+        "FAIL": 191,
+        "PASS": 213
       },
       "migration_without_complete_evidence": []
     }
