@@ -2,378 +2,19 @@
   "schema": 1,
   "cases": [
     {
-      "id": "migration-bashio-network-reviewed-addr-missing",
-      "loadable": "bashio",
-      "group": "shell",
-      "driver": "plain",
-      "kind": "contract",
-      "purpose": "Missing address operands are rejected.",
-      "covers": [
-        "bashio/set-addr-deferred"
-      ],
-      "oracle": "Each setup verifies QEMU UUID identity, uid 2000 and absence of CAP_NET_ADMIN, compiles a native C control, and independently observes EPERM on SIOCSIFADDR and SIOCADDRT against loopback. Setup fails on any missing precondition. The candidate shell capability and identity are checked again before the single observation. Parser controls reject wrong status, nonempty stdout and missing diagnostics.",
-      "comparison": "Require the status, empty stdout and diagnostic fragment for addr-missing. This is a bounded error observation; it does not establish ioctl ordering, successful configuration, or the full deferred requirement.",
-      "requires": [
-        "gcc",
-        "python3"
-      ],
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py setup\n",
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py guard || exit 98\nbuiltin bashio set-addr >\"$HOME/candidate.stdout\" 2>\"$HOME/candidate.stderr\"\nrc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py assess addr-missing\n",
-      "stdout": "observed addr-missing\n",
-      "stderr": "",
-      "expected_status": 0,
-      "timeout": 15,
-      "setup_timeout": 30,
-      "diagnostic_files": [
-        "compiler.stdout",
-        "compiler.stderr",
-        "control.stdout",
-        "control.stderr",
-        "control.status",
-        "setup.json",
-        "candidate-precondition.json",
-        "candidate.stdout",
-        "candidate.stderr",
-        "candidate.status",
-        "assertion.json"
-      ],
-      "helpers_sha256": {
-        "helpers/bashio-network-reviewed.py": "c8a0b65be0c39b09842296a6ee6a9a37aa47af6cbd2a2c6ce56f9e6e9354a907"
-      }
-    },
-    {
-      "id": "migration-bashio-network-reviewed-addr-bad-ip",
-      "loadable": "bashio",
-      "group": "shell",
-      "driver": "plain",
-      "kind": "contract",
-      "purpose": "Malformed IPv4 addresses are rejected.",
-      "covers": [
-        "bashio/set-addr-deferred"
-      ],
-      "oracle": "Each setup verifies QEMU UUID identity, uid 2000 and absence of CAP_NET_ADMIN, compiles a native C control, and independently observes EPERM on SIOCSIFADDR and SIOCADDRT against loopback. Setup fails on any missing precondition. The candidate shell capability and identity are checked again before the single observation. Parser controls reject wrong status, nonempty stdout and missing diagnostics.",
-      "comparison": "Require the status, empty stdout and diagnostic fragment for addr-bad-ip. This is a bounded error observation; it does not establish ioctl ordering, successful configuration, or the full deferred requirement.",
-      "requires": [
-        "gcc",
-        "python3"
-      ],
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py setup\n",
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py guard || exit 98\nbuiltin bashio set-addr lo invalid 255.255.255.0 >\"$HOME/candidate.stdout\" 2>\"$HOME/candidate.stderr\"\nrc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py assess addr-bad-ip\n",
-      "stdout": "observed addr-bad-ip\n",
-      "stderr": "",
-      "expected_status": 0,
-      "timeout": 15,
-      "setup_timeout": 30,
-      "diagnostic_files": [
-        "compiler.stdout",
-        "compiler.stderr",
-        "control.stdout",
-        "control.stderr",
-        "control.status",
-        "setup.json",
-        "candidate-precondition.json",
-        "candidate.stdout",
-        "candidate.stderr",
-        "candidate.status",
-        "assertion.json"
-      ],
-      "helpers_sha256": {
-        "helpers/bashio-network-reviewed.py": "c8a0b65be0c39b09842296a6ee6a9a37aa47af6cbd2a2c6ce56f9e6e9354a907"
-      }
-    },
-    {
-      "id": "migration-bashio-network-reviewed-addr-perm",
-      "loadable": "bashio",
-      "group": "shell",
-      "driver": "plain",
-      "kind": "contract",
-      "purpose": "An unprivileged address request reports EPERM.",
-      "covers": [
-        "bashio/set-addr-deferred"
-      ],
-      "oracle": "Each setup verifies QEMU UUID identity, uid 2000 and absence of CAP_NET_ADMIN, compiles a native C control, and independently observes EPERM on SIOCSIFADDR and SIOCADDRT against loopback. Setup fails on any missing precondition. The candidate shell capability and identity are checked again before the single observation. Parser controls reject wrong status, nonempty stdout and missing diagnostics.",
-      "comparison": "Require the status, empty stdout and diagnostic fragment for addr-perm. This is a bounded error observation; it does not establish ioctl ordering, successful configuration, or the full deferred requirement.",
-      "requires": [
-        "gcc",
-        "python3"
-      ],
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py setup\n",
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py guard || exit 98\nbuiltin bashio set-addr lo 192.0.2.20 255.255.255.0 >\"$HOME/candidate.stdout\" 2>\"$HOME/candidate.stderr\"\nrc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py assess addr-perm\n",
-      "stdout": "observed addr-perm\n",
-      "stderr": "",
-      "expected_status": 0,
-      "timeout": 15,
-      "setup_timeout": 30,
-      "diagnostic_files": [
-        "compiler.stdout",
-        "compiler.stderr",
-        "control.stdout",
-        "control.stderr",
-        "control.status",
-        "setup.json",
-        "candidate-precondition.json",
-        "candidate.stdout",
-        "candidate.stderr",
-        "candidate.status",
-        "assertion.json"
-      ],
-      "helpers_sha256": {
-        "helpers/bashio-network-reviewed.py": "c8a0b65be0c39b09842296a6ee6a9a37aa47af6cbd2a2c6ce56f9e6e9354a907"
-      }
-    },
-    {
-      "id": "migration-bashio-network-reviewed-route-missing",
-      "loadable": "bashio",
-      "group": "shell",
-      "driver": "plain",
-      "kind": "contract",
-      "purpose": "Missing gateway is rejected.",
-      "covers": [
-        "bashio/set-route-deferred"
-      ],
-      "oracle": "Each setup verifies QEMU UUID identity, uid 2000 and absence of CAP_NET_ADMIN, compiles a native C control, and independently observes EPERM on SIOCSIFADDR and SIOCADDRT against loopback. Setup fails on any missing precondition. The candidate shell capability and identity are checked again before the single observation. Parser controls reject wrong status, nonempty stdout and missing diagnostics.",
-      "comparison": "Require the status, empty stdout and diagnostic fragment for route-missing. This is a bounded error observation; it does not establish ioctl ordering, successful configuration, or the full deferred requirement.",
-      "requires": [
-        "gcc",
-        "python3"
-      ],
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py setup\n",
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py guard || exit 98\nbuiltin bashio set-route >\"$HOME/candidate.stdout\" 2>\"$HOME/candidate.stderr\"\nrc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py assess route-missing\n",
-      "stdout": "observed route-missing\n",
-      "stderr": "",
-      "expected_status": 0,
-      "timeout": 15,
-      "setup_timeout": 30,
-      "diagnostic_files": [
-        "compiler.stdout",
-        "compiler.stderr",
-        "control.stdout",
-        "control.stderr",
-        "control.status",
-        "setup.json",
-        "candidate-precondition.json",
-        "candidate.stdout",
-        "candidate.stderr",
-        "candidate.status",
-        "assertion.json"
-      ],
-      "helpers_sha256": {
-        "helpers/bashio-network-reviewed.py": "c8a0b65be0c39b09842296a6ee6a9a37aa47af6cbd2a2c6ce56f9e6e9354a907"
-      }
-    },
-    {
-      "id": "migration-bashio-network-reviewed-route-missing-iface",
-      "loadable": "bashio",
-      "group": "shell",
-      "driver": "plain",
-      "kind": "contract",
-      "purpose": "A missing interface after -i is rejected.",
-      "covers": [
-        "bashio/set-route-deferred"
-      ],
-      "oracle": "Each setup verifies QEMU UUID identity, uid 2000 and absence of CAP_NET_ADMIN, compiles a native C control, and independently observes EPERM on SIOCSIFADDR and SIOCADDRT against loopback. Setup fails on any missing precondition. The candidate shell capability and identity are checked again before the single observation. Parser controls reject wrong status, nonempty stdout and missing diagnostics.",
-      "comparison": "Require the status, empty stdout and diagnostic fragment for route-missing-iface. This is a bounded error observation; it does not establish ioctl ordering, successful configuration, or the full deferred requirement.",
-      "requires": [
-        "gcc",
-        "python3"
-      ],
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py setup\n",
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py guard || exit 98\nbuiltin bashio set-route 192.0.2.1 -i >\"$HOME/candidate.stdout\" 2>\"$HOME/candidate.stderr\"\nrc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py assess route-missing-iface\n",
-      "stdout": "observed route-missing-iface\n",
-      "stderr": "",
-      "expected_status": 0,
-      "timeout": 15,
-      "setup_timeout": 30,
-      "diagnostic_files": [
-        "compiler.stdout",
-        "compiler.stderr",
-        "control.stdout",
-        "control.stderr",
-        "control.status",
-        "setup.json",
-        "candidate-precondition.json",
-        "candidate.stdout",
-        "candidate.stderr",
-        "candidate.status",
-        "assertion.json"
-      ],
-      "helpers_sha256": {
-        "helpers/bashio-network-reviewed.py": "c8a0b65be0c39b09842296a6ee6a9a37aa47af6cbd2a2c6ce56f9e6e9354a907"
-      }
-    },
-    {
-      "id": "migration-bashio-network-reviewed-route-extra",
-      "loadable": "bashio",
-      "group": "shell",
-      "driver": "plain",
-      "kind": "contract",
-      "purpose": "An extra route operand is rejected.",
-      "covers": [
-        "bashio/set-route-deferred"
-      ],
-      "oracle": "Each setup verifies QEMU UUID identity, uid 2000 and absence of CAP_NET_ADMIN, compiles a native C control, and independently observes EPERM on SIOCSIFADDR and SIOCADDRT against loopback. Setup fails on any missing precondition. The candidate shell capability and identity are checked again before the single observation. Parser controls reject wrong status, nonempty stdout and missing diagnostics.",
-      "comparison": "Require the status, empty stdout and diagnostic fragment for route-extra. This is a bounded error observation; it does not establish ioctl ordering, successful configuration, or the full deferred requirement.",
-      "requires": [
-        "gcc",
-        "python3"
-      ],
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py setup\n",
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py guard || exit 98\nbuiltin bashio set-route 192.0.2.1 extra >\"$HOME/candidate.stdout\" 2>\"$HOME/candidate.stderr\"\nrc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py assess route-extra\n",
-      "stdout": "observed route-extra\n",
-      "stderr": "",
-      "expected_status": 0,
-      "timeout": 15,
-      "setup_timeout": 30,
-      "diagnostic_files": [
-        "compiler.stdout",
-        "compiler.stderr",
-        "control.stdout",
-        "control.stderr",
-        "control.status",
-        "setup.json",
-        "candidate-precondition.json",
-        "candidate.stdout",
-        "candidate.stderr",
-        "candidate.status",
-        "assertion.json"
-      ],
-      "helpers_sha256": {
-        "helpers/bashio-network-reviewed.py": "c8a0b65be0c39b09842296a6ee6a9a37aa47af6cbd2a2c6ce56f9e6e9354a907"
-      }
-    },
-    {
-      "id": "migration-bashio-network-reviewed-route-bad-gateway",
-      "loadable": "bashio",
-      "group": "shell",
-      "driver": "plain",
-      "kind": "contract",
-      "purpose": "A malformed gateway is rejected.",
-      "covers": [
-        "bashio/set-route-deferred"
-      ],
-      "oracle": "Each setup verifies QEMU UUID identity, uid 2000 and absence of CAP_NET_ADMIN, compiles a native C control, and independently observes EPERM on SIOCSIFADDR and SIOCADDRT against loopback. Setup fails on any missing precondition. The candidate shell capability and identity are checked again before the single observation. Parser controls reject wrong status, nonempty stdout and missing diagnostics.",
-      "comparison": "Require the status, empty stdout and diagnostic fragment for route-bad-gateway. This is a bounded error observation; it does not establish ioctl ordering, successful configuration, or the full deferred requirement.",
-      "requires": [
-        "gcc",
-        "python3"
-      ],
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py setup\n",
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py guard || exit 98\nbuiltin bashio set-route invalid >\"$HOME/candidate.stdout\" 2>\"$HOME/candidate.stderr\"\nrc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py assess route-bad-gateway\n",
-      "stdout": "observed route-bad-gateway\n",
-      "stderr": "",
-      "expected_status": 0,
-      "timeout": 15,
-      "setup_timeout": 30,
-      "diagnostic_files": [
-        "compiler.stdout",
-        "compiler.stderr",
-        "control.stdout",
-        "control.stderr",
-        "control.status",
-        "setup.json",
-        "candidate-precondition.json",
-        "candidate.stdout",
-        "candidate.stderr",
-        "candidate.status",
-        "assertion.json"
-      ],
-      "helpers_sha256": {
-        "helpers/bashio-network-reviewed.py": "c8a0b65be0c39b09842296a6ee6a9a37aa47af6cbd2a2c6ce56f9e6e9354a907"
-      }
-    },
-    {
-      "id": "migration-bashio-network-reviewed-route-long-iface",
-      "loadable": "bashio",
-      "group": "shell",
-      "driver": "plain",
-      "kind": "contract",
-      "purpose": "An overlong interface name is rejected.",
-      "covers": [
-        "bashio/set-route-deferred"
-      ],
-      "oracle": "Each setup verifies QEMU UUID identity, uid 2000 and absence of CAP_NET_ADMIN, compiles a native C control, and independently observes EPERM on SIOCSIFADDR and SIOCADDRT against loopback. Setup fails on any missing precondition. The candidate shell capability and identity are checked again before the single observation. Parser controls reject wrong status, nonempty stdout and missing diagnostics.",
-      "comparison": "Require the status, empty stdout and diagnostic fragment for route-long-iface. This is a bounded error observation; it does not establish ioctl ordering, successful configuration, or the full deferred requirement.",
-      "requires": [
-        "gcc",
-        "python3"
-      ],
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py setup\n",
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py guard || exit 98\nbuiltin bashio set-route 192.0.2.1 -i abcdefghijklmnop >\"$HOME/candidate.stdout\" 2>\"$HOME/candidate.stderr\"\nrc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py assess route-long-iface\n",
-      "stdout": "observed route-long-iface\n",
-      "stderr": "",
-      "expected_status": 0,
-      "timeout": 15,
-      "setup_timeout": 30,
-      "diagnostic_files": [
-        "compiler.stdout",
-        "compiler.stderr",
-        "control.stdout",
-        "control.stderr",
-        "control.status",
-        "setup.json",
-        "candidate-precondition.json",
-        "candidate.stdout",
-        "candidate.stderr",
-        "candidate.status",
-        "assertion.json"
-      ],
-      "helpers_sha256": {
-        "helpers/bashio-network-reviewed.py": "c8a0b65be0c39b09842296a6ee6a9a37aa47af6cbd2a2c6ce56f9e6e9354a907"
-      }
-    },
-    {
-      "id": "migration-bashio-network-reviewed-route-perm",
-      "loadable": "bashio",
-      "group": "shell",
-      "driver": "plain",
-      "kind": "contract",
-      "purpose": "An unprivileged route request reports EPERM.",
-      "covers": [
-        "bashio/set-route-deferred"
-      ],
-      "oracle": "Each setup verifies QEMU UUID identity, uid 2000 and absence of CAP_NET_ADMIN, compiles a native C control, and independently observes EPERM on SIOCSIFADDR and SIOCADDRT against loopback. Setup fails on any missing precondition. The candidate shell capability and identity are checked again before the single observation. Parser controls reject wrong status, nonempty stdout and missing diagnostics.",
-      "comparison": "Require the status, empty stdout and diagnostic fragment for route-perm. This is a bounded error observation; it does not establish ioctl ordering, successful configuration, or the full deferred requirement.",
-      "requires": [
-        "gcc",
-        "python3"
-      ],
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py setup\n",
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py guard || exit 98\nbuiltin bashio set-route 192.0.2.1 >\"$HOME/candidate.stdout\" 2>\"$HOME/candidate.stderr\"\nrc=$?\nprintf \"%s\\n\" \"$rc\" >\"$HOME/candidate.status\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed.py assess route-perm\n",
-      "stdout": "observed route-perm\n",
-      "stderr": "",
-      "expected_status": 0,
-      "timeout": 15,
-      "setup_timeout": 30,
-      "diagnostic_files": [
-        "compiler.stdout",
-        "compiler.stderr",
-        "control.stdout",
-        "control.stderr",
-        "control.status",
-        "setup.json",
-        "candidate-precondition.json",
-        "candidate.stdout",
-        "candidate.stderr",
-        "candidate.status",
-        "assertion.json"
-      ],
-      "helpers_sha256": {
-        "helpers/bashio-network-reviewed.py": "c8a0b65be0c39b09842296a6ee6a9a37aa47af6cbd2a2c6ce56f9e6e9354a907"
-      }
-    },
-    {
       "id": "migration-bashio-network-reviewed-addr-success",
       "loadable": "bashio",
       "group": "shell",
       "driver": "plain",
       "kind": "contract",
-      "purpose": "Observe IPv4 address, netmask and interface-up state.",
+      "purpose": "Observe addr-success with independent request capture and kernel readback.",
       "covers": [
         "bashio/set-addr-deferred"
       ],
-      "oracle": "Setup creates a new mapped user and network namespace; verifies distinct namespace identities and CAP_NET_ADMIN; creates a dummy interface and independently configures, reads and removes a native address and default route. In the same fresh namespace it seeds and checks the candidate-specific fixture, executes the frozen candidate, and retains complete stdout, stderr, status, ip JSON and /proc/net/route snapshots. Any failed namespace, dummy, native control or observation is a setup ERROR.",
-      "comparison": "Compare candidate status, output and independently read kernel state for addr-success. Exact ioctl requests and flags are not captured; this case cannot independently establish the full requirement.",
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
       "requires": [
+        "gcc",
         "python3",
         "ip",
         "unshare"
@@ -386,14 +27,178 @@
       "timeout": 15,
       "setup_timeout": 60,
       "diagnostic_files": [
-        "namespace-parser-controls.json",
-        "namespace-setup.json",
-        "namespace-events.json",
-        "namespace-observation.json",
-        "namespace-assertion.json"
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "decce67d622a67091ac9a81515013e2634e4e6d27be096ae260ec09182661815"
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+      }
+    },
+    {
+      "id": "migration-bashio-network-reviewed-addr-missing",
+      "loadable": "bashio",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe addr-missing with independent request capture and kernel readback.",
+      "covers": [
+        "bashio/set-addr-deferred"
+      ],
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "requires": [
+        "gcc",
+        "python3",
+        "ip",
+        "unshare"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py setup addr-missing\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py assess addr-missing\n",
+      "stdout": "observed addr-missing\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
+      ],
+      "helpers_sha256": {
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+      }
+    },
+    {
+      "id": "migration-bashio-network-reviewed-addr-missing-ip",
+      "loadable": "bashio",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe addr-missing-ip with independent request capture and kernel readback.",
+      "covers": [
+        "bashio/set-addr-deferred"
+      ],
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "requires": [
+        "gcc",
+        "python3",
+        "ip",
+        "unshare"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py setup addr-missing-ip\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py assess addr-missing-ip\n",
+      "stdout": "observed addr-missing-ip\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
+      ],
+      "helpers_sha256": {
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+      }
+    },
+    {
+      "id": "migration-bashio-network-reviewed-addr-missing-mask",
+      "loadable": "bashio",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe addr-missing-mask with independent request capture and kernel readback.",
+      "covers": [
+        "bashio/set-addr-deferred"
+      ],
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "requires": [
+        "gcc",
+        "python3",
+        "ip",
+        "unshare"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py setup addr-missing-mask\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py assess addr-missing-mask\n",
+      "stdout": "observed addr-missing-mask\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
+      ],
+      "helpers_sha256": {
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+      }
+    },
+    {
+      "id": "migration-bashio-network-reviewed-addr-bad-ip",
+      "loadable": "bashio",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe addr-bad-ip with independent request capture and kernel readback.",
+      "covers": [
+        "bashio/set-addr-deferred"
+      ],
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "requires": [
+        "gcc",
+        "python3",
+        "ip",
+        "unshare"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py setup addr-bad-ip\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py assess addr-bad-ip\n",
+      "stdout": "observed addr-bad-ip\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
+      ],
+      "helpers_sha256": {
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
       }
     },
     {
@@ -402,13 +207,14 @@
       "group": "shell",
       "driver": "plain",
       "kind": "contract",
-      "purpose": "Record rejection and actual state after a bad mask.",
+      "purpose": "Observe addr-bad-mask with independent request capture and kernel readback.",
       "covers": [
         "bashio/set-addr-deferred"
       ],
-      "oracle": "Setup creates a new mapped user and network namespace; verifies distinct namespace identities and CAP_NET_ADMIN; creates a dummy interface and independently configures, reads and removes a native address and default route. In the same fresh namespace it seeds and checks the candidate-specific fixture, executes the frozen candidate, and retains complete stdout, stderr, status, ip JSON and /proc/net/route snapshots. Any failed namespace, dummy, native control or observation is a setup ERROR.",
-      "comparison": "Compare candidate status, output and independently read kernel state for addr-bad-mask. Exact ioctl requests and flags are not captured; this case cannot independently establish the full requirement.",
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
       "requires": [
+        "gcc",
         "python3",
         "ip",
         "unshare"
@@ -421,14 +227,18 @@
       "timeout": 15,
       "setup_timeout": 60,
       "diagnostic_files": [
-        "namespace-parser-controls.json",
-        "namespace-setup.json",
-        "namespace-events.json",
-        "namespace-observation.json",
-        "namespace-assertion.json"
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "decce67d622a67091ac9a81515013e2634e4e6d27be096ae260ec09182661815"
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
       }
     },
     {
@@ -437,13 +247,14 @@
       "group": "shell",
       "driver": "plain",
       "kind": "contract",
-      "purpose": "Observe nonexistent-interface error.",
+      "purpose": "Observe addr-nodev with independent request capture and kernel readback.",
       "covers": [
         "bashio/set-addr-deferred"
       ],
-      "oracle": "Setup creates a new mapped user and network namespace; verifies distinct namespace identities and CAP_NET_ADMIN; creates a dummy interface and independently configures, reads and removes a native address and default route. In the same fresh namespace it seeds and checks the candidate-specific fixture, executes the frozen candidate, and retains complete stdout, stderr, status, ip JSON and /proc/net/route snapshots. Any failed namespace, dummy, native control or observation is a setup ERROR.",
-      "comparison": "Compare candidate status, output and independently read kernel state for addr-nodev. Exact ioctl requests and flags are not captured; this case cannot independently establish the full requirement.",
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
       "requires": [
+        "gcc",
         "python3",
         "ip",
         "unshare"
@@ -456,14 +267,258 @@
       "timeout": 15,
       "setup_timeout": 60,
       "diagnostic_files": [
-        "namespace-parser-controls.json",
-        "namespace-setup.json",
-        "namespace-events.json",
-        "namespace-observation.json",
-        "namespace-assertion.json"
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "decce67d622a67091ac9a81515013e2634e4e6d27be096ae260ec09182661815"
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+      }
+    },
+    {
+      "id": "migration-bashio-network-reviewed-addr-perm",
+      "loadable": "bashio",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe addr-perm with independent request capture and kernel readback.",
+      "covers": [
+        "bashio/set-addr-deferred"
+      ],
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "requires": [
+        "gcc",
+        "python3",
+        "ip",
+        "unshare"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py setup addr-perm\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py assess addr-perm\n",
+      "stdout": "observed addr-perm\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
+      ],
+      "helpers_sha256": {
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+      }
+    },
+    {
+      "id": "migration-bashio-network-reviewed-route-missing",
+      "loadable": "bashio",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe route-missing with independent request capture and kernel readback.",
+      "covers": [
+        "bashio/set-route-deferred"
+      ],
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "requires": [
+        "gcc",
+        "python3",
+        "ip",
+        "unshare"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py setup route-missing\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py assess route-missing\n",
+      "stdout": "observed route-missing\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
+      ],
+      "helpers_sha256": {
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+      }
+    },
+    {
+      "id": "migration-bashio-network-reviewed-route-missing-iface",
+      "loadable": "bashio",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe route-missing-iface with independent request capture and kernel readback.",
+      "covers": [
+        "bashio/set-route-deferred"
+      ],
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "requires": [
+        "gcc",
+        "python3",
+        "ip",
+        "unshare"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py setup route-missing-iface\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py assess route-missing-iface\n",
+      "stdout": "observed route-missing-iface\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
+      ],
+      "helpers_sha256": {
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+      }
+    },
+    {
+      "id": "migration-bashio-network-reviewed-route-extra",
+      "loadable": "bashio",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe route-extra with independent request capture and kernel readback.",
+      "covers": [
+        "bashio/set-route-deferred"
+      ],
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "requires": [
+        "gcc",
+        "python3",
+        "ip",
+        "unshare"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py setup route-extra\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py assess route-extra\n",
+      "stdout": "observed route-extra\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
+      ],
+      "helpers_sha256": {
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+      }
+    },
+    {
+      "id": "migration-bashio-network-reviewed-route-bad-gateway",
+      "loadable": "bashio",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe route-bad-gateway with independent request capture and kernel readback.",
+      "covers": [
+        "bashio/set-route-deferred"
+      ],
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "requires": [
+        "gcc",
+        "python3",
+        "ip",
+        "unshare"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py setup route-bad-gateway\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py assess route-bad-gateway\n",
+      "stdout": "observed route-bad-gateway\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
+      ],
+      "helpers_sha256": {
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+      }
+    },
+    {
+      "id": "migration-bashio-network-reviewed-route-long-iface",
+      "loadable": "bashio",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe route-long-iface with independent request capture and kernel readback.",
+      "covers": [
+        "bashio/set-route-deferred"
+      ],
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "requires": [
+        "gcc",
+        "python3",
+        "ip",
+        "unshare"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py setup route-long-iface\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py assess route-long-iface\n",
+      "stdout": "observed route-long-iface\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
+      ],
+      "helpers_sha256": {
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
       }
     },
     {
@@ -472,13 +527,14 @@
       "group": "shell",
       "driver": "plain",
       "kind": "contract",
-      "purpose": "Observe a default gateway without an explicit interface.",
+      "purpose": "Observe route-auto with independent request capture and kernel readback.",
       "covers": [
         "bashio/set-route-deferred"
       ],
-      "oracle": "Setup creates a new mapped user and network namespace; verifies distinct namespace identities and CAP_NET_ADMIN; creates a dummy interface and independently configures, reads and removes a native address and default route. In the same fresh namespace it seeds and checks the candidate-specific fixture, executes the frozen candidate, and retains complete stdout, stderr, status, ip JSON and /proc/net/route snapshots. Any failed namespace, dummy, native control or observation is a setup ERROR.",
-      "comparison": "Compare candidate status, output and independently read kernel state for route-auto. Exact ioctl requests and flags are not captured; this case cannot independently establish the full requirement.",
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
       "requires": [
+        "gcc",
         "python3",
         "ip",
         "unshare"
@@ -491,49 +547,98 @@
       "timeout": 15,
       "setup_timeout": 60,
       "diagnostic_files": [
-        "namespace-parser-controls.json",
-        "namespace-setup.json",
-        "namespace-events.json",
-        "namespace-observation.json",
-        "namespace-assertion.json"
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "decce67d622a67091ac9a81515013e2634e4e6d27be096ae260ec09182661815"
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
       }
     },
     {
-      "id": "migration-bashio-network-reviewed-route-iface-repeat",
+      "id": "migration-bashio-network-reviewed-route-iface",
       "loadable": "bashio",
       "group": "shell",
       "driver": "plain",
       "kind": "contract",
-      "purpose": "Observe the explicit interface and repeat the route request.",
+      "purpose": "Observe route-iface with independent request capture and kernel readback.",
       "covers": [
         "bashio/set-route-deferred"
       ],
-      "oracle": "Setup creates a new mapped user and network namespace; verifies distinct namespace identities and CAP_NET_ADMIN; creates a dummy interface and independently configures, reads and removes a native address and default route. In the same fresh namespace it seeds and checks the candidate-specific fixture, executes the frozen candidate, and retains complete stdout, stderr, status, ip JSON and /proc/net/route snapshots. Any failed namespace, dummy, native control or observation is a setup ERROR.",
-      "comparison": "Compare candidate status, output and independently read kernel state for route-iface-repeat. Exact ioctl requests and flags are not captured; this case cannot independently establish the full requirement.",
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
       "requires": [
+        "gcc",
         "python3",
         "ip",
         "unshare"
       ],
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py setup route-iface-repeat\n",
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py assess route-iface-repeat\n",
-      "stdout": "observed route-iface-repeat\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py setup route-iface\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py assess route-iface\n",
+      "stdout": "observed route-iface\n",
       "stderr": "",
       "expected_status": 0,
       "timeout": 15,
       "setup_timeout": 60,
       "diagnostic_files": [
-        "namespace-parser-controls.json",
-        "namespace-setup.json",
-        "namespace-events.json",
-        "namespace-observation.json",
-        "namespace-assertion.json"
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "decce67d622a67091ac9a81515013e2634e4e6d27be096ae260ec09182661815"
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+      }
+    },
+    {
+      "id": "migration-bashio-network-reviewed-route-repeat",
+      "loadable": "bashio",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe route-repeat with independent request capture and kernel readback.",
+      "covers": [
+        "bashio/set-route-deferred"
+      ],
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "requires": [
+        "gcc",
+        "python3",
+        "ip",
+        "unshare"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py setup route-repeat\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py assess route-repeat\n",
+      "stdout": "observed route-repeat\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
+      ],
+      "helpers_sha256": {
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
       }
     },
     {
@@ -542,13 +647,14 @@
       "group": "shell",
       "driver": "plain",
       "kind": "contract",
-      "purpose": "Observe an unreachable gateway error.",
+      "purpose": "Observe route-unreachable with independent request capture and kernel readback.",
       "covers": [
         "bashio/set-route-deferred"
       ],
-      "oracle": "Setup creates a new mapped user and network namespace; verifies distinct namespace identities and CAP_NET_ADMIN; creates a dummy interface and independently configures, reads and removes a native address and default route. In the same fresh namespace it seeds and checks the candidate-specific fixture, executes the frozen candidate, and retains complete stdout, stderr, status, ip JSON and /proc/net/route snapshots. Any failed namespace, dummy, native control or observation is a setup ERROR.",
-      "comparison": "Compare candidate status, output and independently read kernel state for route-unreachable. Exact ioctl requests and flags are not captured; this case cannot independently establish the full requirement.",
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
       "requires": [
+        "gcc",
         "python3",
         "ip",
         "unshare"
@@ -561,14 +667,58 @@
       "timeout": 15,
       "setup_timeout": 60,
       "diagnostic_files": [
-        "namespace-parser-controls.json",
-        "namespace-setup.json",
-        "namespace-events.json",
-        "namespace-observation.json",
-        "namespace-assertion.json"
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "decce67d622a67091ac9a81515013e2634e4e6d27be096ae260ec09182661815"
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+      }
+    },
+    {
+      "id": "migration-bashio-network-reviewed-route-perm",
+      "loadable": "bashio",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe route-perm with independent request capture and kernel readback.",
+      "covers": [
+        "bashio/set-route-deferred"
+      ],
+      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
+      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "requires": [
+        "gcc",
+        "python3",
+        "ip",
+        "unshare"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py setup route-perm\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashio-network-reviewed-ns.py assess route-perm\n",
+      "stdout": "observed route-perm\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "network-parser-controls.json",
+        "network-compile.json",
+        "network-outer.json",
+        "network-stage.json",
+        "network-controls.json",
+        "network-observation.json",
+        "network-assessment.json"
+      ],
+      "helpers_sha256": {
+        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
+        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
+        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
       }
     }
   ]
