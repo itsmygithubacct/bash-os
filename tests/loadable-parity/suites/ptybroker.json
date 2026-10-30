@@ -81,9 +81,14 @@
     },
     {
       "id": "raw_history_and_late_attach",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify that capture returns the documented raw output bytes while a late attachment receives no historical replay and reports its live offset/gap semantics.",
-      "reason": "There is no fixture. The broker allocates its own PTYs, so the driver needs no extra PTY. The VM supplies /proc, pidfd, SOCK_SEQPACKET and subreaper; only the case scripts and their helpers are missing."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ptybroker-lifecycle-raw-exit"
+        }
+      ]
     },
     {
       "id": "child_exit_and_cleanup",

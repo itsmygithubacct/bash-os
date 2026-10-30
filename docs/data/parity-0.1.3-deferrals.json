@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "bd6a6a9363735c830cec1d9466962e7f28ef233ce2e6903037cd160f6e63501a",
+  "ledger_sha256": "a4e799ac76582f8b6e344a99519cd787aa7ad04160ddc2cbb190f47c65e23071",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
     "partial": 93,
-    "full": 404,
-    "none": 103
+    "full": 406,
+    "none": 101
   },
   "migrations": {
-    "deferred": 196,
-    "replacement": 404
+    "deferred": 194,
+    "replacement": 406
   },
   "pending_full_topics": [],
   "builds": {
@@ -8230,6 +8230,58 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793400888.5843837
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "strace-attach-controls-v3-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "faa63ff8e535cd3f1bf57b881ab19740197ac27ee33ce315978a3facb83335fe",
+            "provenance.json": "7c7620b86a3a0e102812e74d2dc4cf1c0aff49e0bb218846566d2acfcc7ee932",
+            "payload.tar": "aa5b4a1ae6e1352308b2e724943a869409992e8b1d106a3c01dda6df63cc1a75",
+            "evidence.tar": "47d9665f2af6c287c4fb880b0107c04ec190e69f2c5b75d7ee4dda47a93954ea"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793400889.8226213
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "ptybroker-lifecycle-v8-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "e71821155deaa275d2decc88ae89c8955cb40a3fb5a1508268de6eb2cc41c70e",
+            "provenance.json": "2ccf0f38dc9701d5f8edbb75a436a2b3cf4a953d69a00d4e23db0641ba17ef7b",
+            "payload.tar": "ee447c4f8aa5c74c5225089594e6d62880c18ce7582f562d90bcb08ca0fe03d7",
+            "evidence.tar": "350d7ba762b881f261e7cc5a7a46f851e2a9596037a5292837bfc1185ff68467"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793400686.050771
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -41864,37 +41916,58 @@
         },
         {
           "topic": "ptybroker/raw_history_and_late_attach",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "capture ROOT ID OUTFD writes the bounded raw history bytes the child produced, exactly (no terminal parsing)",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ptybroker-lifecycle-raw-exit",
+                  "status": "PASS",
+                  "run": "ptybroker-lifecycle-v8-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "A late attach receives no historical replay, only live output after attachment",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ptybroker-lifecycle-raw-exit",
+                  "status": "PASS",
+                  "run": "ptybroker-lifecycle-v8-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "The late attach reports 'attached' and 'gap' events with offsets consistent with the bytes already emitted (server.c:207-209)",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ptybroker-lifecycle-raw-exit",
+                  "status": "PASS",
+                  "run": "ptybroker-lifecycle-v8-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -48542,28 +48615,42 @@
         },
         {
           "topic": "strace/attach-existing-pid",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-p PID attaches to an already-running owned process and traces it until it exits naturally.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strace-attach-existing-r1",
+                  "status": "FAIL",
+                  "run": "strace-attach-controls-v3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Existing threads in /proc/PID/task are attached.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strace-attach-existing-r2",
+                  "status": "FAIL",
+                  "run": "strace-attach-controls-v3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -58370,9 +58457,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 196,
-        "FAIL": 192,
-        "PASS": 212
+        "UNRESOLVED": 194,
+        "FAIL": 193,
+        "PASS": 213
       },
       "migration_without_complete_evidence": []
     },
@@ -66592,6 +66679,58 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793400927.6705256
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "strace-attach-controls-v3-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "4abff0cd614797806df75785de4736115725da65c2398ba127fd8fe25df7c08c",
+            "provenance.json": "6f2e7cefbbf71c866cb293b78fc40524217c70fe1843eca7ef22d308aaab6405",
+            "payload.tar": "5a408c261f501fb2ff2ec1c8b15e917760ecefa5ae18ee5737d282e1b3504917",
+            "evidence.tar": "ea3ba7b70399587f005459a2ed0ef149bb6df84559842fda293a4b3878b17d9e"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793400928.6612074
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "ptybroker-lifecycle-v8-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "466bed2336b5793986b107ff54ed4f83990efe1e0d0d644f9e9ef4a60921a146",
+            "provenance.json": "eb42ab5d1c6c56dbb9c17204f2514fcf840e43f5b4259d77df4555aa47367ef3",
+            "payload.tar": "ceda31a448636eec868a5c8375e66312ab49aa05a5fd90632ef998ec18a7162b",
+            "evidence.tar": "7a8d3fa028f9c79fd2301d23654c83569e013f56e3339e5d1cceb69d25e1f836"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793400721.4778721
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -100226,37 +100365,58 @@
         },
         {
           "topic": "ptybroker/raw_history_and_late_attach",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "capture ROOT ID OUTFD writes the bounded raw history bytes the child produced, exactly (no terminal parsing)",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ptybroker-lifecycle-raw-exit",
+                  "status": "PASS",
+                  "run": "ptybroker-lifecycle-v8-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "A late attach receives no historical replay, only live output after attachment",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ptybroker-lifecycle-raw-exit",
+                  "status": "PASS",
+                  "run": "ptybroker-lifecycle-v8-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "The late attach reports 'attached' and 'gap' events with offsets consistent with the bytes already emitted (server.c:207-209)",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ptybroker-lifecycle-raw-exit",
+                  "status": "PASS",
+                  "run": "ptybroker-lifecycle-v8-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -106904,28 +107064,42 @@
         },
         {
           "topic": "strace/attach-existing-pid",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-p PID attaches to an already-running owned process and traces it until it exits naturally.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strace-attach-existing-r1",
+                  "status": "FAIL",
+                  "run": "strace-attach-controls-v3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "Existing threads in /proc/PID/task are attached.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strace-attach-existing-r2",
+                  "status": "FAIL",
+                  "run": "strace-attach-controls-v3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -116732,9 +116906,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 196,
-        "FAIL": 191,
-        "PASS": 213
+        "UNRESOLVED": 194,
+        "FAIL": 192,
+        "PASS": 214
       },
       "migration_without_complete_evidence": []
     }

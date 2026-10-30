@@ -32757,33 +32757,54 @@
         "purpose": "Verify that capture returns the documented raw output bytes while a late attachment receives no historical replay and reports its live offset/gap semantics.",
         "reason": "Requires a disposable Linux VM with a private PTY and a deterministic child that emits a short fixed byte sequence. The future fixture must compare capture bytes and event offsets to independently specified expectations; it must not feed history back into a terminal parser."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "There is no fixture. The broker allocates its own PTYs, so the driver needs no extra PTY. The VM supplies /proc, pidfd, SOCK_SEQPACKET and subreaper; only the case scripts and their helpers are missing.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All three original raw-history and late-attachment requirements have paired, independently reviewed PASS observations. The executable publication preserves only the exact saved raw-exit case and its pinned helper dependencies.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "capture ROOT ID OUTFD writes the bounded raw history bytes the child produced, exactly (no terminal parsing)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ptybroker-lifecycle-raw-exit",
+              "assertion": "Both frozen builds capture the independently specified raw history bytes exactly, without terminal parsing. Complete native PTY controls, diagnostic envelopes, raw live and captured byte streams, event extents and normal case completion qualify this bounded observation.",
+              "definition_sha256": "e0136117bfbc7f93d3bd76471ec3a9aa06fff9b0ea7fd93eb911f0c97f7cef6d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "A late attach receives no historical replay, only live output after attachment",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ptybroker-lifecycle-raw-exit",
+              "assertion": "Both frozen builds deliver only bytes emitted after the late attachment, with no historical replay. Independently reconstructed live bytes and contiguous event offsets agree with the fixed child handshake and separate captured history.",
+              "definition_sha256": "e0136117bfbc7f93d3bd76471ec3a9aa06fff9b0ea7fd93eb911f0c97f7cef6d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "The late attach reports 'attached' and 'gap' events with offsets consistent with the bytes already emitted (server.c:207-209)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ptybroker-lifecycle-raw-exit",
+              "assertion": "Both frozen builds report attached and gap at offset 12, followed by live extents through offsets 23 and 31. Independent raw-event reconstruction and byte counts agree with the bytes already emitted; the final exit follows the final output.",
+              "definition_sha256": "e0136117bfbc7f93d3bd76471ec3a9aa06fff9b0ea7fd93eb911f0c97f7cef6d"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/ptybroker.c:494-515 (contract text); _ptybroker/server.c and client.c (0700 root checks at client.c:48-70, observer limit at server.c:202, PB_CHUNK 16384 in ptybroker.h:10). No GNU equivalent exists, so these are contract cases. All of them fit a new VM suite: the shell or terminal group with ROOT=$(pwd)/root at mode 0700 and children that are fixed in-tree helpers (trusted /usr/bin/python3 or /bin/sh)."
+      "notes": "loadables/ptybroker.c:494-515 (contract text); _ptybroker/server.c and client.c (0700 root checks at client.c:48-70, observer limit at server.c:202, PB_CHUNK 16384 in ptybroker.h:10). No GNU equivalent exists, so these are contract cases. All of them fit a new VM suite: the shell or terminal group with ROOT=$(pwd)/root at mode 0700 and children that are fixed in-tree helpers (trusted /usr/bin/python3 or /bin/sh). The raw case is byte-identical to the observed fixture; its case identity and transitive helpers were independently checked. Other saved roles, authority and cleanup cases retain their raw FAIL labels but provide no full-topic acceptance. A possible fixed-descriptor collision makes observer-output attribution unqualified. Descendant reaping before builtin return and observer authority remain unresolved in their original topics."
     },
     {
       "topic": "ptybroker/roles_and_handle_scope",
@@ -39285,26 +39306,40 @@
         "purpose": "Check -p attachment to an already-running fixture process, tracing until that process exits naturally.",
         "reason": "Requires a future disposable Linux VM with ptrace attach permission and an independently launched, bounded fixture process that exits naturally, plus GNU strace as the oracle. Do not attach to host processes or use system-wide signals; the current harness denies ptrace."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. The fixture process is a descendant of the calling shell (builtin), so attach is permitted under yama.ptrace_scope <= 1.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "Both original attachment requirements have paired, independently reviewed observations. Existing threads attach, but the released worker stalls while traced; the topic and both raw cases remain FAIL.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-p PID attaches to an already-running owned process and traces it until it exits naturally.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-attach-existing-r1",
+              "assertion": "Both frozen builds attach to the owned process, then leave its released worker in a candidate-owned tracing stop for more than four seconds. Complete bounded samples, unchanged context-switch counts, task identities, independent native controls and successful owned cleanup support this reached failure. Fixture status zero after the tracer is killed does not establish natural completion under candidate tracing.",
+              "definition_sha256": "ade27d83262a4012b60f3344b879c17cc2605d70e8d12d34a485376f0df5de5d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Existing threads in /proc/PID/task are attached.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-attach-existing-r2",
+              "assertion": "Both pre-existing tasks start with TracerPid zero and show the candidate tracer in two consecutive pre-release samples on both builds. This earlier phase positively observes attachment. The later worker stall retains the entire case raw FAIL; that continuation failure does not mean the existing threads failed to attach.",
+              "definition_sha256": "03b5a948a8aa8c9de43741feb61647e05fb6a7123dd1baa26a98798b12b202dd"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "strace.c -p enumerates /proc/PID/task."
+      "notes": "strace.c -p enumerates /proc/PID/task. The fixed-run raw audit separately classifies the pre-release attachment phase and the later candidate-owned stop. It binds complete capture bounds, exact launch vectors, protected VM identity, canonical control inputs, candidates and artifacts, and clean teardown. Native ptrace controls are narrower than GNU strace equivalence. Earlier truncated controls and shutdown-request 255 runs remain unqualified. Requirement result labels inherit whole-case raw FAIL and must not be read as disproving the independently witnessed attachment phase."
     },
     {
       "topic": "strace/exec-trace-status",

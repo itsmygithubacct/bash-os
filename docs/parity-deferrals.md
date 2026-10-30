@@ -7,8 +7,8 @@ reviewed requirements, evidence links and specific remaining gaps. The
 saved static and dynamic VM runs. The initial qualification tables in the VM
 guide describe the earlier fixture set.
 
-The current review covers 404 of the 600 topics on both builds: static 212 PASS / 192 FAIL;
-dynamic 213 PASS / 191 FAIL. The other 196 retain unresolved requirements. These are topic counts,
+The current review covers 406 of the 600 topics on both builds: static 213 PASS / 193 FAIL;
+dynamic 214 PASS / 192 FAIL. The other 194 retain unresolved requirements. These are topic counts,
 not additional behavioral test results.
 
 The syslog review adds bounded three-record FIFO observations for startup, SIGHUP and periodic replay on both builds. Sender attribution is inferred from pinned serial source and isolated networking; HUP was queued while the daemon was stopped.
@@ -60,6 +60,10 @@ The killall5 dry-run review checks read-only target selection in a confined synt
 The SFTP navigation review adds complete native BASHSSH1 request and response frames for the selected-directory listing, checked against a tree-backed OpenSSH control on both builds. Escaped paths pass; quoted cd sends a malformed command and still fails. The quoted case never reaches the intended listing. Earlier session evidence remains, while binary upload/download gaps are unchanged. These local fixture transports do not establish SSH authentication, encryption or path confinement.
 
 The Bash I/O network review exercises address and route operations inside a mapped network namespace, with independent native controls, complete marked ioctl traces and before/after snapshots. The route cases pass. A malformed mask is rejected only after the address ioctl succeeds and changes the interface, so the original validation-before-ioctl requirement fails on both builds. The historical note describing partial mutation is retained alongside that literal requirement; it does not turn the failure into a pass. Earlier setup errors remain unqualified.
+
+The strace attachment review observes both existing threads attached before release on each build, followed by a worker held in a candidate-owned tracing stop for more than four seconds. The later stall remains FAIL and does not negate the earlier attachment observation. Fixture completion after killing the tracer does not prove natural exit under tracing. Raw case failure labels also appear on their linked requirements; the assertions distinguish the observed phases.
+
+The PTY broker history review preserves the exact successful raw-history case and its pinned helpers. Both builds return the fixed raw bytes, deliver only subsequent output to a late attachment, and report matching attached/gap offsets. Other lifecycle cases remain unresolved: a possible descriptor collision prevents attributing an observer receive failure to the product, and the cleanup observations do not establish descendant reaping before builtin return.
 
 A historical case becomes `MIGRATED` only when every requirement has an explicit
 assertion and valid execution evidence on both builds. Its replacement cases

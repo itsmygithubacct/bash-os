@@ -123,9 +123,18 @@
     },
     {
       "id": "attach-existing-pid",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check -p attachment to an already-running fixture process, tracing until that process exits naturally.",
-      "reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. The fixture process is a descendant of the calling shell (builtin), so attach is permitted under yama.ptrace_scope <= 1."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-strace-attach-existing-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-strace-attach-existing-r2"
+        }
+      ]
     }
   ]
 }
