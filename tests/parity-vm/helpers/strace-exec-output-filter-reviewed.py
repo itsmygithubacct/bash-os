@@ -20,6 +20,9 @@ UUID = re.compile(r'[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\Z')
 ATOM = re.compile(r'(?:[A-Za-z_][A-Za-z_0-9]*|-?(?:0x[0-9a-fA-F]+|[0-9]+))(?:\|(?:[A-Za-z_][A-Za-z_0-9]*|0x[0-9a-fA-F]+|[0-9]+))*\Z')
 RESULT = re.compile(r'\s+=\s+(?:\?|-1(?:\s+errno=[0-9]+|\s+[A-Z][A-Z_0-9]*(?:\s+\([A-Za-z0-9 .:/_-]+\))?)?|-?[0-9]+|0x[0-9a-fA-F]+)\s*\Z')
 POINTER = re.compile(r'(?:NULL|0x[0-9a-fA-F]+|-?[0-9]+)\Z')
+ARGV = re.compile(r'\[\s*"\./tracee-core"\s*\]')
+ENV_ANNOTATION = re.compile(r'\s+/\*\s*[0-9]{1,6}\s+vars?\s*\*/')
+ENV_POINTER = re.compile(r'(?:NULL|0x[0-9a-fA-F]+|-?[0-9]+)(?:\s+/\*\s*[0-9]{1,6}\s+vars?\s*\*/)?\Z')
 
 
 def require_guest():
@@ -53,7 +56,12 @@ def records(data):
             while i < len(line) and line[i] == ' ':
                 i += 1
             start = i
-            if i < len(line) and line[i] == '"':
+            if m.group(1) == 'execve' and len(args) == 1 and line[i:i + 1] == '[':
+                array = ARGV.match(line, i)
+                if not array:
+                    raise ValueError('invalid controlled execve argv array')
+                i = array.end()
+            elif i < len(line) and line[i] == '"':
                 i += 1
                 while i < len(line) and line[i] != '"':
                     if line[i] == '\\':
@@ -75,6 +83,12 @@ def records(data):
                     i += 1
                 if not ATOM.fullmatch(line[start:i]):
                     raise ValueError('invalid argument')
+                if m.group(1) == 'execve' and len(args) == 2:
+                    annotation = ENV_ANNOTATION.match(line, i)
+                    if annotation:
+                        if not POINTER.fullmatch(line[start:i]):
+                            raise ValueError('invalid environment pointer')
+                        i = annotation.end()
             args.append(line[start:i])
             while i < len(line) and line[i] == ' ':
                 i += 1
@@ -111,7 +125,8 @@ def require_decode(data):
         raise ValueError('decoded trace lacks the expected ordered calls')
     args = dict(rows)
     if (len(args['execve']) != 3 or args['execve'][0] != '"./tracee-core"' or
-            not all(POINTER.fullmatch(value) for value in args['execve'][1:])):
+            not (POINTER.fullmatch(args['execve'][1]) or ARGV.fullmatch(args['execve'][1])) or
+            not ENV_POINTER.fullmatch(args['execve'][2])):
         raise ValueError('incorrect execve arguments')
     if args['write'] != ['1', '"STRACE-MARK\\n"', '12']:
         raise ValueError('incorrect write arguments')
@@ -138,6 +153,18 @@ def setup(home):
     require_decode(mode_line)
     quoted = good.replace(b'"STRACE-MARK\\n"', b'"getpid() and \\\"read(0)\\\""')
     require_names(quoted, EXPECTED)
+    array_annotated = good.replace(b'0x1, 0x2', b'["./tracee-core"], 0x1234 /* 1 var */')
+    require_names(array_annotated, EXPECTED)
+    require_decode(array_annotated)
+    array_plain = good.replace(b'0x1, 0x2', b'["./tracee-core"], 0x1234')
+    require_names(array_plain, EXPECTED)
+    require_decode(array_plain)
+    array_plural = good.replace(b'0x1, 0x2', b'[ "./tracee-core" ], 0x1234 /* 42 vars */')
+    require_names(array_plural, EXPECTED)
+    require_decode(array_plural)
+    pointer_annotated = good.replace(b'0x1, 0x2', b'0x1, 0x2 /* 0 vars */')
+    require_names(pointer_annotated, EXPECTED)
+    require_decode(pointer_annotated)
     negatives = [b'', good.rstrip(b'\n'), good + b'write(1, 0, 1) = 1\n',
                  good.replace(b'write(', b'unknown(', 1),
                  good.replace(b'exit_group(42) = ?\n', b''),
@@ -155,6 +182,18 @@ def setup(home):
                  good.replace(b'"STRACE-MARK\\n"', b'"unterminated'),
                  good.replace(b', 12)', b',)'),
                  good.replace(b'write(', b'write(' + b'1' * 8193, 1),
+                 array_annotated.replace(b'["./tracee-core"]', b'["./tracee-core", getpid()]'),
+                 array_annotated.replace(b'["./tracee-core"]', b'[getpid()]'),
+                 array_annotated.replace(b'["./tracee-core"]', b'["./tracee-core"] getpid()'),
+                 array_annotated.replace(b'["./tracee-core"]', b'["./tracee-core", "extra"]'),
+                 array_annotated.replace(b'["./tracee-core"]', b'["./tracee-core\\"], getpid()"]'),
+                 array_annotated.replace(b'["./tracee-core"]', b'["./tracee-core"'),
+                 array_annotated.replace(b'/* 1 var */', b'/* 1 var */ read(0)'),
+                 array_annotated.replace(b'/* 1 var */', b'/* getpid() */'),
+                 array_annotated.replace(b'/* 1 var */', b'/* 1000000 vars */'),
+                 array_annotated.replace(b'/* 1 var */', b'/* 1 var'),
+                 array_annotated.replace(b'0x1234 /* 1 var */', b'0x1234 /* 1 var */ /* 1 var */'),
+                 array_annotated.replace(b'["./tracee-core"]', b'0x1 /* 1 var */'),
                  good + b'error: tracing failed\n']
     for bad in negatives:
         try:
@@ -179,7 +218,7 @@ def setup(home):
             continue
         raise ValueError('decode parser accepted invalid control')
     (home / 'parser-controls.json').write_text(json.dumps({
-        'positive': 3, 'negative': len(negatives),
+        'positive': 7, 'negative': len(negatives),
         'decode_negative': len(decode_negatives)}) + '\n')
     Path('tracee-core.s').write_text(ASSEMBLY)
     Path('native-trace.c').write_text(CONTROL)
