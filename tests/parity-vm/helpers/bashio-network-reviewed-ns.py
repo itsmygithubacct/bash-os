@@ -111,17 +111,18 @@ def parse_trace(raw, complete=True):
     markers = [e.get('phase') for e in events if e['type'] == 'marker']
     if markers not in ([], ['begin'], ['begin', 'end']):
         raise ValueError('malformed operation markers')
-    if markers:
-        start = next(i for i, e in enumerate(events) if e['type'] == 'marker')
-        end = next((i for i, e in enumerate(events) if e['type'] == 'marker' and e.get('phase') == 'end'), len(events))
-        if any(e['type'] == 'ioctl' and not start < i < end for i, e in enumerate(events)):
-            raise ValueError('ioctl outside operation markers')
+    phase = 'before'
+    for event in events:
+        if event['type'] == 'marker':
+            phase = 'inside' if event['phase'] == 'begin' else 'after'
+        if event['type'] == 'ioctl' and event.get('window') != phase:
+            raise ValueError('ioctl window disagrees with markers')
     return events
 
 
-def observe(argv, mode, marked, label, controls, product=False):
+def observe(argv, mode, label, controls, product=False):
     trace = HOME / ('trace-' + label + '.jsonl')
-    command = [TRACER, str(trace), mode, 'mark' if marked else 'all'] + argv
+    command = [TRACER, str(trace), mode, 'mark'] + argv
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
     chunks = {'stdout': bytearray(), 'stderr': bytearray()}
     totals = {'stdout': 0, 'stderr': 0}
@@ -153,7 +154,7 @@ def observe(argv, mode, marked, label, controls, product=False):
         reason = 'trace-limit'
     with trace.open('rb') if trace.exists() else open(os.devnull, 'rb') as stream:
         raw = stream.read(110001)
-    record = {'label': label, 'argv': argv, 'mode': mode, 'termination': reason,
+    record = {'label': label, 'argv': argv, 'mode': mode, 'capture_mode': 'mark', 'termination': reason,
               'tracer_status': proc.returncode, 'stdout_b64': base64.b64encode(chunks['stdout']).decode(),
               'stderr_b64': base64.b64encode(chunks['stderr']).decode(), 'bytes_observed': totals,
               'trace_bytes_at_stop': trace.stat().st_size if trace.exists() else 0,
@@ -162,13 +163,14 @@ def observe(argv, mode, marked, label, controls, product=False):
     controls.append(record); write('network-controls.json', controls)
     if reason != 'exited':
         if not product: raise RuntimeError('native observer did not complete: ' + label)
-        # A product timeout/limit needs an observed exec; an observer that never
-        # launched the child is an infrastructure failure. Retain a partial
-        # final trace line as raw evidence but do not parse it as a complete event.
+        # Retain the raw partial line; only complete lines are parsed.
         complete_lines = raw[:raw.rfind(b'\n') + 1]
         partial = parse_trace(complete_lines, complete=False)
         if bool(int(partial[0]['cap_eff'], 16) & (1 << 12)) != (mode == 'keep'):
             raise RuntimeError('tracee capability control failed: ' + label)
+        record['events'] = partial
+        record['outcome'] = observation_outcome(record)
+        write('network-controls.json', controls)
         return record
     if proc.returncode != 0:
         raise RuntimeError('observer infrastructure failed: ' + label)
@@ -176,6 +178,8 @@ def observe(argv, mode, marked, label, controls, product=False):
     cap = int(record['events'][0]['cap_eff'], 16)
     if bool(cap & (1 << 12)) != (mode == 'keep'):
         raise RuntimeError('tracee capability control failed: ' + label)
+    if product:
+        record['outcome'] = observation_outcome(record)
     write('network-controls.json', controls)
     return record
 
@@ -232,7 +236,7 @@ def snapshot(events):
 
 
 def ios(record):
-    return [e for e in record['events'] if e['type'] == 'ioctl']
+    return [e for e in record['events'] if e['type'] == 'ioctl' and e.get('window') == 'inside']
 
 
 def ioctl_check(event, req, err, name=None, addr=None):
@@ -250,8 +254,36 @@ def route_check(event, gateway, dev, err):
             (dev is None or (event.get('dev_valid') is True and event.get('dev_hex') == dev.encode().hex())))
 
 
+def native_marked(events, label, args, mode, guard):
+    rec = observe([NATIVE, '--marked', guard, *args], mode, label, events)
+    phases = [e.get('phase') for e in rec['events'] if e['type'] == 'marker']
+    outside = [e for e in rec['events'] if e['type'] == 'ioctl' and
+               e.get('window') in ('before', 'after') and e.get('request') == GETFLAGS and
+               e.get('ifname_hex') == guard.encode().hex()]
+    if (phases != ['begin', 'end'] or len(outside) != 2 or
+            [e['window'] for e in outside] != ['before', 'after'] or
+            any(not ioctl_check(e, GETFLAGS, 0, guard) for e in outside) or
+            base64.b64decode(rec['stdout_b64']) or base64.b64decode(rec['stderr_b64'])):
+        raise RuntimeError('marked native observer control failed: ' + label)
+    return rec
+
+
 def defaults(state):
     return [r for r in state['routes'] if r.get('dst') == 'default']
+
+
+def observation_outcome(obs):
+    markers = [e.get('phase') for e in obs['events'] if e['type'] == 'marker']
+    if obs['termination'] != 'exited':
+        if markers == ['begin', 'end']: return 'post-operation-limit'
+        return 'operation-limit' if markers == ['begin'] else 'startup-unresolved'
+    if not markers:
+        return 'early-exit'
+    if markers == ['begin']:
+        return 'operation-interrupted'
+    if markers == ['begin', 'end']:
+        return 'operation-exited'
+    raise ValueError('invalid candidate markers')
 
 
 def assess_observation(name, obs):
@@ -260,8 +292,12 @@ def assess_observation(name, obs):
     fail = []
     def check(x, msg):
         if not x: fail.append(msg)
-    check(obs['termination'] == 'exited', 'candidate ' + obs['termination'])
-    if obs['termination'] != 'exited': return fail
+    outcome = observation_outcome(obs)
+    if outcome == 'startup-unresolved':
+        raise RuntimeError('candidate interrupted before operation marker')
+    if outcome in ('operation-limit', 'post-operation-limit'): return ['candidate ' + outcome + ': ' + obs['termination']]
+    if outcome in ('early-exit', 'operation-interrupted'):
+        return ['candidate ' + outcome]
     events = obs['events']; seq = ios(obs)
     check([e.get('phase') for e in events if e['type'] == 'marker'] == ['begin', 'end'], 'missing or duplicate operation marker')
     check(events[-1]['status'] == expected and events[-1]['signal'] == 0, 'status')
@@ -312,6 +348,15 @@ def parser_controls():
     valid = b'{"type":"exec","cap_eff":"00001000"}\n{"type":"marker","phase":"begin"}\n{"type":"marker","phase":"end"}\n{"type":"exit","status":0,"signal":0}\n'
     if len(parse_trace(valid)) != 4 or route_records('[{"dst":"default","gateway":"192.0.2.1","dev":"bn0"}]')[0]['dev'] != 'bn0':
         raise RuntimeError('positive parser control failed')
+    windowed = (b'{"type":"exec","cap_eff":"1000"}\n'
+                b'{"type":"ioctl","window":"before","request":1,"return":0,"errno":0,"valid":true}\n'
+                b'{"type":"marker","phase":"begin"}\n'
+                b'{"type":"ioctl","window":"inside","request":2,"return":0,"errno":0,"valid":true}\n'
+                b'{"type":"marker","phase":"end"}\n'
+                b'{"type":"ioctl","window":"after","request":3,"return":0,"errno":0,"valid":true}\n'
+                b'{"type":"exit","status":0,"signal":0}\n')
+    if [e['request'] for e in ios({'events': parse_trace(windowed)})] != [2]:
+        raise RuntimeError('operation window selection control failed')
     for bad in (b'', valid[:-1], b'{"type":"exit"}\n', valid + b'{"type":"exit"}\n',
                 b'{"type":"exec","cap_eff":"1000"}\n{"type":"spawn","syscall":56,"return":123}\n{"type":"exit","status":0,"signal":0}\n',
                 b'{"type":"exec","cap_eff":"1000"}\n{"type":"marker","phase":"begin"}\n{"type":"marker","phase":"end"}\n{"type":"ioctl","request":1,"return":0,"errno":0,"valid":true}\n{"type":"exit","status":0,"signal":0}\n',
@@ -338,13 +383,28 @@ def parser_controls():
            'stdout_b64': '', 'stderr_b64': base64.b64encode(b'bad IP: invalid').decode(),
            'before': state, 'after': copy.deepcopy(state)}
     if assess_observation('addr-bad-ip', obs): raise RuntimeError('positive assertion control failed')
-    bad = copy.deepcopy(obs); bad['events'].insert(-1, {'type': 'ioctl', 'request': ADDR, 'valid': True, 'return': 0, 'errno': 0})
+    bad = copy.deepcopy(obs); bad['events'].insert(2, {'type': 'ioctl', 'window': 'inside', 'request': ADDR, 'valid': True, 'return': 0, 'errno': 0})
     if not assess_observation('addr-bad-ip', bad): raise RuntimeError('assertion ignored unexpected ioctl')
     bad = copy.deepcopy(obs); bad['after']['interfaces']['bn0']['flags'] = 1
     if not assess_observation('addr-bad-ip', bad): raise RuntimeError('assertion ignored partial state')
     for reason in ('timeout', 'output-limit', 'trace-limit'):
         bad = copy.deepcopy(obs); bad['termination'] = reason
+        if observation_outcome(bad) != 'post-operation-limit': raise RuntimeError('post-operation limit misclassified')
         if not assess_observation('addr-bad-ip', bad): raise RuntimeError('assertion ignored ' + reason)
+        bad['events'] = [{'type': 'exec', 'cap_eff': '1000'}, {'type': 'marker', 'phase': 'begin'}]
+        if observation_outcome(bad) != 'operation-limit': raise RuntimeError('operation limit misclassified')
+        if not assess_observation('addr-bad-ip', bad): raise RuntimeError('operation limit was not a candidate failure')
+        bad['events'] = [{'type': 'exec', 'cap_eff': '1000'}]
+        if observation_outcome(bad) != 'startup-unresolved': raise RuntimeError('pre-marker interruption classified as product failure')
+        try: assess_observation('addr-bad-ip', bad)
+        except RuntimeError: continue
+        raise RuntimeError('pre-marker interruption was assessed as product failure')
+    for phases, want in [([], 'early-exit'), (['begin'], 'operation-interrupted')]:
+        bad = copy.deepcopy(obs)
+        bad['events'] = [{'type': 'exec', 'cap_eff': '1000'}, *[{'type': 'marker', 'phase': p} for p in phases],
+                         {'type': 'exit', 'status': 1, 'signal': 0}]
+        if observation_outcome(bad) != want or assess_observation('addr-bad-ip', bad) != ['candidate ' + want]:
+            raise RuntimeError('early candidate exit misclassified')
     sample = {'request': ROUTE, 'valid': True, 'return': 0, 'errno': 0, 'dst': '0.0.0.0', 'mask': '0.0.0.0',
               'gateway': '192.0.2.1', 'dst_family': 2, 'mask_family': 2, 'gateway_family': 2,
               'flags': 3, 'dev_present': True, 'dev_valid': True, 'dev_hex': 'bn1'.encode().hex()}
@@ -359,7 +419,7 @@ def parser_controls():
         suffix = {'nodev': ' No such device', 'addrperm': ' Operation not permitted',
                   'unreachable': ' Network is unreachable', 'routeperm': ' Operation not permitted'}.get(kind, '')
         def event(req, err=0, **fields):
-            return {'type': 'ioctl', 'request': req, 'valid': True, 'return': -err if err else 0, 'errno': err, **fields}
+            return {'type': 'ioctl', 'window': 'inside', 'request': req, 'valid': True, 'return': -err if err else 0, 'errno': err, **fields}
         if kind in ('addr', 'nodev', 'addrperm'):
             err = {'addr': 0, 'nodev': errno.ENODEV, 'addrperm': errno.EPERM}[kind]
             dev = 'no_such_if' if kind == 'nodev' else 'bn0'
@@ -398,6 +458,9 @@ def parser_controls():
     write('network-parser-controls.json', {'trace_positive': 1, 'trace_negative': 7, 'route_positive': 1,
                                             'route_negative': 3, 'assertion_positive': 1,
                                             'assertion_negative': 5, 'request_positive': 1, 'request_negative': 4,
+                                            'window_controls': 1, 'startup_limit_controls': 3,
+                                            'operation_limit_controls': 3, 'post_operation_limit_controls': 3,
+                                            'early_exit_controls': 2,
                                             'proc_route_positive': 1, 'proc_route_negative': 3,
                                             'scenario_positive': len(CASES), 'scenario_negative': 2 * len(CASES)})
 
@@ -405,10 +468,10 @@ def parser_controls():
 def native_control(events):
     ip(events, 'link', 'add', 'bnc', 'type', 'dummy')
     def trace(label, args, mode='keep'):
-        rec = observe([NATIVE, *args], mode, False, label, events)
-        if base64.b64decode(rec['stdout_b64']) or base64.b64decode(rec['stderr_b64']):
-            raise RuntimeError('native control emitted output: ' + label)
-        return rec
+        return native_marked(events, label, args, mode, 'bnc')
+    empty = trace('native-mark-empty', ['empty', '-', '-', '-'])
+    if empty['events'][-1]['status'] != 0 or ios(empty):
+        raise RuntimeError('marked no-ioctl observer control failed')
     rec = trace('native-addr', ['addr', 'bnc', '198.51.100.10', '255.255.255.0'])
     seq = ios(rec)
     if (rec['events'][-1]['status'] != 0 or len(seq) != 4 or
@@ -473,7 +536,7 @@ def inner(name, outer_net, outer_user):
             ip(events, 'link', 'set', 'bn0', 'up')
             ip(events, 'link', 'set', 'bn1', 'up')
             # Independently prove the unbound route chooses bn0 with both interfaces eligible.
-            ctrl = observe([NATIVE, 'route', '-', '192.0.2.1', '-'], 'keep', False, 'native-auto', events)
+            ctrl = native_marked(events, 'native-auto', ['route', '-', '192.0.2.1', '-'], 'keep', 'bn0')
             seq = ios(ctrl)
             if ctrl['events'][-1]['status'] != 0 or len(seq) != 1 or not route_check(seq[0], '192.0.2.1', None, 0):
                 raise RuntimeError('native unbound route control failed')
@@ -514,7 +577,7 @@ def inner(name, outer_net, outer_user):
         }
         if name in targeted:
             args, mode, req, expected_errno = targeted[name]
-            ctrl = observe([NATIVE, *args], mode, False, 'native-target', events)
+            ctrl = native_marked(events, 'native-target', args, mode, 'bn0')
             seq = ios(ctrl)
             ok = (len(seq) == 1 and
                   (route_check(seq[0], args[2], args[1], expected_errno) if req == ROUTE else
@@ -527,14 +590,26 @@ def inner(name, outer_net, outer_user):
         argv = [CANDIDATE, '--noprofile', '--norc', '-c',
                 'builtin kill -s STOP "$$"; builtin bashio ' + cmd +
                 '; rc=$?; builtin kill -s STOP "$$"; exit "$rc"']
-        obs = observe(argv, mode, True, 'candidate', events, product=True)
+        obs = observe(argv, mode, 'candidate', events, product=True)
+        obs['scenario'] = name
         obs['before'] = before
         write('network-observation.json', obs)
+        if obs['outcome'] == 'startup-unresolved':
+            raise RuntimeError('candidate interrupted before operation-begin; startup outcome unresolved')
+        if obs['outcome'] != 'operation-exited':
+            obs['after'] = None
+            write('network-observation.json', obs)
+            failures = assess_observation(name, obs)
+            write('network-assessment.json', {'scenario': name, 'complete': True, 'outcome': obs['outcome'],
+                                              'failures': failures, 'bad_mask_state': None})
+            stage.update({'stage': 'complete', 'state': 'complete', 'termination': obs['termination']})
+            write('network-stage.json', stage)
+            return
         obs['after'] = snapshot(events)
         write('network-observation.json', obs)
         failures = assess_observation(name, obs)
         partial = {'before_bn0': before['interfaces']['bn0'], 'after_bn0': obs['after']['interfaces']['bn0']}
-        write('network-assessment.json', {'scenario': name, 'complete': True, 'failures': failures,
+        write('network-assessment.json', {'scenario': name, 'complete': True, 'outcome': obs['outcome'], 'failures': failures,
                                           'bad_mask_state': partial if name == 'addr-bad-mask' else None})
         stage.update({'stage': 'complete', 'state': 'complete', 'termination': obs['termination']})
         write('network-stage.json', stage)

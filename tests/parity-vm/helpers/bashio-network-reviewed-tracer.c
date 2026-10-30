@@ -56,9 +56,9 @@ static int caps(pid_t pid, char out[32]) {
         if (sscanf(line, "CapEff: %31[0-9a-fA-F]", out) == 1) { ok = 1; break; }
     fclose(f); return ok ? 0 : -1;
 }
-struct saved { unsigned long req; int valid; struct ifreq ifr; struct rtentry rt; unsigned char dev[IFNAMSIZ]; int devok; };
-static void save(pid_t p, struct saved *s, unsigned long req, unsigned long ptr) {
-    memset(s, 0, sizeof *s); s->req = req;
+struct saved { unsigned long req; int valid; const char *window; struct ifreq ifr; struct rtentry rt; unsigned char dev[IFNAMSIZ]; int devok; };
+static void save(pid_t p, struct saved *s, unsigned long req, unsigned long ptr, const char *window) {
+    memset(s, 0, sizeof *s); s->req = req; s->window = window;
     if (req == SIOCADDRT) {
         s->valid = read_child(p, ptr, &s->rt, sizeof s->rt) == 0;
         if (s->valid && s->rt.rt_dev) {
@@ -81,8 +81,8 @@ static void address(FILE *f, const char *name, const struct sockaddr *sa) {
     fprintf(f, ",\"%s_family\":%d,\"%s\":\"%s\"", name, sa->sa_family, name, buf);
 }
 static void emit(FILE *f, struct saved *s, long ret) {
-    fprintf(f, "{\"type\":\"ioctl\",\"request\":%lu,\"valid\":%s,\"return\":%ld,\"errno\":%ld",
-            s->req, s->valid ? "true" : "false", ret, ret < 0 && ret >= -4095 ? -ret : 0L);
+    fprintf(f, "{\"type\":\"ioctl\",\"window\":\"%s\",\"request\":%lu,\"valid\":%s,\"return\":%ld,\"errno\":%ld",
+            s->window, s->req, s->valid ? "true" : "false", ret, ret < 0 && ret >= -4095 ? -ret : 0L);
     if (s->valid && s->req == SIOCADDRT) {
         address(f, "dst", &s->rt.rt_dst); address(f, "mask", &s->rt.rt_genmask);
         address(f, "gateway", &s->rt.rt_gateway);
@@ -98,8 +98,7 @@ static void emit(FILE *f, struct saved *s, long ret) {
     fprintf(f, "}\n"); fflush(f);
 }
 int main(int argc, char **argv) {
-    if (argc < 5 || (strcmp(argv[2], "keep") && strcmp(argv[2], "drop")) ||
-        (strcmp(argv[3], "mark") && strcmp(argv[3], "all"))) return 90;
+    if (argc < 5 || (strcmp(argv[2], "keep") && strcmp(argv[2], "drop")) || strcmp(argv[3], "mark")) return 90;
     FILE *f = fopen(argv[1], "w"); if (!f || fcntl(fileno(f), F_SETFD, FD_CLOEXEC) < 0) return 91;
     pid_t child = fork();
     if (child < 0) return 92;
@@ -108,7 +107,7 @@ int main(int argc, char **argv) {
         if (ptrace(PTRACE_TRACEME, 0, 0, 0) < 0) _exit(121);
         raise(SIGSTOP); execv(argv[4], &argv[4]); _exit(122);
     }
-    int st, entering = 1, active = 0, exec_seen = 0, deliver = 0, ended = 0, marked = !strcmp(argv[3], "all"); struct saved s;
+    int st, entering = 1, active = 0, exec_seen = 0, deliver = 0, ended = 0, marked = 0; struct saved s;
     if (!wait_for(child, &st) || !WIFSTOPPED(st) || WSTOPSIG(st) != SIGSTOP) goto bad;
     if (ptrace(PTRACE_SETOPTIONS, child, 0, PTRACE_O_TRACESYSGOOD | PTRACE_O_EXITKILL | PTRACE_O_TRACEEXEC) < 0) goto bad;
     for (;;) {
@@ -123,7 +122,7 @@ int main(int argc, char **argv) {
             char cap[32]; if (caps(child, cap) < 0) goto bad;
             fprintf(f, "{\"type\":\"exec\",\"cap_eff\":\"%s\"}\n", cap); fflush(f); exec_seen = 1; continue;
         }
-        if (WSTOPSIG(st) == SIGSTOP && exec_seen && !strcmp(argv[3], "mark") && !ended) {
+        if (WSTOPSIG(st) == SIGSTOP && exec_seen && !ended) {
             fprintf(f, "{\"type\":\"marker\",\"phase\":\"%s\"}\n", marked ? "end" : "begin");
             fflush(f);
             if (marked) { marked = 0; ended = 1; } else marked = 1;
@@ -134,14 +133,15 @@ int main(int argc, char **argv) {
         if (ptrace(PTRACE_GETREGS, child, 0, &regs) < 0) goto bad;
         if (entering) {
             active = 0;
-            if (marked && (long)regs.orig_rax == SYS_ioctl) {
-                active = 1; save(child, &s, regs.rsi, regs.rdx);
-            } else if (marked && ((long)regs.orig_rax == SYS_clone || (long)regs.orig_rax == SYS_fork ||
-                                  (long)regs.orig_rax == SYS_vfork
+            if ((long)regs.orig_rax == SYS_ioctl) {
+                const char *window = marked ? "inside" : ended ? "after" : "before";
+                active = 1; save(child, &s, regs.rsi, regs.rdx, window);
+            } else if ((long)regs.orig_rax == SYS_clone || (long)regs.orig_rax == SYS_fork ||
+                       (long)regs.orig_rax == SYS_vfork
 #ifdef SYS_clone3
-                                  || (long)regs.orig_rax == SYS_clone3
+                       || (long)regs.orig_rax == SYS_clone3
 #endif
-                                  )) active = 2;
+                       ) active = 2;
         } else if (active == 1) emit(f, &s, (long)regs.rax);
         else if (active == 2) {
             fprintf(f, "{\"type\":\"spawn\",\"syscall\":%ld,\"return\":%ld}\n", (long)regs.orig_rax, (long)regs.rax);

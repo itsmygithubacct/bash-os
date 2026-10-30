@@ -11,8 +11,8 @@
       "covers": [
         "bashio/set-addr-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -36,9 +36,65 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "addr-success",
+        "candidate_mode": "keep",
+        "expected_exit_status": 0,
+        "expected_stdout": "",
+        "stderr_contains": "",
+        "inside_ioctls": [
+          {
+            "request": 35094,
+            "valid": true,
+            "return": 0,
+            "errno": 0,
+            "ifname_hex": "626e30",
+            "address_family": 2,
+            "address": "192.0.2.20"
+          },
+          {
+            "request": 35100,
+            "valid": true,
+            "return": 0,
+            "errno": 0,
+            "ifname_hex": "626e30",
+            "address_family": 2,
+            "address": "255.255.255.0"
+          },
+          {
+            "request": 35091,
+            "valid": true,
+            "return": 0,
+            "errno": 0,
+            "ifname_hex": "626e30"
+          },
+          {
+            "request": 35092,
+            "valid": true,
+            "return": 0,
+            "errno": 0,
+            "ifname_hex": "626e30",
+            "flags_all": 65
+          }
+        ],
+        "kernel_check": "addr",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev"
+        ],
+        "candidate_command": "builtin bashio set-addr bn0 192.0.2.20 255.255.255.0",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-addr bn0 192.0.2.20 255.255.255.0; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "addr_cases"
       }
     },
     {
@@ -51,8 +107,8 @@
       "covers": [
         "bashio/set-addr-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -76,9 +132,31 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "addr-missing",
+        "candidate_mode": "keep",
+        "expected_exit_status": 2,
+        "expected_stdout": "",
+        "stderr_contains": "set-addr needs IFACE IP MASK",
+        "inside_ioctls": [],
+        "kernel_check": "unchanged",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev"
+        ],
+        "candidate_command": "builtin bashio set-addr",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-addr; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "addr_cases"
       }
     },
     {
@@ -91,8 +169,8 @@
       "covers": [
         "bashio/set-addr-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -116,9 +194,31 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "addr-missing-ip",
+        "candidate_mode": "keep",
+        "expected_exit_status": 2,
+        "expected_stdout": "",
+        "stderr_contains": "set-addr needs IFACE IP MASK",
+        "inside_ioctls": [],
+        "kernel_check": "unchanged",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev"
+        ],
+        "candidate_command": "builtin bashio set-addr bn0",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-addr bn0; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "addr_cases"
       }
     },
     {
@@ -131,8 +231,8 @@
       "covers": [
         "bashio/set-addr-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -156,9 +256,31 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "addr-missing-mask",
+        "candidate_mode": "keep",
+        "expected_exit_status": 2,
+        "expected_stdout": "",
+        "stderr_contains": "set-addr needs IFACE IP MASK",
+        "inside_ioctls": [],
+        "kernel_check": "unchanged",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev"
+        ],
+        "candidate_command": "builtin bashio set-addr bn0 192.0.2.20",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-addr bn0 192.0.2.20; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "addr_cases"
       }
     },
     {
@@ -171,8 +293,8 @@
       "covers": [
         "bashio/set-addr-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -196,9 +318,31 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "addr-bad-ip",
+        "candidate_mode": "keep",
+        "expected_exit_status": 2,
+        "expected_stdout": "",
+        "stderr_contains": "bad IP:",
+        "inside_ioctls": [],
+        "kernel_check": "unchanged",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev"
+        ],
+        "candidate_command": "builtin bashio set-addr bn0 invalid 255.255.255.0",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-addr bn0 invalid 255.255.255.0; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "addr_cases"
       }
     },
     {
@@ -211,8 +355,8 @@
       "covers": [
         "bashio/set-addr-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -236,9 +380,31 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "addr-bad-mask",
+        "candidate_mode": "keep",
+        "expected_exit_status": 2,
+        "expected_stdout": "",
+        "stderr_contains": "bad MASK:",
+        "inside_ioctls": [],
+        "kernel_check": "unchanged-bad-mask",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev"
+        ],
+        "candidate_command": "builtin bashio set-addr bn0 192.0.2.20 invalid",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-addr bn0 192.0.2.20 invalid; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "addr_cases"
       }
     },
     {
@@ -251,8 +417,8 @@
       "covers": [
         "bashio/set-addr-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -276,9 +442,59 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "addr-nodev",
+        "candidate_mode": "keep",
+        "expected_exit_status": 1,
+        "expected_stdout": "",
+        "stderr_contains": "SIOCSIFADDR",
+        "inside_ioctls": [
+          {
+            "request": 35094,
+            "valid": true,
+            "return": -19,
+            "errno": 19,
+            "ifname_hex": "6e6f5f737563685f6966",
+            "address_family": 2,
+            "address": "192.0.2.20"
+          }
+        ],
+        "kernel_check": "unchanged",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev",
+          "native-target"
+        ],
+        "native_target": {
+          "guard": "bn0",
+          "mode": "keep",
+          "status": 19,
+          "inside": [
+            {
+              "request": 35094,
+              "valid": true,
+              "return": -19,
+              "errno": 19,
+              "ifname_hex": "6e6f5f737563685f6966",
+              "address_family": 2,
+              "address": "192.0.2.20"
+            }
+          ],
+          "before_after_fixture_unchanged": true
+        },
+        "candidate_command": "builtin bashio set-addr no_such_if 192.0.2.20 255.255.255.0",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-addr no_such_if 192.0.2.20 255.255.255.0; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "addr_cases"
       }
     },
     {
@@ -291,8 +507,8 @@
       "covers": [
         "bashio/set-addr-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -316,9 +532,59 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "addr-perm",
+        "candidate_mode": "drop",
+        "expected_exit_status": 1,
+        "expected_stdout": "",
+        "stderr_contains": "SIOCSIFADDR",
+        "inside_ioctls": [
+          {
+            "request": 35094,
+            "valid": true,
+            "return": -1,
+            "errno": 1,
+            "ifname_hex": "626e30",
+            "address_family": 2,
+            "address": "192.0.2.20"
+          }
+        ],
+        "kernel_check": "unchanged",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev",
+          "native-target"
+        ],
+        "native_target": {
+          "guard": "bn0",
+          "mode": "drop",
+          "status": 1,
+          "inside": [
+            {
+              "request": 35094,
+              "valid": true,
+              "return": -1,
+              "errno": 1,
+              "ifname_hex": "626e30",
+              "address_family": 2,
+              "address": "192.0.2.20"
+            }
+          ],
+          "before_after_fixture_unchanged": true
+        },
+        "candidate_command": "builtin bashio set-addr bn0 192.0.2.20 255.255.255.0",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-addr bn0 192.0.2.20 255.255.255.0; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "addr_cases"
       }
     },
     {
@@ -331,8 +597,8 @@
       "covers": [
         "bashio/set-route-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -356,9 +622,32 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "route-missing",
+        "candidate_mode": "keep",
+        "expected_exit_status": 2,
+        "expected_stdout": "",
+        "stderr_contains": "set-route needs GATEWAY",
+        "inside_ioctls": [],
+        "kernel_check": "unchanged",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev",
+          "native-auto"
+        ],
+        "candidate_command": "builtin bashio set-route",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-route; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "route_cases"
       }
     },
     {
@@ -371,8 +660,8 @@
       "covers": [
         "bashio/set-route-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -396,9 +685,32 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "route-missing-iface",
+        "candidate_mode": "keep",
+        "expected_exit_status": 2,
+        "expected_stdout": "",
+        "stderr_contains": "-i needs IFACE",
+        "inside_ioctls": [],
+        "kernel_check": "unchanged",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev",
+          "native-auto"
+        ],
+        "candidate_command": "builtin bashio set-route 192.0.2.1 -i",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-route 192.0.2.1 -i; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "route_cases"
       }
     },
     {
@@ -411,8 +723,8 @@
       "covers": [
         "bashio/set-route-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -436,9 +748,32 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "route-extra",
+        "candidate_mode": "keep",
+        "expected_exit_status": 2,
+        "expected_stdout": "",
+        "stderr_contains": "set-route: extra arg",
+        "inside_ioctls": [],
+        "kernel_check": "unchanged",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev",
+          "native-auto"
+        ],
+        "candidate_command": "builtin bashio set-route 192.0.2.1 extra",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-route 192.0.2.1 extra; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "route_cases"
       }
     },
     {
@@ -451,8 +786,8 @@
       "covers": [
         "bashio/set-route-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -476,9 +811,32 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "route-bad-gateway",
+        "candidate_mode": "keep",
+        "expected_exit_status": 2,
+        "expected_stdout": "",
+        "stderr_contains": "bad GATEWAY:",
+        "inside_ioctls": [],
+        "kernel_check": "unchanged",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev",
+          "native-auto"
+        ],
+        "candidate_command": "builtin bashio set-route invalid",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-route invalid; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "route_cases"
       }
     },
     {
@@ -491,8 +849,8 @@
       "covers": [
         "bashio/set-route-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -516,9 +874,32 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "route-long-iface",
+        "candidate_mode": "keep",
+        "expected_exit_status": 2,
+        "expected_stdout": "",
+        "stderr_contains": "interface name too long:",
+        "inside_ioctls": [],
+        "kernel_check": "unchanged",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev",
+          "native-auto"
+        ],
+        "candidate_command": "builtin bashio set-route 192.0.2.1 -i abcdefghijklmnop",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-route 192.0.2.1 -i abcdefghijklmnop; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "route_cases"
       }
     },
     {
@@ -531,8 +912,8 @@
       "covers": [
         "bashio/set-route-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -556,9 +937,47 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "route-auto",
+        "candidate_mode": "keep",
+        "expected_exit_status": 0,
+        "expected_stdout": "",
+        "stderr_contains": "",
+        "inside_ioctls": [
+          {
+            "request": 35083,
+            "valid": true,
+            "return": 0,
+            "errno": 0,
+            "dst_family": 2,
+            "dst": "0.0.0.0",
+            "mask_family": 2,
+            "mask": "0.0.0.0",
+            "gateway_family": 2,
+            "gateway": "192.0.2.1",
+            "flags": 3,
+            "dev_present": false
+          }
+        ],
+        "kernel_check": "default-bn0",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev",
+          "native-auto"
+        ],
+        "candidate_command": "builtin bashio set-route 192.0.2.1",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-route 192.0.2.1; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "route_cases"
       }
     },
     {
@@ -571,8 +990,8 @@
       "covers": [
         "bashio/set-route-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -596,9 +1015,49 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "route-iface",
+        "candidate_mode": "keep",
+        "expected_exit_status": 0,
+        "expected_stdout": "",
+        "stderr_contains": "",
+        "inside_ioctls": [
+          {
+            "request": 35083,
+            "valid": true,
+            "return": 0,
+            "errno": 0,
+            "dst_family": 2,
+            "dst": "0.0.0.0",
+            "mask_family": 2,
+            "mask": "0.0.0.0",
+            "gateway_family": 2,
+            "gateway": "192.0.2.1",
+            "flags": 3,
+            "dev_present": true,
+            "dev_valid": true,
+            "dev_hex": "626e31"
+          }
+        ],
+        "kernel_check": "default-bn1",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev",
+          "native-auto"
+        ],
+        "candidate_command": "builtin bashio set-route 192.0.2.1 -i bn1",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-route 192.0.2.1 -i bn1; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "route_cases"
       }
     },
     {
@@ -611,8 +1070,8 @@
       "covers": [
         "bashio/set-route-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -636,9 +1095,74 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "route-repeat",
+        "candidate_mode": "keep",
+        "expected_exit_status": 0,
+        "expected_stdout": "",
+        "stderr_contains": "",
+        "inside_ioctls": [
+          {
+            "request": 35083,
+            "valid": true,
+            "return": -17,
+            "errno": 17,
+            "dst_family": 2,
+            "dst": "0.0.0.0",
+            "mask_family": 2,
+            "mask": "0.0.0.0",
+            "gateway_family": 2,
+            "gateway": "192.0.2.1",
+            "flags": 3,
+            "dev_present": true,
+            "dev_valid": true,
+            "dev_hex": "626e30"
+          }
+        ],
+        "kernel_check": "default-bn0-repeat",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev",
+          "native-auto",
+          "native-target"
+        ],
+        "native_target": {
+          "guard": "bn0",
+          "mode": "keep",
+          "status": 17,
+          "inside": [
+            {
+              "request": 35083,
+              "valid": true,
+              "return": -17,
+              "errno": 17,
+              "dst_family": 2,
+              "dst": "0.0.0.0",
+              "mask_family": 2,
+              "mask": "0.0.0.0",
+              "gateway_family": 2,
+              "gateway": "192.0.2.1",
+              "flags": 3,
+              "dev_present": true,
+              "dev_valid": true,
+              "dev_hex": "626e30"
+            }
+          ],
+          "before_after_fixture_unchanged": true
+        },
+        "candidate_command": "builtin bashio set-route 192.0.2.1 -i bn0",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-route 192.0.2.1 -i bn0; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "route-repeat"
       }
     },
     {
@@ -651,8 +1175,8 @@
       "covers": [
         "bashio/set-route-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -676,9 +1200,74 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "route-unreachable",
+        "candidate_mode": "keep",
+        "expected_exit_status": 1,
+        "expected_stdout": "",
+        "stderr_contains": "SIOCADDRT via",
+        "inside_ioctls": [
+          {
+            "request": 35083,
+            "valid": true,
+            "return": -101,
+            "errno": 101,
+            "dst_family": 2,
+            "dst": "0.0.0.0",
+            "mask_family": 2,
+            "mask": "0.0.0.0",
+            "gateway_family": 2,
+            "gateway": "203.0.113.1",
+            "flags": 3,
+            "dev_present": true,
+            "dev_valid": true,
+            "dev_hex": "626e30"
+          }
+        ],
+        "kernel_check": "unchanged",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev",
+          "native-auto",
+          "native-target"
+        ],
+        "native_target": {
+          "guard": "bn0",
+          "mode": "keep",
+          "status": 101,
+          "inside": [
+            {
+              "request": 35083,
+              "valid": true,
+              "return": -101,
+              "errno": 101,
+              "dst_family": 2,
+              "dst": "0.0.0.0",
+              "mask_family": 2,
+              "mask": "0.0.0.0",
+              "gateway_family": 2,
+              "gateway": "203.0.113.1",
+              "flags": 3,
+              "dev_present": true,
+              "dev_valid": true,
+              "dev_hex": "626e30"
+            }
+          ],
+          "before_after_fixture_unchanged": true
+        },
+        "candidate_command": "builtin bashio set-route 203.0.113.1 -i bn0",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-route 203.0.113.1 -i bn0; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "route_cases"
       }
     },
     {
@@ -691,8 +1280,8 @@
       "covers": [
         "bashio/set-route-deferred"
       ],
-      "oracle": "Guest setup checks QEMU UUID, mapped uid, distinct user and network namespaces and CAP_NET_ADMIN. A native ioctl tracee independently controls address, mask, flags, route, EEXIST, ENETUNREACH, ENODEV and EPERM; request bytes and returns are captured by a separately compiled ptrace observer. Each candidate runs inside this same private namespace with marker-delimited ioctl capture, recorded status, output and independent ip/proc/ioctl readback. Dropped-capability cases verify the post-exec capability state. Setup controls and parser/assertion controls are per case.",
-      "comparison": "Assess exact ioctl count, order, argument fields and return errno, candidate status and diagnostics, and relevant before/after kernel state. Timeout, output and trace limits are candidate failures with retained partial observations. A separate primary evidence gate must reject missing, malformed or truncated control/observation diagnostics and incomplete controls.",
+      "oracle": "Fresh user+network namespace and per-case marked native positive, error and empty-window controls; marked ptrace ioctl capture plus independent ip/proc/flag readback. Setup failures are errors; candidate and capture evidence is retained in diagnostics.",
+      "comparison": "Apply the suite primary_evidence_gate and this case's primary_evidence_gate; generic runner status alone is not migration evidence.",
       "requires": [
         "gcc",
         "python3",
@@ -716,10 +1305,407 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "a33502463949e4f343d8ab671f15c03b8326c607166f58203398432dbb826c2b",
-        "helpers/bashio-network-reviewed-tracer.c": "f117f57e87113a03c45e51e0fdb6049f8b27feda403f99a846215fabb147b046",
-        "helpers/bashio-network-reviewed-native.c": "3b8d01328b7e7d088d34417fed574c25e42a62422bca343a564000dc634fa63f"
+        "helpers/bashio-network-reviewed-ns.py": "aeb5f576630e0c07e86044a364ca52ec5c49a4e705861d4921fb60de60454b94",
+        "helpers/bashio-network-reviewed-tracer.c": "4a57ab0bfdfa6423fd8a1e2245ae79589e8050ba7037d3dc97f0228401638566",
+        "helpers/bashio-network-reviewed-native.c": "53feb6ce826a2018cb343f1145d4a28c122462ec83403d5a0eb99d04e1ccf8fe"
+      },
+      "primary_evidence_gate": {
+        "scenario": "route-perm",
+        "candidate_mode": "drop",
+        "expected_exit_status": 1,
+        "expected_stdout": "",
+        "stderr_contains": "SIOCADDRT via",
+        "inside_ioctls": [
+          {
+            "request": 35083,
+            "valid": true,
+            "return": -1,
+            "errno": 1,
+            "dst_family": 2,
+            "dst": "0.0.0.0",
+            "mask_family": 2,
+            "mask": "0.0.0.0",
+            "gateway_family": 2,
+            "gateway": "192.0.2.1",
+            "flags": 3,
+            "dev_present": true,
+            "dev_valid": true,
+            "dev_hex": "626e30"
+          }
+        ],
+        "kernel_check": "unchanged",
+        "required_native_controls": [
+          "native-mark-empty",
+          "native-addr",
+          "native-unreachable",
+          "native-route",
+          "native-duplicate",
+          "native-addr-perm",
+          "native-route-perm",
+          "native-nodev",
+          "native-auto",
+          "native-target"
+        ],
+        "native_target": {
+          "guard": "bn0",
+          "mode": "drop",
+          "status": 1,
+          "inside": [
+            {
+              "request": 35083,
+              "valid": true,
+              "return": -1,
+              "errno": 1,
+              "dst_family": 2,
+              "dst": "0.0.0.0",
+              "mask_family": 2,
+              "mask": "0.0.0.0",
+              "gateway_family": 2,
+              "gateway": "192.0.2.1",
+              "flags": 3,
+              "dev_present": true,
+              "dev_valid": true,
+              "dev_hex": "626e30"
+            }
+          ],
+          "before_after_fixture_unchanged": true
+        },
+        "candidate_command": "builtin bashio set-route 192.0.2.1 -i bn0",
+        "candidate_script_exact": "builtin kill -s STOP \"$$\"; builtin bashio set-route 192.0.2.1 -i bn0; rc=$?; builtin kill -s STOP \"$$\"; exit \"$rc\"",
+        "fixture_precondition": "route_cases"
       }
     }
-  ]
+  ],
+  "primary_evidence_gate": {
+    "format": "bashio-network-evidence-gate-v3",
+    "owner": "primary",
+    "execution": "data-only; do not execute or import the guest helper",
+    "required_inputs": [
+      "Exact case JSON and SHA-256 for each pinned helper and suite; frozen candidate hash and VM provenance.",
+      "Runner setup/candidate result and seven named diagnostic records including base64 bytes, missing/error flags, captured byte counts and truncation flags.",
+      "Each decoded network control and candidate record including raw trace bytes, parsed events, stdout/stderr, status/termination, snapshots and assessment."
+    ],
+    "retention_rules": [
+      "For a completed stage require all seven diagnostic files, each regular, readable, present, nontruncated and valid JSON; reject inconsistent byte counts or hashes. Reject duplicate JSON keys and duplicate required control labels.",
+      "For a failed setup, require only records from stages actually reached; retain available compiler, parser, outer, stage, control and candidate records without inventing absent later records. Missing stage-appropriate records mean ERROR/incomplete, not candidate mismatch.",
+      "A trace or stream prefix intentionally captured after a timeout or output/trace limit is explicitly partial in its record; it is not an externally truncated diagnostic file. It can support a failure only when actual begin-marker evidence exists; it can never support a PASS."
+    ],
+    "identity_rules": {
+      "outer_uid": 2000,
+      "outer_euid": 2000,
+      "vendor": "QEMU",
+      "uuid_rule": "outer uuid equals product_uuid and primary VM provenance uuid",
+      "inner_uid": 0,
+      "inner_euid": 0,
+      "uid_map": "0 2000 1",
+      "distinct_namespaces": [
+        "user",
+        "net"
+      ],
+      "inner_cap_eff_all": 4096,
+      "candidate_cap_rule": "post-exec CapEff must include CAP_NET_ADMIN for keep and exclude it for drop",
+      "outer_setup": "finished with status 0 for a complete observation; failed/unavailable namespace, dummy, gcc, ptrace, parser or native control is ERROR"
+    },
+    "parser_control_counts": {
+      "trace_positive": 1,
+      "trace_negative": 7,
+      "route_positive": 1,
+      "route_negative": 3,
+      "assertion_positive": 1,
+      "assertion_negative": 5,
+      "request_positive": 1,
+      "request_negative": 4,
+      "window_controls": 1,
+      "startup_limit_controls": 3,
+      "early_exit_controls": 2,
+      "proc_route_positive": 1,
+      "proc_route_negative": 3,
+      "scenario_positive": 18,
+      "scenario_negative": 36,
+      "operation_limit_controls": 3,
+      "post_operation_limit_controls": 3
+    },
+    "native_controls": {
+      "native-mark-empty": {
+        "mode": "keep",
+        "guard": "bnc",
+        "status": 0,
+        "inside": []
+      },
+      "native-addr": {
+        "mode": "keep",
+        "guard": "bnc",
+        "status": 0,
+        "inside": [
+          {
+            "request": 35094,
+            "valid": true,
+            "return": 0,
+            "errno": 0,
+            "ifname_hex": "626e63",
+            "address_family": 2,
+            "address": "198.51.100.10"
+          },
+          {
+            "request": 35100,
+            "valid": true,
+            "return": 0,
+            "errno": 0,
+            "ifname_hex": "626e63",
+            "address_family": 2,
+            "address": "255.255.255.0"
+          },
+          {
+            "request": 35091,
+            "valid": true,
+            "return": 0,
+            "errno": 0,
+            "ifname_hex": "626e63"
+          },
+          {
+            "request": 35092,
+            "valid": true,
+            "return": 0,
+            "errno": 0,
+            "ifname_hex": "626e63",
+            "flags_all": 65
+          }
+        ]
+      },
+      "native-unreachable": {
+        "mode": "keep",
+        "guard": "bnc",
+        "status": 101,
+        "inside": [
+          {
+            "request": 35083,
+            "valid": true,
+            "return": -101,
+            "errno": 101,
+            "dst_family": 2,
+            "dst": "0.0.0.0",
+            "mask_family": 2,
+            "mask": "0.0.0.0",
+            "gateway_family": 2,
+            "gateway": "203.0.113.1",
+            "flags": 3,
+            "dev_present": true,
+            "dev_valid": true,
+            "dev_hex": "626e63"
+          }
+        ]
+      },
+      "native-route": {
+        "mode": "keep",
+        "guard": "bnc",
+        "status": 0,
+        "inside": [
+          {
+            "request": 35083,
+            "valid": true,
+            "return": 0,
+            "errno": 0,
+            "dst_family": 2,
+            "dst": "0.0.0.0",
+            "mask_family": 2,
+            "mask": "0.0.0.0",
+            "gateway_family": 2,
+            "gateway": "198.51.100.1",
+            "flags": 3,
+            "dev_present": true,
+            "dev_valid": true,
+            "dev_hex": "626e63"
+          }
+        ]
+      },
+      "native-duplicate": {
+        "mode": "keep",
+        "guard": "bnc",
+        "status": 17,
+        "inside": [
+          {
+            "request": 35083,
+            "valid": true,
+            "return": -17,
+            "errno": 17,
+            "dst_family": 2,
+            "dst": "0.0.0.0",
+            "mask_family": 2,
+            "mask": "0.0.0.0",
+            "gateway_family": 2,
+            "gateway": "198.51.100.1",
+            "flags": 3,
+            "dev_present": true,
+            "dev_valid": true,
+            "dev_hex": "626e63"
+          }
+        ]
+      },
+      "native-addr-perm": {
+        "mode": "drop",
+        "guard": "bnc",
+        "status": 1,
+        "inside": [
+          {
+            "request": 35094,
+            "valid": true,
+            "return": -1,
+            "errno": 1,
+            "ifname_hex": "626e63",
+            "address_family": 2,
+            "address": "198.51.100.11"
+          }
+        ]
+      },
+      "native-route-perm": {
+        "mode": "drop",
+        "guard": "bnc",
+        "status": 1,
+        "inside": [
+          {
+            "request": 35083,
+            "valid": true,
+            "return": -1,
+            "errno": 1,
+            "dst_family": 2,
+            "dst": "0.0.0.0",
+            "mask_family": 2,
+            "mask": "0.0.0.0",
+            "gateway_family": 2,
+            "gateway": "198.51.100.1",
+            "flags": 3,
+            "dev_present": true,
+            "dev_valid": true,
+            "dev_hex": "626e63"
+          }
+        ]
+      },
+      "native-nodev": {
+        "mode": "keep",
+        "guard": "bnc",
+        "status": 19,
+        "inside": [
+          {
+            "request": 35094,
+            "valid": true,
+            "return": -19,
+            "errno": 19,
+            "ifname_hex": "6e6f5f737563685f6966",
+            "address_family": 2,
+            "address": "198.51.100.11"
+          }
+        ]
+      },
+      "native-auto": {
+        "mode": "keep",
+        "guard": "bn0",
+        "status": 0,
+        "inside": [
+          {
+            "request": 35083,
+            "valid": true,
+            "return": 0,
+            "errno": 0,
+            "dst_family": 2,
+            "dst": "0.0.0.0",
+            "mask_family": 2,
+            "mask": "0.0.0.0",
+            "gateway_family": 2,
+            "gateway": "192.0.2.1",
+            "flags": 3,
+            "dev_present": false
+          }
+        ]
+      }
+    },
+    "native_control_rules": [
+      "Require each scenario's listed labels exactly once and in the listed order, all marked mode; status, stdout/stderr, capability mode and full raw trace must agree with the declared control.",
+      "Reparse raw traces independently and compare parsed events with stored events. Each native trace must contain exactly begin then end markers and exactly one matching successful guard SIOCGIFFLAGS for the declared guard before begin and one after end. The inside events must exactly match the listed ordered requests; unrelated outside-window ioctl events do not count as inside.",
+      "Validate native address and route ip/proc readbacks, and for native-auto verify both eligible interfaces plus unbound default route via bn0 in both ip JSON and proc route. Validate scenario-specific native-target fields/status and unchanged before state when listed.",
+      "Require native-mark-empty with zero inside ioctls, while both outside guard requests are observed. This and each marked positive/error native control exercise the same observer marker path used for the candidate."
+    ],
+    "trace_integrity": [
+      "Reject malformed records, duplicate exec or exit, invalid marker order, mismatched window labels, observer_error, unobserved child/fork/clone or trace parse inconsistency. Require post-exec capability and tracer status zero for completed captures.",
+      "For a normal operation require exactly exec, begin and end markers, one final exit, complete non-prefix trace, and all inside-window ioctl events in order. Require candidate argv, scenario, mode, termination, output lengths and trace to agree across controls, observation, stage and assessment.",
+      "For a normal candidate early exit or signal with a complete valid trace but no begin or no end, classify FAIL early-exit or operation-interrupted; retain raw output/status and do not infer any successful operation, ioctl absence, or kernel result.",
+      "For timeout/output-limit/trace-limit require a valid partial trace with exec and actual begin marker. Begin without end is operation-limit FAIL; begin and end is post-operation-limit FAIL, not an operation timeout. Validate observed-length/prefix metadata and retain partial bytes; do not assert later operation results.",
+      "Interruption before begin is unresolved startup/infrastructure ERROR, even if exec was seen; preserve partial trace and output. If no exec, marker, parse, controls or observer integrity can be established, classify ERROR/incomplete.",
+      "For complete operation-exited observations, independently recompute each scenario's status, output, errno, request order/fields and kernel expectations below, then cross-check assessment failures and runner outcome. Treat an assessment crash, missing/malformed assessment or inconsistency as ERROR, not product FAIL.",
+      "If post-candidate snapshot or later infrastructure fails, retain ERROR for that stage; separately preserve any independently established exit/status/output or complete marked-trace mismatch as product FAIL. Do not infer a pass or a kernel observation from missing data.",
+      "Reject a tracee fork, vfork or clone observed at any window, including startup or teardown: the single-tracee observer cannot inspect descendants. A trace or stream limit before a proven begin marker is unresolved even if the shell was execed."
+    ],
+    "kernel_checks": {
+      "unchanged": "Full recorded pre/post interface, flags, ip route and proc route state equal.",
+      "unchanged-bad-mask": "Same unchanged requirement and no inside ioctl; separately retain actual before_bn0 and after_bn0 including any partial mutation, without changing the literal contract.",
+      "addr": "bn0 IPv4 192.0.2.20/24 and ioctl-readback flags include IFF_UP and IFF_RUNNING.",
+      "default-bn0": "One default via 192.0.2.1 dev bn0 in ip and /proc/net/route, proc mask 0 and flags include RTF_UP|RTF_GATEWAY.",
+      "default-bn1": "One default via 192.0.2.1 dev bn1 in ip and proc, mask 0 and flags include 3; native unbound control selected bn0.",
+      "default-bn0-repeat": "Before already contains the same default via bn0, native-target returns EEXIST without changing it, and after still contains it with proc mask 0 and flags include 3."
+    },
+    "comparison_conventions": {
+      "inside_ioctl_list": "Exact length and order; each listed field must match. flags_all is a bitmask inclusion test; omitted fields are not compared.",
+      "stderr_contains": "Nonempty substring in raw stderr; when empty stderr must be exactly empty. stdout must be exactly empty.",
+      "error_checks": {
+        "addr-nodev": "No such device",
+        "addr-perm": "Operation not permitted",
+        "route-unreachable": "Network is unreachable",
+        "route-perm": "Operation not permitted"
+      }
+    },
+    "fixture_preconditions": {
+      "addr_cases": "Before candidate bn0 and bn1 are present without IPv4 addresses and there is no default route in either ip or proc.",
+      "route_cases": "Before candidate bn0 has 192.0.2.20/24, bn1 has 192.0.2.30/24, and both are up. A marked native unbound route must select bn0 and then be removed. The pre-candidate main table has no default in ip or proc except route-repeat.",
+      "route-repeat": "A native ip command seeds a default via 192.0.2.1 dev bn0. Both ip and proc show it, flags include 3, then marked native-target returns EEXIST and leaves the complete fixture snapshot unchanged."
+    },
+    "decision_examples": [
+      {
+        "capture": "all controls complete; candidate exec and complete exit, no begin marker",
+        "classification": "FAIL: early-exit",
+        "evidence_scope": "Candidate shell exited early; no ioctl or operation result is inferred."
+      },
+      {
+        "capture": "all controls complete; begin marker present; candidate exits before end marker",
+        "classification": "FAIL: operation-interrupted",
+        "evidence_scope": "Retain raw trace and exit; do not infer completed operation."
+      },
+      {
+        "capture": "all controls complete; timeout or limit with exec but no begin marker",
+        "classification": "ERROR: startup-unresolved",
+        "evidence_scope": "Retain partial output and trace; do not attribute operation behavior."
+      },
+      {
+        "capture": "all controls complete; timeout or limit with begin and no end marker",
+        "classification": "FAIL: operation-limit",
+        "evidence_scope": "Retain bounded output and trace prefix; no completed operation claim."
+      },
+      {
+        "capture": "all controls complete; timeout or limit with both markers",
+        "classification": "FAIL: post-operation-limit",
+        "evidence_scope": "Do not label it operation timeout; retain bounded output and trace prefix."
+      },
+      {
+        "capture": "required controls or stage records missing, malformed, mismatched or externally truncated",
+        "classification": "ERROR: incomplete evidence",
+        "evidence_scope": "No migration evidence from generic runner labels."
+      },
+      {
+        "capture": "valid complete product trace and wrong status; later state snapshot or assessment is missing",
+        "classification": "ERROR: incomplete state or assessment; separately preserve established product status mismatch",
+        "evidence_scope": "No state or PASS claim; product mismatch is not erased."
+      },
+      {
+        "capture": "complete controls, trace and state but saved assessment disagrees with independent recomputation",
+        "classification": "ERROR: assessment inconsistency",
+        "evidence_scope": "Do not promote generic runner result."
+      }
+    ],
+    "capture_limits": {
+      "candidate_stdout_stderr_prefix_bytes_per_stream": 65536,
+      "trace_limit_bytes": 100000,
+      "trace_prefix_read_bytes": 110001,
+      "candidate_observer_timeout_seconds": 8,
+      "namespace_setup_timeout_seconds": 52,
+      "single_diagnostic_write_limit_bytes": 900000
+    }
+  }
 }
