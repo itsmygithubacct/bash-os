@@ -36,7 +36,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -133,7 +133,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -196,7 +196,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -259,7 +259,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -322,7 +322,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -385,7 +385,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -449,7 +449,7 @@
         "network-native-target.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -547,7 +547,7 @@
         "network-native-target.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -644,7 +644,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -708,7 +708,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -772,7 +772,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -836,7 +836,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -900,7 +900,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -964,7 +964,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -1043,7 +1043,7 @@
         "network-assessment.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -1125,7 +1125,7 @@
         "network-native-target.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -1238,7 +1238,7 @@
         "network-native-target.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -1351,7 +1351,7 @@
         "network-native-target.json"
       ],
       "helpers_sha256": {
-        "helpers/bashio-network-reviewed-ns.py": "e37fbeeca0992e38c2fdbee3eb03ef330f1e932620906216c37ca9e5b18d278b",
+        "helpers/bashio-network-reviewed-ns.py": "7d1091742fc652bce0b3b12ea4f29584dd4ada60e3a8ad9b78f76694bd660da6",
         "helpers/bashio-network-reviewed-tracer.c": "8949f3109f4fa1ae58179d3bd586c9540dbb9ea236292be26fe1a3bbbf2d14de",
         "helpers/bashio-network-reviewed-native.c": "c487b89c3a104668d783116350e9b92667445b4f0965178861428f8fd53ff15b",
         "helpers/bashio-network-reviewed-identity.h": "f3d2e9064f9f827ba8e75b8f5a7e6b2969602ad84393e452e9807fd2af0e6f3c"
@@ -1451,7 +1451,7 @@
       "outer_egid": 2000,
       "vendor": "QEMU",
       "uuid_rule": "Require canonical identical marker and protected /run attestation bytes for both outer and inner identity records. Bind both UUIDs to primary VM provenance and its independently root-validated attestation readback, including matching marker/attestation bytes and the case-insensitively matching root DMI UUID. Do not require an unprivileged DMI product_uuid read or invent a product_uuid observation in the fixture.",
-      "protected_files": "For both identity records independently validate exact 37-byte UUID plus newline, no-follow regular single-link files mode 0444 and protected non-group/world-writable directories; outer ownership is root:root and inner ownership is the recorded kernel overflow uid/gid under the one-id maps. Bind matching file/directory dev and inode, byte contents and invariant metadata across both records, accounting for the expected owner remapping. Require completed systemd virtualization check and QEMU vendor. The controller's root provenance attestation establishes the root DMI binding.",
+      "protected_files": "For each outer and inner marker and attestation record, require the literal directory_path and entry_name (/etc/bashos-parity-vm or /run/bashos-parity-vm-identity), entry_follow_symlinks=false, and recorded Linux directory_open_flags with O_DIRECTORY, O_NOFOLLOW and O_CLOEXEC and file_open_flags with O_NONBLOCK, O_NOFOLLOW and O_CLOEXEC, both read-only. Independently decode each raw_mode to verify its type and permission mode fields. Require directory_before, directory and directory_entry to be directories and match type, raw_mode, uid, gid, dev and ino; require non-group/world-writable permissions. Require file_before, file and file_entry all regular and identical across type, raw_mode, uid, gid, mode, nlink, size, dev, ino, mtime_ns and ctime_ns; require mode 0444, one link, 37 bytes, and exact canonical UUID plus newline. Independently validate controller root attestation write/read proof status, raw evidence and matching readback with unique JSON keys and root DMI/marker/attestation bytes. Bind each fixture file to its corresponding controller readback marker or attestation on type, mode, nlink, size, dev, ino, mtime_ns and ctime_ns and bytes. Bind each fixture parent to corresponding etc_directory or run_directory on type, mode, dev and ino. Require controller ownership root:root, outer root:root and inner ownership equal to kernel overflow uid/gid under the exact one-id uid/gid maps; compare other invariant fields across outer and inner as well. Directory size, nlink and timestamps may legitimately change and are retained but not equality prerequisites. Reject missing fields, duplicate keys, inconsistent types, symlink entries, mismatched objects, invalid ownership or incomplete proofs as infrastructure ERROR/incomplete, never as product mismatch. Require completed systemd virtualization check and QEMU vendor; do not read root-only product_uuid in fixture.",
       "inner_uid": 0,
       "inner_euid": 0,
       "inner_gid": 0,

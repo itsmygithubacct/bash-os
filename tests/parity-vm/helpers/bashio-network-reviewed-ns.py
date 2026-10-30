@@ -78,18 +78,24 @@ def guest(expected_uid):
         owner_uid = owner_gid = 0
 
     def metadata(info):
-        return {'uid': info.st_uid, 'gid': info.st_gid, 'mode': stat.S_IMODE(info.st_mode),
+        kind = ('regular' if stat.S_ISREG(info.st_mode) else
+                'directory' if stat.S_ISDIR(info.st_mode) else
+                'symlink' if stat.S_ISLNK(info.st_mode) else 'other')
+        return {'type': kind, 'raw_mode': info.st_mode,
+                'uid': info.st_uid, 'gid': info.st_gid, 'mode': stat.S_IMODE(info.st_mode),
                 'nlink': info.st_nlink, 'size': info.st_size, 'dev': info.st_dev, 'ino': info.st_ino,
-                'mtime_ns': info.st_mtime_ns}
+                'mtime_ns': info.st_mtime_ns, 'ctime_ns': info.st_ctime_ns}
 
     def read_identity(directory, name):
-        dirfd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        dir_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+        file_flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC
+        dirfd = os.open(directory, dir_flags)
         try:
             parent = os.fstat(dirfd)
             if (not stat.S_ISDIR(parent.st_mode) or parent.st_uid != owner_uid or parent.st_gid != owner_gid
                     or stat.S_IMODE(parent.st_mode) & 0o022):
                 raise RuntimeError('unprotected identity directory')
-            fd = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=dirfd)
+            fd = os.open(name, file_flags, dir_fd=dirfd)
             try:
                 before = os.fstat(fd)
                 if (not stat.S_ISREG(before.st_mode) or before.st_uid != owner_uid or before.st_gid != owner_gid
@@ -102,6 +108,17 @@ def guest(expected_uid):
                     raise RuntimeError('identity file changed during read')
             finally:
                 os.close(fd)
+            parent_after = os.fstat(dirfd)
+            parent_entry = os.stat(directory, follow_symlinks=False)
+            # Directory contents may change independently; these fields bind the
+            # descriptor to the same protected directory entry throughout.
+            fixed = ('type', 'raw_mode', 'uid', 'gid', 'dev', 'ino')
+            parent_meta = metadata(parent)
+            parent_after_meta = metadata(parent_after)
+            parent_entry_meta = metadata(parent_entry)
+            if any(parent_meta[k] != parent_after_meta[k] or parent_after_meta[k] != parent_entry_meta[k]
+                   for k in fixed):
+                raise RuntimeError('identity directory changed during read')
         finally:
             os.close(dirfd)
         if len(data) != 37 or not data.endswith(b'\n'):
@@ -109,7 +126,13 @@ def guest(expected_uid):
         value = data[:-1].decode('ascii')
         if str(uuid.UUID(value)) != value:
             raise RuntimeError('noncanonical identity')
-        return value, {'directory': metadata(parent), 'file': metadata(after), 'bytes_hex': data.hex()}
+        return value, {'directory_path': directory, 'entry_name': name,
+                       'directory_open_flags': dir_flags, 'file_open_flags': file_flags,
+                       'entry_follow_symlinks': False,
+                       'directory_before': parent_meta, 'directory': parent_after_meta,
+                       'directory_entry': parent_entry_meta,
+                       'file_before': metadata(before), 'file': metadata(after),
+                       'file_entry': metadata(entry), 'bytes_hex': data.hex()}
 
     token, marker = read_identity('/etc', 'bashos-parity-vm')
     attested, proof = read_identity('/run', 'bashos-parity-vm-identity')
