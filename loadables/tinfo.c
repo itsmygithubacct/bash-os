@@ -909,6 +909,162 @@ bt_get_str (const bt_entry *e, const char *name, const char **out)
   return -1;
 }
 
+/* tput search. TERMINFO, when set, is the only directory. Otherwise
+   ~/.terminfo, then TERMINFO_DIRS (an empty element is the system
+   default), then the system directories. Each name tic wrote, including
+   aliases after '|', is its own file under the first-character and
+   two-digit hashed paths. BASHTINFO_PATH stays on the tinfo command. */
+static int
+bt_try_dir_list (const char *list, const char *term,
+                 unsigned char **out, size_t *out_len)
+{
+  const char *p = list;
+
+  if (!list) return -1;
+  for (;;)
+    {
+      const char *colon = strchr (p, ':');
+      size_t n = colon ? (size_t) (colon - p) : strlen (p);
+      char dir[1024];
+      const char *use;
+
+      if (n == 0)
+        use = "/usr/share/terminfo";
+      else if (n < sizeof dir)
+        {
+          memcpy (dir, p, n);
+          dir[n] = '\0';
+          use = dir;
+        }
+      else
+        use = NULL;
+      if (use && bt_try_dir (use, term, out, out_len) == 0)
+        return 0;
+      if (!colon) break;
+      p = colon + 1;
+      if (*p == '\0')
+        return bt_try_dir ("/usr/share/terminfo", term, out, out_len);
+    }
+  return -1;
+}
+
+static int
+bt_load_tput_term (const char *term, unsigned char **out, size_t *out_len)
+{
+  const char *terminfo = getenv ("TERMINFO");
+  const char *home;
+  const char *dirs;
+  static const char *common[] = {
+    "/usr/share/terminfo", "/lib/terminfo", "/etc/terminfo",
+    "/usr/lib/terminfo", "/boot/system/data/terminfo", NULL
+  };
+
+  if (terminfo && *terminfo)
+    return bt_try_dir (terminfo, term, out, out_len);
+
+  home = getenv ("HOME");
+  if (home && *home)
+    {
+      char path[1024];
+      int n = snprintf (path, sizeof path, "%s/.terminfo", home);
+      if (n > 0 && (size_t) n < sizeof path
+          && bt_try_dir (path, term, out, out_len) == 0)
+        return 0;
+    }
+
+  dirs = getenv ("TERMINFO_DIRS");
+  if (dirs && *dirs)
+    return bt_try_dir_list (dirs, term, out, out_len);
+
+  for (int i = 0; common[i]; i++)
+    if (bt_try_dir (common[i], term, out, out_len) == 0)
+      return 0;
+  return -1;
+}
+
+/* 0 bool (*flag), 1 number (*num), 2 string (*str malloc'd),
+   4 entry loaded but the capability is absent, -1 no entry.
+   *npc is 1 when the loaded entry sets npc. */
+int
+bt_compiled_lookup (const char *term, const char *cap,
+                    int *flag, int32_t *num, char **str, int *npc)
+{
+  unsigned char *buf = NULL;
+  size_t len = 0;
+  bt_entry e;
+  int v = 0;
+  int32_t number = 0;
+  const char *s;
+  const unsigned char *base;
+  int tablen;
+  size_t off, nlen;
+
+  if (npc) *npc = 0;
+  if (str) *str = NULL;
+  if (!term || !*term || !cap || !*cap || strchr (term, '/'))
+    return -1;
+  if (bt_load_tput_term (term, &buf, &len) < 0)
+    return -1;
+  if (bt_parse (buf, len, &e) < 0)
+    {
+      free (buf);
+      return -1;
+    }
+  if (npc && bt_get_flag (&e, "npc", &v) == 0 && v)
+    *npc = 1;
+
+  v = 0;
+  if (bt_get_flag (&e, cap, &v) == 0)
+    {
+      free (buf);
+      if (flag) *flag = v;
+      return 0;
+    }
+  if (bt_get_num (&e, cap, &number) == 0)
+    {
+      free (buf);
+      if (num) *num = number;
+      return 1;
+    }
+  if (bt_get_str (&e, cap, &s) == 0)
+    {
+      char *copy;
+      base = e.strtab;
+      tablen = e.strtab_len;
+      if (e.ext_strtab && s >= (const char *) e.ext_strtab
+          && s < (const char *) e.ext_strtab + e.ext_strtab_len)
+        {
+          base = e.ext_strtab;
+          tablen = e.ext_strtab_len;
+        }
+      off = (size_t) (s - (const char *) base);
+      if (off >= (size_t) tablen)
+        {
+          free (buf);
+          return 4;
+        }
+      nlen = strnlen (s, (size_t) tablen - off);
+      if (nlen == (size_t) tablen - off)
+        {
+          free (buf);
+          return 4;
+        }
+      copy = malloc (nlen + 1);
+      if (!copy)
+        {
+          free (buf);
+          return -1;
+        }
+      memcpy (copy, s, nlen + 1);
+      free (buf);
+      if (str) *str = copy;
+      else free (copy);
+      return 2;
+    }
+  free (buf);
+  return 4;
+}
+
 static void
 bt_emit_escaped (const char *s)
 {

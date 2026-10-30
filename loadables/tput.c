@@ -1,10 +1,12 @@
 /* SPDX-License-Identifier: MIT */
 /* tput.c - small terminfo-shaped capability builtin for bash-os.
  *
- * This is Stage 45.B's compact v1 surface: a curated ANSI/xterm
- * capability table for the terminal names bash-os actually ships with.
- * Operators can add simple key=value terminal sidecars without pulling
- * in the full compiled terminfo database parser.
+ * Curated ANSI/xterm names come from the built-in table. Operators can
+ * add key=value sidecars. Before an unknown terminal is rejected, a
+ * compiled terminfo entry is loaded from TERMINFO, ~/.terminfo,
+ * TERMINFO_DIRS, or the system database, aliases included. A loaded
+ * entry supplies its standard and extended capabilities. Mandatory
+ * padding is applied from the output baud rate.
  */
 
 #include <config.h>
@@ -15,8 +17,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <ctype.h>
 #include <dirent.h>
+#include <termios.h>
+#include <time.h>
 
 #include "loadables.h"
 
@@ -415,6 +420,343 @@ parameter_code (const char *cap)
   return cap;
 }
 
+/* Compiled terminfo is resolved before the unknown-terminal return.
+ * A loaded entry supplies standard and extended capabilities. Mandatory
+ * $<N/> delays become floor(ms * baud / 9000) pad bytes, or a sleep when
+ * the entry sets npc. Non-mandatory $<N> delays are omitted. init, reset,
+ * and the environment-backed size queries stay on the curated path. */
+#define TP_MAX_OUT (512 * 1024)
+
+extern int bt_compiled_lookup (const char *term, const char *cap,
+                               int *flag, int32_t *num, char **str, int *npc);
+
+static int
+tp_leave_curated (const char *cap)
+{
+  return !strcmp (cap, "init") || !strcmp (cap, "reset")
+      || !strcmp (cap, "cols") || !strcmp (cap, "columns")
+      || !strcmp (cap, "lines") || !strcmp (cap, "rows");
+}
+
+static int
+tp_string_supported (const char *s)
+{
+  while (*s)
+    {
+      if (s[0] == '$' && s[1] == '<')
+        {
+          const char *end = strchr (s + 2, '>');
+          if (end) { s = end + 1; continue; }
+        }
+      if (s[0] == '%' && s[1])
+        {
+          if (s[1] == '%' || s[1] == 'i' || s[1] == 'd' || s[1] == 's' || s[1] == 'c')
+            { s += 2; continue; }
+          if (s[1] == 'p' && s[2] >= '1' && s[2] <= '9')
+            { s += 3; continue; }
+          return 0;
+        }
+      s++;
+    }
+  return 1;
+}
+
+static int
+tp_baud (void)
+{
+  struct termios tio;
+  speed_t speed;
+
+  if (tcgetattr (STDOUT_FILENO, &tio) < 0)
+    return 0;
+  speed = cfgetospeed (&tio);
+  switch (speed)
+    {
+    case B0: return 0;
+    case B50: return 50;
+    case B75: return 75;
+    case B110: return 110;
+    case B134: return 134;
+    case B150: return 150;
+    case B200: return 200;
+    case B300: return 300;
+    case B600: return 600;
+    case B1200: return 1200;
+    case B1800: return 1800;
+    case B2400: return 2400;
+    case B4800: return 4800;
+    case B9600: return 9600;
+    case B19200: return 19200;
+    case B38400: return 38400;
+#ifdef B57600
+    case B57600: return 57600;
+#endif
+#ifdef B115200
+    case B115200: return 115200;
+#endif
+#ifdef B230400
+    case B230400: return 230400;
+#endif
+    default: return 0;
+    }
+}
+
+struct tp_out {
+  char *data;
+  size_t len;
+  size_t cap;
+};
+
+static int
+tp_out_add (struct tp_out *o, const void *bytes, size_t n)
+{
+  size_t want;
+  char *grown;
+
+  if (n > TP_MAX_OUT || o->len > TP_MAX_OUT - n)
+    return -1;
+  want = o->len + n + 1;
+  if (want > o->cap)
+    {
+      size_t cap = o->cap ? o->cap : 64;
+      while (cap < want)
+        {
+          if (cap > TP_MAX_OUT / 2) { cap = want; break; }
+          cap *= 2;
+        }
+      grown = realloc (o->data, cap);
+      if (!grown) return -1;
+      o->data = grown;
+      o->cap = cap;
+    }
+  if (n && bytes)
+    memcpy (o->data + o->len, bytes, n);
+  o->len += n;
+  o->data[o->len] = '\0';
+  return 0;
+}
+
+static int
+tp_out_pad (struct tp_out *o, const char *var, int npc, long whole, long frac, long scale)
+{
+  long num, den, nuls;
+  int baud;
+
+  if (scale < 1) scale = 1;
+  num = whole * scale + frac;
+  if (num < 0) num = 0;
+  if (var)
+    return 0;
+  if (npc)
+    {
+      struct timespec ts;
+      long ms = num / scale;
+      long usec = ((num % scale) * 1000000L) / scale;
+      if (o->len)
+        {
+          fwrite (o->data, 1, o->len, stdout);
+          o->len = 0;
+          if (o->data) o->data[0] = '\0';
+        }
+      fflush (stdout);
+      ts.tv_sec = ms / 1000;
+      ts.tv_nsec = (ms % 1000) * 1000000L + usec * 1000L;
+      if (ts.tv_nsec >= 1000000000L)
+        {
+          ts.tv_sec += ts.tv_nsec / 1000000000L;
+          ts.tv_nsec %= 1000000000L;
+        }
+      nanosleep (&ts, NULL);
+      return 0;
+    }
+  baud = tp_baud ();
+  den = 9000L * scale;
+  nuls = den > 0 ? (num * (long) baud) / den : 0;
+  while (nuls-- > 0)
+    if (tp_out_add (o, "", 1) < 0)
+      return -1;
+  return 0;
+}
+
+static int
+tp_expand_compiled (const char *tmpl, WORD_LIST *args, const char *var,
+                    int npc, struct tp_out *o)
+{
+  const char *pstr[9];
+  int pnum[9];
+  struct { int num; const char *str; } stack[16];
+  int i, sp;
+
+  for (i = 0; i < 9; i++)
+    {
+      pstr[i] = "";
+      pnum[i] = 0;
+    }
+  i = 0;
+  while (args && i < 9)
+    {
+      pstr[i] = (args->word && args->word->word) ? args->word->word : "";
+      pnum[i] = atoi (pstr[i]);
+      i++;
+      args = args->next;
+    }
+  sp = 0;
+  while (*tmpl)
+    {
+      if (tmpl[0] == '$' && tmpl[1] == '<')
+        {
+          const char *start = tmpl;
+          const char *p = tmpl + 2;
+          const char *end = strchr (p, '>');
+          long whole = 0, frac = 0, scale = 1;
+          int seen_dot = 0, mandatory = 0, ok = 1;
+          if (!end) { if (tp_out_add (o, tmpl, 1) < 0) return -1; tmpl++; continue; }
+          while (p < end)
+            {
+              if (*p >= '0' && *p <= '9')
+                {
+                  if (!seen_dot) whole = whole * 10 + (*p - '0');
+                  else { frac = frac * 10 + (*p - '0'); scale *= 10; }
+                }
+              else if (*p == '.' && !seen_dot)
+                seen_dot = 1;
+              else if (*p == '/')
+                mandatory = 1;
+              else if (*p == '*')
+                ;
+              else
+                ok = 0;
+              p++;
+            }
+          tmpl = end + 1;
+          if (!ok)
+            {
+              if (tp_out_add (o, start, (size_t) (tmpl - start)) < 0) return -1;
+              continue;
+            }
+          if (mandatory && tp_out_pad (o, var, npc, whole, frac, scale) < 0)
+            return -1;
+          continue;
+        }
+      if (tmpl[0] != '%' || tmpl[1] == '\0')
+        {
+          if (tp_out_add (o, tmpl, 1) < 0) return -1;
+          tmpl++;
+          continue;
+        }
+      tmpl++;
+      if (*tmpl == '%')
+        {
+          if (tp_out_add (o, tmpl, 1) < 0) return -1;
+          tmpl++;
+          continue;
+        }
+      if (*tmpl == 'i')
+        {
+          pnum[0]++;
+          pnum[1]++;
+          tmpl++;
+          continue;
+        }
+      if (*tmpl == 'p' && tmpl[1] >= '1' && tmpl[1] <= '9')
+        {
+          int idx = tmpl[1] - '1';
+          if (sp >= (int) (sizeof stack / sizeof stack[0])) return -1;
+          stack[sp].num = pnum[idx];
+          stack[sp].str = pstr[idx];
+          sp++;
+          tmpl += 2;
+          continue;
+        }
+      if (*tmpl == 'd' || *tmpl == 's' || *tmpl == 'c')
+        {
+          char kind = *tmpl++;
+          int num;
+          const char *str;
+          char digits[32];
+          int wrote;
+          if (sp <= 0) return -1;
+          sp--;
+          num = stack[sp].num;
+          str = stack[sp].str ? stack[sp].str : "";
+          if (kind == 's')
+            {
+              if (tp_out_add (o, str, strlen (str)) < 0) return -1;
+            }
+          else if (kind == 'c')
+            {
+              char ch = (char) (num & 0xff);
+              if (tp_out_add (o, &ch, 1) < 0) return -1;
+            }
+          else
+            {
+              wrote = snprintf (digits, sizeof digits, "%d", num);
+              if (wrote < 0 || tp_out_add (o, digits, (size_t) wrote) < 0) return -1;
+            }
+          continue;
+        }
+      if (tp_out_add (o, "%", 1) < 0 || tp_out_add (o, tmpl, 1) < 0) return -1;
+      tmpl++;
+    }
+  return 0;
+}
+
+/* -1: no compiled entry, or this capability stays on the curated path.
+   Otherwise a tput status. */
+static int
+emit_compiled (const char *term, const char *cap, WORD_LIST *args, const char *var)
+{
+  int flag = 0, npc = 0, kind;
+  int32_t num = 0;
+  char *str = NULL;
+  struct tp_out out;
+  int rc;
+
+  if (!safe_term_name (term))
+    return -1;
+  kind = bt_compiled_lookup (term, cap, &flag, &num, &str, &npc);
+  if (kind < 0)
+    return -1;
+  if (kind == 4)
+    {
+      if (known_term (term))
+        return -1;
+      fprintf (stderr, "tput: unknown terminfo capability '%s'\n", cap);
+      return 4;
+    }
+  if (kind == 0)
+    return flag ? 0 : 1;
+  if (kind == 1)
+    {
+      char text[32];
+      snprintf (text, sizeof text, "%d", (int) num);
+      return bind_or_print (var, text, var ? 0 : 1);
+    }
+  if (!str)
+    return -1;
+  if (!tp_string_supported (str) && known_cap (cap) && known_term (term))
+    {
+      free (str);
+      return -1;
+    }
+  memset (&out, 0, sizeof out);
+  rc = tp_expand_compiled (str, args, var, npc, &out);
+  free (str);
+  if (rc < 0)
+    {
+      free (out.data);
+      return 2;
+    }
+  if (var)
+    rc = bind_or_print (var, out.data ? out.data : "", 0);
+  else if (out.len && fwrite (out.data, 1, out.len, stdout) != out.len)
+    rc = 2;
+  else
+    rc = 0;
+  free (out.data);
+  return rc;
+}
+
 extern char *tput_doc[];   /* forward decl */
 
 static int
@@ -430,6 +772,12 @@ emit_cap (const char *cap, WORD_LIST *args, const char *var, const char *term, i
     {
       builtin_error ("no terminal type specified");
       return 2;
+    }
+  if (!tp_leave_curated (cap))
+    {
+      int crc = emit_compiled (term, cap, args, var);
+      if (crc >= 0)
+        return crc;
     }
   if (!known_term (term) && !load_side_term (&st, term))
     {
@@ -846,6 +1194,8 @@ char *tput_doc[] = {
   "Common boolean queries return 0 for true and 1 for false, without output.",
   "With no parameters, built-in parameterized strings are returned verbatim.",
   "Statuses: 2 for usage/missing TERM, 3 for unknown terminal, 4 for unknown CAP.",
+  "A compiled terminfo entry (TERMINFO, ~/.terminfo, TERMINFO_DIRS, or the",
+  "system database) is used before an unknown terminal is reported.",
   "Supported terminal entries: xterm-256color, xterm, screen-256color,",
   "tmux-256color, linux, vt100, dumb.",
   "Sidecar entries: BASHTPUT_TERMINFO_DIR/TERM or /etc/bash-os/terminfo.d/TERM,",
