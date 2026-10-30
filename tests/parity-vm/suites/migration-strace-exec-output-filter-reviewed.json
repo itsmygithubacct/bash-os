@@ -12,7 +12,7 @@
         "strace/exec-trace-status"
       ],
       "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
-      "comparison": "The stderr trace has exactly one ordered record per known syscall and stdout matches the direct control.",
+      "comparison": "The stderr trace has exactly one ordered record per known syscall and stdout matches the direct control. Every invocation independently requires the exact controlled stdout marker, exit status 42 and the ordered selected calls on the expected trace destination; with -o the route file must be nonempty and stderr empty. Common checks and the individual requirement are recorded separately.",
       "requires": [
         "gcc",
         "python3"
@@ -41,7 +41,7 @@
         "assertions.json"
       ],
       "helpers_sha256": {
-        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+        "helpers/strace-exec-output-filter-reviewed.py": "baaeb6d1e5e85a23c9b6efe94ecf32ef54fa8314113668f5337adbb2ce2a4e15"
       }
     },
     {
@@ -55,7 +55,7 @@
         "strace/exec-trace-status"
       ],
       "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
-      "comparison": "Each of execve, write, openat and exit_group must appear in order with the known symbolic arguments and quoted strings.",
+      "comparison": "Each of execve, write, openat and exit_group must appear in order with the known symbolic arguments and quoted strings. Every invocation independently requires the exact controlled stdout marker, exit status 42 and the ordered selected calls on the expected trace destination; with -o the route file must be nonempty and stderr empty. Common checks and the individual requirement are recorded separately.",
       "requires": [
         "gcc",
         "python3"
@@ -84,7 +84,7 @@
         "assertions.json"
       ],
       "helpers_sha256": {
-        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+        "helpers/strace-exec-output-filter-reviewed.py": "baaeb6d1e5e85a23c9b6efe94ecf32ef54fa8314113668f5337adbb2ce2a4e15"
       }
     },
     {
@@ -98,7 +98,7 @@
         "strace/exec-trace-status"
       ],
       "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
-      "comparison": "The tracer returns 42, the independently observed status of the deterministic tracee.",
+      "comparison": "The tracer returns 42, the independently observed status of the deterministic tracee. Every invocation independently requires the exact controlled stdout marker, exit status 42 and the ordered selected calls on the expected trace destination; with -o the route file must be nonempty and stderr empty. Common checks and the individual requirement are recorded separately.",
       "requires": [
         "gcc",
         "python3"
@@ -127,7 +127,7 @@
         "assertions.json"
       ],
       "helpers_sha256": {
-        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+        "helpers/strace-exec-output-filter-reviewed.py": "baaeb6d1e5e85a23c9b6efe94ecf32ef54fa8314113668f5337adbb2ce2a4e15"
       }
     },
     {
@@ -141,7 +141,7 @@
         "strace/output-file-routing"
       ],
       "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
-      "comparison": "The relative output file contains each of the four ordered syscall records and stderr is empty.",
+      "comparison": "The relative output file contains each of the four ordered syscall records and stderr is empty. Every invocation independently requires the exact controlled stdout marker, exit status 42 and the ordered selected calls on the expected trace destination; with -o the route file must be nonempty and stderr empty. Common checks and the individual requirement are recorded separately.",
       "requires": [
         "gcc",
         "python3"
@@ -170,7 +170,7 @@
         "assertions.json"
       ],
       "helpers_sha256": {
-        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+        "helpers/strace-exec-output-filter-reviewed.py": "baaeb6d1e5e85a23c9b6efe94ecf32ef54fa8314113668f5337adbb2ce2a4e15"
       }
     },
     {
@@ -184,7 +184,7 @@
         "strace/output-file-routing"
       ],
       "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
-      "comparison": "Stdout is byte-for-byte equal to the independently observed marker including its newline.",
+      "comparison": "Stdout is byte-for-byte equal to the independently observed marker including its newline. Every invocation independently requires the exact controlled stdout marker, exit status 42 and the ordered selected calls on the expected trace destination; with -o the route file must be nonempty and stderr empty. Common checks and the individual requirement are recorded separately.",
       "requires": [
         "gcc",
         "python3"
@@ -213,7 +213,7 @@
         "assertions.json"
       ],
       "helpers_sha256": {
-        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+        "helpers/strace-exec-output-filter-reviewed.py": "baaeb6d1e5e85a23c9b6efe94ecf32ef54fa8314113668f5337adbb2ce2a4e15"
       }
     },
     {
@@ -227,7 +227,7 @@
         "strace/output-file-routing"
       ],
       "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
-      "comparison": "The tracer returns the independently observed status 42.",
+      "comparison": "The tracer returns the independently observed status 42. Every invocation independently requires the exact controlled stdout marker, exit status 42 and the ordered selected calls on the expected trace destination; with -o the route file must be nonempty and stderr empty. Common checks and the individual requirement are recorded separately.",
       "requires": [
         "gcc",
         "python3"
@@ -256,7 +256,7 @@
         "assertions.json"
       ],
       "helpers_sha256": {
-        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+        "helpers/strace-exec-output-filter-reviewed.py": "baaeb6d1e5e85a23c9b6efe94ecf32ef54fa8314113668f5337adbb2ce2a4e15"
       }
     },
     {
@@ -270,7 +270,7 @@
         "strace/syscall-filter"
       ],
       "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
-      "comparison": "Exactly one write and one openat record occur in order; all other records are excluded.",
+      "comparison": "Exactly one write and one openat record occur in order; all other records are excluded. Every invocation independently requires the exact controlled stdout marker, exit status 42 and the ordered selected calls on the expected trace destination; with -o the route file must be nonempty and stderr empty. Common checks and the individual requirement are recorded separately.",
       "requires": [
         "gcc",
         "python3"
@@ -299,7 +299,7 @@
         "assertions.json"
       ],
       "helpers_sha256": {
-        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+        "helpers/strace-exec-output-filter-reviewed.py": "baaeb6d1e5e85a23c9b6efe94ecf32ef54fa8314113668f5337adbb2ce2a4e15"
       }
     },
     {
@@ -313,7 +313,7 @@
         "strace/syscall-filter"
       ],
       "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
-      "comparison": "On x86_64 the numeric list selects exactly write (1) and openat (257), once each.",
+      "comparison": "On x86_64 the numeric list selects exactly write (1) and openat (257), once each. Every invocation independently requires the exact controlled stdout marker, exit status 42 and the ordered selected calls on the expected trace destination; with -o the route file must be nonempty and stderr empty. Common checks and the individual requirement are recorded separately.",
       "requires": [
         "gcc",
         "python3"
@@ -342,7 +342,7 @@
         "assertions.json"
       ],
       "helpers_sha256": {
-        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+        "helpers/strace-exec-output-filter-reviewed.py": "baaeb6d1e5e85a23c9b6efe94ecf32ef54fa8314113668f5337adbb2ce2a4e15"
       }
     },
     {
@@ -356,7 +356,7 @@
         "strace/syscall-filter"
       ],
       "oracle": "The guest-only helper compiles an x86_64 static nostdlib tracee that checks write returns 12 and openat returns -ENOENT before exit_group(42). Direct execution checks exact stdout, stderr, and status. An independent native ptrace observer checks the exact four syscall entries, returns, and child status. Parser positive and negative controls run before the candidate; any failed setup control is an ERROR. Raw compiler, direct, native, and candidate observations are retained.",
-      "comparison": "The trace contains only the known selected records; execve and exit_group must not occur.",
+      "comparison": "The trace contains only the known selected records; execve and exit_group must not occur. Every invocation independently requires the exact controlled stdout marker, exit status 42 and the ordered selected calls on the expected trace destination; with -o the route file must be nonempty and stderr empty. Common checks and the individual requirement are recorded separately.",
       "requires": [
         "gcc",
         "python3"
@@ -385,7 +385,7 @@
         "assertions.json"
       ],
       "helpers_sha256": {
-        "helpers/strace-exec-output-filter-reviewed.py": "4b6b9179248e249ef19eb50e25adbd1762760e773fa2570cbbcfb49123a217b9"
+        "helpers/strace-exec-output-filter-reviewed.py": "baaeb6d1e5e85a23c9b6efe94ecf32ef54fa8314113668f5337adbb2ce2a4e15"
       }
     }
   ]
