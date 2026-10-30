@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "status": "proposed-primary-data-only-gate",
+  "scope": "Offline DHCP respond observations only; no serve, run, packet routing, quarantine, release or UDP bind is established.",
+  "binding": [
+    "Bind each result to the selected case ID, mode, run ID, isolated guest identity and cleanup, frozen candidate SHA-256, suite digest and every pinned helper digest. Never combine unrelated runs or binaries.",
+    "All setup processes must complete with status zero, no runner error or stray process. Missing setup, failed controls, failed preflight or invalid identity make the observation UNQUALIFIED, regardless of the raw runner label.",
+    "Require every declared diagnostic to be present, untruncated and valid base64, and captured_bytes equal to decoded bytes. Retain their decoded hashes together with raw runner result and candidate process envelope. For hook.json only, absence is an observed candidate failure for commit/failure cases and expected for other modes; do not require it as a universal diagnostic.",
+    "Require control.json to have the matching mode, parser_control ok, exact fixture configuration, BOOTP request, XID, client identity, giaddr, message type and mode-specific options. Compare the packet input, config and preflight status to independent fixed case constants rather than candidate output. Any missing, malformed or inconsistent control is UNQUALIFIED.",
+    "Require the runner tree snapshot to contain request.hex and server.conf as complete regular files matching control.json exactly (hex input includes one trailing newline). Require fresh lease database state and expected fixed mode and bind all records to the same candidate invocation. A missing, corrupt or inconsistent setup tree is UNQUALIFIED.",
+    "For hook modes require a complete hook-control.json matching the fixed command, expected preflight exit and bounded output; the success/failing controls must establish their recording stub with a fixed control environment and clear the control record before the candidate. Missing or broken control is UNQUALIFIED.",
+    "For reached candidate execution require raw candidate status, stdout and stderr capture, with explicit completion and no capture truncation; compare raw shell status and verifier status record when present. Missing or corrupt infrastructure records are UNQUALIFIED. Complete malformed reply, nonzero candidate status, wrong packet or wrong/missing candidate hook data are OBSERVED-FAIL, not setup failures.",
+    "Independently decode the full response hex and DHCP option stream: require BOOTP reply, fixed transaction/client identity, cookie, complete end marker and unique well-formed options. Compare giaddr, offered address, mask, gateway and verbatim option 82 for relay cases; compare siaddr, option 66, option 67 and BOOTP file for matching PXE, plus exact suboption types and values including the length-prefixed boot-menu entry. Nonmatching vendor must omit options 43/66/67 and BOOTP file. Malformed packets and complete mismatches are OBSERVED-FAIL.",
+    "For hook-commit and hook-failure require ACTION=commit, MAC=02:00:00:00:00:11, IP=192.0.2.100, HOSTNAME=fixture-host and LEASE_TIME=3600 in a valid post-candidate hook record. Compare full decoded ACK reply bytes and exit status for hook-failure and hook-missing against a qualified hook-commit baseline with the same frozen build, request, lease configuration and fresh database; all must be identical. A missing matching qualified baseline leaves the comparison UNQUALIFIED. Failure/missing hook diagnostics may differ.",
+    "Only a complete correct candidate response and all applicable independent checks allow QUALIFIED-PASS. A verifier error after intact controls with no independently established product mismatch is UNQUALIFIED. Preserve valid complete product mismatches as OBSERVED-FAIL even if the verifier exits nonzero; never treat raw generic PASS/FAIL as a qualified verdict without applying this gate."
+  ],
+  "requirements": {
+    "dhcpd/relay-proxy-pxe:r1": "relay-a and relay-b proposals; no live relay routing",
+    "dhcpd/relay-proxy-pxe:r3": "relay-a and relay-b proposals; no live relay routing",
+    "dhcpd/relay-proxy-pxe:r5": "matching and nonmatching vendor offline options; negative siaddr behavior and live proxy are not assessed",
+    "dhcpd/decline-release-and-hook:r4": "offline commit hook environment proposal",
+    "dhcpd/decline-release-and-hook:r6": "commit, failure and missing-hook ACK comparison, qualified jointly"
+  },
+  "limits": "No result is claimed until independent peer review, isolated guest execution and primary application of this gate."
+}

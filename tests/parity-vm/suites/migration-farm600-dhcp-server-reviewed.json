@@ -1,0 +1,263 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-farm600-dhcp-server-reviewed-relay-a",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/relay-proxy-pxe"
+      ],
+      "purpose": "Relayed request selects the first configured subnet and echoes option 82.",
+      "oracle": "Independent fixed DHCP/BOOTP fields and option encodings; controlled guest-local hook where applicable. No server socket is opened.",
+      "comparison": "Offline response only. Apply the pinned primary-owned data-only gate to complete raw diagnostics; raw runner labels alone are not qualification. Hook failure and missing-hook cases also require a qualified same-build commit baseline.",
+      "requires": [
+        "python3",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-dhcp-server-reviewed.py": "58146cc91788d510837a4eed5eb851e6826766bf31ca762135650dceab285786",
+        "helpers/farm600-dhcp-server-reviewed.gate.json": "217257040bfcf501e8af1ab94c95c3bcb33b75113399da97f10602336dcdf742",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-dhcp-server-reviewed.py setup relay-a\n",
+      "setup_timeout": 20,
+      "script": "IFS= read -r request < request.hex\ndhcpd respond \"$request\" -c server.conf -l leases > \"$HOME/farm600-dhcp-server-reply.out\" 2> \"$HOME/farm600-dhcp-server-reply.err\"\nrc=$?\nprintf \"%s\\n\" \"$rc\" > \"$HOME/farm600-dhcp-server-status.raw\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-dhcp-server-reviewed.py verify relay-a \"$rc\"\n",
+      "diagnostic_files": [
+        "farm600-dhcp-server-control.json",
+        "farm600-dhcp-server-reply.out",
+        "farm600-dhcp-server-reply.err",
+        "farm600-dhcp-server-status.raw",
+        "farm600-dhcp-server-candidate-status.json"
+      ],
+      "expected_status": 0,
+      "stdout": "farm600-dhcp-server-relay-a-verified\n",
+      "stderr": "",
+      "timeout": 20
+    },
+    {
+      "id": "migration-farm600-dhcp-server-reviewed-relay-b",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/relay-proxy-pxe"
+      ],
+      "purpose": "A different relay address selects the second configured subnet and echoes option 82.",
+      "oracle": "Independent fixed DHCP/BOOTP fields and option encodings; controlled guest-local hook where applicable. No server socket is opened.",
+      "comparison": "Offline response only. Apply the pinned primary-owned data-only gate to complete raw diagnostics; raw runner labels alone are not qualification. Hook failure and missing-hook cases also require a qualified same-build commit baseline.",
+      "requires": [
+        "python3",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-dhcp-server-reviewed.py": "58146cc91788d510837a4eed5eb851e6826766bf31ca762135650dceab285786",
+        "helpers/farm600-dhcp-server-reviewed.gate.json": "217257040bfcf501e8af1ab94c95c3bcb33b75113399da97f10602336dcdf742",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-dhcp-server-reviewed.py setup relay-b\n",
+      "setup_timeout": 20,
+      "script": "IFS= read -r request < request.hex\ndhcpd respond \"$request\" -c server.conf -l leases > \"$HOME/farm600-dhcp-server-reply.out\" 2> \"$HOME/farm600-dhcp-server-reply.err\"\nrc=$?\nprintf \"%s\\n\" \"$rc\" > \"$HOME/farm600-dhcp-server-status.raw\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-dhcp-server-reviewed.py verify relay-b \"$rc\"\n",
+      "diagnostic_files": [
+        "farm600-dhcp-server-control.json",
+        "farm600-dhcp-server-reply.out",
+        "farm600-dhcp-server-reply.err",
+        "farm600-dhcp-server-status.raw",
+        "farm600-dhcp-server-candidate-status.json"
+      ],
+      "expected_status": 0,
+      "stdout": "farm600-dhcp-server-relay-b-verified\n",
+      "stderr": "",
+      "timeout": 20
+    },
+    {
+      "id": "migration-farm600-dhcp-server-reviewed-pxe-match",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/relay-proxy-pxe"
+      ],
+      "purpose": "A PXEClient request gets configured PXE boot fields and structured vendor options.",
+      "oracle": "Independent fixed DHCP/BOOTP fields and option encodings; controlled guest-local hook where applicable. No server socket is opened.",
+      "comparison": "Offline response only. Apply the pinned primary-owned data-only gate to complete raw diagnostics; raw runner labels alone are not qualification. Hook failure and missing-hook cases also require a qualified same-build commit baseline.",
+      "requires": [
+        "python3",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-dhcp-server-reviewed.py": "58146cc91788d510837a4eed5eb851e6826766bf31ca762135650dceab285786",
+        "helpers/farm600-dhcp-server-reviewed.gate.json": "217257040bfcf501e8af1ab94c95c3bcb33b75113399da97f10602336dcdf742",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-dhcp-server-reviewed.py setup pxe-match\n",
+      "setup_timeout": 20,
+      "script": "IFS= read -r request < request.hex\ndhcpd respond \"$request\" -c server.conf -l leases > \"$HOME/farm600-dhcp-server-reply.out\" 2> \"$HOME/farm600-dhcp-server-reply.err\"\nrc=$?\nprintf \"%s\\n\" \"$rc\" > \"$HOME/farm600-dhcp-server-status.raw\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-dhcp-server-reviewed.py verify pxe-match \"$rc\"\n",
+      "diagnostic_files": [
+        "farm600-dhcp-server-control.json",
+        "farm600-dhcp-server-reply.out",
+        "farm600-dhcp-server-reply.err",
+        "farm600-dhcp-server-status.raw",
+        "farm600-dhcp-server-candidate-status.json"
+      ],
+      "expected_status": 0,
+      "stdout": "farm600-dhcp-server-pxe-match-verified\n",
+      "stderr": "",
+      "timeout": 20
+    },
+    {
+      "id": "migration-farm600-dhcp-server-reviewed-pxe-other",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/relay-proxy-pxe"
+      ],
+      "purpose": "A nonmatching vendor does not receive the gated PXE options or BOOTP file.",
+      "oracle": "Independent fixed DHCP/BOOTP fields and option encodings; controlled guest-local hook where applicable. No server socket is opened.",
+      "comparison": "Offline response only. Apply the pinned primary-owned data-only gate to complete raw diagnostics; raw runner labels alone are not qualification. Hook failure and missing-hook cases also require a qualified same-build commit baseline.",
+      "requires": [
+        "python3",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-dhcp-server-reviewed.py": "58146cc91788d510837a4eed5eb851e6826766bf31ca762135650dceab285786",
+        "helpers/farm600-dhcp-server-reviewed.gate.json": "217257040bfcf501e8af1ab94c95c3bcb33b75113399da97f10602336dcdf742",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-dhcp-server-reviewed.py setup pxe-other\n",
+      "setup_timeout": 20,
+      "script": "IFS= read -r request < request.hex\ndhcpd respond \"$request\" -c server.conf -l leases > \"$HOME/farm600-dhcp-server-reply.out\" 2> \"$HOME/farm600-dhcp-server-reply.err\"\nrc=$?\nprintf \"%s\\n\" \"$rc\" > \"$HOME/farm600-dhcp-server-status.raw\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-dhcp-server-reviewed.py verify pxe-other \"$rc\"\n",
+      "diagnostic_files": [
+        "farm600-dhcp-server-control.json",
+        "farm600-dhcp-server-reply.out",
+        "farm600-dhcp-server-reply.err",
+        "farm600-dhcp-server-status.raw",
+        "farm600-dhcp-server-candidate-status.json"
+      ],
+      "expected_status": 0,
+      "stdout": "farm600-dhcp-server-pxe-other-verified\n",
+      "stderr": "",
+      "timeout": 20
+    },
+    {
+      "id": "migration-farm600-dhcp-server-reviewed-hook-commit",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/decline-release-and-hook"
+      ],
+      "purpose": "A REQUEST commit invokes the bounded hook with the expected environment.",
+      "oracle": "Independent fixed DHCP/BOOTP fields and option encodings; controlled guest-local hook where applicable. No server socket is opened.",
+      "comparison": "Offline response only. Apply the pinned primary-owned data-only gate to complete raw diagnostics; raw runner labels alone are not qualification. Hook failure and missing-hook cases also require a qualified same-build commit baseline.",
+      "requires": [
+        "python3",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-dhcp-server-reviewed.py": "58146cc91788d510837a4eed5eb851e6826766bf31ca762135650dceab285786",
+        "helpers/farm600-dhcp-server-reviewed.gate.json": "217257040bfcf501e8af1ab94c95c3bcb33b75113399da97f10602336dcdf742",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-dhcp-server-reviewed.py setup hook-commit\n",
+      "setup_timeout": 20,
+      "script": "IFS= read -r request < request.hex\ndhcpd respond \"$request\" -c server.conf -l leases > \"$HOME/farm600-dhcp-server-reply.out\" 2> \"$HOME/farm600-dhcp-server-reply.err\"\nrc=$?\nprintf \"%s\\n\" \"$rc\" > \"$HOME/farm600-dhcp-server-status.raw\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-dhcp-server-reviewed.py verify hook-commit \"$rc\"\n",
+      "diagnostic_files": [
+        "farm600-dhcp-server-control.json",
+        "farm600-dhcp-server-reply.out",
+        "farm600-dhcp-server-reply.err",
+        "farm600-dhcp-server-status.raw",
+        "farm600-dhcp-server-candidate-status.json",
+        "farm600-dhcp-server-hook-control.json",
+        "farm600-dhcp-server-hook.json"
+      ],
+      "expected_status": 0,
+      "stdout": "farm600-dhcp-server-hook-commit-verified\n",
+      "stderr": "",
+      "timeout": 20
+    },
+    {
+      "id": "migration-farm600-dhcp-server-reviewed-hook-failure",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/decline-release-and-hook"
+      ],
+      "purpose": "A hook that records and exits nonzero does not alter the reply.",
+      "oracle": "Independent fixed DHCP/BOOTP fields and option encodings; controlled guest-local hook where applicable. No server socket is opened.",
+      "comparison": "Offline response only. Apply the pinned primary-owned data-only gate to complete raw diagnostics; raw runner labels alone are not qualification. Hook failure and missing-hook cases also require a qualified same-build commit baseline.",
+      "requires": [
+        "python3",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-dhcp-server-reviewed.py": "58146cc91788d510837a4eed5eb851e6826766bf31ca762135650dceab285786",
+        "helpers/farm600-dhcp-server-reviewed.gate.json": "217257040bfcf501e8af1ab94c95c3bcb33b75113399da97f10602336dcdf742",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-dhcp-server-reviewed.py setup hook-failure\n",
+      "setup_timeout": 20,
+      "script": "IFS= read -r request < request.hex\ndhcpd respond \"$request\" -c server.conf -l leases > \"$HOME/farm600-dhcp-server-reply.out\" 2> \"$HOME/farm600-dhcp-server-reply.err\"\nrc=$?\nprintf \"%s\\n\" \"$rc\" > \"$HOME/farm600-dhcp-server-status.raw\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-dhcp-server-reviewed.py verify hook-failure \"$rc\"\n",
+      "diagnostic_files": [
+        "farm600-dhcp-server-control.json",
+        "farm600-dhcp-server-reply.out",
+        "farm600-dhcp-server-reply.err",
+        "farm600-dhcp-server-status.raw",
+        "farm600-dhcp-server-candidate-status.json",
+        "farm600-dhcp-server-hook-control.json",
+        "farm600-dhcp-server-hook.json"
+      ],
+      "expected_status": 0,
+      "stdout": "farm600-dhcp-server-hook-failure-verified\n",
+      "stderr": "",
+      "timeout": 20
+    },
+    {
+      "id": "migration-farm600-dhcp-server-reviewed-hook-missing",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/decline-release-and-hook"
+      ],
+      "purpose": "A missing hook does not alter the reply.",
+      "oracle": "Independent fixed DHCP/BOOTP fields and option encodings; controlled guest-local hook where applicable. No server socket is opened.",
+      "comparison": "Offline response only. Apply the pinned primary-owned data-only gate to complete raw diagnostics; raw runner labels alone are not qualification. Hook failure and missing-hook cases also require a qualified same-build commit baseline.",
+      "requires": [
+        "python3",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-dhcp-server-reviewed.py": "58146cc91788d510837a4eed5eb851e6826766bf31ca762135650dceab285786",
+        "helpers/farm600-dhcp-server-reviewed.gate.json": "217257040bfcf501e8af1ab94c95c3bcb33b75113399da97f10602336dcdf742",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-dhcp-server-reviewed.py setup hook-missing\n",
+      "setup_timeout": 20,
+      "script": "IFS= read -r request < request.hex\ndhcpd respond \"$request\" -c server.conf -l leases > \"$HOME/farm600-dhcp-server-reply.out\" 2> \"$HOME/farm600-dhcp-server-reply.err\"\nrc=$?\nprintf \"%s\\n\" \"$rc\" > \"$HOME/farm600-dhcp-server-status.raw\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-dhcp-server-reviewed.py verify hook-missing \"$rc\"\n",
+      "diagnostic_files": [
+        "farm600-dhcp-server-control.json",
+        "farm600-dhcp-server-reply.out",
+        "farm600-dhcp-server-reply.err",
+        "farm600-dhcp-server-status.raw",
+        "farm600-dhcp-server-candidate-status.json",
+        "farm600-dhcp-server-hook-control.json",
+        "farm600-dhcp-server-hook.json"
+      ],
+      "expected_status": 0,
+      "stdout": "farm600-dhcp-server-hook-missing-verified\n",
+      "stderr": "",
+      "timeout": 20
+    }
+  ]
+}
