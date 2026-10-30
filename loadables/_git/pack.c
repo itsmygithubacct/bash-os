@@ -904,6 +904,272 @@ bgit_pack_read_object_at (const unsigned char *pack, size_t plen,
     return -1;
 }
 
+/* A pack past 2 GiB is never one buffer. These reads take the bytes an
+   object header, a delta base, or a zlib stream actually use. */
+struct bgit_pack_fd {
+    int fd;
+    uint64_t size;
+};
+
+static int
+bgit_pack_pread (const struct bgit_pack_fd *src, uint64_t off,
+                 void *buf, size_t n)
+{
+    unsigned char *out = buf;
+    size_t got = 0;
+    if (n == 0) return 0;
+    if (off > src->size || n > src->size - off) {
+        errno = EIO;
+        return -1;
+    }
+    while (got < n) {
+        uint64_t at = off + got;
+        off_t pos = (off_t) at;
+        if (pos < 0 || (uint64_t) pos != at) {
+            errno = EOVERFLOW;
+            return -1;
+        }
+        ssize_t r = pread (src->fd, out + got, n - got, pos);
+        if (r < 0) {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+        if (r == 0) {
+            errno = EIO;
+            return -1;
+        }
+        got += (size_t) r;
+    }
+    return 0;
+}
+
+static int
+bgit_pack_fd_header (const struct bgit_pack_fd *src, uint64_t off,
+                     int *type, uint64_t *size_out, uint64_t *data_off)
+{
+    unsigned char buf[10];
+    uint64_t rel = 0;
+    size_t n;
+    if (off >= src->size) return -1;
+    n = src->size - off > sizeof buf ? sizeof buf : (size_t) (src->size - off);
+    if (bgit_pack_pread (src, off, buf, n) < 0) return -1;
+    if (bgit_pack_read_obj_header (buf, n, 0, type, size_out, &rel) < 0)
+        return -1;
+    if (rel > UINT64_MAX - off) return -1;
+    *data_off = off + rel;
+    return 0;
+}
+
+/* Inflate the zlib stream at OFF. EXPECTED is the size the pack header
+   claimed. Input is capped a little above that size: a valid deflate
+   stream is only slightly larger than its output, and a corrupt stream
+   must not be followed to the end of a multi-gigabyte pack. */
+static int
+bgit_pack_inflate_fd (const struct bgit_pack_fd *src, uint64_t off,
+                      uint64_t expected, unsigned char **out, size_t *out_len)
+{
+    z_stream s = {0};
+    unsigned char *in = NULL, *buf = NULL;
+    size_t total = 0, cap, limit;
+    uint64_t consumed = 0, in_limit;
+    int zrc = Z_OK;
+    if (off > src->size || expected > SIZE_MAX - 64) return -1;
+    if (expected > UINT64_MAX / 2) return -1;
+    limit = (size_t) expected + 64;
+    if (limit < 64) limit = 64;
+    in_limit = expected + expected / 8 + (uint64_t) 1024 * 1024;
+    if (inflateInit (&s) != Z_OK) return -1;
+    in = malloc (65536);
+    cap = limit < 65536 ? limit : 65536;
+    buf = in ? malloc (cap ? cap : 1) : NULL;
+    if (!in || !buf) {
+        free (in);
+        free (buf);
+        inflateEnd (&s);
+        return -1;
+    }
+    while (zrc != Z_STREAM_END) {
+        if (total == cap) {
+            size_t nc;
+            unsigned char *nb;
+            if (cap >= limit) goto fail;
+            nc = cap > (SIZE_MAX - 4096) / 2 ? limit : cap * 2 + 4096;
+            if (nc > limit) nc = limit;
+            if (nc <= cap) goto fail;
+            nb = realloc (buf, nc);
+            if (!nb) goto fail;
+            buf = nb;
+            cap = nc;
+        }
+        if (s.avail_in == 0) {
+            uint64_t room, allow;
+            size_t chunk;
+            if (consumed >= in_limit || off >= src->size) goto fail;
+            room = src->size - off;
+            allow = in_limit - consumed;
+            if (room > allow) room = allow;
+            chunk = room > 65536 ? 65536 : (size_t) room;
+            if (chunk == 0 || bgit_pack_pread (src, off, in, chunk) < 0)
+                goto fail;
+            s.next_in = in;
+            s.avail_in = (uInt) chunk;
+            off += chunk;
+            consumed += chunk;
+        }
+        {
+            size_t output = cap - total;
+            uInt available_in, available_out;
+            size_t wrote;
+            s.next_out = buf + total;
+            s.avail_out = output > UINT_MAX ? UINT_MAX : (uInt) output;
+            available_in = s.avail_in;
+            available_out = s.avail_out;
+            zrc = inflate (&s, Z_NO_FLUSH);
+            wrote = available_out - s.avail_out;
+            total += wrote;
+            if (zrc == Z_STREAM_END) break;
+            if (zrc != Z_OK && zrc != Z_BUF_ERROR) goto fail;
+            if (wrote == 0 && s.avail_in == available_in && s.avail_in > 0)
+                goto fail;
+        }
+    }
+    free (in);
+    inflateEnd (&s);
+    *out = buf;
+    *out_len = total;
+    return 0;
+fail:
+    free (in);
+    free (buf);
+    inflateEnd (&s);
+    return -1;
+}
+
+static int
+bgit_pack_read_fd_at (const struct bgit_pack_fd *src,
+                      const unsigned char *idx, size_t ilen, const char *repo,
+                      uint64_t off, int *type_out, unsigned char **out,
+                      size_t *out_len, int depth)
+{
+    int type;
+    uint64_t expected, cur;
+    if (depth > BGIT_PACK_MAX_DELTA_DEPTH) return -1;
+    if (bgit_pack_fd_header (src, off, &type, &expected, &cur) < 0)
+        return -1;
+    if (type == BGIT_PACK_COMMIT || type == BGIT_PACK_TREE ||
+        type == BGIT_PACK_BLOB || type == BGIT_PACK_TAG) {
+        if (bgit_pack_inflate_fd (src, cur, expected, out, out_len) < 0)
+            return -1;
+        if ((uint64_t) *out_len != expected) {
+            free (*out);
+            *out = NULL;
+            return -1;
+        }
+        *type_out = type;
+        return 0;
+    }
+    if (type == BGIT_PACK_OFS_DELTA) {
+        unsigned char b;
+        uint64_t base_off_delta, base_off;
+        int iters = 0;
+        unsigned char *delta = NULL;
+        size_t dlen = 0;
+        int base_type;
+        unsigned char *base = NULL;
+        size_t base_len = 0;
+        int rc;
+        if (cur >= src->size || bgit_pack_pread (src, cur, &b, 1) < 0)
+            return -1;
+        cur++;
+        base_off_delta = b & 0x7F;
+        while (b & 0x80) {
+            unsigned char next;
+            if (cur >= src->size) return -1;
+            if (iters >= 9) return -1;
+            if (base_off_delta >= (UINT64_MAX >> 7)) return -1;
+            if (bgit_pack_pread (src, cur, &next, 1) < 0) return -1;
+            base_off_delta = ((base_off_delta + 1) << 7) | (next & 0x7F);
+            b = next;
+            cur++;
+            iters++;
+        }
+        if (base_off_delta == 0 || base_off_delta > off) return -1;
+        base_off = off - base_off_delta;
+        if (bgit_pack_inflate_fd (src, cur, expected, &delta, &dlen) < 0)
+            return -1;
+        if ((uint64_t) dlen != expected) {
+            free (delta);
+            return -1;
+        }
+        if (bgit_pack_read_fd_at (src, idx, ilen, repo, base_off, &base_type,
+                                  &base, &base_len, depth + 1) < 0) {
+            free (delta);
+            return -1;
+        }
+        rc = bgit_pack_apply_delta (base, base_len, delta, dlen, out, out_len);
+        free (delta);
+        free (base);
+        if (rc < 0) return -1;
+        *type_out = base_type;
+        return 0;
+    }
+    if (type == BGIT_PACK_REF_DELTA) {
+        unsigned char base_sha[20];
+        unsigned char *delta = NULL;
+        size_t dlen = 0;
+        uint64_t base_off;
+        unsigned char *base = NULL;
+        size_t base_len = 0;
+        int base_type, rc;
+        if (cur > src->size || src->size - cur < 20) return -1;
+        if (bgit_pack_pread (src, cur, base_sha, 20) < 0) return -1;
+        cur += 20;
+        if (bgit_pack_inflate_fd (src, cur, expected, &delta, &dlen) < 0)
+            return -1;
+        if ((uint64_t) dlen != expected) {
+            free (delta);
+            return -1;
+        }
+        base_off = bgit_pack_lookup_offset (idx, ilen, base_sha);
+        if (base_off != (uint64_t) -1) {
+            if (bgit_pack_read_fd_at (src, idx, ilen, repo, base_off,
+                                      &base_type, &base, &base_len,
+                                      depth + 1) < 0) {
+                free (delta);
+                return -1;
+            }
+        } else {
+            char hex[41];
+            bgit_sha_to_hex (base_sha, hex);
+            if (bgit_pack_read_loose (repo ? repo : ".", hex, &base_type,
+                                      &base, &base_len) < 0) {
+                free (delta);
+                return -1;
+            }
+        }
+        rc = bgit_pack_apply_delta (base, base_len, delta, dlen, out, out_len);
+        free (delta);
+        free (base);
+        if (rc < 0) return -1;
+        *type_out = base_type;
+        return 0;
+    }
+    return -1;
+}
+
+int
+bgit_pack_read_object_fd (int fd, uint64_t pack_size,
+                          const unsigned char *idx, size_t ilen,
+                          const char *repo, uint64_t off, int *type_out,
+                          unsigned char **out, size_t *out_len, int depth)
+{
+    struct bgit_pack_fd src;
+    src.fd = fd;
+    src.size = pack_size;
+    return bgit_pack_read_fd_at (&src, idx, ilen, repo, off, type_out, out,
+                                 out_len, depth);
+}
+
 /* Encode a pack object header byte stream.  Format:
  *   first byte: cont(1) | type(3) | size_low4(4)
  *   subsequent: cont(1) | size_next7(7)   (LSB-first)

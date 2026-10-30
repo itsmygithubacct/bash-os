@@ -37,6 +37,7 @@
 #include <string.h>
 #include <strings.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <stdint.h>
 #include <sys/stat.h>
@@ -117,6 +118,155 @@ bp_list_objects_cmd (WORD_LIST *args)
     return EXECUTION_SUCCESS;
 }
 
+/* Exact pread. An offset that does not fit in off_t is refused rather
+   than truncated. */
+static int
+bp_pread_exact (int fd, uint64_t off, void *buf, size_t n)
+{
+    unsigned char *out = buf;
+    size_t got = 0;
+    while (got < n) {
+        uint64_t at = off + got;
+        off_t pos = (off_t) at;
+        if (pos < 0 || (uint64_t) pos != at) {
+            errno = EOVERFLOW;
+            return -1;
+        }
+        ssize_t r = pread (fd, out + got, n - got, pos);
+        if (r < 0) {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+        if (r == 0) {
+            errno = EIO;
+            return -1;
+        }
+        got += (size_t) r;
+    }
+    return 0;
+}
+
+/* pack cat of a pack that reaches offset 0x80000000. The buffered path
+   mallocs the whole file, so an object at that offset never gets decoded.
+   This path checks the same header, trailer, and idx, then reads the
+   object by seek. IDX is freed here. */
+static int
+bp_cat_large (const char *pack_path, unsigned char *idx, size_t ilen,
+              const unsigned char sha[20], const char *sha_hex,
+              const char *repo)
+{
+    int fd = open (pack_path, O_RDONLY);
+    struct stat st;
+    uint64_t plen;
+    unsigned char head[12], trailer[20], pack_sha[20];
+    uint32_t pack_ver;
+    uint64_t off;
+    int type, saved;
+    unsigned char *content = NULL;
+    size_t clen = 0;
+    if (fd < 0) {
+        saved = errno;
+        free (idx);
+        builtin_error ("read %s: %s", pack_path, strerror (saved));
+        return EXECUTION_FAILURE;
+    }
+    if (fstat (fd, &st) < 0) {
+        saved = errno;
+        close (fd);
+        free (idx);
+        builtin_error ("read %s: %s", pack_path, strerror (saved));
+        return EXECUTION_FAILURE;
+    }
+    if (st.st_size < 0) {
+        close (fd);
+        free (idx);
+        builtin_error ("read %s: %s", pack_path, strerror (EINVAL));
+        return EXECUTION_FAILURE;
+    }
+    plen = (uint64_t) st.st_size;
+    if (plen < 32) {
+        close (fd);
+        free (idx);
+        builtin_error ("cat: not a packfile");
+        return EXECUTION_FAILURE;
+    }
+    if (bp_pread_exact (fd, 0, head, 12) < 0) {
+        saved = errno;
+        close (fd);
+        free (idx);
+        builtin_error ("read %s: %s", pack_path, strerror (saved));
+        return EXECUTION_FAILURE;
+    }
+    if (memcmp (head, "PACK", 4) != 0) {
+        close (fd);
+        free (idx);
+        builtin_error ("cat: not a packfile");
+        return EXECUTION_FAILURE;
+    }
+    pack_ver = bgit_pack_be32 (head + 4);
+    if (pack_ver != 2 && pack_ver != 3) {
+        close (fd);
+        free (idx);
+        builtin_error ("cat: unsupported pack version %u", pack_ver);
+        return EXECUTION_FAILURE;
+    }
+    if (plen < 40) {
+        close (fd);
+        free (idx);
+        builtin_error ("cat: too short (no trailer)");
+        return EXECUTION_FAILURE;
+    }
+    errno = 0;
+    if (bgit_sha1_fd (fd, plen - 20, pack_sha) < 0) {
+        saved = errno;
+        close (fd);
+        free (idx);
+        if (saved)
+            builtin_error ("read %s: %s", pack_path, strerror (saved));
+        else
+            builtin_error ("cat: SHA-1 init failed");
+        return EXECUTION_FAILURE;
+    }
+    if (bp_pread_exact (fd, plen - 20, trailer, 20) < 0) {
+        saved = errno;
+        close (fd);
+        free (idx);
+        builtin_error ("read %s: %s", pack_path, strerror (saved));
+        return EXECUTION_FAILURE;
+    }
+    if (memcmp (pack_sha, trailer, 20) != 0) {
+        close (fd);
+        free (idx);
+        builtin_error ("cat: packfile SHA-1 mismatch (corrupt)");
+        return EXECUTION_FAILURE;
+    }
+    if (bgit_pack_verify_idx (idx, ilen, trailer) < 0) {
+        close (fd);
+        free (idx);
+        return EXECUTION_FAILURE;
+    }
+    off = bgit_pack_lookup_offset (idx, ilen, sha);
+    if (off == (uint64_t) -1) {
+        close (fd);
+        free (idx);
+        builtin_error ("cat: %s not in idx", sha_hex);
+        return EXECUTION_FAILURE;
+    }
+    if (bgit_pack_read_object_fd (fd, plen, idx, ilen, repo, off, &type,
+                                  &content, &clen, 0) < 0) {
+        close (fd);
+        free (idx);
+        builtin_error ("cat: read failed for %s", sha_hex);
+        return EXECUTION_FAILURE;
+    }
+    fwrite (content, 1, clen, stdout);
+    free (content);
+    free (idx);
+    close (fd);
+    (void) type;
+    return EXECUTION_SUCCESS;
+}
+
 /* --- cat verb ---------------------------------------------------------- */
 static int
 bp_cat_cmd (WORD_LIST *args)
@@ -139,6 +289,15 @@ bp_cat_cmd (WORD_LIST *args)
     size_t ilen, plen;
     unsigned char *idx = bgit_pack_slurp (idx_path, &ilen);
     if (!idx) { builtin_error ("read %s: %s", idx_path, strerror (errno)); return EXECUTION_FAILURE; }
+    /* Offset 0x80000000 is past a 2 GiB pack. Loading that file to decode
+       one object is the failure pack/large-offset-deferred r2 names. */
+    {
+        struct stat pack_st;
+        if (stat (pack_path, &pack_st) == 0 && S_ISREG (pack_st.st_mode) &&
+            pack_st.st_size >= 0 &&
+            (uint64_t) pack_st.st_size >= 0x80000000ULL)
+            return bp_cat_large (pack_path, idx, ilen, sha, sha_hex, repo);
+    }
     unsigned char *pack = bgit_pack_slurp (pack_path, &plen);
     if (!pack) { free (idx); builtin_error ("read %s: %s", pack_path, strerror (errno)); return EXECUTION_FAILURE; }
     if (plen < 32 || memcmp (pack, "PACK", 4) != 0) {

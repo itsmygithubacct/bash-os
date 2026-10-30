@@ -115,6 +115,14 @@ int bgit_pack_read_object_at (const unsigned char *pack, size_t plen,
                               const char *repo, uint64_t off, int *type_out,
                               unsigned char **out, size_t *out_len, int depth);
 
+/* Same decode as bgit_pack_read_object_at, reading PACK_SIZE bytes from FD
+   at the offsets the object needs. The pack is not held in one buffer.
+   Caller frees *out. Silent. */
+int bgit_pack_read_object_fd (int fd, uint64_t pack_size,
+                              const unsigned char *idx, size_t ilen,
+                              const char *repo, uint64_t off, int *type_out,
+                              unsigned char **out, size_t *out_len, int depth);
+
 /* Encode an object's type and size header. OUT needs at least 16 bytes. */
 void bgit_pack_encode_obj_header (int type, size_t size, unsigned char *out,
                                   size_t *out_len);

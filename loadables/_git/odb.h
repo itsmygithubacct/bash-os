@@ -53,6 +53,11 @@ long bgit_parse_header (const unsigned char *data, size_t len,
    refuse to write the object. Silent. */
 int bgit_sha1 (const unsigned char *data, size_t n, unsigned char digest[20]);
 
+/* Hash the first N bytes of FD, from offset 0. Same digest and collision
+   result as bgit_sha1 over those bytes. Silent. The file position is left
+   where it was. */
+int bgit_sha1_fd (int fd, unsigned long long n, unsigned char digest[20]);
+
 /* Deflate DATA into a malloc'd buffer. Caller frees *out. Silent. */
 int bgit_deflate (const unsigned char *data, size_t n,
                   unsigned char **out, size_t *out_len);

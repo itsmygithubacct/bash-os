@@ -152,6 +152,37 @@ bgit_sha1 (const unsigned char *data, size_t n, unsigned char digest[20])
 }
 
 int
+bgit_sha1_fd (int fd, unsigned long long n, unsigned char digest[20])
+{
+    SHA1_CTX ctx;
+    SHA1DCInit (&ctx);
+    SHA1DCSetSafeHash (&ctx, 0);
+    unsigned char buf[65536];
+    unsigned long long off = 0;
+    while (off < n) {
+        unsigned long long left = n - off;
+        size_t chunk = left > sizeof buf ? sizeof buf : (size_t) left;
+        off_t pos = (off_t) off;
+        if (pos < 0 || (unsigned long long) pos != off) {
+            errno = EOVERFLOW;
+            return -1;
+        }
+        ssize_t r = pread (fd, buf, chunk, pos);
+        if (r < 0) {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+        if (r == 0) {
+            errno = EIO;
+            return -1;
+        }
+        SHA1DCUpdate (&ctx, (const char *) buf, (size_t) r);
+        off += (unsigned long long) r;
+    }
+    return SHA1DCFinal (digest, &ctx) == 0 ? 0 : -1;
+}
+
+int
 bgit_deflate (const unsigned char *data, size_t n,
               unsigned char **out, size_t *out_len)
 {
