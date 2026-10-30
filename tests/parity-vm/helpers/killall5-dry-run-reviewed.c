@@ -75,6 +75,11 @@ static int confine(void) {
         if (allow_path(rs, dirs[i], LL_READ_FILE | LL_READ_DIR)) goto fail;
     for (size_t i = 0; i < sizeof files / sizeof files[0]; i++)
         if (allow_path(rs, files[i], LL_READ_FILE)) goto fail;
+    /* The nonleader case must independently read its live session leader. */
+    char leader[80];
+    pid_t sid = getsid(0);
+    if (sid <= 0 || snprintf(leader, sizeof leader, "/proc/%ld/stat", (long)sid) >= (int)sizeof leader ||
+        allow_path(rs, leader, LL_READ_FILE)) goto fail;
     if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) || syscall(446, rs, 0)) goto fail;
     close(rs);
     return 0;

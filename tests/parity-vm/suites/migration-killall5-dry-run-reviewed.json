@@ -46,9 +46,9 @@
         "race.status"
       ],
       "helpers_sha256": {
-        "helpers/killall5-dry-run-reviewed.py": "7ae56289a4d954a829051f7fd815430e77c59847429e0c82666253203990e97a",
-        "helpers/killall5-dry-run-reviewed.c": "a6c7797370ad83128c8033bddec4bf7b284f0481a0e71edf979eeb19fa37fca9",
-        "helpers/killall5-dry-run-reviewed-gate.json": "7f64d9cb6646e6830c943ef064b9345cf124a1eca5d1dfe0af714650c47b9abe"
+        "helpers/killall5-dry-run-reviewed.py": "e357996464822ae1ed8e439e7cf27cc6256e7337e2f7e798e17ccfd4073e9e7b",
+        "helpers/killall5-dry-run-reviewed.c": "5458362e9b4360a5ba45f705a32cdc9fb67037b44d718af120b837378b7cde2d",
+        "helpers/killall5-dry-run-reviewed-gate.json": "f98548944e246cd1d5745208122ff72760de431d9c8b9c4455704b3fe3af1dc6"
       }
     },
     {
@@ -96,9 +96,9 @@
         "race.status"
       ],
       "helpers_sha256": {
-        "helpers/killall5-dry-run-reviewed.py": "7ae56289a4d954a829051f7fd815430e77c59847429e0c82666253203990e97a",
-        "helpers/killall5-dry-run-reviewed.c": "a6c7797370ad83128c8033bddec4bf7b284f0481a0e71edf979eeb19fa37fca9",
-        "helpers/killall5-dry-run-reviewed-gate.json": "7f64d9cb6646e6830c943ef064b9345cf124a1eca5d1dfe0af714650c47b9abe"
+        "helpers/killall5-dry-run-reviewed.py": "e357996464822ae1ed8e439e7cf27cc6256e7337e2f7e798e17ccfd4073e9e7b",
+        "helpers/killall5-dry-run-reviewed.c": "5458362e9b4360a5ba45f705a32cdc9fb67037b44d718af120b837378b7cde2d",
+        "helpers/killall5-dry-run-reviewed-gate.json": "f98548944e246cd1d5745208122ff72760de431d9c8b9c4455704b3fe3af1dc6"
       }
     },
     {
@@ -146,9 +146,9 @@
         "race.status"
       ],
       "helpers_sha256": {
-        "helpers/killall5-dry-run-reviewed.py": "7ae56289a4d954a829051f7fd815430e77c59847429e0c82666253203990e97a",
-        "helpers/killall5-dry-run-reviewed.c": "a6c7797370ad83128c8033bddec4bf7b284f0481a0e71edf979eeb19fa37fca9",
-        "helpers/killall5-dry-run-reviewed-gate.json": "7f64d9cb6646e6830c943ef064b9345cf124a1eca5d1dfe0af714650c47b9abe"
+        "helpers/killall5-dry-run-reviewed.py": "e357996464822ae1ed8e439e7cf27cc6256e7337e2f7e798e17ccfd4073e9e7b",
+        "helpers/killall5-dry-run-reviewed.c": "5458362e9b4360a5ba45f705a32cdc9fb67037b44d718af120b837378b7cde2d",
+        "helpers/killall5-dry-run-reviewed-gate.json": "f98548944e246cd1d5745208122ff72760de431d9c8b9c4455704b3fe3af1dc6"
       }
     },
     {
@@ -196,9 +196,9 @@
         "race.status"
       ],
       "helpers_sha256": {
-        "helpers/killall5-dry-run-reviewed.py": "7ae56289a4d954a829051f7fd815430e77c59847429e0c82666253203990e97a",
-        "helpers/killall5-dry-run-reviewed.c": "a6c7797370ad83128c8033bddec4bf7b284f0481a0e71edf979eeb19fa37fca9",
-        "helpers/killall5-dry-run-reviewed-gate.json": "7f64d9cb6646e6830c943ef064b9345cf124a1eca5d1dfe0af714650c47b9abe"
+        "helpers/killall5-dry-run-reviewed.py": "e357996464822ae1ed8e439e7cf27cc6256e7337e2f7e798e17ccfd4073e9e7b",
+        "helpers/killall5-dry-run-reviewed.c": "5458362e9b4360a5ba45f705a32cdc9fb67037b44d718af120b837378b7cde2d",
+        "helpers/killall5-dry-run-reviewed-gate.json": "f98548944e246cd1d5745208122ff72760de431d9c8b9c4455704b3fe3af1dc6"
       }
     },
     {
@@ -246,9 +246,9 @@
         "race.status"
       ],
       "helpers_sha256": {
-        "helpers/killall5-dry-run-reviewed.py": "7ae56289a4d954a829051f7fd815430e77c59847429e0c82666253203990e97a",
-        "helpers/killall5-dry-run-reviewed.c": "a6c7797370ad83128c8033bddec4bf7b284f0481a0e71edf979eeb19fa37fca9",
-        "helpers/killall5-dry-run-reviewed-gate.json": "7f64d9cb6646e6830c943ef064b9345cf124a1eca5d1dfe0af714650c47b9abe"
+        "helpers/killall5-dry-run-reviewed.py": "e357996464822ae1ed8e439e7cf27cc6256e7337e2f7e798e17ccfd4073e9e7b",
+        "helpers/killall5-dry-run-reviewed.c": "5458362e9b4360a5ba45f705a32cdc9fb67037b44d718af120b837378b7cde2d",
+        "helpers/killall5-dry-run-reviewed-gate.json": "f98548944e246cd1d5745208122ff72760de431d9c8b9c4455704b3fe3af1dc6"
       }
     },
     {
@@ -296,9 +296,59 @@
         "race.status"
       ],
       "helpers_sha256": {
-        "helpers/killall5-dry-run-reviewed.py": "7ae56289a4d954a829051f7fd815430e77c59847429e0c82666253203990e97a",
-        "helpers/killall5-dry-run-reviewed.c": "a6c7797370ad83128c8033bddec4bf7b284f0481a0e71edf979eeb19fa37fca9",
-        "helpers/killall5-dry-run-reviewed-gate.json": "7f64d9cb6646e6830c943ef064b9345cf124a1eca5d1dfe0af714650c47b9abe"
+        "helpers/killall5-dry-run-reviewed.py": "e357996464822ae1ed8e439e7cf27cc6256e7337e2f7e798e17ccfd4073e9e7b",
+        "helpers/killall5-dry-run-reviewed.c": "5458362e9b4360a5ba45f705a32cdc9fb67037b44d718af120b837378b7cde2d",
+        "helpers/killall5-dry-run-reviewed-gate.json": "f98548944e246cd1d5745208122ff72760de431d9c8b9c4455704b3fe3af1dc6"
+      }
+    },
+    {
+      "id": "migration-killall5-dry-run-reviewed-nonleader",
+      "loadable": "killall5",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Exclude the caller session and self when the guarded caller is a nonleader and its visible session leader remains alive.",
+      "covers": [
+        "killall5/dry_run_selection"
+      ],
+      "oracle": "A separate guest setup control checks a live visible session leader and distinct nonleader in a private PID/proc namespace. The nonleader candidate runs under the existing signal and filesystem guards while its session-leader shell waits. Before its observation, independent getsid calls, both live proc stat records and PID namespace links establish positive SID = leader PID != caller PID. Synthetic self has an outside SID; separate same-session records carry the actual SID. The independent selected set contains all four eligible outside-session PIDs.",
+      "comparison": "The primary must independently implement and review the pinned gate. Require complete scope and PID/session preconditions and raw capture, then compare the entire PID set, stderr and status against the role oracle; selected same-session or self records are candidate failures. Missing or invalid nonleader context is incomplete infrastructure.",
+      "requires": [
+        "cc",
+        "python3",
+        "unshare",
+        "readlink",
+        "setsid"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py setup nonleader\n",
+      "candidate_script": "outer=$(/usr/bin/readlink /proc/self/ns/pid) || exit 90\nexec /usr/bin/unshare --user --map-user=2000 --map-group=2000 --mount --pid --fork --mount-proc /usr/bin/bash --noprofile --norc -c 'if ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py namespace-check \"$1\" candidate >\"$HOME/events.jsonl\" 2>\"$HOME/prepare.log\"; then exit 90; fi\n/usr/bin/setsid --wait /usr/bin/bash --noprofile --norc -c '\"'\"'./guard \"$1\" --noprofile --norc -c \"$2\" &\nchild=$!\nrc=0\nwait \"$child\" || rc=$?\nexit \"$rc\"\n'\"'\"' session-leader \"$2\" \"$3\" &\npid=$!\nrc=0\nwait \"$pid\" || rc=$?\nexit \"$rc\"\n' namespace-init \"$outer\" \"$BASH\" 'printf '\"'\"'{\"stage\":\"guard-enter\",\"pid\":%s}\\n'\"'\"' \"$$\" >>\"$HOME/events.jsonl\"\nif ! ulimit -f 128; then printf '\"'\"'{\"stage\":\"ulimit-failed\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"ulimit-ok\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"prepare-start\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py prepare nonleader \"$$\" >>\"$HOME/prepare.log\" 2>&1; then printf '\"'\"'{\"stage\":\"prepare-failed\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"prepare-ok\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nexport BASHOS_PROC_ROOT=/tmp/parity-case/proc-fixture\nprintf '\"'\"'{\"stage\":\"scope-start\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nif ! ./guard --probe \"$$\" >>\"$HOME/prepare.log\" 2>&1; then printf '\"'\"'{\"stage\":\"scope-failed\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"scope-ok\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"recheck-start\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py recheck nonleader \"$$\" candidate >>\"$HOME/prepare.log\" 2>&1; then printf '\"'\"'{\"stage\":\"recheck-failed\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"; exit 90; fi\nprintf '\"'\"'{\"stage\":\"recheck-ok\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"observe-start\",\"observation\":\"candidate\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\nrc=0\nkillall5 --dry-run >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '\"'\"'%s\\n'\"'\"' \"$rc\" >\"$HOME/candidate.status\"\nprintf '\"'\"'{\"stage\":\"observe-end\",\"observation\":\"candidate\",\"status\":%s}\\n'\"'\"' \"$rc\" >>\"$HOME/events.jsonl\"\nprintf '\"'\"'{\"stage\":\"verify-start\"}\\n'\"'\"' >>\"$HOME/events.jsonl\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py verify nonleader\nrc=$?\nprintf '\"'\"'{\"stage\":\"verify-end\",\"status\":%s}\\n'\"'\"' \"$rc\" >>\"$HOME/events.jsonl\"\nexit \"$rc\"\n'\n",
+      "stdout": "dry-run-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 25,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "setup.json",
+        "prepare.log",
+        "fixture.json",
+        "oracle.json",
+        "events.jsonl",
+        "rechecks.jsonl",
+        "baseline.out",
+        "baseline.err",
+        "baseline.status",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "assertions.json",
+        "race.json",
+        "race.err",
+        "race.status"
+      ],
+      "helpers_sha256": {
+        "helpers/killall5-dry-run-reviewed.py": "e357996464822ae1ed8e439e7cf27cc6256e7337e2f7e798e17ccfd4073e9e7b",
+        "helpers/killall5-dry-run-reviewed.c": "5458362e9b4360a5ba45f705a32cdc9fb67037b44d718af120b837378b7cde2d",
+        "helpers/killall5-dry-run-reviewed-gate.json": "f98548944e246cd1d5745208122ff72760de431d9c8b9c4455704b3fe3af1dc6"
       }
     }
   ]

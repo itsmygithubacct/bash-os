@@ -18,7 +18,7 @@ ROOT = Path('/tmp/parity-case/proc-fixture')
 ELIGIBLE = [1900000101, 1900000102, 1900000103, 1900000104]
 SAME = [1900000201, 1900000202]
 KERNEL, BAD, MISSING, GONE, DENIED = range(1900000301, 1900000306)
-MODES = {'baseline', 'comma', 'repeat', 'none', 'unreadable', 'race'}
+MODES = {'baseline', 'comma', 'repeat', 'none', 'unreadable', 'race', 'nonleader'}
 
 
 def require_guest():
@@ -50,11 +50,11 @@ def parse_output(data):
     return set(values)
 
 
-def setup():
+def setup(nonleader_control=False):
     record = {'stage': 'parser-start', 'complete': False}
     save('setup.json', record)
     try:
-        setup_checked(record)
+        setup_checked(record, nonleader_control)
     except BaseException as exc:
         if isinstance(exc, subprocess.TimeoutExpired):
             record['timeout'] = {'stdout_base64': base64.b64encode(exc.stdout or b'').decode(),
@@ -64,7 +64,7 @@ def setup():
         raise
 
 
-def setup_checked(record):
+def setup_checked(record, nonleader_control):
     positive = [(b'', set()), (b'4\n21\n', {4, 21}), (b'21\n4\n', {4, 21})]
     negative = [b'4', b'4\n4\n', b'04\n', b'0\n', b'4 5\n', b'4\nnoise\n',
                 b'2147483648\n', b'4\n' * 2100, b'\xff\n']
@@ -124,6 +124,22 @@ def setup_checked(record):
     control_session = json.loads(session.stdout)
     if control_session.get('ok') is not True or control_session.get('sid', 0) <= 0 or control_session.get('sid') != control_session.get('pid'):
         raise RuntimeError('visible session control failed')
+    if nonleader_control:
+        record['stage'] = 'nonleader-control-start'; save('setup.json', record)
+        script = ('/usr/bin/python3 "$1" session-check-nonleader "$2" &\n'
+                  'child=$!\nrc=0\nwait "$child" || rc=$?\nexit "$rc"\n')
+        result = subprocess.run(['/usr/bin/unshare', '--user', '--map-user=2000', '--map-group=2000',
+                                 '--mount', '--pid', '--fork', '--mount-proc', '/usr/bin/setsid', '--wait',
+                                 '/usr/bin/bash', '--noprofile', '--norc', '-c', script, 'nonleader-control',
+                                 '/opt/bashos-parity/harness/helpers/killall5-dry-run-reviewed.py', outer],
+                                capture_output=True, timeout=8)
+        record['nonleader_control'] = raw_result(result); record['stage'] = 'nonleader-control-complete'; save('setup.json', record)
+        if result.returncode != 0 or result.stderr:
+            raise RuntimeError('nonleader session control unavailable')
+        child_control = json.loads(result.stdout)
+        if (child_control.get('ok') is not True or child_control.get('sid', 0) <= 0 or
+                child_control.get('pid') == child_control.get('sid')):
+            raise RuntimeError('nonleader session control failed')
     record.update(stage='complete', complete=True); save('setup.json', record)
 
 
@@ -156,15 +172,20 @@ def namespace_check(outer, mode):
                       'own_stat_hex':own_stat.hex()}, sort_keys=True))
 
 
-def session_identity(pid):
+def session_identity(pid, mode):
     sid = os.getsid(pid)
-    if sid <= 0 or sid != pid or os.getsid(sid) != sid:
-        raise RuntimeError('caller is not a visible positive session leader')
-    raw = Path(f'/proc/{sid}/stat').read_bytes()
-    match = re.fullmatch(rb'([0-9]+) \(.*\) [^ ]+ ([0-9]+) ([0-9]+) ([0-9]+) .*\n', raw)
-    if not match or int(match[1]) != sid or int(match[4]) != sid:
-        raise RuntimeError('session leader stat does not match getsid')
-    return sid, raw
+    if (sid <= 0 or (sid == pid) != (mode != 'nonleader') or os.getsid(sid) != sid):
+        raise RuntimeError('caller/session-leader relationship is invalid')
+    caller = Path(f'/proc/{pid}/stat').read_bytes()
+    leader = Path(f'/proc/{sid}/stat').read_bytes()
+    pattern = rb'([0-9]+) \(.*\) ([^ ]+) ([0-9]+) ([0-9]+) ([0-9]+) .*\n'
+    c = re.fullmatch(pattern, caller)
+    l = re.fullmatch(pattern, leader)
+    if (not c or not l or int(c[1]) != pid or int(c[5]) != sid or
+            (mode == 'nonleader' and int(c[3]) != sid) or
+            int(l[1]) != sid or int(l[5]) != sid or l[2] in (b'Z', b'X')):
+        raise RuntimeError('live caller or leader stat does not match getsid')
+    return sid, caller, leader
 
 
 def session_check(outer):
@@ -172,7 +193,7 @@ def session_check(outer):
         raise RuntimeError('invalid outer PID namespace record')
     inner = os.readlink('/proc/self/ns/pid')
     pid = os.getpid()
-    sid, raw = session_identity(pid)
+    sid, raw, _ = session_identity(pid, 'leader')
     visible = sorted(int(x) for x in os.listdir('/proc') if x.isascii() and x.isdigit())
     if inner == outer or visible != sorted({1, pid}):
         raise RuntimeError('session control did not enter a private PID/proc namespace')
@@ -181,19 +202,38 @@ def session_check(outer):
                       'visible': visible, 'uid': os.getuid(), 'euid': os.geteuid()}, sort_keys=True))
 
 
+def session_check_nonleader(outer):
+    if not re.fullmatch(r'pid:\[[0-9]+\]', outer):
+        raise RuntimeError('invalid outer PID namespace record')
+    inner, pid = os.readlink('/proc/self/ns/pid'), os.getpid()
+    sid, caller, leader = session_identity(pid, 'nonleader')
+    visible = sorted(int(x) for x in os.listdir('/proc') if x.isascii() and x.isdigit())
+    if (inner == outer or os.getppid() != sid or visible != sorted({1, sid, pid}) or
+            os.readlink(f'/proc/{sid}/ns/pid') != inner):
+        raise RuntimeError('nonleader control lacks its live private session leader')
+    print(json.dumps({'ok': True, 'pid': pid, 'sid': sid, 'leader_getsid': os.getsid(sid),
+                      'caller_stat_hex': caller.hex(), 'leader_stat_hex': leader.hex(),
+                      'outer': outer, 'inner': inner, 'parent': os.getppid(), 'visible': visible,
+                      'uid': os.getuid(), 'euid': os.geteuid()}, sort_keys=True))
+
+
 def prepare(mode, pid):
     if mode not in MODES or pid <= 1 or pid != os.getppid():
         raise RuntimeError('caller PID mismatch')
     namespace = json.loads((HOME / 'events.jsonl').read_text().splitlines()[0])
+    caller_namespace = os.readlink(f'/proc/{pid}/ns/pid')
     if (namespace.get('stage') != 'namespace-ok' or namespace.get('ok') is not True or
             namespace.get('mode') != 'candidate' or namespace.get('inner') != os.readlink('/proc/self/ns/pid') or
-            namespace['inner'] != os.readlink(f'/proc/{pid}/ns/pid')):
+            namespace['inner'] != caller_namespace):
         raise RuntimeError('caller PID namespace mismatch')
-    sid, raw = session_identity(pid)
+    sid, raw, leader_raw = session_identity(pid, mode)
+    leader_namespace = os.readlink(f'/proc/{sid}/ns/pid')
+    if leader_namespace != namespace['inner']:
+        raise RuntimeError('session leader is outside caller PID namespace')
     match = re.fullmatch(rb'([0-9]+) \(.*\) [^ ]+ ([0-9]+) ([0-9]+) ([0-9]+) .*\n', raw)
     if not match or int(match[1]) != pid or int(match[4]) != sid:
         raise RuntimeError('real caller SID control failed')
-    if pid in ELIGIBLE + SAME + [KERNEL, BAD, MISSING, GONE, DENIED] or sid in ELIGIBLE:
+    if pid in ELIGIBLE + SAME + [KERNEL, BAD, MISSING, GONE, DENIED] or sid in ELIGIBLE + SAME + [KERNEL, BAD, MISSING, GONE, DENIED]:
         raise RuntimeError('fixture ID collides with caller')
     outside = 1900000000 if sid != 1900000000 else 1900000001
     ROOT.mkdir()
@@ -225,7 +265,7 @@ def prepare(mode, pid):
     add(DENIED, outside)
     (ROOT / str(DENIED) / 'cmdline').chmod(0)
     (ROOT / '123junk').mkdir()
-    omitted = {'baseline': [], 'race': [], 'comma': ELIGIBLE[:2], 'repeat': ELIGIBLE[1:4],
+    omitted = {'baseline': [], 'race': [], 'nonleader': [], 'comma': ELIGIBLE[:2], 'repeat': ELIGIBLE[1:4],
                'none': ELIGIBLE[:], 'unreadable': []}[mode]
     expected = sorted(set(ELIGIBLE) - set(omitted)) if mode != 'unreadable' else []
     for key, entry in entries.items():
@@ -254,7 +294,8 @@ def prepare(mode, pid):
             raise RuntimeError('cmdline fixture control failed')
     save('fixture.json', {'mode': mode, 'caller_pid': pid, 'caller_sid': sid, 'session_leader_pid': sid,
                           'leader_getsid': os.getsid(sid), 'pid_namespace': namespace['inner'],
-                          'real_stat_hex': raw.hex(), 'outside_sid': outside,
+                          'caller_pid_namespace': caller_namespace, 'leader_pid_namespace': leader_namespace,
+                          'real_stat_hex': raw.hex(), 'leader_stat_hex': leader_raw.hex(), 'outside_sid': outside,
                           'root_uid': ROOT.stat().st_uid, 'root_mode': stat.S_IMODE(ROOT.stat().st_mode),
                           'entries': entries, 'omitted': omitted, 'fixture_preconditions': 'verified'})
     save('oracle.json', {'selected': expected, 'status': 1 if mode == 'unreadable' else 0 if expected else 2})
@@ -303,21 +344,26 @@ def recheck(mode, pid, observation):
     try:
         fixture = json.loads((HOME / 'fixture.json').read_text())
         if (fixture['mode'] != mode or fixture['caller_pid'] != pid or pid != os.getppid() or
-                fixture['caller_sid'] <= 0 or fixture['caller_sid'] != pid or
-                fixture['session_leader_pid'] != pid or fixture['caller_sid'] != os.getsid(pid) or
+                fixture['caller_sid'] <= 0 or
+                (fixture['caller_sid'] == pid) != (mode != 'nonleader') or
+                fixture['session_leader_pid'] != fixture['caller_sid'] or fixture['caller_sid'] != os.getsid(pid) or
                 observation not in {'baseline', 'candidate'}):
             raise RuntimeError('caller identity or fixture mismatch')
-        sid, raw = session_identity(pid)
+        sid, raw, leader_raw = session_identity(pid, mode)
         record['caller_sid'] = sid
         record['session_leader_pid'] = sid
         record['leader_getsid'] = os.getsid(sid)
+        record['leader_stat_hex'] = leader_raw.hex()
         m = re.fullmatch(rb'([0-9]+) \(.*\) [^ ]+ ([0-9]+) ([0-9]+) ([0-9]+) .*\n', raw)
         if not m or int(m[1]) != pid or int(m[4]) != fixture['caller_sid']:
             raise RuntimeError('caller stat or session changed')
         record['real_stat_hex'] = raw.hex()
         record['pid_namespace'] = os.readlink('/proc/self/ns/pid')
+        record['caller_pid_namespace'] = os.readlink(f'/proc/{pid}/ns/pid')
+        record['leader_pid_namespace'] = os.readlink(f'/proc/{sid}/ns/pid')
         if (record['pid_namespace'] != fixture['pid_namespace'] or
-                record['pid_namespace'] != os.readlink(f'/proc/{pid}/ns/pid')):
+                record['pid_namespace'] != record['caller_pid_namespace'] or
+                record['pid_namespace'] != record['leader_pid_namespace']):
             raise RuntimeError('caller PID namespace changed')
         record['root_uid'] = ROOT.stat().st_uid
         record['root_mode'] = stat.S_IMODE(ROOT.stat().st_mode)
@@ -368,7 +414,7 @@ def seal_unreadable(pid):
     try:
         fixture = json.loads((HOME / 'fixture.json').read_text())
         if (fixture['mode'] != 'unreadable' or fixture['caller_pid'] != pid or
-                pid != os.getppid() or session_identity(pid)[0] != fixture['caller_sid'] or
+                pid != os.getppid() or session_identity(pid, 'unreadable')[0] != fixture['caller_sid'] or
                 ROOT.stat().st_uid != 2000 or stat.S_IMODE(ROOT.stat().st_mode) != fixture['root_mode']):
             raise RuntimeError('root transition identity or mode mismatch')
         ROOT.chmod(0)
@@ -444,8 +490,8 @@ def verify(mode):
 
 def main():
     require_guest()
-    if sys.argv[1:] == ['setup']:
-        setup(); return 0
+    if sys.argv[1:] in (['setup'], ['setup', 'nonleader']):
+        setup(sys.argv[1:] == ['setup', 'nonleader']); return 0
     if len(sys.argv) == 4 and sys.argv[1] == 'prepare':
         prepare(sys.argv[2], int(sys.argv[3])); return 0
     if len(sys.argv) == 3 and sys.argv[1] == 'verify' and sys.argv[2] in MODES:
@@ -460,6 +506,8 @@ def main():
         namespace_check(sys.argv[2], sys.argv[3]); return 0
     if len(sys.argv) == 3 and sys.argv[1] == 'session-check':
         session_check(sys.argv[2]); return 0
+    if len(sys.argv) == 3 and sys.argv[1] == 'session-check-nonleader':
+        session_check_nonleader(sys.argv[2]); return 0
     raise ValueError('invalid helper arguments')
 
 
