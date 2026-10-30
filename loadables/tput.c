@@ -6,7 +6,8 @@
  * compiled terminfo entry is loaded from TERMINFO, ~/.terminfo,
  * TERMINFO_DIRS, or the system database, aliases included. A loaded
  * entry supplies its standard and extended capabilities. Mandatory
- * padding is applied from the output baud rate.
+ * padding is applied from the output baud rate. init and reset stay on
+ * the curated string path and restore disabled terminal special characters.
  */
 
 #include <config.h>
@@ -21,6 +22,7 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <termios.h>
+#include <sys/ttydefaults.h>
 #include <time.h>
 
 #include "loadables.h"
@@ -757,6 +759,109 @@ emit_compiled (const char *term, const char *cap, WORD_LIST *args, const char *v
   return rc;
 }
 
+/* ncurses reset replaces a special character only when it is disabled, and
+ * keeps one that is already set. init restores only erase, intr, and kill.
+ * init's erase is key_backspace when the entry sets os, otherwise CERASE. */
+static int
+tp_cc_disabled (cc_t val)
+{
+#ifdef _POSIX_VDISABLE
+  if (_POSIX_VDISABLE != -1 && val == (cc_t) _POSIX_VDISABLE)
+    return 1;
+#endif
+  return (int) val <= 0;
+}
+
+static void
+tp_set_if_disabled (struct termios *tio, int idx, unsigned char dft)
+{
+  if (idx < 0 || idx >= NCCS)
+    return;
+  if (tp_cc_disabled (tio->c_cc[idx]))
+    tio->c_cc[idx] = dft;
+}
+
+static int
+tp_default_erase (const char *term)
+{
+  int flag = 0, npc = 0, kind;
+  int32_t num = 0;
+  char *str = NULL;
+  int erase = CERASE;
+
+  kind = bt_compiled_lookup (term, "os", &flag, &num, &str, &npc);
+  free (str);
+  str = NULL;
+  if (kind == 0 && flag)
+    {
+      kind = bt_compiled_lookup (term, "kbs", &flag, &num, &str, &npc);
+      if (kind == 2 && str && str[0] != '\0' && str[1] == '\0')
+        erase = (unsigned char) str[0];
+      free (str);
+    }
+  return erase;
+}
+
+static int
+tp_tty_fd (void)
+{
+  struct termios tio;
+  int fds[3] = { STDERR_FILENO, STDOUT_FILENO, STDIN_FILENO };
+  int i;
+
+  for (i = 0; i < 3; i++)
+    if (tcgetattr (fds[i], &tio) == 0)
+      return fds[i];
+  return -1;
+}
+
+static void
+tp_restore_specials (const char *term, int do_reset)
+{
+  struct termios tio;
+  int fd = tp_tty_fd ();
+
+  if (fd < 0 || tcgetattr (fd, &tio) < 0)
+    return;
+  if (do_reset)
+    {
+#ifdef VDISCARD
+      tp_set_if_disabled (&tio, VDISCARD, CDISCARD);
+#endif
+      tp_set_if_disabled (&tio, VEOF, CEOF);
+      tp_set_if_disabled (&tio, VERASE, CERASE);
+      tp_set_if_disabled (&tio, VINTR, CINTR);
+      tp_set_if_disabled (&tio, VKILL, CKILL);
+#ifdef VLNEXT
+      tp_set_if_disabled (&tio, VLNEXT, CLNEXT);
+#endif
+      tp_set_if_disabled (&tio, VQUIT, CQUIT);
+#ifdef VREPRINT
+      tp_set_if_disabled (&tio, VREPRINT, CREPRINT);
+#endif
+#ifdef VSTART
+      tp_set_if_disabled (&tio, VSTART, CSTART);
+#endif
+#ifdef VSTOP
+      tp_set_if_disabled (&tio, VSTOP, CSTOP);
+#endif
+#ifdef VSUSP
+      tp_set_if_disabled (&tio, VSUSP, CSUSP);
+#endif
+#ifdef VWERASE
+      tp_set_if_disabled (&tio, VWERASE, CWERASE);
+#endif
+    }
+  else
+    {
+      if (VERASE >= 0 && VERASE < NCCS && tp_cc_disabled (tio.c_cc[VERASE]))
+        tio.c_cc[VERASE] = (cc_t) tp_default_erase (term);
+      tp_set_if_disabled (&tio, VINTR, CINTR);
+      tp_set_if_disabled (&tio, VKILL, CKILL);
+    }
+  tcsetattr (fd, TCSADRAIN, &tio);
+}
+
 extern char *tput_doc[];   /* forward decl */
 
 static int
@@ -831,7 +936,11 @@ emit_cap (const char *cap, WORD_LIST *args, const char *var, const char *term, i
                             ? "\033[H\033[J\033[3J" : "\033[H\033[J", 0);
     }
   if (!strcmp (cap, "reset") || !strcmp (cap, "init"))
-    return bind_or_print (var, "\033[0m\033[2J\033[H", 0);
+    {
+      if (!var)
+        tp_restore_specials (term, !strcmp (cap, "reset"));
+      return bind_or_print (var, "\033[0m\033[2J\033[H", 0);
+    }
   if (!strcmp (cap, "home") || !strcmp (cap, "cursor_home"))
     return bind_or_print (var, "\033[H", 0);
   if (!strcmp (cap, "cup") || !strcmp (cap, "cursor_address"))
@@ -1196,6 +1305,8 @@ char *tput_doc[] = {
   "Statuses: 2 for usage/missing TERM, 3 for unknown terminal, 4 for unknown CAP.",
   "A compiled terminfo entry (TERMINFO, ~/.terminfo, TERMINFO_DIRS, or the",
   "system database) is used before an unknown terminal is reported.",
+  "reset restores each disabled special character and keeps the others.",
+  "init restores only a disabled erase, intr, or kill.",
   "Supported terminal entries: xterm-256color, xterm, screen-256color,",
   "tmux-256color, linux, vt100, dumb.",
   "Sidecar entries: BASHTPUT_TERMINFO_DIR/TERM or /etc/bash-os/terminfo.d/TERM,",
