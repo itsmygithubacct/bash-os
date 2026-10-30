@@ -343,6 +343,9 @@ def load_run(spec, expected_binary, expected_build=None, repo=REPO):
         if spec["evidence_format"] == "primary-qualified-watch337-r3-v1":
             from primary_watch337_evidence import load_qualified_watch337_run
             return load_qualified_watch337_run(spec, expected_binary, expected_build)
+        if spec["evidence_format"] == "primary-qualified-device-v8-rtc-effects-v1":
+            from primary_rtc_evidence import load_qualified_rtc_effects
+            return load_qualified_rtc_effects(spec, expected_binary, expected_build)
         if spec["evidence_format"] == "primary-qualified-device-v8-uclamp-v1":
             from primary_device_v8_evidence import load_qualified_device_v8_run
             return load_qualified_device_v8_run(spec, expected_binary, expected_build)
@@ -465,7 +468,7 @@ def reconcile(ledger, configuration, repo=REPO):
         binary = file_digest(spec["binary"])
         evidence, runs = {}, []
         for run in spec["runs"]:
-            if run.get("evidence_format") in ("primary-qualified-controller-v1", "primary-qualified-clock342-v1", "primary-qualified-syslog309-v1", "primary-qualified-ncdu294-v1", "primary-qualified-broker286-v1", "primary-qualified-modern293-v1", "primary-qualified-watch293-v1", "primary-qualified-watch337-r3-v1", "primary-qualified-top371-v1", "primary-qualified-device-v8-uclamp-v1"):
+            if run.get("evidence_format") in ("primary-qualified-controller-v1", "primary-qualified-clock342-v1", "primary-qualified-syslog309-v1", "primary-qualified-ncdu294-v1", "primary-qualified-broker286-v1", "primary-qualified-modern293-v1", "primary-qualified-watch293-v1", "primary-qualified-watch337-r3-v1", "primary-qualified-top371-v1", "primary-qualified-device-v8-uclamp-v1", "primary-qualified-device-v8-rtc-effects-v1"):
                 check(Path(spec["binary"]).is_absolute()
                       and spec["binary"] == run.get("core_binary_path"),
                       "controller evidence requires the configured recorded core binary")

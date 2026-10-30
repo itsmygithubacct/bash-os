@@ -16851,32 +16851,65 @@
         "purpose": "Apply positive and negative drift with fractional remainder, verify truncation toward zero and updated calibration, and check that a correction rounding to zero causes no RTC write.",
         "reason": "Requires an intercepted RTC read/write device and private fixture adjtime files in a disposable VM or mock. A separate arithmetic oracle must compute whole-second correction and retained fractional remainder; no host RTC may be changed."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Not executed; reachable with the unprivileged per-side RTC ioctl mock; refusal paths reachable in legacy.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original requirements have bounded evidence on both builds; RTC values and writes are synthetic.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "--adjust applies positive and negative drift with a fractional remainder: correction = (rtc - last_adjust) * drift / 86400 + not_adjusted, whole seconds truncated toward zero written to the RTC, the remainder retained in adjtime, last_adjust updated.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs RTC_RD_TIME supply and RTC_SET_TIME recording: SECCOMP-NOTIFY helper (plain driver, unprivileged). The computation depends only on the RTC value and the adjtime file, not on system time.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adjust-positive-r1",
+              "assertion": "Both builds record the supplied RTC value, positive drift correction, RTC_SET_TIME fields and rewritten fractional remainder and last-adjustment time.",
+              "definition_sha256": "7d7e933dfd2c7383bae07d69dc7800298c4f9841a43c8b4d6439b56522470320"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adjust-negative-r1",
+              "assertion": "Both builds record the negative drift correction, RTC_SET_TIME fields and rewritten fractional remainder and last-adjustment time.",
+              "definition_sha256": "9fc6efa2c76a8a3addcab17e268946e3c08be5e69900fd4e168b9e46e493b7f5"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r2",
           "behavior": "A correction that truncates to zero makes no RTC write and leaves adjtime unchanged.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same mock.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adjust-subsecond-r1",
+              "assertion": "Both builds record no RTC_SET_TIME and unchanged adjtime bytes, mode and inode for a subsecond correction.",
+              "definition_sha256": "4f25d760a790ddc81fb38d1e6a4b380e52dd97b4ece5f229a25aed116880335d"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r3",
           "behavior": "last_adjust 0 refuses adjustment ('last adjustment time is zero') before RTC access; --adjust with --noadjfile is a usage error.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Reachable in the legacy runner (refusal happens before the RTC open; use a missing --rtc path so an RTC access would produce a different diagnostic).",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adjust-last-zero-r1",
+              "assertion": "Both builds record the zero-time refusal diagnostic and no RTC path open.",
+              "definition_sha256": "821047e17575a8979ac2012e2d6a91de4b83d9365aac0cc1bdd4ba4a5d95f18a"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-adjust-noadjfile-r1",
+              "assertion": "Both builds record the --adjust --noadjfile usage error and no RTC path open.",
+              "definition_sha256": "8411b6da1b238dace4e8e0b284a3e2c30eff1b7432dfc76cf6e58f9e55d43ac4"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         }
       ],
@@ -16968,32 +17001,113 @@
         "purpose": "Inject RTC open/read/write/close and adjtime temporary-file write/close/rename failures; verify failure statuses, no leaked descriptors or temporary files, and preservation of the prior calibration.",
         "reason": "Requires syscall and stdio/rename fault injection around a private fixture filesystem in a disposable VM. The fixture must intercept all RTC/time operations and independently inspect file bytes, modes, links, and cleanup."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Not executed; reachable with legacy techniques plus the per-side seccomp user-notification errno injector.",
+      "current_reason": "Remaining obligations: r2: Synthetic close EIO skips the real close, so actual close-failure cleanup is not established. r3: Synthetic close EIO skips the real close and leaves a descriptor; real close-failure descriptor cleanup is not established.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "RTC open/read/write failures return status 1 with the failing operation named.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Open failure (missing path) and RTC_RD_TIME/RTC_SET_TIME failure (regular file -> ENOTTY) are reachable in the legacy runner; close(2) failure needs SECCOMP-NOTIFY injection.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-rtc-open-error-r1",
+              "assertion": "Both builds observe status 1 and the RTC path named for an injected open failure.",
+              "definition_sha256": "64121b06ca74021791afee4487752614538e280946f1b061415367338221ce1b"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-rtc-read-error-r1",
+              "assertion": "Both builds observe status 1 and RTC_RD_TIME named for an injected read failure.",
+              "definition_sha256": "73c2adf88e5a2ea7f079be1caa23848964d648782bf216f5c3b142c6d4d5ff0e"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-rtc-write-error-r1",
+              "assertion": "Both builds observe status 1 and RTC_SET_TIME named for an injected write failure.",
+              "definition_sha256": "45f446b56dfac2f2993a36ad7f5eec9349e4c4f7755007a053295aeac73f1693"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r2",
           "behavior": "adjtime temporary-file creation, write, close and rename failures return 1, remove the temporary file, and preserve the prior calibration bytes, mode and links.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "mkstemp failure is reachable unprivileged with a non-writable fixture directory (chmod 555, uid 2000 is not root); write/close/rename failures need errno injection by SECCOMP-NOTIFY for the temp fd (plain driver). Reaching the adjtime write also needs a mocked successful RTC_SET_TIME.",
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-temp-open-error-r1",
+              "assertion": "Both builds observe status 1, retained prior calibration state and no remaining scratch temporary file; synthetic close EIO does not perform an actual close.",
+              "definition_sha256": "1f3e5ca7cb3acfecd90763276e90921870398bb11d31492126d45f72742dbc78"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-temp-write-error-r1",
+              "assertion": "Both builds observe status 1, retained prior calibration state and no remaining scratch temporary file; synthetic close EIO does not perform an actual close.",
+              "definition_sha256": "b0745983f5b959345ae5277190a729a9ae640cdeadce337eb2616c038f918abc"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-temp-close-error-r1",
+              "assertion": "Both builds observe status 1, retained prior calibration state and no remaining scratch temporary file; synthetic close EIO does not perform an actual close.",
+              "definition_sha256": "245667ae2161d3a5f26689233d9453d344280c87223a40cbaa477335f38f09a0"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-rename-error-r1",
+              "assertion": "Both builds observe status 1, retained prior calibration state and no remaining scratch temporary file; synthetic close EIO does not perform an actual close.",
+              "definition_sha256": "c456471974d644956ef352006bb1b4bf90b6f4da9bfa1653fc38c5f127832c8e"
+            }
+          ],
+          "gap": "Synthetic close EIO skips the real close, so actual close-failure cleanup is not established.",
           "next_step": "implement_fixture"
         },
         {
           "id": "r3",
           "behavior": "No leaked descriptors after failures.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Observable by listing /proc/self/fd in the same shell after the failing builtin (builtins run in-process), unprivileged.",
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-rtc-open-error-r1",
+              "assertion": "For this injected non-close failure, both builds retain matching before/after descriptor snapshots.",
+              "definition_sha256": "64121b06ca74021791afee4487752614538e280946f1b061415367338221ce1b"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-rtc-read-error-r1",
+              "assertion": "For this injected non-close failure, both builds retain matching before/after descriptor snapshots.",
+              "definition_sha256": "73c2adf88e5a2ea7f079be1caa23848964d648782bf216f5c3b142c6d4d5ff0e"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-rtc-write-error-r1",
+              "assertion": "For this injected non-close failure, both builds retain matching before/after descriptor snapshots.",
+              "definition_sha256": "45f446b56dfac2f2993a36ad7f5eec9349e4c4f7755007a053295aeac73f1693"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-temp-open-error-r1",
+              "assertion": "For this injected non-close failure, both builds retain matching before/after descriptor snapshots.",
+              "definition_sha256": "1f3e5ca7cb3acfecd90763276e90921870398bb11d31492126d45f72742dbc78"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-temp-write-error-r1",
+              "assertion": "For this injected non-close failure, both builds retain matching before/after descriptor snapshots.",
+              "definition_sha256": "b0745983f5b959345ae5277190a729a9ae640cdeadce337eb2616c038f918abc"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-rename-error-r1",
+              "assertion": "For this injected non-close failure, both builds retain matching before/after descriptor snapshots.",
+              "definition_sha256": "c456471974d644956ef352006bb1b4bf90b6f4da9bfa1653fc38c5f127832c8e"
+            }
+          ],
+          "gap": "Synthetic close EIO skips the real close and leaves a descriptor; real close-failure descriptor cleanup is not established.",
           "next_step": "implement_fixture"
         }
       ],
@@ -17046,40 +17160,80 @@
         "purpose": "Convert fixed UTC/local system timestamps to RTC fields and check that successful systohc resets adjtime timestamps, remainder, and mode; also cover --noadjfile.",
         "reason": "Requires a fixed clock_gettime mock, intercepted RTC_SET_TIME, and private relative adjtime paths in an isolated fixture. Expected calendar fields come from an independent Gregorian/timezone encoder; no physical RTC may be written."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Not executed. RTC write/adjtime obligations are reachable with an unprivileged per-side mock; only converting an exactly fixed system time needs CAP_SYS_TIME to set the guest clock, because clock_gettime is a vDSO call.",
+      "current_reason": "Remaining obligations: r1: The sampled system time is bracketed rather than fixed; no real RTC setting is established.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "--systohc converts a FIXED system timestamp to RTC fields (UTC and local) and issues one RTC_SET_TIME with those fields.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The system time is read through the clock_gettime vDSO, which seccomp cannot intercept, and CLOCK_REALTIME is not virtualised by time namespaces; a fixed value needs the RTC capability: PRIV-ROOT with CAP_SYS_TIME setting the guest CLOCK_REALTIME immediately before the side, with controller restore (KSTATE). A bracketed variant (record RTC_SET_TIME fields and assert they equal the conversion of a time between before/after samples) is reachable unprivileged with SECCOMP-NOTIFY.",
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-systohc-utc-r1",
+              "assertion": "Both builds observe one synthetic RTC_SET_TIME with UTC fields bounded by before/after system time.",
+              "definition_sha256": "44e1afa4f8a9fa0d2da35c822b525cb4214d22db3c581e157af741c491327cb9"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-systohc-local-r1",
+              "assertion": "Both builds observe one synthetic RTC_SET_TIME with local fields bounded by before/after system time.",
+              "definition_sha256": "773b19d6db17b88e7823c872c179f11c046b60fa831436e954f9ae035303ba0a"
+            }
+          ],
+          "gap": "The sampled system time is bracketed rather than fixed; no real RTC setting is established.",
           "next_step": "requires_capability"
         },
         {
           "id": "r2",
           "behavior": "After a successful write, the adjtime file is atomically rewritten with last_adjust = last_calib = the written second, remainder 0, and the mode line matching --utc/--localtime.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Reachable with the SECCOMP-NOTIFY RTC_SET_TIME mock and a relative --adjfile; the timestamp value is checked against the bracketing window.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-systohc-utc-r1",
+              "assertion": "Both builds observe guest-scratch adjtime replacement with equal written last-adjust/calibration seconds, zero remainder, UTC mode and a rename.",
+              "definition_sha256": "44e1afa4f8a9fa0d2da35c822b525cb4214d22db3c581e157af741c491327cb9"
+            },
+            {
+              "group": "shell",
+              "id": "devices-hwclock-systohc-local-r1",
+              "assertion": "Both builds observe guest-scratch adjtime replacement with equal written last-adjust/calibration seconds, zero remainder, LOCAL mode and a rename.",
+              "definition_sha256": "773b19d6db17b88e7823c872c179f11c046b60fa831436e954f9ae035303ba0a"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r3",
           "behavior": "--noadjfile performs the RTC write and leaves any adjtime file untouched.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same mock.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-systohc-noadjfile-r1",
+              "assertion": "Both builds observe the synthetic RTC write and unchanged adjtime bytes, mode, inode and links.",
+              "definition_sha256": "d91e187189e3deefe8c940ba6c6596734ec34c54e6a594fff7ff6a8091465f41"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         },
         {
           "id": "r4",
           "behavior": "If RTC_SET_TIME fails, the adjtime file is unchanged and no temporary file remains.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Reachable today in the legacy runner: --rtc pointing at a regular file makes RTC_SET_TIME fail with ENOTTY before any adjtime write.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "devices-hwclock-rtc-write-error-r1",
+              "assertion": "Both builds observe injected RTC_SET_TIME EIO, unchanged adjtime state and no remaining temporary file.",
+              "definition_sha256": "45f446b56dfac2f2993a36ad7f5eec9349e4c4f7755007a053295aeac73f1693"
+            }
+          ],
+          "gap": "",
           "next_step": "implement_fixture"
         }
       ],

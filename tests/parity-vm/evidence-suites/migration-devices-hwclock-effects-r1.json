@@ -1,0 +1,869 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "devices-hwclock-adjust-positive-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and bounded effect or failure: adjust-positive",
+      "covers": [
+        "hwclock/adjust-fractional-drift"
+      ],
+      "oracle": "Independently supplied RTC calendar, Gregorian arithmetic or bracketed realtime, filesystem state, and path-scoped injected errors; RTC calls are synthetic.",
+      "comparison": "Save operation status, output and errors, syscall trace, before/after file state and descriptor snapshots. Synthetic close errno does not close its fd and cannot prove real close-failure descriptor cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-effects-r1.py": "8058984d01eabd41e97e02c6ad23932141219b33e935171277395351d31323c9"
+      },
+      "files": {
+        "rtc": "",
+        "adjtime": "1.750000 1704067200 0.500000\n1704067200\nUTC\n",
+        "effects.json": "{\"mode\": \"adjust\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\", \"expected_epoch\": 1704153598, \"adj_expected\": \"1.750000 1704153598 0.250000\\n1704067200\\nUTC\\n\"}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --adjust --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
+        "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp effects.json effects-original.json\n/bin/cp effects-control.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/effects-control-events.jsonl\"\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/effects-control-report.json\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py \"$BASH\" --noprofile --norc /tmp/parity-case/effects-inner.sh >\"$HOME/observer.out\" 2>\"$HOME/observer.err\"\nrc=$?; printf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 && $(<\"$HOME/observer.out\") == 'synthetic effects checks ok' && ! -s \"$HOME/observer.err\" ]] || exit 1\n[[ ! -s \"$HOME/operation.out\" && ! -s \"$HOME/operation.err\" ]] || exit 1\n[[ $(<\"$HOME/fds-before\") == $(<\"$HOME/fds-after\") ]] || exit 1\nprintf 'synthetic effects case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic effects case ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "effects-before.json",
+        "effects-events.jsonl",
+        "effects-report.json",
+        "effects-control-events.jsonl",
+        "effects-control-report.json",
+        "operation.out",
+        "operation.err",
+        "operation.status",
+        "fds-before",
+        "fds-after",
+        "observer.out",
+        "observer.err",
+        "observer.status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-adjust-negative-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and bounded effect or failure: adjust-negative",
+      "covers": [
+        "hwclock/adjust-fractional-drift"
+      ],
+      "oracle": "Independently supplied RTC calendar, Gregorian arithmetic or bracketed realtime, filesystem state, and path-scoped injected errors; RTC calls are synthetic.",
+      "comparison": "Save operation status, output and errors, syscall trace, before/after file state and descriptor snapshots. Synthetic close errno does not close its fd and cannot prove real close-failure descriptor cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-effects-r1.py": "8058984d01eabd41e97e02c6ad23932141219b33e935171277395351d31323c9"
+      },
+      "files": {
+        "rtc": "",
+        "adjtime": "-1.750000 1704067200 -0.500000\n1704067200\nUTC\n",
+        "effects.json": "{\"mode\": \"adjust\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\", \"expected_epoch\": 1704153602, \"adj_expected\": \"-1.750000 1704153602 -0.250000\\n1704067200\\nUTC\\n\"}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --adjust --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
+        "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp effects.json effects-original.json\n/bin/cp effects-control.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/effects-control-events.jsonl\"\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/effects-control-report.json\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py \"$BASH\" --noprofile --norc /tmp/parity-case/effects-inner.sh >\"$HOME/observer.out\" 2>\"$HOME/observer.err\"\nrc=$?; printf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 && $(<\"$HOME/observer.out\") == 'synthetic effects checks ok' && ! -s \"$HOME/observer.err\" ]] || exit 1\n[[ ! -s \"$HOME/operation.out\" && ! -s \"$HOME/operation.err\" ]] || exit 1\n[[ $(<\"$HOME/fds-before\") == $(<\"$HOME/fds-after\") ]] || exit 1\nprintf 'synthetic effects case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic effects case ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "effects-before.json",
+        "effects-events.jsonl",
+        "effects-report.json",
+        "effects-control-events.jsonl",
+        "effects-control-report.json",
+        "operation.out",
+        "operation.err",
+        "operation.status",
+        "fds-before",
+        "fds-after",
+        "observer.out",
+        "observer.err",
+        "observer.status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-adjust-subsecond-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and bounded effect or failure: adjust-subsecond",
+      "covers": [
+        "hwclock/adjust-fractional-drift"
+      ],
+      "oracle": "Independently supplied RTC calendar, Gregorian arithmetic or bracketed realtime, filesystem state, and path-scoped injected errors; RTC calls are synthetic.",
+      "comparison": "Save operation status, output and errors, syscall trace, before/after file state and descriptor snapshots. Synthetic close errno does not close its fd and cannot prove real close-failure descriptor cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-effects-r1.py": "8058984d01eabd41e97e02c6ad23932141219b33e935171277395351d31323c9"
+      },
+      "files": {
+        "rtc": "",
+        "adjtime": "0.100000 1704067200 0.250000\n1704067200\nUTC\n",
+        "effects.json": "{\"mode\": \"adjust\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 0, \"fault\": \"none\", \"preserve\": true}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --adjust --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
+        "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp effects.json effects-original.json\n/bin/cp effects-control.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/effects-control-events.jsonl\"\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/effects-control-report.json\"\n/bin/ln adjtime adj-alias\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py \"$BASH\" --noprofile --norc /tmp/parity-case/effects-inner.sh >\"$HOME/observer.out\" 2>\"$HOME/observer.err\"\nrc=$?; printf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 && $(<\"$HOME/observer.out\") == 'synthetic effects checks ok' && ! -s \"$HOME/observer.err\" ]] || exit 1\n[[ ! -s \"$HOME/operation.out\" && ! -s \"$HOME/operation.err\" ]] || exit 1\n[[ $(<\"$HOME/fds-before\") == $(<\"$HOME/fds-after\") ]] || exit 1\nprintf 'synthetic effects case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic effects case ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "effects-before.json",
+        "effects-events.jsonl",
+        "effects-report.json",
+        "effects-control-events.jsonl",
+        "effects-control-report.json",
+        "operation.out",
+        "operation.err",
+        "operation.status",
+        "fds-before",
+        "fds-after",
+        "observer.out",
+        "observer.err",
+        "observer.status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-adjust-last-zero-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and bounded effect or failure: adjust-last-zero",
+      "covers": [
+        "hwclock/adjust-fractional-drift"
+      ],
+      "oracle": "Independently supplied RTC calendar, Gregorian arithmetic or bracketed realtime, filesystem state, and path-scoped injected errors; RTC calls are synthetic.",
+      "comparison": "Save operation status, output and errors, syscall trace, before/after file state and descriptor snapshots. Synthetic close errno does not close its fd and cannot prove real close-failure descriptor cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-effects-r1.py": "8058984d01eabd41e97e02c6ad23932141219b33e935171277395351d31323c9"
+      },
+      "files": {
+        "rtc": "",
+        "adjtime": "1 0 0\n1\nUTC\n",
+        "effects.json": "{\"mode\": \"validate\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 1, \"reads\": 0, \"writes\": 0, \"fault\": \"none\", \"preserve\": true}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --adjust --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
+        "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp effects.json effects-original.json\n/bin/cp effects-control.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/effects-control-events.jsonl\"\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/effects-control-report.json\"\n/bin/ln adjtime adj-alias\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py \"$BASH\" --noprofile --norc /tmp/parity-case/effects-inner.sh >\"$HOME/observer.out\" 2>\"$HOME/observer.err\"\nrc=$?; printf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 && $(<\"$HOME/observer.out\") == 'synthetic effects checks ok' && ! -s \"$HOME/observer.err\" ]] || exit 1\n[[ ! -s \"$HOME/operation.out\" && $(<\"$HOME/operation.err\") == *'last adjustment time is zero'* ]] || exit 1\n[[ $(<\"$HOME/fds-before\") == $(<\"$HOME/fds-after\") ]] || exit 1\nprintf 'synthetic effects case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic effects case ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "effects-before.json",
+        "effects-events.jsonl",
+        "effects-report.json",
+        "effects-control-events.jsonl",
+        "effects-control-report.json",
+        "operation.out",
+        "operation.err",
+        "operation.status",
+        "fds-before",
+        "fds-after",
+        "observer.out",
+        "observer.err",
+        "observer.status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-adjust-noadjfile-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and bounded effect or failure: adjust-noadjfile",
+      "covers": [
+        "hwclock/adjust-fractional-drift"
+      ],
+      "oracle": "Independently supplied RTC calendar, Gregorian arithmetic or bracketed realtime, filesystem state, and path-scoped injected errors; RTC calls are synthetic.",
+      "comparison": "Save operation status, output and errors, syscall trace, before/after file state and descriptor snapshots. Synthetic close errno does not close its fd and cannot prove real close-failure descriptor cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-effects-r1.py": "8058984d01eabd41e97e02c6ad23932141219b33e935171277395351d31323c9"
+      },
+      "files": {
+        "rtc": "",
+        "adjtime": "1.750000 1704067200 0.500000\n1704067200\nUTC\n",
+        "effects.json": "{\"mode\": \"validate\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 2, \"reads\": 0, \"writes\": 0, \"fault\": \"none\", \"preserve\": true}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --adjust --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime --noadjfile >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
+        "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp effects.json effects-original.json\n/bin/cp effects-control.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/effects-control-events.jsonl\"\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/effects-control-report.json\"\n/bin/ln adjtime adj-alias\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py \"$BASH\" --noprofile --norc /tmp/parity-case/effects-inner.sh >\"$HOME/observer.out\" 2>\"$HOME/observer.err\"\nrc=$?; printf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 && $(<\"$HOME/observer.out\") == 'synthetic effects checks ok' && ! -s \"$HOME/observer.err\" ]] || exit 1\n[[ ! -s \"$HOME/operation.out\" && $(<\"$HOME/operation.err\") == *'requires an adjtime file'* ]] || exit 1\n[[ $(<\"$HOME/fds-before\") == $(<\"$HOME/fds-after\") ]] || exit 1\nprintf 'synthetic effects case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic effects case ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "effects-before.json",
+        "effects-events.jsonl",
+        "effects-report.json",
+        "effects-control-events.jsonl",
+        "effects-control-report.json",
+        "operation.out",
+        "operation.err",
+        "operation.status",
+        "fds-before",
+        "fds-after",
+        "observer.out",
+        "observer.err",
+        "observer.status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-systohc-utc-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and bounded effect or failure: systohc-utc",
+      "covers": [
+        "hwclock/systohc-and-adjtime-reset"
+      ],
+      "oracle": "Independently supplied RTC calendar, Gregorian arithmetic or bracketed realtime, filesystem state, and path-scoped injected errors; RTC calls are synthetic.",
+      "comparison": "Save operation status, output and errors, syscall trace, before/after file state and descriptor snapshots. Synthetic close errno does not close its fd and cannot prove real close-failure descriptor cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-effects-r1.py": "8058984d01eabd41e97e02c6ad23932141219b33e935171277395351d31323c9"
+      },
+      "files": {
+        "rtc": "",
+        "adjtime": "1.750000 1704067200 0.500000\n1704067200\nUTC\n",
+        "effects.json": "{\"mode\": \"systohc\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 0, \"writes\": 1, \"fault\": \"none\", \"check_reset\": true, \"reset_mode\": \"UTC\"}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --systohc --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
+        "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp effects.json effects-original.json\n/bin/cp effects-control.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/effects-control-events.jsonl\"\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/effects-control-report.json\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py \"$BASH\" --noprofile --norc /tmp/parity-case/effects-inner.sh >\"$HOME/observer.out\" 2>\"$HOME/observer.err\"\nrc=$?; printf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 && $(<\"$HOME/observer.out\") == 'synthetic effects checks ok' && ! -s \"$HOME/observer.err\" ]] || exit 1\n[[ ! -s \"$HOME/operation.out\" && ! -s \"$HOME/operation.err\" ]] || exit 1\n[[ $(<\"$HOME/fds-before\") == $(<\"$HOME/fds-after\") ]] || exit 1\nprintf 'synthetic effects case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic effects case ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "effects-before.json",
+        "effects-events.jsonl",
+        "effects-report.json",
+        "effects-control-events.jsonl",
+        "effects-control-report.json",
+        "operation.out",
+        "operation.err",
+        "operation.status",
+        "fds-before",
+        "fds-after",
+        "observer.out",
+        "observer.err",
+        "observer.status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-systohc-local-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and bounded effect or failure: systohc-local",
+      "covers": [
+        "hwclock/systohc-and-adjtime-reset"
+      ],
+      "oracle": "Independently supplied RTC calendar, Gregorian arithmetic or bracketed realtime, filesystem state, and path-scoped injected errors; RTC calls are synthetic.",
+      "comparison": "Save operation status, output and errors, syscall trace, before/after file state and descriptor snapshots. Synthetic close errno does not close its fd and cannot prove real close-failure descriptor cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-effects-r1.py": "8058984d01eabd41e97e02c6ad23932141219b33e935171277395351d31323c9"
+      },
+      "files": {
+        "rtc": "",
+        "adjtime": "1.750000 1704067200 0.500000\n1704067200\nUTC\n",
+        "effects.json": "{\"mode\": \"systohc\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 0, \"writes\": 1, \"fault\": \"none\", \"check_reset\": true, \"reset_mode\": \"LOCAL\", \"tz\": \"local\"}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nexport TZ='EST5EDT,M3.2.0/2,M11.1.0/2'\nhwclock --systohc --localtime --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
+        "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp effects.json effects-original.json\n/bin/cp effects-control.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/effects-control-events.jsonl\"\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/effects-control-report.json\"\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py \"$BASH\" --noprofile --norc /tmp/parity-case/effects-inner.sh >\"$HOME/observer.out\" 2>\"$HOME/observer.err\"\nrc=$?; printf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 && $(<\"$HOME/observer.out\") == 'synthetic effects checks ok' && ! -s \"$HOME/observer.err\" ]] || exit 1\n[[ ! -s \"$HOME/operation.out\" && ! -s \"$HOME/operation.err\" ]] || exit 1\n[[ $(<\"$HOME/fds-before\") == $(<\"$HOME/fds-after\") ]] || exit 1\nprintf 'synthetic effects case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic effects case ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "effects-before.json",
+        "effects-events.jsonl",
+        "effects-report.json",
+        "effects-control-events.jsonl",
+        "effects-control-report.json",
+        "operation.out",
+        "operation.err",
+        "operation.status",
+        "fds-before",
+        "fds-after",
+        "observer.out",
+        "observer.err",
+        "observer.status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-systohc-noadjfile-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and bounded effect or failure: systohc-noadjfile",
+      "covers": [
+        "hwclock/systohc-and-adjtime-reset"
+      ],
+      "oracle": "Independently supplied RTC calendar, Gregorian arithmetic or bracketed realtime, filesystem state, and path-scoped injected errors; RTC calls are synthetic.",
+      "comparison": "Save operation status, output and errors, syscall trace, before/after file state and descriptor snapshots. Synthetic close errno does not close its fd and cannot prove real close-failure descriptor cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-effects-r1.py": "8058984d01eabd41e97e02c6ad23932141219b33e935171277395351d31323c9"
+      },
+      "files": {
+        "rtc": "",
+        "adjtime": "1.750000 1704067200 0.500000\n1704067200\nUTC\n",
+        "effects.json": "{\"mode\": \"systohc\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 0, \"writes\": 1, \"fault\": \"none\", \"preserve\": true}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --systohc --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime --noadjfile >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
+        "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp effects.json effects-original.json\n/bin/cp effects-control.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/effects-control-events.jsonl\"\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/effects-control-report.json\"\n/bin/ln adjtime adj-alias\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py \"$BASH\" --noprofile --norc /tmp/parity-case/effects-inner.sh >\"$HOME/observer.out\" 2>\"$HOME/observer.err\"\nrc=$?; printf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 && $(<\"$HOME/observer.out\") == 'synthetic effects checks ok' && ! -s \"$HOME/observer.err\" ]] || exit 1\n[[ ! -s \"$HOME/operation.out\" && ! -s \"$HOME/operation.err\" ]] || exit 1\n[[ $(<\"$HOME/fds-before\") == $(<\"$HOME/fds-after\") ]] || exit 1\nprintf 'synthetic effects case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic effects case ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "effects-before.json",
+        "effects-events.jsonl",
+        "effects-report.json",
+        "effects-control-events.jsonl",
+        "effects-control-report.json",
+        "operation.out",
+        "operation.err",
+        "operation.status",
+        "fds-before",
+        "fds-after",
+        "observer.out",
+        "observer.err",
+        "observer.status"
+      ]
+    },
+    {
+      "id": "devices-hwclock-rtc-open-error-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and bounded effect or failure: rtc-open-error",
+      "covers": [
+        "hwclock/rtc-and-adjfile-failure-cleanup"
+      ],
+      "oracle": "Independently supplied RTC calendar, Gregorian arithmetic or bracketed realtime, filesystem state, and path-scoped injected errors; RTC calls are synthetic.",
+      "comparison": "Save operation status, output and errors, syscall trace, before/after file state and descriptor snapshots. Synthetic close errno does not close its fd and cannot prove real close-failure descriptor cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-effects-r1.py": "8058984d01eabd41e97e02c6ad23932141219b33e935171277395351d31323c9"
+      },
+      "files": {
+        "rtc": "",
+        "adjtime": "1.750000 1704067200 0.500000\n1704067200\nUTC\n",
+        "effects.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 1, \"reads\": 0, \"writes\": 0, \"fault\": \"rtc-open\", \"preserve\": true}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --show --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
+        "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n",
+        "effects-fault.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 0, \"writes\": 0, \"fault\": \"rtc-open\", \"preserve\": true}\n",
+        "effects-fault-control.py": "# Guest-only observer qualification. Deliberately target only fixture files.\nimport ctypes,errno,json,os\nfrom pathlib import Path\ncfg=json.loads(Path('effects.json').read_text()); fault=cfg['fault']; rtc='/tmp/parity-case/rtc'; tmp='/tmp/parity-case/adjtime.control'; adj='/tmp/parity-case/adjtime'\ndef expect_error(fn):\n    try: fn()\n    except OSError as exc:\n        assert exc.errno==errno.EIO,(fault,exc.errno)\n    else: raise AssertionError('fault did not return EIO: '+fault)\nif fault=='rtc-open': expect_error(lambda:os.open(rtc,os.O_RDONLY))\nelif fault=='rtc-close':\n    fd=os.open(rtc,os.O_RDONLY);expect_error(lambda:os.close(fd));os.close(fd)\nelif fault in ('rtc-read','rtc-write'):\n    fd=os.open(rtc,os.O_RDWR);a=(ctypes.c_int*9)();lib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\n    req=0x80247009 if fault=='rtc-read' else 0x4024700a\n    assert lib.ioctl(fd,req,ctypes.byref(a))==-1 and ctypes.get_errno()==errno.EIO\n    os.close(fd)\nelif fault=='temp-open': expect_error(lambda:os.open(tmp,os.O_CREAT|os.O_WRONLY|os.O_EXCL,0o600))\nelif fault in ('temp-write','temp-close','rename'):\n    fd=os.open(tmp,os.O_CREAT|os.O_WRONLY|os.O_EXCL,0o600)\n    if fault=='temp-write': expect_error(lambda:os.write(fd,b'test'))\n    if fault=='temp-close':\n        expect_error(lambda:os.close(fd))\n        # Synthetic error did not perform close; explicitly close once for cleanup.\n    os.close(fd)\n    if fault=='rename': expect_error(lambda:os.rename(tmp,adj))\n    os.unlink(tmp)\nelse: raise AssertionError('unknown fault')\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp effects.json effects-original.json\n/bin/cp effects-control.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/effects-control-events.jsonl\"\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/effects-control-report.json\"\n/bin/cp effects.json effects-original.json\n/bin/cp effects-fault.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-fault-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/fault-control-report.json\"\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/fault-control-events.jsonl\"\n/bin/ln adjtime adj-alias\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py \"$BASH\" --noprofile --norc /tmp/parity-case/effects-inner.sh >\"$HOME/observer.out\" 2>\"$HOME/observer.err\"\nrc=$?; printf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 && $(<\"$HOME/observer.out\") == 'synthetic effects checks ok' && ! -s \"$HOME/observer.err\" ]] || exit 1\n[[ ! -s \"$HOME/operation.out\" && $(<\"$HOME/operation.err\") == *'/tmp/parity-case/rtc'* ]] || exit 1\n[[ $(<\"$HOME/fds-before\") == $(<\"$HOME/fds-after\") ]] || exit 1\nprintf 'synthetic effects case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic effects case ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "effects-before.json",
+        "effects-events.jsonl",
+        "effects-report.json",
+        "effects-control-events.jsonl",
+        "effects-control-report.json",
+        "operation.out",
+        "operation.err",
+        "operation.status",
+        "fds-before",
+        "fds-after",
+        "observer.out",
+        "observer.err",
+        "observer.status",
+        "fault-control-report.json",
+        "fault-control-events.jsonl"
+      ]
+    },
+    {
+      "id": "devices-hwclock-rtc-read-error-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and bounded effect or failure: rtc-read-error",
+      "covers": [
+        "hwclock/rtc-and-adjfile-failure-cleanup"
+      ],
+      "oracle": "Independently supplied RTC calendar, Gregorian arithmetic or bracketed realtime, filesystem state, and path-scoped injected errors; RTC calls are synthetic.",
+      "comparison": "Save operation status, output and errors, syscall trace, before/after file state and descriptor snapshots. Synthetic close errno does not close its fd and cannot prove real close-failure descriptor cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-effects-r1.py": "8058984d01eabd41e97e02c6ad23932141219b33e935171277395351d31323c9"
+      },
+      "files": {
+        "rtc": "",
+        "adjtime": "1.750000 1704067200 0.500000\n1704067200\nUTC\n",
+        "effects.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 1, \"reads\": 1, \"writes\": 0, \"fault\": \"rtc-read\", \"preserve\": true}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --show --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
+        "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n",
+        "effects-fault.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 0, \"fault\": \"rtc-read\", \"preserve\": true}\n",
+        "effects-fault-control.py": "# Guest-only observer qualification. Deliberately target only fixture files.\nimport ctypes,errno,json,os\nfrom pathlib import Path\ncfg=json.loads(Path('effects.json').read_text()); fault=cfg['fault']; rtc='/tmp/parity-case/rtc'; tmp='/tmp/parity-case/adjtime.control'; adj='/tmp/parity-case/adjtime'\ndef expect_error(fn):\n    try: fn()\n    except OSError as exc:\n        assert exc.errno==errno.EIO,(fault,exc.errno)\n    else: raise AssertionError('fault did not return EIO: '+fault)\nif fault=='rtc-open': expect_error(lambda:os.open(rtc,os.O_RDONLY))\nelif fault=='rtc-close':\n    fd=os.open(rtc,os.O_RDONLY);expect_error(lambda:os.close(fd));os.close(fd)\nelif fault in ('rtc-read','rtc-write'):\n    fd=os.open(rtc,os.O_RDWR);a=(ctypes.c_int*9)();lib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\n    req=0x80247009 if fault=='rtc-read' else 0x4024700a\n    assert lib.ioctl(fd,req,ctypes.byref(a))==-1 and ctypes.get_errno()==errno.EIO\n    os.close(fd)\nelif fault=='temp-open': expect_error(lambda:os.open(tmp,os.O_CREAT|os.O_WRONLY|os.O_EXCL,0o600))\nelif fault in ('temp-write','temp-close','rename'):\n    fd=os.open(tmp,os.O_CREAT|os.O_WRONLY|os.O_EXCL,0o600)\n    if fault=='temp-write': expect_error(lambda:os.write(fd,b'test'))\n    if fault=='temp-close':\n        expect_error(lambda:os.close(fd))\n        # Synthetic error did not perform close; explicitly close once for cleanup.\n    os.close(fd)\n    if fault=='rename': expect_error(lambda:os.rename(tmp,adj))\n    os.unlink(tmp)\nelse: raise AssertionError('unknown fault')\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp effects.json effects-original.json\n/bin/cp effects-control.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/effects-control-events.jsonl\"\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/effects-control-report.json\"\n/bin/cp effects.json effects-original.json\n/bin/cp effects-fault.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-fault-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/fault-control-report.json\"\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/fault-control-events.jsonl\"\n/bin/ln adjtime adj-alias\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py \"$BASH\" --noprofile --norc /tmp/parity-case/effects-inner.sh >\"$HOME/observer.out\" 2>\"$HOME/observer.err\"\nrc=$?; printf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 && $(<\"$HOME/observer.out\") == 'synthetic effects checks ok' && ! -s \"$HOME/observer.err\" ]] || exit 1\n[[ ! -s \"$HOME/operation.out\" && $(<\"$HOME/operation.err\") == *'RTC_RD_TIME'* ]] || exit 1\n[[ $(<\"$HOME/fds-before\") == $(<\"$HOME/fds-after\") ]] || exit 1\nprintf 'synthetic effects case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic effects case ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "effects-before.json",
+        "effects-events.jsonl",
+        "effects-report.json",
+        "effects-control-events.jsonl",
+        "effects-control-report.json",
+        "operation.out",
+        "operation.err",
+        "operation.status",
+        "fds-before",
+        "fds-after",
+        "observer.out",
+        "observer.err",
+        "observer.status",
+        "fault-control-report.json",
+        "fault-control-events.jsonl"
+      ]
+    },
+    {
+      "id": "devices-hwclock-rtc-close-error-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and bounded effect or failure: rtc-close-error",
+      "covers": [
+        "hwclock/rtc-and-adjfile-failure-cleanup"
+      ],
+      "oracle": "Independently supplied RTC calendar, Gregorian arithmetic or bracketed realtime, filesystem state, and path-scoped injected errors; RTC calls are synthetic.",
+      "comparison": "Save operation status, output and errors, syscall trace, before/after file state and descriptor snapshots. Synthetic close errno does not close its fd and cannot prove real close-failure descriptor cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-effects-r1.py": "8058984d01eabd41e97e02c6ad23932141219b33e935171277395351d31323c9"
+      },
+      "files": {
+        "rtc": "",
+        "adjtime": "1.750000 1704067200 0.500000\n1704067200\nUTC\n",
+        "effects.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 1, \"reads\": 1, \"writes\": 0, \"fault\": \"rtc-close\", \"preserve\": true}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --show --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
+        "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n",
+        "effects-fault.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 0, \"writes\": 0, \"fault\": \"rtc-close\", \"preserve\": true}\n",
+        "effects-fault-control.py": "# Guest-only observer qualification. Deliberately target only fixture files.\nimport ctypes,errno,json,os\nfrom pathlib import Path\ncfg=json.loads(Path('effects.json').read_text()); fault=cfg['fault']; rtc='/tmp/parity-case/rtc'; tmp='/tmp/parity-case/adjtime.control'; adj='/tmp/parity-case/adjtime'\ndef expect_error(fn):\n    try: fn()\n    except OSError as exc:\n        assert exc.errno==errno.EIO,(fault,exc.errno)\n    else: raise AssertionError('fault did not return EIO: '+fault)\nif fault=='rtc-open': expect_error(lambda:os.open(rtc,os.O_RDONLY))\nelif fault=='rtc-close':\n    fd=os.open(rtc,os.O_RDONLY);expect_error(lambda:os.close(fd));os.close(fd)\nelif fault in ('rtc-read','rtc-write'):\n    fd=os.open(rtc,os.O_RDWR);a=(ctypes.c_int*9)();lib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\n    req=0x80247009 if fault=='rtc-read' else 0x4024700a\n    assert lib.ioctl(fd,req,ctypes.byref(a))==-1 and ctypes.get_errno()==errno.EIO\n    os.close(fd)\nelif fault=='temp-open': expect_error(lambda:os.open(tmp,os.O_CREAT|os.O_WRONLY|os.O_EXCL,0o600))\nelif fault in ('temp-write','temp-close','rename'):\n    fd=os.open(tmp,os.O_CREAT|os.O_WRONLY|os.O_EXCL,0o600)\n    if fault=='temp-write': expect_error(lambda:os.write(fd,b'test'))\n    if fault=='temp-close':\n        expect_error(lambda:os.close(fd))\n        # Synthetic error did not perform close; explicitly close once for cleanup.\n    os.close(fd)\n    if fault=='rename': expect_error(lambda:os.rename(tmp,adj))\n    os.unlink(tmp)\nelse: raise AssertionError('unknown fault')\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp effects.json effects-original.json\n/bin/cp effects-control.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/effects-control-events.jsonl\"\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/effects-control-report.json\"\n/bin/cp effects.json effects-original.json\n/bin/cp effects-fault.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-fault-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/fault-control-report.json\"\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/fault-control-events.jsonl\"\n/bin/ln adjtime adj-alias\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py \"$BASH\" --noprofile --norc /tmp/parity-case/effects-inner.sh >\"$HOME/observer.out\" 2>\"$HOME/observer.err\"\nrc=$?; printf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 && $(<\"$HOME/observer.out\") == 'synthetic effects checks ok' && ! -s \"$HOME/observer.err\" ]] || exit 1\n[[ ! -s \"$HOME/operation.out\" && $(<\"$HOME/operation.err\") == *'close RTC'* ]] || exit 1\nprintf 'synthetic effects case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic effects case ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "effects-before.json",
+        "effects-events.jsonl",
+        "effects-report.json",
+        "effects-control-events.jsonl",
+        "effects-control-report.json",
+        "operation.out",
+        "operation.err",
+        "operation.status",
+        "fds-before",
+        "fds-after",
+        "observer.out",
+        "observer.err",
+        "observer.status",
+        "fault-control-report.json",
+        "fault-control-events.jsonl"
+      ]
+    },
+    {
+      "id": "devices-hwclock-rtc-write-error-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and bounded effect or failure: rtc-write-error",
+      "covers": [
+        "hwclock/rtc-and-adjfile-failure-cleanup"
+      ],
+      "oracle": "Independently supplied RTC calendar, Gregorian arithmetic or bracketed realtime, filesystem state, and path-scoped injected errors; RTC calls are synthetic.",
+      "comparison": "Save operation status, output and errors, syscall trace, before/after file state and descriptor snapshots. Synthetic close errno does not close its fd and cannot prove real close-failure descriptor cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-effects-r1.py": "8058984d01eabd41e97e02c6ad23932141219b33e935171277395351d31323c9"
+      },
+      "files": {
+        "rtc": "",
+        "adjtime": "1.750000 1704067200 0.500000\n1704067200\nUTC\n",
+        "effects.json": "{\"mode\": \"systohc\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 1, \"reads\": 0, \"writes\": 1, \"fault\": \"rtc-write\", \"preserve\": true}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --systohc --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
+        "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n",
+        "effects-fault.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 0, \"writes\": 1, \"fault\": \"rtc-write\", \"preserve\": true}\n",
+        "effects-fault-control.py": "# Guest-only observer qualification. Deliberately target only fixture files.\nimport ctypes,errno,json,os\nfrom pathlib import Path\ncfg=json.loads(Path('effects.json').read_text()); fault=cfg['fault']; rtc='/tmp/parity-case/rtc'; tmp='/tmp/parity-case/adjtime.control'; adj='/tmp/parity-case/adjtime'\ndef expect_error(fn):\n    try: fn()\n    except OSError as exc:\n        assert exc.errno==errno.EIO,(fault,exc.errno)\n    else: raise AssertionError('fault did not return EIO: '+fault)\nif fault=='rtc-open': expect_error(lambda:os.open(rtc,os.O_RDONLY))\nelif fault=='rtc-close':\n    fd=os.open(rtc,os.O_RDONLY);expect_error(lambda:os.close(fd));os.close(fd)\nelif fault in ('rtc-read','rtc-write'):\n    fd=os.open(rtc,os.O_RDWR);a=(ctypes.c_int*9)();lib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\n    req=0x80247009 if fault=='rtc-read' else 0x4024700a\n    assert lib.ioctl(fd,req,ctypes.byref(a))==-1 and ctypes.get_errno()==errno.EIO\n    os.close(fd)\nelif fault=='temp-open': expect_error(lambda:os.open(tmp,os.O_CREAT|os.O_WRONLY|os.O_EXCL,0o600))\nelif fault in ('temp-write','temp-close','rename'):\n    fd=os.open(tmp,os.O_CREAT|os.O_WRONLY|os.O_EXCL,0o600)\n    if fault=='temp-write': expect_error(lambda:os.write(fd,b'test'))\n    if fault=='temp-close':\n        expect_error(lambda:os.close(fd))\n        # Synthetic error did not perform close; explicitly close once for cleanup.\n    os.close(fd)\n    if fault=='rename': expect_error(lambda:os.rename(tmp,adj))\n    os.unlink(tmp)\nelse: raise AssertionError('unknown fault')\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp effects.json effects-original.json\n/bin/cp effects-control.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/effects-control-events.jsonl\"\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/effects-control-report.json\"\n/bin/cp effects.json effects-original.json\n/bin/cp effects-fault.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-fault-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/fault-control-report.json\"\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/fault-control-events.jsonl\"\n/bin/ln adjtime adj-alias\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py \"$BASH\" --noprofile --norc /tmp/parity-case/effects-inner.sh >\"$HOME/observer.out\" 2>\"$HOME/observer.err\"\nrc=$?; printf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 && $(<\"$HOME/observer.out\") == 'synthetic effects checks ok' && ! -s \"$HOME/observer.err\" ]] || exit 1\n[[ ! -s \"$HOME/operation.out\" && $(<\"$HOME/operation.err\") == *'RTC_SET_TIME'* ]] || exit 1\n[[ $(<\"$HOME/fds-before\") == $(<\"$HOME/fds-after\") ]] || exit 1\nprintf 'synthetic effects case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic effects case ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "effects-before.json",
+        "effects-events.jsonl",
+        "effects-report.json",
+        "effects-control-events.jsonl",
+        "effects-control-report.json",
+        "operation.out",
+        "operation.err",
+        "operation.status",
+        "fds-before",
+        "fds-after",
+        "observer.out",
+        "observer.err",
+        "observer.status",
+        "fault-control-report.json",
+        "fault-control-events.jsonl"
+      ]
+    },
+    {
+      "id": "devices-hwclock-temp-open-error-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and bounded effect or failure: temp-open-error",
+      "covers": [
+        "hwclock/rtc-and-adjfile-failure-cleanup"
+      ],
+      "oracle": "Independently supplied RTC calendar, Gregorian arithmetic or bracketed realtime, filesystem state, and path-scoped injected errors; RTC calls are synthetic.",
+      "comparison": "Save operation status, output and errors, syscall trace, before/after file state and descriptor snapshots. Synthetic close errno does not close its fd and cannot prove real close-failure descriptor cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-effects-r1.py": "8058984d01eabd41e97e02c6ad23932141219b33e935171277395351d31323c9"
+      },
+      "files": {
+        "rtc": "",
+        "adjtime": "1.750000 1704067200 0.500000\n1704067200\nUTC\n",
+        "effects.json": "{\"mode\": \"systohc\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 1, \"reads\": 0, \"writes\": 1, \"fault\": \"temp-open\", \"preserve\": true}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --systohc --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
+        "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n",
+        "effects-fault.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 0, \"writes\": 0, \"fault\": \"temp-open\", \"preserve\": true}\n",
+        "effects-fault-control.py": "# Guest-only observer qualification. Deliberately target only fixture files.\nimport ctypes,errno,json,os\nfrom pathlib import Path\ncfg=json.loads(Path('effects.json').read_text()); fault=cfg['fault']; rtc='/tmp/parity-case/rtc'; tmp='/tmp/parity-case/adjtime.control'; adj='/tmp/parity-case/adjtime'\ndef expect_error(fn):\n    try: fn()\n    except OSError as exc:\n        assert exc.errno==errno.EIO,(fault,exc.errno)\n    else: raise AssertionError('fault did not return EIO: '+fault)\nif fault=='rtc-open': expect_error(lambda:os.open(rtc,os.O_RDONLY))\nelif fault=='rtc-close':\n    fd=os.open(rtc,os.O_RDONLY);expect_error(lambda:os.close(fd));os.close(fd)\nelif fault in ('rtc-read','rtc-write'):\n    fd=os.open(rtc,os.O_RDWR);a=(ctypes.c_int*9)();lib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\n    req=0x80247009 if fault=='rtc-read' else 0x4024700a\n    assert lib.ioctl(fd,req,ctypes.byref(a))==-1 and ctypes.get_errno()==errno.EIO\n    os.close(fd)\nelif fault=='temp-open': expect_error(lambda:os.open(tmp,os.O_CREAT|os.O_WRONLY|os.O_EXCL,0o600))\nelif fault in ('temp-write','temp-close','rename'):\n    fd=os.open(tmp,os.O_CREAT|os.O_WRONLY|os.O_EXCL,0o600)\n    if fault=='temp-write': expect_error(lambda:os.write(fd,b'test'))\n    if fault=='temp-close':\n        expect_error(lambda:os.close(fd))\n        # Synthetic error did not perform close; explicitly close once for cleanup.\n    os.close(fd)\n    if fault=='rename': expect_error(lambda:os.rename(tmp,adj))\n    os.unlink(tmp)\nelse: raise AssertionError('unknown fault')\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp effects.json effects-original.json\n/bin/cp effects-control.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/effects-control-events.jsonl\"\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/effects-control-report.json\"\n/bin/cp effects.json effects-original.json\n/bin/cp effects-fault.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-fault-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/fault-control-report.json\"\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/fault-control-events.jsonl\"\n/bin/ln adjtime adj-alias\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py \"$BASH\" --noprofile --norc /tmp/parity-case/effects-inner.sh >\"$HOME/observer.out\" 2>\"$HOME/observer.err\"\nrc=$?; printf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 && $(<\"$HOME/observer.out\") == 'synthetic effects checks ok' && ! -s \"$HOME/observer.err\" ]] || exit 1\n[[ ! -s \"$HOME/operation.out\" && $(<\"$HOME/operation.err\") == *'adjtime'* ]] || exit 1\n[[ $(<\"$HOME/fds-before\") == $(<\"$HOME/fds-after\") ]] || exit 1\nprintf 'synthetic effects case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic effects case ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "effects-before.json",
+        "effects-events.jsonl",
+        "effects-report.json",
+        "effects-control-events.jsonl",
+        "effects-control-report.json",
+        "operation.out",
+        "operation.err",
+        "operation.status",
+        "fds-before",
+        "fds-after",
+        "observer.out",
+        "observer.err",
+        "observer.status",
+        "fault-control-report.json",
+        "fault-control-events.jsonl"
+      ]
+    },
+    {
+      "id": "devices-hwclock-temp-write-error-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and bounded effect or failure: temp-write-error",
+      "covers": [
+        "hwclock/rtc-and-adjfile-failure-cleanup"
+      ],
+      "oracle": "Independently supplied RTC calendar, Gregorian arithmetic or bracketed realtime, filesystem state, and path-scoped injected errors; RTC calls are synthetic.",
+      "comparison": "Save operation status, output and errors, syscall trace, before/after file state and descriptor snapshots. Synthetic close errno does not close its fd and cannot prove real close-failure descriptor cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-effects-r1.py": "8058984d01eabd41e97e02c6ad23932141219b33e935171277395351d31323c9"
+      },
+      "files": {
+        "rtc": "",
+        "adjtime": "1.750000 1704067200 0.500000\n1704067200\nUTC\n",
+        "effects.json": "{\"mode\": \"systohc\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 1, \"reads\": 0, \"writes\": 1, \"fault\": \"temp-write\", \"preserve\": true}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --systohc --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
+        "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n",
+        "effects-fault.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 0, \"writes\": 0, \"fault\": \"temp-write\", \"preserve\": true}\n",
+        "effects-fault-control.py": "# Guest-only observer qualification. Deliberately target only fixture files.\nimport ctypes,errno,json,os\nfrom pathlib import Path\ncfg=json.loads(Path('effects.json').read_text()); fault=cfg['fault']; rtc='/tmp/parity-case/rtc'; tmp='/tmp/parity-case/adjtime.control'; adj='/tmp/parity-case/adjtime'\ndef expect_error(fn):\n    try: fn()\n    except OSError as exc:\n        assert exc.errno==errno.EIO,(fault,exc.errno)\n    else: raise AssertionError('fault did not return EIO: '+fault)\nif fault=='rtc-open': expect_error(lambda:os.open(rtc,os.O_RDONLY))\nelif fault=='rtc-close':\n    fd=os.open(rtc,os.O_RDONLY);expect_error(lambda:os.close(fd));os.close(fd)\nelif fault in ('rtc-read','rtc-write'):\n    fd=os.open(rtc,os.O_RDWR);a=(ctypes.c_int*9)();lib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\n    req=0x80247009 if fault=='rtc-read' else 0x4024700a\n    assert lib.ioctl(fd,req,ctypes.byref(a))==-1 and ctypes.get_errno()==errno.EIO\n    os.close(fd)\nelif fault=='temp-open': expect_error(lambda:os.open(tmp,os.O_CREAT|os.O_WRONLY|os.O_EXCL,0o600))\nelif fault in ('temp-write','temp-close','rename'):\n    fd=os.open(tmp,os.O_CREAT|os.O_WRONLY|os.O_EXCL,0o600)\n    if fault=='temp-write': expect_error(lambda:os.write(fd,b'test'))\n    if fault=='temp-close':\n        expect_error(lambda:os.close(fd))\n        # Synthetic error did not perform close; explicitly close once for cleanup.\n    os.close(fd)\n    if fault=='rename': expect_error(lambda:os.rename(tmp,adj))\n    os.unlink(tmp)\nelse: raise AssertionError('unknown fault')\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp effects.json effects-original.json\n/bin/cp effects-control.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/effects-control-events.jsonl\"\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/effects-control-report.json\"\n/bin/cp effects.json effects-original.json\n/bin/cp effects-fault.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-fault-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/fault-control-report.json\"\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/fault-control-events.jsonl\"\n/bin/ln adjtime adj-alias\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py \"$BASH\" --noprofile --norc /tmp/parity-case/effects-inner.sh >\"$HOME/observer.out\" 2>\"$HOME/observer.err\"\nrc=$?; printf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 && $(<\"$HOME/observer.out\") == 'synthetic effects checks ok' && ! -s \"$HOME/observer.err\" ]] || exit 1\n[[ ! -s \"$HOME/operation.out\" && $(<\"$HOME/operation.err\") == *'adjtime'* ]] || exit 1\n[[ $(<\"$HOME/fds-before\") == $(<\"$HOME/fds-after\") ]] || exit 1\nprintf 'synthetic effects case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic effects case ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "effects-before.json",
+        "effects-events.jsonl",
+        "effects-report.json",
+        "effects-control-events.jsonl",
+        "effects-control-report.json",
+        "operation.out",
+        "operation.err",
+        "operation.status",
+        "fds-before",
+        "fds-after",
+        "observer.out",
+        "observer.err",
+        "observer.status",
+        "fault-control-report.json",
+        "fault-control-events.jsonl"
+      ]
+    },
+    {
+      "id": "devices-hwclock-temp-close-error-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and bounded effect or failure: temp-close-error",
+      "covers": [
+        "hwclock/rtc-and-adjfile-failure-cleanup"
+      ],
+      "oracle": "Independently supplied RTC calendar, Gregorian arithmetic or bracketed realtime, filesystem state, and path-scoped injected errors; RTC calls are synthetic.",
+      "comparison": "Save operation status, output and errors, syscall trace, before/after file state and descriptor snapshots. Synthetic close errno does not close its fd and cannot prove real close-failure descriptor cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-effects-r1.py": "8058984d01eabd41e97e02c6ad23932141219b33e935171277395351d31323c9"
+      },
+      "files": {
+        "rtc": "",
+        "adjtime": "1.750000 1704067200 0.500000\n1704067200\nUTC\n",
+        "effects.json": "{\"mode\": \"systohc\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 1, \"reads\": 0, \"writes\": 1, \"fault\": \"temp-close\", \"preserve\": true}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --systohc --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
+        "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n",
+        "effects-fault.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 0, \"writes\": 0, \"fault\": \"temp-close\", \"preserve\": true}\n",
+        "effects-fault-control.py": "# Guest-only observer qualification. Deliberately target only fixture files.\nimport ctypes,errno,json,os\nfrom pathlib import Path\ncfg=json.loads(Path('effects.json').read_text()); fault=cfg['fault']; rtc='/tmp/parity-case/rtc'; tmp='/tmp/parity-case/adjtime.control'; adj='/tmp/parity-case/adjtime'\ndef expect_error(fn):\n    try: fn()\n    except OSError as exc:\n        assert exc.errno==errno.EIO,(fault,exc.errno)\n    else: raise AssertionError('fault did not return EIO: '+fault)\nif fault=='rtc-open': expect_error(lambda:os.open(rtc,os.O_RDONLY))\nelif fault=='rtc-close':\n    fd=os.open(rtc,os.O_RDONLY);expect_error(lambda:os.close(fd));os.close(fd)\nelif fault in ('rtc-read','rtc-write'):\n    fd=os.open(rtc,os.O_RDWR);a=(ctypes.c_int*9)();lib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\n    req=0x80247009 if fault=='rtc-read' else 0x4024700a\n    assert lib.ioctl(fd,req,ctypes.byref(a))==-1 and ctypes.get_errno()==errno.EIO\n    os.close(fd)\nelif fault=='temp-open': expect_error(lambda:os.open(tmp,os.O_CREAT|os.O_WRONLY|os.O_EXCL,0o600))\nelif fault in ('temp-write','temp-close','rename'):\n    fd=os.open(tmp,os.O_CREAT|os.O_WRONLY|os.O_EXCL,0o600)\n    if fault=='temp-write': expect_error(lambda:os.write(fd,b'test'))\n    if fault=='temp-close':\n        expect_error(lambda:os.close(fd))\n        # Synthetic error did not perform close; explicitly close once for cleanup.\n    os.close(fd)\n    if fault=='rename': expect_error(lambda:os.rename(tmp,adj))\n    os.unlink(tmp)\nelse: raise AssertionError('unknown fault')\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp effects.json effects-original.json\n/bin/cp effects-control.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/effects-control-events.jsonl\"\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/effects-control-report.json\"\n/bin/cp effects.json effects-original.json\n/bin/cp effects-fault.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-fault-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/fault-control-report.json\"\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/fault-control-events.jsonl\"\n/bin/ln adjtime adj-alias\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py \"$BASH\" --noprofile --norc /tmp/parity-case/effects-inner.sh >\"$HOME/observer.out\" 2>\"$HOME/observer.err\"\nrc=$?; printf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 && $(<\"$HOME/observer.out\") == 'synthetic effects checks ok' && ! -s \"$HOME/observer.err\" ]] || exit 1\n[[ ! -s \"$HOME/operation.out\" && $(<\"$HOME/operation.err\") == *'adjtime'* ]] || exit 1\nprintf 'synthetic effects case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic effects case ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "effects-before.json",
+        "effects-events.jsonl",
+        "effects-report.json",
+        "effects-control-events.jsonl",
+        "effects-control-report.json",
+        "operation.out",
+        "operation.err",
+        "operation.status",
+        "fds-before",
+        "fds-after",
+        "observer.out",
+        "observer.err",
+        "observer.status",
+        "fault-control-report.json",
+        "fault-control-events.jsonl"
+      ]
+    },
+    {
+      "id": "devices-hwclock-rename-error-r1",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Synthetic RTC and bounded effect or failure: rename-error",
+      "covers": [
+        "hwclock/rtc-and-adjfile-failure-cleanup"
+      ],
+      "oracle": "Independently supplied RTC calendar, Gregorian arithmetic or bracketed realtime, filesystem state, and path-scoped injected errors; RTC calls are synthetic.",
+      "comparison": "Save operation status, output and errors, syscall trace, before/after file state and descriptor snapshots. Synthetic close errno does not close its fd and cannot prove real close-failure descriptor cleanup.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/devices-hwclock-effects-r1.py": "8058984d01eabd41e97e02c6ad23932141219b33e935171277395351d31323c9"
+      },
+      "files": {
+        "rtc": "",
+        "adjtime": "1.750000 1704067200 0.500000\n1704067200\nUTC\n",
+        "effects.json": "{\"mode\": \"systohc\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 1, \"reads\": 0, \"writes\": 1, \"fault\": \"rename\", \"preserve\": true}\n",
+        "effects-inner.sh": "snapshot() { local f s=''; for f in /proc/$$/fd/*; do s=\"$s ${f##*/}\"; done; printf '%s\\n' \"$s\" >\"$HOME/$1\"; }\nsnapshot fds-before\nhwclock --systohc --utc --rtc /tmp/parity-case/rtc --adjfile /tmp/parity-case/adjtime >\"$HOME/operation.out\" 2>\"$HOME/operation.err\"\nrc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/operation.status\"\nsnapshot fds-after\nexit \"$rc\"\n",
+        "effects-control.py": "# Guest-only control: prove synthetic RTC input writeback and RTC write capture.\nimport ctypes,os\nlib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\na=(ctypes.c_int*9)();fd=os.open('/tmp/parity-case/rtc',os.O_RDWR)\nassert lib.ioctl(fd,0x80247009,ctypes.byref(a))==0\nassert list(a)==[0,0,0,2,0,124,0,0,0]\nassert lib.ioctl(fd,0x4024700a,ctypes.byref(a))==0\nos.close(fd)\n",
+        "effects-control.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 1, \"writes\": 1, \"fault\": \"none\"}\n",
+        "effects-fault.json": "{\"mode\": \"read\", \"rtc\": [0, 0, 0, 2, 0, 124, 0, 0, 0], \"status\": 0, \"reads\": 0, \"writes\": 0, \"fault\": \"rename\", \"preserve\": true}\n",
+        "effects-fault-control.py": "# Guest-only observer qualification. Deliberately target only fixture files.\nimport ctypes,errno,json,os\nfrom pathlib import Path\ncfg=json.loads(Path('effects.json').read_text()); fault=cfg['fault']; rtc='/tmp/parity-case/rtc'; tmp='/tmp/parity-case/adjtime.control'; adj='/tmp/parity-case/adjtime'\ndef expect_error(fn):\n    try: fn()\n    except OSError as exc:\n        assert exc.errno==errno.EIO,(fault,exc.errno)\n    else: raise AssertionError('fault did not return EIO: '+fault)\nif fault=='rtc-open': expect_error(lambda:os.open(rtc,os.O_RDONLY))\nelif fault=='rtc-close':\n    fd=os.open(rtc,os.O_RDONLY);expect_error(lambda:os.close(fd));os.close(fd)\nelif fault in ('rtc-read','rtc-write'):\n    fd=os.open(rtc,os.O_RDWR);a=(ctypes.c_int*9)();lib=ctypes.CDLL(None,use_errno=True); lib.ioctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_void_p]; lib.ioctl.restype=ctypes.c_int\n    req=0x80247009 if fault=='rtc-read' else 0x4024700a\n    assert lib.ioctl(fd,req,ctypes.byref(a))==-1 and ctypes.get_errno()==errno.EIO\n    os.close(fd)\nelif fault=='temp-open': expect_error(lambda:os.open(tmp,os.O_CREAT|os.O_WRONLY|os.O_EXCL,0o600))\nelif fault in ('temp-write','temp-close','rename'):\n    fd=os.open(tmp,os.O_CREAT|os.O_WRONLY|os.O_EXCL,0o600)\n    if fault=='temp-write': expect_error(lambda:os.write(fd,b'test'))\n    if fault=='temp-close':\n        expect_error(lambda:os.close(fd))\n        # Synthetic error did not perform close; explicitly close once for cleanup.\n    os.close(fd)\n    if fault=='rename': expect_error(lambda:os.rename(tmp,adj))\n    os.unlink(tmp)\nelse: raise AssertionError('unknown fault')\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp effects.json effects-original.json\n/bin/cp effects-control.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/effects-control-events.jsonl\"\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/effects-control-report.json\"\n/bin/cp effects.json effects-original.json\n/bin/cp effects-fault.json effects.json\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py /usr/bin/python3 /tmp/parity-case/effects-fault-control.py || exit 125\n/bin/cp effects-original.json effects.json\n/bin/mv \"$HOME/effects-report.json\" \"$HOME/fault-control-report.json\"\n/bin/mv \"$HOME/effects-events.jsonl\" \"$HOME/fault-control-events.jsonl\"\n/bin/ln adjtime adj-alias\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/devices-hwclock-effects-r1.py \"$BASH\" --noprofile --norc /tmp/parity-case/effects-inner.sh >\"$HOME/observer.out\" 2>\"$HOME/observer.err\"\nrc=$?; printf '%s\\n' \"$rc\" >\"$HOME/observer.status\"\n[[ $rc == 0 && $(<\"$HOME/observer.out\") == 'synthetic effects checks ok' && ! -s \"$HOME/observer.err\" ]] || exit 1\n[[ ! -s \"$HOME/operation.out\" && $(<\"$HOME/operation.err\") == *'adjtime'* ]] || exit 1\n[[ $(<\"$HOME/fds-before\") == $(<\"$HOME/fds-after\") ]] || exit 1\nprintf 'synthetic effects case ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "synthetic effects case ok\n",
+      "stderr": "",
+      "timeout": 50,
+      "diagnostic_files": [
+        "effects-before.json",
+        "effects-events.jsonl",
+        "effects-report.json",
+        "effects-control-events.jsonl",
+        "effects-control-report.json",
+        "operation.out",
+        "operation.err",
+        "operation.status",
+        "fds-before",
+        "fds-after",
+        "observer.out",
+        "observer.err",
+        "observer.status",
+        "fault-control-report.json",
+        "fault-control-events.jsonl"
+      ]
+    }
+  ]
+}

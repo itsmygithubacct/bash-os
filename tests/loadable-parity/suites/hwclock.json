@@ -59,13 +59,34 @@
       "id": "systohc-and-adjtime-reset",
       "kind": "deferred",
       "purpose": "Convert fixed UTC/local system timestamps to RTC fields and check that successful systohc resets adjtime timestamps, remainder, and mode; also cover --noadjfile.",
-      "reason": "Not executed. RTC write/adjtime obligations are reachable with an unprivileged per-side mock; only converting an exactly fixed system time needs CAP_SYS_TIME to set the guest clock, because clock_gettime is a vDSO call."
+      "reason": "Remaining obligations: r1: The sampled system time is bracketed rather than fixed; no real RTC setting is established."
     },
     {
       "id": "adjust-fractional-drift",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Apply positive and negative drift with fractional remainder, verify truncation toward zero and updated calibration, and check that a correction rounding to zero causes no RTC write.",
-      "reason": "Not executed; reachable with the unprivileged per-side RTC ioctl mock; refusal paths reachable in legacy."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adjust-last-zero-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adjust-negative-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adjust-noadjfile-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adjust-positive-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-adjust-subsecond-r1"
+        }
+      ]
     },
     {
       "id": "adjtime-validation-before-rtc",
@@ -77,7 +98,7 @@
       "id": "rtc-and-adjfile-failure-cleanup",
       "kind": "deferred",
       "purpose": "Inject RTC open/read/write/close and adjtime temporary-file write/close/rename failures; verify failure statuses, no leaked descriptors or temporary files, and preservation of the prior calibration.",
-      "reason": "Not executed; reachable with legacy techniques plus the per-side seccomp user-notification errno injector."
+      "reason": "Remaining obligations: r2: Synthetic close EIO skips the real close, so actual close-failure cleanup is not established. r3: Synthetic close EIO skips the real close and leaves a descriptor; real close-failure descriptor cleanup is not established."
     }
   ]
 }
