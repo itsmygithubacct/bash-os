@@ -1,12 +1,12 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "a4e799ac76582f8b6e344a99519cd787aa7ad04160ddc2cbb190f47c65e23071",
+  "ledger_sha256": "dba3184a7ee4776a0cb983a7db5686087101d53b454f275d812f06f78387dfde",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 93,
+    "partial": 96,
     "full": 406,
-    "none": 101
+    "none": 98
   },
   "migrations": {
     "deferred": 194,
@@ -8282,6 +8282,84 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793400686.050771
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "farm600-top-proc-lifecycle-v3-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 7,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "e6dc3e01eb47bfa8473cabbb182d029e1c8d2a0305347d49da514c26f50e12a9",
+            "provenance.json": "e641415149d065813856781d44d62d2e4902dde202c0c68bd93eb1e182d74528",
+            "payload.tar": "e9bec5c326de4d82e25d132bd5e7fd5be3798aa826f5952c23988dbbdc41718e",
+            "evidence.tar": "c6b706770344fa03828d036648efeb2168e798cba4021bba6a074b6cd8e48e73"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793401224.5901034
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "farm600-passwd-prompts-v2-r2-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "3ba5ed511a45fc1daa9292bbffea75f81848c2ac254744da4e23f664230cec10",
+            "provenance.json": "bdf9c6204d85c94b64e0f122d91518255ac017d7d2f19172d894ed035db82479",
+            "payload.tar": "bd5159c8398d3efd813461045f4d9893df0ec4ae611cda76792349b84a3276cf",
+            "evidence.tar": "ea6195e0f333317062bc121df33b337043c5261d39b0a0a212974df89cf82666"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793401455.4926865
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "farm600-dhcp-server-v1-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 7,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "d6ea2f1b7cd29b6b648da548b5a253bc505ef42d09d6d4d71ccebf840854fc50",
+            "provenance.json": "665451c5ac81be57599a13043f58e32264723985709a270a828e1cd945fccb82",
+            "payload.tar": "877498842ef2e4a5116d2926ae7d4716169552e9fe6ccfba58ae9e24fdf94377",
+            "evidence.tar": "6fd2da0d08e1c8ae74544ab414dfe4381c16dc4716d38a3c352211346faaa2be"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793400502.7440817
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -18920,7 +18998,7 @@
         {
           "topic": "dhcpd/decline-release-and-hook",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -18954,11 +19032,18 @@
             {
               "id": "r4",
               "behavior": "lease-exec runs on commit with BASHDHCPD_ACTION=commit and MAC/IP/HOSTNAME/LEASE_TIME variables.",
-              "coverage": "missing",
-              "gap": "No hook fixture; respond REQUEST also triggers commit offline.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-dhcp-server-reviewed-hook-commit",
+                  "status": "PASS",
+                  "run": "farm600-dhcp-server-v1-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -18972,29 +19057,55 @@
             {
               "id": "r6",
               "behavior": "A failing or missing hook does not affect the DHCP reply.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-dhcp-server-reviewed-hook-failure",
+                  "status": "PASS",
+                  "run": "farm600-dhcp-server-v1-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-dhcp-server-reviewed-hook-missing",
+                  "status": "PASS",
+                  "run": "farm600-dhcp-server-v1-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "dhcpd/relay-proxy-pxe",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A relayed request (giaddr set) selects the subnet whose network matches giaddr, and the reply carries that subnet's pool/mask/router.",
-              "coverage": "missing",
-              "gap": "No giaddr case, though respond already supports it offline.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-dhcp-server-reviewed-relay-a",
+                  "status": "PASS",
+                  "run": "farm600-dhcp-server-v1-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-dhcp-server-reviewed-relay-b",
+                  "status": "PASS",
+                  "run": "farm600-dhcp-server-v1-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -19008,11 +19119,24 @@
             {
               "id": "r3",
               "behavior": "Option 82 is echoed verbatim in the reply.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-dhcp-server-reviewed-relay-a",
+                  "status": "PASS",
+                  "run": "farm600-dhcp-server-v1-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-dhcp-server-reviewed-relay-b",
+                  "status": "PASS",
+                  "run": "farm600-dhcp-server-v1-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -19026,9 +19150,16 @@
             {
               "id": "r5",
               "behavior": "Configured PXE options: siaddr next-server, option 66, option 67 + BOOTP file, option 43 sub-options 6/8/9/10, gated by option 60 PXEClient when pxe-vendor-match is on.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The negative-vendor next-server gating obligation remains unqualified; live PXE/proxy socket behavior is not covered.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-dhcp-server-reviewed-pxe-match",
+                  "status": "FAIL",
+                  "run": "farm600-dhcp-server-v1-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -37705,26 +37836,40 @@
             {
               "id": "r1",
               "behavior": "Prompt ordering for change/set (current, new, confirm).",
-              "coverage": "missing",
-              "gap": "Not executed; PTY driver available.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Change prompt scenario requires a non-colliding synthetic current password and independent revalidation.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-passwd-prompts-reviewed-set-success",
+                  "status": "PASS",
+                  "run": "farm600-passwd-prompts-v2-r2-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "New-password confirmation mismatch is rejected without updating shadow.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-passwd-prompts-reviewed-set-mismatch",
+                  "status": "PASS",
+                  "run": "farm600-passwd-prompts-v2-r2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Echo is suppressed during reads.",
               "coverage": "partial",
-              "gap": "The EIO and EOF read-fault observations show ECHO suppressed during those reads; success, mismatch and signal paths were not qualified.",
+              "gap": "ECHO state during successful, mismatch and interrupted reads remains unqualified.",
               "evidence": [
                 {
                   "group": "terminal",
@@ -37746,7 +37891,7 @@
               "id": "r4",
               "behavior": "Terminal restored after success, mismatch, read failure (EOF) and signal interruption (^C).",
               "coverage": "partial",
-              "gap": "Terminal restoration was observed for EIO and EOF; success, mismatch and signal paths were not qualified.",
+              "gap": "Foreground Ctrl-C interruption restoration remains uncovered; change case remains unqualified under strict collision gate.",
               "evidence": [
                 {
                   "group": "terminal",
@@ -37759,6 +37904,18 @@
                   "id": "trace-vm-passwd-read-eof-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-probe-composite-tracing-memory-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-passwd-prompts-reviewed-set-success",
+                  "status": "PASS",
+                  "run": "farm600-passwd-prompts-v2-r2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-passwd-prompts-reviewed-set-mismatch",
+                  "status": "PASS",
+                  "run": "farm600-passwd-prompts-v2-r2-static"
                 }
               ],
               "fully_exercised": false,
@@ -53598,63 +53755,111 @@
         {
           "topic": "top/proc-record-and-pid-lifecycle",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "malformed or truncated per-PID records are skipped or handled as documented",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Malformed status and cmdline semantics remain untested; broad original requirement incomplete.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-malformed",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "a PID vanishing between directory scan and record read is skipped",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-vanish",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "an empty process list is rendered correctly",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-empty",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "CPU counter rollback between samples does not produce negative or huge rates",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-proc-rollback",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-cpu-rollback",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "guest time accounting matches the documented rule",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-guest",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "new and reused PIDs between samples are treated as new tasks (no stale delta)",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-lifecycle",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -66736,6 +66941,84 @@
           "candidate_unchanged": true,
           "candidate_matches_guest": true,
           "prepared_unchanged": true
+        },
+        {
+          "name": "farm600-top-proc-lifecycle-v3-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 7,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "766600a4f96b70bab1f2ca20cd186ed8c43f36e65d1e5edafe7463f1051ab460",
+            "provenance.json": "5282726e4852943f08e252fdf3a259e14c0e5900bf1f2f1583ec33494b1fa964",
+            "payload.tar": "e6e33070b4ac5cfbe80b698404e86242b0b5089a82cecaef9ba737419b925119",
+            "evidence.tar": "528e4fa2aec5bab4f81d09923ef8b050320a8bfe0a1e89bf3efdf9bae01c4394"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793401299.1984682
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "farm600-passwd-prompts-v2-r2-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "9f1a23654c0d4a15d502e4d233129b8805b7920475ccb4bdb28eca000cf6b10c",
+            "provenance.json": "e4c264e3729617b6cdd9ce5a2f9e92bca3408e785b32cdf4bcea8f71a57efb38",
+            "payload.tar": "4abb261f0c5f8e0e42783e1dae7a03afe706e93e578b06323ae18c8d06f0b560",
+            "evidence.tar": "5eb5f8c60600eda49bba4f0773d581b91be70d8c86200773819cee3730dd2f74"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793401496.6590388
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "farm600-dhcp-server-v1-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 7,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "e1e7bed6bc2f21f3354d1fb89936ac8d292b42c50c85a7d5aaa448d435b489b4",
+            "provenance.json": "0eecbe64e61d528f368d9adda5c1231e3348076a6d067182e6ff9a2d041e2111",
+            "payload.tar": "1f22547cbcbac9ed91a0ccac15869c3d330e208c9bdd5a12923b0f189cf437fa",
+            "evidence.tar": "ade2bad8372bf0ec329402b8d1616876241eb407309a28e01f8eb6d08ce8480e"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793400530.2987704
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
         }
       ],
       "entries": [
@@ -77369,7 +77652,7 @@
         {
           "topic": "dhcpd/decline-release-and-hook",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -77403,11 +77686,18 @@
             {
               "id": "r4",
               "behavior": "lease-exec runs on commit with BASHDHCPD_ACTION=commit and MAC/IP/HOSTNAME/LEASE_TIME variables.",
-              "coverage": "missing",
-              "gap": "No hook fixture; respond REQUEST also triggers commit offline.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-dhcp-server-reviewed-hook-commit",
+                  "status": "PASS",
+                  "run": "farm600-dhcp-server-v1-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -77421,29 +77711,55 @@
             {
               "id": "r6",
               "behavior": "A failing or missing hook does not affect the DHCP reply.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-dhcp-server-reviewed-hook-failure",
+                  "status": "PASS",
+                  "run": "farm600-dhcp-server-v1-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-dhcp-server-reviewed-hook-missing",
+                  "status": "PASS",
+                  "run": "farm600-dhcp-server-v1-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "dhcpd/relay-proxy-pxe",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "A relayed request (giaddr set) selects the subnet whose network matches giaddr, and the reply carries that subnet's pool/mask/router.",
-              "coverage": "missing",
-              "gap": "No giaddr case, though respond already supports it offline.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-dhcp-server-reviewed-relay-a",
+                  "status": "PASS",
+                  "run": "farm600-dhcp-server-v1-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-dhcp-server-reviewed-relay-b",
+                  "status": "PASS",
+                  "run": "farm600-dhcp-server-v1-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -77457,11 +77773,24 @@
             {
               "id": "r3",
               "behavior": "Option 82 is echoed verbatim in the reply.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-dhcp-server-reviewed-relay-a",
+                  "status": "PASS",
+                  "run": "farm600-dhcp-server-v1-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-dhcp-server-reviewed-relay-b",
+                  "status": "PASS",
+                  "run": "farm600-dhcp-server-v1-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -77475,9 +77804,16 @@
             {
               "id": "r5",
               "behavior": "Configured PXE options: siaddr next-server, option 66, option 67 + BOOTP file, option 43 sub-options 6/8/9/10, gated by option 60 PXEClient when pxe-vendor-match is on.",
-              "coverage": "missing",
-              "gap": "Not observed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "The negative-vendor next-server gating obligation remains unqualified; live PXE/proxy socket behavior is not covered.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-dhcp-server-reviewed-pxe-match",
+                  "status": "FAIL",
+                  "run": "farm600-dhcp-server-v1-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -96154,26 +96490,40 @@
             {
               "id": "r1",
               "behavior": "Prompt ordering for change/set (current, new, confirm).",
-              "coverage": "missing",
-              "gap": "Not executed; PTY driver available.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Change prompt scenario requires a non-colliding synthetic current password and independent revalidation.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-passwd-prompts-reviewed-set-success",
+                  "status": "PASS",
+                  "run": "farm600-passwd-prompts-v2-r2-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "New-password confirmation mismatch is rejected without updating shadow.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-passwd-prompts-reviewed-set-mismatch",
+                  "status": "PASS",
+                  "run": "farm600-passwd-prompts-v2-r2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "Echo is suppressed during reads.",
               "coverage": "partial",
-              "gap": "The EIO and EOF read-fault observations show ECHO suppressed during those reads; success, mismatch and signal paths were not qualified.",
+              "gap": "ECHO state during successful, mismatch and interrupted reads remains unqualified.",
               "evidence": [
                 {
                   "group": "terminal",
@@ -96195,7 +96545,7 @@
               "id": "r4",
               "behavior": "Terminal restored after success, mismatch, read failure (EOF) and signal interruption (^C).",
               "coverage": "partial",
-              "gap": "Terminal restoration was observed for EIO and EOF; success, mismatch and signal paths were not qualified.",
+              "gap": "Foreground Ctrl-C interruption restoration remains uncovered; change case remains unqualified under strict collision gate.",
               "evidence": [
                 {
                   "group": "terminal",
@@ -96208,6 +96558,18 @@
                   "id": "trace-vm-passwd-read-eof-r2",
                   "status": "PASS",
                   "run": "qual-remote-canon-probe-composite-tracing-memory-recovery-20261028-paired-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-passwd-prompts-reviewed-set-success",
+                  "status": "PASS",
+                  "run": "farm600-passwd-prompts-v2-r2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-passwd-prompts-reviewed-set-mismatch",
+                  "status": "PASS",
+                  "run": "farm600-passwd-prompts-v2-r2-dynamic"
                 }
               ],
               "fully_exercised": false,
@@ -112047,63 +112409,111 @@
         {
           "topic": "top/proc-record-and-pid-lifecycle",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "malformed or truncated per-PID records are skipped or handled as documented",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Malformed status and cmdline semantics remain untested; broad original requirement incomplete.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-malformed",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
             {
               "id": "r2",
               "behavior": "a PID vanishing between directory scan and record read is skipped",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-vanish",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "an empty process list is rendered correctly",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-empty",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "CPU counter rollback between samples does not produce negative or huge rates",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-proc-rollback",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-cpu-rollback",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "guest time accounting matches the documented rule",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-guest",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
               "behavior": "new and reused PIDs between samples are treated as new tasks (no stale delta)",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-lifecycle",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },

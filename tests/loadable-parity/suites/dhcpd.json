@@ -81,13 +81,13 @@
       "id": "relay-proxy-pxe",
       "kind": "deferred",
       "purpose": "Cover giaddr-based subnet selection and reply routing, option-82 echo, ProxyDHCP on UDP/4011, and configured PXE options.",
-      "reason": "Reply construction for giaddr, option 82 and PXE options is reachable offline through respond; reply routing and the 4011 proxy need the serve loop on loopback. No fixture exists."
+      "reason": "Remaining obligations: r2: No serve run.; r4: Not observed.; r5: The negative-vendor next-server gating obligation remains unqualified; live PXE/proxy socket behavior is not covered."
     },
     {
       "id": "decline-release-and-hook",
       "kind": "deferred",
       "purpose": "Cover DECLINE quarantine, RELEASE lease removal and lease-exec commit/release environment variables without allowing an uncontrolled child command.",
-      "reason": "No serve run exists. Commit hooks are reachable offline through 'dhcpd respond' with a REQUEST; DECLINE/RELEASE need the serve loop, which runs on loopback with BASHDHCPD_* ports."
+      "reason": "Remaining obligations: r1: No serve run.; r2: Not observed.; r3: Not observed.; r5: Not observed."
     },
     {
       "id": "parse-discover-array",

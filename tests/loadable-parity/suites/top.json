@@ -80,7 +80,7 @@
       "id": "proc-record-and-pid-lifecycle",
       "purpose": "Check malformed/truncated and vanishing records, empty process lists, CPU counter rollback, guest accounting, and new or reused PIDs with independently specified records.",
       "kind": "deferred",
-      "reason": "Never executed. Static malformed or empty records are implementable with the bind-mounted snapshot. Changes between samples need the snapshot rewritten between refreshes, which a bounded background writer in the same script can do. Vanishing-between-scan-and-read is the only timing-sensitive item."
+      "reason": "Remaining obligations: r1: Malformed status and cmdline semantics remain untested; broad original requirement incomplete."
     },
     {
       "id": "interactive-pty-contract",

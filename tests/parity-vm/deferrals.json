@@ -10267,9 +10267,9 @@
         "purpose": "Cover DECLINE quarantine, RELEASE lease removal and lease-exec commit/release environment variables without allowing an uncontrolled child command.",
         "reason": "Requires a future disposable VM or reviewed packet/clock and child-process mock. The fixture must inject DECLINE and RELEASE packets, observe the quarantine interval deterministically, and replace lease-exec with a bounded recording stub; no packets or hook commands are run here."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "No serve run exists. Commit hooks are reachable offline through 'dhcpd respond' with a REQUEST; DECLINE/RELEASE need the serve loop, which runs on loopback with BASHDHCPD_* ports.",
+      "current_reason": "Remaining obligations: r1: No serve run.; r2: Not observed.; r3: Not observed.; r5: Not observed.",
       "requirements": [
         {
           "id": "r1",
@@ -10295,9 +10295,16 @@
         {
           "id": "r4",
           "behavior": "lease-exec runs on commit with BASHDHCPD_ACTION=commit and MAC/IP/HOSTNAME/LEASE_TIME variables.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No hook fixture; respond REQUEST also triggers commit offline."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-farm600-dhcp-server-reviewed-hook-commit",
+              "assertion": "Both frozen builds: A completed offline REQUEST commits the lease, invokes lease-exec with the specified commit environment, and persists the observed lease. Independent raw packet, lease or hook observations qualify this bounded offline claim only.",
+              "definition_sha256": "5ed50e9dc40783f2a00796887c9fe46e42bdf286fc7d973bc5bf8ffd9d75684c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
@@ -10309,12 +10316,25 @@
         {
           "id": "r6",
           "behavior": "A failing or missing hook does not affect the DHCP reply.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-farm600-dhcp-server-reviewed-hook-failure",
+              "assertion": "Both frozen builds: The complete offline ACK reply and status remain identical when the hook fails or is absent. Independent raw packet, lease or hook observations qualify this bounded offline claim only.",
+              "definition_sha256": "78d2ae5df0feab3e20cd3d11f5f21ec431cb5b2a492f72cf2affd7771b62e89f"
+            },
+            {
+              "group": "shell",
+              "id": "migration-farm600-dhcp-server-reviewed-hook-missing",
+              "assertion": "Both frozen builds: The complete offline ACK reply and status remain identical when the hook fails or is absent. Independent raw packet, lease or hook observations qualify this bounded offline claim only.",
+              "definition_sha256": "ceb94869f7b7f6269b85c7906404728be1dd52f452e3575c11c5a3ae11c755cc"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/dhcpd.c:610-660 hook (fork, /bin/sh -c, BASHDHCPD_* env); :770-830 quarantine; :1437-1470 DECLINE/RELEASE in serve; :1360-1372 commit hook in respond; respond rejects DECLINE/RELEASE :1338-1342. The selftest-decline verb (:1637-1700, dispatch :1709) is candidate self-reporting and must not be used as oracle."
+      "notes": "loadables/dhcpd.c:610-660 hook (fork, /bin/sh -c, BASHDHCPD_* env); :770-830 quarantine; :1437-1470 DECLINE/RELEASE in serve; :1360-1372 commit hook in respond; respond rejects DECLINE/RELEASE :1338-1342. The selftest-decline verb (:1637-1700, dispatch :1709) is candidate self-reporting and must not be used as oracle. Seven paired offline cases retain six raw PASS and one raw FAIL per frozen build. Primary replay and independent audit qualify only the stated completed packet, persisted lease and hook observations. No live serve exchange, DECLINE quarantine/expiry, RELEASE/removal/release hook, relay destination port or proxy socket is credited. The PXE menu mismatch remains FAIL; negative-vendor next-server gating is still incomplete."
     },
     {
       "topic": "dhcpd/relay-proxy-pxe",
@@ -10324,16 +10344,29 @@
         "purpose": "Cover giaddr-based subnet selection and reply routing, option-82 echo, ProxyDHCP on UDP/4011, and configured PXE options.",
         "reason": "Requires a future disposable DHCP relay/client fixture or reviewed socket mock that can independently inspect giaddr, option 82, proxy replies and PXE option 43/66/67. Network activity is prohibited in this run, so these server paths are not invoked."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Reply construction for giaddr, option 82 and PXE options is reachable offline through respond; reply routing and the 4011 proxy need the serve loop on loopback. No fixture exists.",
+      "current_reason": "Remaining obligations: r2: No serve run.; r4: Not observed.; r5: The negative-vendor next-server gating obligation remains unqualified; live PXE/proxy socket behavior is not covered.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A relayed request (giaddr set) selects the subnet whose network matches giaddr, and the reply carries that subnet's pool/mask/router.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No giaddr case, though respond already supports it offline."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-farm600-dhcp-server-reviewed-relay-a",
+              "assertion": "Both frozen builds: Two offline giaddr requests select their corresponding subnet pool, mask and router. Independent raw packet, lease or hook observations qualify this bounded offline claim only.",
+              "definition_sha256": "57422e1fce3897a5f38fc6772df74b2090e1004a6daa63ccea48fb8243aad811"
+            },
+            {
+              "group": "shell",
+              "id": "migration-farm600-dhcp-server-reviewed-relay-b",
+              "assertion": "Both frozen builds: Two offline giaddr requests select their corresponding subnet pool, mask and router. Independent raw packet, lease or hook observations qualify this bounded offline claim only.",
+              "definition_sha256": "3e0c8ac9b1774b2e1d58d866ab8a0635f4f6d1ff526a79a94d40a9a53e011271"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
@@ -10345,9 +10378,22 @@
         {
           "id": "r3",
           "behavior": "Option 82 is echoed verbatim in the reply.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-farm600-dhcp-server-reviewed-relay-a",
+              "assertion": "Both frozen builds: The reply echoes the supplied option 82 bytes exactly. Independent raw packet, lease or hook observations qualify this bounded offline claim only.",
+              "definition_sha256": "57422e1fce3897a5f38fc6772df74b2090e1004a6daa63ccea48fb8243aad811"
+            },
+            {
+              "group": "shell",
+              "id": "migration-farm600-dhcp-server-reviewed-relay-b",
+              "assertion": "Both frozen builds: The reply echoes the supplied option 82 bytes exactly. Independent raw packet, lease or hook observations qualify this bounded offline claim only.",
+              "definition_sha256": "3e0c8ac9b1774b2e1d58d866ab8a0635f4f6d1ff526a79a94d40a9a53e011271"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
@@ -10359,12 +10405,19 @@
         {
           "id": "r5",
           "behavior": "Configured PXE options: siaddr next-server, option 66, option 67 + BOOTP file, option 43 sub-options 6/8/9/10, gated by option 60 PXEClient when pxe-vendor-match is on.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-farm600-dhcp-server-reviewed-pxe-match",
+              "assertion": "Both frozen builds: The reached PXE packet fails the configured menu encoding: option 43 suboption 9 contains 0007426f6f74 instead of 000704426f6f74, omitting the label-length byte. Preserve this complete packet mismatch as FAIL. Independent raw packet, lease or hook observations qualify this bounded offline claim only.",
+              "definition_sha256": "742a1c9943ab021b50d897839213bf40d2bd1ca24fd09a73f641d5f1379cc87d"
+            }
+          ],
+          "gap": "The negative-vendor next-server gating obligation remains unqualified; live PXE/proxy socket behavior is not covered."
         }
       ],
-      "notes": "loadables/dhcpd.c:569-608 subnet selection; :944 giaddr echo; :1029-1036 option 82; :335-360 PXE option 43; proxy socket :1596-1606; reply routing :1486-1500."
+      "notes": "loadables/dhcpd.c:569-608 subnet selection; :944 giaddr echo; :1029-1036 option 82; :335-360 PXE option 43; proxy socket :1596-1606; reply routing :1486-1500. Seven paired offline cases retain six raw PASS and one raw FAIL per frozen build. Primary replay and independent audit qualify only the stated completed packet, persisted lease and hook observations. No live serve exchange, DECLINE quarantine/expiry, RELEASE/removal/release hook, relay destination port or proxy socket is credited. The PXE menu mismatch remains FAIL; negative-vendor next-server gating is still incomplete."
     },
     {
       "topic": "dhcpd/serve-and-run-exchange",
@@ -28585,21 +28638,35 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: Not executed; PTY driver available.; r2: Not executed.; r3: The EIO and EOF read-fault observations show ECHO suppressed during those reads; success, mismatch and signal paths were not qualified.; r4: Terminal restoration was observed for EIO and EOF; success, mismatch and signal paths were not qualified.",
+      "current_reason": "Remaining obligations: r1: Change prompt scenario requires a non-colliding synthetic current password and independent revalidation.; r3: ECHO state during successful, mismatch and interrupted reads remains unqualified.; r4: Foreground Ctrl-C interruption restoration remains uncovered; change case remains unqualified under strict collision gate.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Prompt ordering for change/set (current, new, confirm).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed; PTY driver available."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-farm600-passwd-prompts-reviewed-set-success",
+              "assertion": "Both frozen builds: Set prompts occur once in new/confirmation order with natural completion. Change prompt transcript collides with synthetic current password substring; incomplete under strict existing gate. The fixed captures passed independent raw-data review and primary replay with clean isolated-guest lifecycle.",
+              "definition_sha256": "17668891dc77c39700826e3296303a30ac7d466880b261a1fc8e2d2c8b829b4c"
+            }
+          ],
+          "gap": "Change prompt scenario requires a non-colliding synthetic current password and independent revalidation."
         },
         {
           "id": "r2",
           "behavior": "New-password confirmation mismatch is rejected without updating shadow.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-farm600-passwd-prompts-reviewed-set-mismatch",
+              "assertion": "Both frozen builds: Distinct same-length entries occupy distinct sealed mock slots; unequal comparison leads to natural rejection status1 and byte-identical shadow/passwd/group. The fixed captures passed independent raw-data review and primary replay with clean isolated-guest lifecycle.",
+              "definition_sha256": "54d2cc190db89cf6ec5534dd53d276afdcf35618beb4e1a7fa2d72f1aee2731f"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
@@ -28619,7 +28686,7 @@
               "definition_sha256": "55659c27041c7227deb1d12f62cb272a7f0428d2fe9a099852cf6ac02e65d989"
             }
           ],
-          "gap": "The EIO and EOF read-fault observations show ECHO suppressed during those reads; success, mismatch and signal paths were not qualified."
+          "gap": "ECHO state during successful, mismatch and interrupted reads remains unqualified."
         },
         {
           "id": "r4",
@@ -28637,12 +28704,24 @@
               "id": "trace-vm-passwd-read-eof-r2",
               "assertion": "Original obligation: Terminal restored after success, mismatch, read failure (EOF) and signal interruption (^C). Recorded statuses static=PASS, dynamic=PASS. Static candidate result: . Independent raw observations: During /dev/tty read ECHO bit was clear; injected return 0; exit 1 and terminal modes restored exactly.",
               "definition_sha256": "55659c27041c7227deb1d12f62cb272a7f0428d2fe9a099852cf6ac02e65d989"
+            },
+            {
+              "group": "shell",
+              "id": "migration-farm600-passwd-prompts-reviewed-set-success",
+              "assertion": "Both frozen builds: Natural success and mismatch restore exact terminal modes, complete EOF/drain and owned-writer reap. Original EOF/EIO evidence preserved. The fixed captures passed independent raw-data review and primary replay with clean isolated-guest lifecycle.",
+              "definition_sha256": "17668891dc77c39700826e3296303a30ac7d466880b261a1fc8e2d2c8b829b4c"
+            },
+            {
+              "group": "shell",
+              "id": "migration-farm600-passwd-prompts-reviewed-set-mismatch",
+              "assertion": "Both frozen builds: Natural success and mismatch restore exact terminal modes, complete EOF/drain and owned-writer reap. Original EOF/EIO evidence preserved. The fixed captures passed independent raw-data review and primary replay with clean isolated-guest lifecycle.",
+              "definition_sha256": "54d2cc190db89cf6ec5534dd53d276afdcf35618beb4e1a7fa2d72f1aee2731f"
             }
           ],
-          "gap": "Terminal restoration was observed for EIO and EOF; success, mismatch and signal paths were not qualified."
+          "gap": "Foreground Ctrl-C interruption restoration remains uncovered; change case remains unqualified under strict collision gate."
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Ten framework failures per build are retained. Candidate NTS application behavior and later live-history steps were unreached and are not credited. No crypto calculations or fixture behavior were executed."
+      "notes": "Preserve original obligations and existing companion evidence. Ten framework failures per build are retained. Candidate NTS application behavior and later live-history steps were unreached and are not credited. No crypto calculations or fixture behavior were executed. The reviewed set-success and set-mismatch cases preserve prior EOF/EIO evidence and add complete synthetic-device prompt/mismatch/restoration observations. The change-success raw FAIL is unqualified: the current synthetic password is a substring of the expected prompt, so the strict no-input-substring control collides. That case is excluded from the runnable publication subset, while its original raw record and the initial shutdown-request-255 run remain retained. Prompt-time echo samples do not prove echo state during a read. Foreground Ctrl-C remains untested."
     },
     {
       "topic": "passwd/password_hash_updates",
@@ -44184,54 +44263,102 @@
         "kind": "deferred",
         "reason": "Requires a private proc interposition fixture with controllable snapshots and directory entries. The fixture must not expose host /proc; expected inclusion, identity, and CPU deltas must be computed independently from proc(5) field positions and the documented top rules."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Never executed. Static malformed or empty records are implementable with the bind-mounted snapshot. Changes between samples need the snapshot rewritten between refreshes, which a bounded background writer in the same script can do. Vanishing-between-scan-and-read is the only timing-sensitive item.",
+      "current_reason": "Remaining obligations: r1: Malformed status and cmdline semantics remain untested; broad original requirement incomplete.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "malformed or truncated per-PID records are skipped or handled as documented",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-farm600-top-proc-lifecycle-malformed",
+              "assertion": "Both frozen builds: Two malformed/truncated stat records skipped in each epoch; valid record remains. The fixed captures passed independent raw-data review and primary replay with clean isolated-guest lifecycle.",
+              "definition_sha256": "cc0927c161a9672292d8535a70b6f4afdb9c232674b2f1f13d35149376f4e278"
+            }
+          ],
+          "gap": "Malformed status and cmdline semantics remain untested; broad original requirement incomplete."
         },
         {
           "id": "r2",
           "behavior": "a PID vanishing between directory scan and record read is skipped",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-farm600-top-proc-lifecycle-vanish",
+              "assertion": "Both frozen builds: Enumeration of PID777, guarded deletion, then stat ENOENT and complete output omission. The fixed captures passed independent raw-data review and primary replay with clean isolated-guest lifecycle.",
+              "definition_sha256": "dab4d4b3ff174ad0a7774c6c870d3dd3e8e51bd598d07bb4fb3c6d09403a997a"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "an empty process list is rendered correctly",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-farm600-top-proc-lifecycle-empty",
+              "assertion": "Both frozen builds: Two empty process enumerations and exact complete zero-row rendering. The fixed captures passed independent raw-data review and primary replay with clean isolated-guest lifecycle.",
+              "definition_sha256": "8e5adca897cfd6032f6f9d295083104b127612afdc619db8f7c24b8b2d6a3e15"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "CPU counter rollback between samples does not produce negative or huge rates",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-farm600-top-proc-lifecycle-proc-rollback",
+              "assertion": "Both frozen builds: Process100-to70 and CPU1000-to800 rollback separately render0.0%. The fixed captures passed independent raw-data review and primary replay with clean isolated-guest lifecycle.",
+              "definition_sha256": "c3aa8e6d1429a4e71d747628d58fc41942f4165d42ed18ac95d9a89f0c1be18a"
+            },
+            {
+              "group": "shell",
+              "id": "migration-farm600-top-proc-lifecycle-cpu-rollback",
+              "assertion": "Both frozen builds: Process100-to70 and CPU1000-to800 rollback separately render0.0%. The fixed captures passed independent raw-data review and primary replay with clean isolated-guest lifecycle.",
+              "definition_sha256": "246aaaddedd6bdaac767a21f5735deac84fb566180ef418dccce227207c01f85"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "guest time accounting matches the documented rule",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-farm600-top-proc-lifecycle-guest",
+              "assertion": "Both frozen builds: First-eight CPU totals1000-to1200, guest30-to150 and task30-to80 render25.0%. The fixed captures passed independent raw-data review and primary replay with clean isolated-guest lifecycle.",
+              "definition_sha256": "6ea281aec988bd173d1af53932ce22850d777eba23bed3932e20ad1d9e2ac423"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "new and reused PIDs between samples are treated as new tasks (no stale delta)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-farm600-top-proc-lifecycle-lifecycle",
+              "assertion": "Both frozen builds: Reused PID202 starttime2001-to9002 and newPID303 both0.0%; stable101 remains10.0%. The fixed captures passed independent raw-data review and primary replay with clean isolated-guest lifecycle.",
+              "definition_sha256": "f9c0b69f4f48e8022bf291a5f793f4ca30bf5183c22d49c89f5b869380c540ad"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "top.c hardcodes /proc (top.c:160-319) and has no BASHOS_PROC_ROOT override (vmstat.c:72 has one). A private snapshot can still be presented without a mock: inside '/usr/bin/unshare -Urm', bind a fixture directory over /proc ('mount --bind snap /proc'). Before that, bind the real /proc elsewhere if descriptor checks need it. This assumes unprivileged user namespaces in the guest kernel, which root should verify once. If they are unavailable, the missing capability is a root-controller per-case bind mount of a synthetic tree over /proc in the case's mount namespace. Alternatively, add an env override to top.c as vmstat has; that is a candidate change and needs root coordination."
+      "notes": "top.c hardcodes /proc (top.c:160-319) and has no BASHOS_PROC_ROOT override (vmstat.c:72 has one). A private snapshot can still be presented without a mock: inside '/usr/bin/unshare -Urm', bind a fixture directory over /proc ('mount --bind snap /proc'). Before that, bind the real /proc elsewhere if descriptor checks need it. This assumes unprivileged user namespaces in the guest kernel, which root should verify once. If they are unavailable, the missing capability is a root-controller per-case bind mount of a synthetic tree over /proc in the case's mount namespace. Alternatively, add an env override to top.c as vmstat has; that is a candidate change and needs root coordination. Seven cases per frozen build provide paired raw PASS observations for controlled stat records, vanishing PID, empty list, separate counter rollbacks, guest accounting and new/reused PID handling. Malformed status and cmdline remain untested, so the original topic stays partial. Native inherited guard-descriptor origin and anchor cleanup are source-bound; the bounded trace model is not a claim of hostile-host attestation. Guest parser controls retain aggregate counts; exact inputs were reconstructed from pinned source for offline replay."
     },
     {
       "topic": "tput/compiled-terminfo",

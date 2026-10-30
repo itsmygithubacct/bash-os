@@ -8,8 +8,8 @@ saved static and dynamic VM runs. The initial qualification tables in the VM
 guide describe the earlier fixture set.
 
 The current review covers 406 of the 600 topics on both builds: static 213 PASS / 193 FAIL;
-dynamic 214 PASS / 192 FAIL. The other 194 retain unresolved requirements. These are topic counts,
-not additional behavioral test results.
+dynamic 214 PASS / 192 FAIL. The other 194 retain unresolved requirements: 96 have partial
+coverage and 98 have none. These are topic counts, not additional behavioral test results.
 
 The syslog review adds bounded three-record FIFO observations for startup, SIGHUP and periodic replay on both builds. Sender attribution is inferred from pinned serial source and isolated networking; HUP was queued while the daemon was stopped.
 
@@ -64,6 +64,12 @@ The Bash I/O network review exercises address and route operations inside a mapp
 The strace attachment review observes both existing threads attached before release on each build, followed by a worker held in a candidate-owned tracing stop for more than four seconds. The later stall remains FAIL and does not negate the earlier attachment observation. Fixture completion after killing the tracer does not prove natural exit under tracing. Raw case failure labels also appear on their linked requirements; the assertions distinguish the observed phases.
 
 The PTY broker history review preserves the exact successful raw-history case and its pinned helpers. Both builds return the fixed raw bytes, deliver only subsequent output to a late attachment, and report matching attached/gap offsets. Other lifecycle cases remain unresolved: a possible descriptor collision prevents attributing an observer receive failure to the product, and the cleanup observations do not establish descendant reaping before builtin return.
+
+The process-record review adds seven paired observations for malformed stat records, a PID disappearing after enumeration, empty lists, counter rollback, guest accounting and new/reused PIDs. All pass their bounded predicates. Malformed status and cmdline behavior remains untested, so the original topic stays partial. The native guard descriptor and group-anchor cleanup are source-bound; offline parser checks reconstruct the pinned inputs from source rather than claiming those bytes were retained by the guest.
+
+The password-prompt review adds synthetic set-success and confirmation-mismatch observations, including unchanged account files on rejection and exact terminal restoration after natural exit. Earlier EOF/EIO evidence remains. Echo during successful or mismatched reads and Ctrl-C restoration are still unqualified. The change-prompt case has a synthetic-input substring collision with the prompt itself; its raw failure is retained without attributing it to the product, and that case is excluded from the published runnable subset.
+
+The DHCP server review adds offline subnet selection by giaddr, verbatim option 82 echo, persisted commit leases and commit-hook behavior. Failing or missing hooks preserve the complete ACK reply. Both builds omit the label-length byte in PXE menu suboption 9, which remains FAIL. Negative-vendor next-server gating, live serve exchanges, DECLINE/RELEASE, relay delivery and proxy sockets remain unresolved; these partial topics are not counted as full migrations.
 
 A historical case becomes `MIGRATED` only when every requirement has an explicit
 assertion and valid execution evidence on both builds. Its replacement cases

@@ -89,7 +89,7 @@
       "id": "interactive_password_prompts",
       "purpose": "Future coverage for prompt ordering, new-password confirmation, echo suppression, and terminal restoration.",
       "kind": "deferred",
-      "reason": "Remaining obligations: r1: Not executed; PTY driver available.; r2: Not executed.; r3: The EIO and EOF read-fault observations show ECHO suppressed during those reads; success, mismatch and signal paths were not qualified.; r4: Terminal restoration was observed for EIO and EOF; success, mismatch and signal paths were not qualified."
+      "reason": "Remaining obligations: r1: Change prompt scenario requires a non-colliding synthetic current password and independent revalidation.; r3: ECHO state during successful, mismatch and interrupted reads remains unqualified.; r4: Foreground Ctrl-C interruption restoration remains uncovered; change case remains unqualified under strict collision gate."
     },
     {
       "id": "readonly_database_queries",
