@@ -19,6 +19,7 @@ static void emit(char type, long a, long b, long c, long d, long e)
     *p++ = type; *p++ = ' '; number(&p, a); *p++ = ' '; number(&p, b);
     *p++ = ' '; number(&p, c); *p++ = ' '; number(&p, d);
     *p++ = ' '; number(&p, e); *p++ = '\n';
+    *p = '\0'; /* Keep the tracer's string peek inside the known marker. */
     if (call4(1, 1, (long)buf, p - buf, 0) != p - buf)
         call4(231, 99, 0, 0, 0);
 }
