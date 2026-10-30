@@ -1,0 +1,97 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "strace/attach-existing-pid"
+      ],
+      "oracle": "Guest-only compiled two-thread tracee uses a FIFO gate, creates both threads before attachment, explicitly authorizes only the tracer PID with PR_SET_PTRACER, then issues known getpid/getppid calls and exits without signals. Guest setup runs parser controls and a native sibling ptrace tracer against an independently owned tracee, checking both calls and both natural exits; any native preflight failure is setup ERROR. Each candidate run independently checks parentage, live task IDs, no prior tracer, and samples per-thread TracerPid before gate release. A separate owner records actual tracee exit and raw output.",
+      "requires": [
+        "gcc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py setup\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "gcc.out",
+        "gcc.err",
+        "native-control.json",
+        "preconditions.json",
+        "supervisor.out",
+        "supervisor.err",
+        "prepare.err",
+        "monitor.json",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "fixture.out",
+        "fixture.err",
+        "fixture.status",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/strace-attach-reviewed.py": "4264f8c00f5bf9c6f73d8587ed6e8e832d11abdf9bba9bb44b3d8305a5b09366",
+        "helpers/strace-attach-reviewed.c": "531b0210568dfc832d668b2488622eb916dd8616ef093c27a8e22c758a5eddc7"
+      },
+      "id": "migration-strace-attach-existing-r1",
+      "purpose": "Attach to an already-running owned process and trace until it exits naturally.",
+      "comparison": "Require independently established leader attachment before release, leader getpid and exit trace records, natural fixture status and both fixture markers, successful tracer status and empty candidate stdout.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py launch \"$$\" >\"$HOME/supervisor.out\" 2>\"$HOME/supervisor.err\" &\nsupervisor=$!\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py prepare \"$supervisor\" \"$$\" >\"$HOME/prepare.out\" 2>\"$HOME/prepare.err\"; then\n  wait \"$supervisor\" 2>/dev/null || :\n  exit 97\nfi\nread -r fixture_pid < \"$HOME/fixture.pid\"\nulimit -f 512 || exit 97\nrc=0\nstrace -p \"$fixture_pid\" >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/candidate.status\"\nwait \"$supervisor\" 2>/dev/null || :\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py verify r1\n",
+      "stdout": "r1-ok\n"
+    },
+    {
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "strace/attach-existing-pid"
+      ],
+      "oracle": "Guest-only compiled two-thread tracee uses a FIFO gate, creates both threads before attachment, explicitly authorizes only the tracer PID with PR_SET_PTRACER, then issues known getpid/getppid calls and exits without signals. Guest setup runs parser controls and a native sibling ptrace tracer against an independently owned tracee, checking both calls and both natural exits; any native preflight failure is setup ERROR. Each candidate run independently checks parentage, live task IDs, no prior tracer, and samples per-thread TracerPid before gate release. A separate owner records actual tracee exit and raw output.",
+      "requires": [
+        "gcc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py setup\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "setup_timeout": 45,
+      "diagnostic_files": [
+        "parser-controls.json",
+        "gcc.out",
+        "gcc.err",
+        "native-control.json",
+        "preconditions.json",
+        "supervisor.out",
+        "supervisor.err",
+        "prepare.err",
+        "monitor.json",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "fixture.out",
+        "fixture.err",
+        "fixture.status",
+        "assertions.json"
+      ],
+      "helpers_sha256": {
+        "helpers/strace-attach-reviewed.py": "4264f8c00f5bf9c6f73d8587ed6e8e832d11abdf9bba9bb44b3d8305a5b09366",
+        "helpers/strace-attach-reviewed.c": "531b0210568dfc832d668b2488622eb916dd8616ef093c27a8e22c758a5eddc7"
+      },
+      "id": "migration-strace-attach-existing-r2",
+      "purpose": "Attach the existing threads of the already-running process.",
+      "comparison": "In addition to the leader checks require both original task IDs simultaneously identify the candidate shell as tracer before release, a worker getppid record and a worker exit record. No -f is used.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py launch \"$$\" >\"$HOME/supervisor.out\" 2>\"$HOME/supervisor.err\" &\nsupervisor=$!\nif ! /usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py prepare \"$supervisor\" \"$$\" >\"$HOME/prepare.out\" 2>\"$HOME/prepare.err\"; then\n  wait \"$supervisor\" 2>/dev/null || :\n  exit 97\nfi\nread -r fixture_pid < \"$HOME/fixture.pid\"\nulimit -f 512 || exit 97\nrc=0\nstrace -p \"$fixture_pid\" >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/candidate.status\"\nwait \"$supervisor\" 2>/dev/null || :\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-attach-reviewed.py verify r2\n",
+      "stdout": "r2-ok\n"
+    }
+  ]
+}
