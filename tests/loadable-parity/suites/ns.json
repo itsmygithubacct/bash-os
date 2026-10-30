@@ -28,7 +28,7 @@
       "id": "ns-unshare-namespaces",
       "kind": "deferred",
       "purpose": "Compare ns unshare for its supported namespace flags and the special for-children behavior of pid/time namespaces.",
-      "reason": "Remaining obligations: r1: The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required.; r5: The unprivileged UTS EPERM agrees with unshare; unsupported-namespace EINVAL was not exercised."
+      "reason": "R5: The unprivileged UTS EPERM agrees with unshare; unsupported-namespace EINVAL was not exercised."
     },
     {
       "id": "ns-spawn-child-exec",

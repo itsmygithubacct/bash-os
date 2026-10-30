@@ -56,9 +56,18 @@
     },
     {
       "id": "kernel-token-protocol",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check token mint/consume request fields, expiry, failure handling, and request cleanup before any credential transition.",
-      "reason": "Remaining obligations: r4: Observable now via the PTY password path (correct password -> 'kernel auth: /dev/bashos-auth: No such file or directory', status 1, no target shell marker)."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1"
+        },
+        {
+          "group": "shell",
+          "id": "su-bounded-absent-device-noexec-r1"
+        }
+      ]
     },
     {
       "id": "credential-transition",
@@ -79,9 +88,22 @@
     },
     {
       "id": "owned-child-status-and-signals",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check child exit and signal status propagation, fork/wait errors, parent-shell state preservation, and repeated invocation behavior.",
-      "reason": "Remaining obligations: r3: Requires injection."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-auth-client-su-client-child-guarded-bootstrap-r1-argon2-cli-r1-raw-r2"
+        },
+        {
+          "group": "shell",
+          "id": "su-bounded-owned-fork-eagain-r1"
+        },
+        {
+          "group": "shell",
+          "id": "su-bounded-owned-wait-echild-r1"
+        }
+      ]
     },
     {
       "id": "pty-echo-and-cancellation",

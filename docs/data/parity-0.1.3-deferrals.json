@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "1d9baba80fdadc871ae9298bd7b11512774ef534b001fcd296ed5d871a58d2b4",
+  "ledger_sha256": "1c1822c259f1ea62ad7faedf6cbd92dac52c3039ea7a951d07b717cd3295f277",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 102,
-    "full": 385,
-    "none": 113
+    "partial": 98,
+    "full": 390,
+    "none": 112
   },
   "migrations": {
-    "deferred": 215,
-    "replacement": 385
+    "deferred": 210,
+    "replacement": 390
   },
   "pending_full_topics": [],
   "builds": {
@@ -7824,6 +7824,79 @@
             "RTC and clock replies are synthetic and do not establish physical RTC modification or a real host clock effect.",
             "Framework status is not by itself independent candidate attribution; rely on the full paired raw review and preserve reached failures and incomplete cases.",
             "Root fixtures remain held; retain prior evidence and unproved original requirements."
+          ]
+        },
+        {
+          "name": "su-v7-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "evidence_format": "primary-qualified-su-v7-bounded-v1",
+          "primary_receipt_sha256": "f64b9faade4d3dbce6d174e75da958244cc3bf585b093af2dd1f1d11f4e7fdec",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "e9f3868c-2fba-493d-97ce-032c9d0adb45",
+          "record_sha256": "fd423a88064aa546a348adcc093aa1ea3b67f92865b644e8e3cde9ce2f3a4284",
+          "evidence_sha256": "052e601a6ed6b85d262e1df7d15f87158621d52cdfb895a130f50a80fda0711d",
+          "limitations": [
+            "Fork and wait errors are synthetic seccomp notification injections; this is bounded behavior only.",
+            "Noexec tracing acknowledges PR_SET_DUMPABLE without applying it; no general dumpability or authentication claim follows.",
+            "The wait proof establishes same-parent collection only, not normal child success.",
+            "No full-topic or other requirement coverage follows from these three cases."
+          ]
+        },
+        {
+          "name": "uclamp-followup40-static-dispatch",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-uclamp-followup40-v1",
+          "primary_receipt_sha256": "9a7e906fd31fcb655201de6f93f6c64e7ff2bf817a329df19c65c402beedb7a9",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "0357452c-cb23-4fb9-86ad-ee0cbedc00a5",
+          "poweroff_request": 0,
+          "limitations": [
+            "No setter case is included; earlier incomplete setter observations remain retained.",
+            "A 255 poweroff request is accepted only for the exact primary-disposition static all-task run, remains 255 and has an unobserved SSH failure cause.",
+            "Synthetic scheduler replies do not establish privileged policy behavior.",
+            "Prior candidate failures and incomplete observations remain retained."
+          ]
+        },
+        {
+          "name": "uclamp-followup40-static-query",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "evidence_format": "primary-qualified-uclamp-followup40-v1",
+          "primary_receipt_sha256": "9a7e906fd31fcb655201de6f93f6c64e7ff2bf817a329df19c65c402beedb7a9",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "5ed82193-eac7-4b0a-9ff7-5f7760843a24",
+          "poweroff_request": 0,
+          "limitations": [
+            "No setter case is included; earlier incomplete setter observations remain retained.",
+            "A 255 poweroff request is accepted only for the exact primary-disposition static all-task run, remains 255 and has an unobserved SSH failure cause.",
+            "Synthetic scheduler replies do not establish privileged policy behavior.",
+            "Prior candidate failures and incomplete observations remain retained."
+          ]
+        },
+        {
+          "name": "uclamp-followup40-static-alltasks",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "evidence_format": "primary-qualified-uclamp-followup40-v1",
+          "primary_receipt_sha256": "9a7e906fd31fcb655201de6f93f6c64e7ff2bf817a329df19c65c402beedb7a9",
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "vm_uuid": "2e036dbb-6a78-4848-a5c1-abdd2d262b76",
+          "poweroff_request": 255,
+          "limitations": [
+            "No setter case is included; earlier incomplete setter observations remain retained.",
+            "A 255 poweroff request is accepted only for the exact primary-disposition static all-task run, remains 255 and has an unobserved SSH failure cause.",
+            "Synthetic scheduler replies do not establish privileged policy behavior.",
+            "Prior candidate failures and incomplete observations remain retained."
           ]
         }
       ],
@@ -36221,8 +36294,8 @@
             {
               "id": "r1",
               "behavior": "ns unshare user,mount,net,ipc,uts,cgroup changes the caller's /proc/self/ns/<type> inode for each requested type and leaves others unchanged",
-              "coverage": "partial",
-              "gap": "The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -36237,8 +36310,13 @@
                   "run": "qual-remote-canon-probe-composite-namespace-extras-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS",
+              "control_support": {
+                "type": "ns-native-inodes-paired-v1",
+                "verified": true,
+                "candidate_behavior_count": 0
+              }
             },
             {
               "id": "r2",
@@ -48246,10 +48324,10 @@
         },
         {
           "topic": "su/kernel-token-protocol",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -48302,20 +48380,27 @@
             {
               "id": "r4",
               "behavior": "Absent device fails closed with a diagnostic and no exec.",
-              "coverage": "missing",
-              "gap": "Observable now via the PTY password path (correct password -> 'kernel auth: /dev/bashos-auth: No such file or directory', status 1, no target shell marker).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "su-bounded-absent-device-noexec-r1",
+                  "status": "PASS",
+                  "run": "su-v7-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "su/owned-child-status-and-signals",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -48352,11 +48437,24 @@
             {
               "id": "r3",
               "behavior": "Fork/wait errors are diagnosed.",
-              "coverage": "missing",
-              "gap": "Requires injection.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "su-bounded-owned-fork-eagain-r1",
+                  "status": "PASS",
+                  "run": "su-v7-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "su-bounded-owned-wait-echild-r1",
+                  "status": "PASS",
+                  "run": "su-v7-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -53821,55 +53919,89 @@
         },
         {
           "topic": "uclampset/defer_all_tasks_preflight",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-a gets and validates every thread before setting any thread.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Observable as a get-before-set ordering through SECCOMP-NOTIFY, or semantically through r2.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-alltasks-success",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-static-alltasks"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-alltasks-validation",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-static-alltasks"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "A validation failure on a later thread (for example its current max of 100 against a requested -m 900 with no -M) rejects the whole request, and earlier threads keep their clamps.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Reachable unprivileged with helper threads holding different clamps.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-alltasks-validation",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-static-alltasks"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "A read failure on a later thread (sched_getattr error) gives no partial mutation.",
-              "coverage": "missing",
-              "gap": "No deterministic unprivileged way exists to make one thread's getattr fail. SECCOMP-NOTIFY can return ESRCH for that TID's sched_getattr.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-alltasks-readfail",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-static-alltasks"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Per-TID get/set logging matches the expected sequence.",
-              "coverage": "missing",
-              "gap": "Needs SECCOMP-NOTIFY.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-alltasks-success",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-static-alltasks"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "uclampset/defer_command_mode",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -53938,79 +54070,137 @@
             {
               "id": "r5",
               "behavior": "Builtin versus external dispatch: a shell builtin name as the command is executed the documented way (command-run.h).",
-              "coverage": "missing",
-              "gap": "Unexecuted. util-linux can only exec external commands, so this part is a candidate contract.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-command-dispatch",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-static-dispatch"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "uclampset/defer_pid_query",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "`uclampset -p PID` prints '<comm> (<pid>) util_clamp: min: N max: M' for an owned child, with values equal to the child's own sched_getattr read-back (python3 ctypes) and matching util-linux uclampset bytes.",
-              "coverage": "partial",
-              "gap": "The target readback is from the parent observer; child-self sched_getattr readback was not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "devices-uclamp-query-r1",
                   "status": "PASS",
                   "run": "device-v8-uclamp-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-query-self",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-static-query"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "`-p 0` reports the caller under its real PID.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-query-p0",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-static-query"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "comm fallback: a task whose comm is empty (set by the helper through prctl(PR_SET_NAME, b'')) prints the numeric PID in place of comm.",
-              "coverage": "missing",
-              "gap": "Unexecuted. util-linux behavior for an empty comm must come from its run.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-query-empty",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-static-query"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "With -a, every TID of a multi-threaded owned helper (known thread count, per-thread clamps) is listed, one line each.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Thread order follows /proc/PID/task readdir order on both sides.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-query-threads",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-static-query"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Queries perform no scheduler writes: a SECCOMP-FILTER KILL on sched_setattr does not trigger, and the clamps are unchanged.",
-              "coverage": "partial",
-              "gap": "No SECCOMP-FILTER KILL witness for sched_setattr was retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "devices-uclamp-query-r1",
                   "status": "PASS",
                   "run": "device-v8-uclamp-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-query-self",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-static-query"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-query-p0",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-static-query"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-query-empty",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-static-query"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-query-threads",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-static-query"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -57440,9 +57630,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 215,
+        "UNRESOLVED": 210,
         "FAIL": 187,
-        "PASS": 198
+        "PASS": 203
       },
       "migration_without_complete_evidence": []
     },
@@ -65256,6 +65446,79 @@
             "RTC and clock replies are synthetic and do not establish physical RTC modification or a real host clock effect.",
             "Framework status is not by itself independent candidate attribution; rely on the full paired raw review and preserve reached failures and incomplete cases.",
             "Root fixtures remain held; retain prior evidence and unproved original requirements."
+          ]
+        },
+        {
+          "name": "su-v7-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "evidence_format": "primary-qualified-su-v7-bounded-v1",
+          "primary_receipt_sha256": "f64b9faade4d3dbce6d174e75da958244cc3bf585b093af2dd1f1d11f4e7fdec",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "1e86c996-06f7-447f-b816-f4ab51b43d4c",
+          "record_sha256": "edee57545bc9c991eeee138ffda069595ba5683393f54c77254f0861afc79364",
+          "evidence_sha256": "27aa716d48b56eb2c7cccaec1f5bf3c385ca813b6396fca0374268c8cf7d175f",
+          "limitations": [
+            "Fork and wait errors are synthetic seccomp notification injections; this is bounded behavior only.",
+            "Noexec tracing acknowledges PR_SET_DUMPABLE without applying it; no general dumpability or authentication claim follows.",
+            "The wait proof establishes same-parent collection only, not normal child success.",
+            "No full-topic or other requirement coverage follows from these three cases."
+          ]
+        },
+        {
+          "name": "uclamp-followup40-dynamic-dispatch",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "evidence_format": "primary-qualified-uclamp-followup40-v1",
+          "primary_receipt_sha256": "9a7e906fd31fcb655201de6f93f6c64e7ff2bf817a329df19c65c402beedb7a9",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "0181ee09-cfcb-4f3e-8274-dc30e82b05fe",
+          "poweroff_request": 0,
+          "limitations": [
+            "No setter case is included; earlier incomplete setter observations remain retained.",
+            "A 255 poweroff request is accepted only for the exact primary-disposition static all-task run, remains 255 and has an unobserved SSH failure cause.",
+            "Synthetic scheduler replies do not establish privileged policy behavior.",
+            "Prior candidate failures and incomplete observations remain retained."
+          ]
+        },
+        {
+          "name": "uclamp-followup40-dynamic-query",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "evidence_format": "primary-qualified-uclamp-followup40-v1",
+          "primary_receipt_sha256": "9a7e906fd31fcb655201de6f93f6c64e7ff2bf817a329df19c65c402beedb7a9",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "918e7685-142e-480f-ba09-d9cd690d6f45",
+          "poweroff_request": 0,
+          "limitations": [
+            "No setter case is included; earlier incomplete setter observations remain retained.",
+            "A 255 poweroff request is accepted only for the exact primary-disposition static all-task run, remains 255 and has an unobserved SSH failure cause.",
+            "Synthetic scheduler replies do not establish privileged policy behavior.",
+            "Prior candidate failures and incomplete observations remain retained."
+          ]
+        },
+        {
+          "name": "uclamp-followup40-dynamic-alltasks",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "evidence_format": "primary-qualified-uclamp-followup40-v1",
+          "primary_receipt_sha256": "9a7e906fd31fcb655201de6f93f6c64e7ff2bf817a329df19c65c402beedb7a9",
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "vm_uuid": "2e30be99-895f-461b-b9da-4c1e1abb44df",
+          "poweroff_request": 0,
+          "limitations": [
+            "No setter case is included; earlier incomplete setter observations remain retained.",
+            "A 255 poweroff request is accepted only for the exact primary-disposition static all-task run, remains 255 and has an unobserved SSH failure cause.",
+            "Synthetic scheduler replies do not establish privileged policy behavior.",
+            "Prior candidate failures and incomplete observations remain retained."
           ]
         }
       ],
@@ -93653,8 +93916,8 @@
             {
               "id": "r1",
               "behavior": "ns unshare user,mount,net,ipc,uts,cgroup changes the caller's /proc/self/ns/<type> inode for each requested type and leaves others unchanged",
-              "coverage": "partial",
-              "gap": "The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
@@ -93669,8 +93932,13 @@
                   "run": "qual-remote-canon-probe-composite-namespace-extras-paired-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS",
+              "control_support": {
+                "type": "ns-native-inodes-paired-v1",
+                "verified": true,
+                "candidate_behavior_count": 0
+              }
             },
             {
               "id": "r2",
@@ -105678,10 +105946,10 @@
         },
         {
           "topic": "su/kernel-token-protocol",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -105734,20 +106002,27 @@
             {
               "id": "r4",
               "behavior": "Absent device fails closed with a diagnostic and no exec.",
-              "coverage": "missing",
-              "gap": "Observable now via the PTY password path (correct password -> 'kernel auth: /dev/bashos-auth: No such file or directory', status 1, no target shell marker).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "su-bounded-absent-device-noexec-r1",
+                  "status": "PASS",
+                  "run": "su-v7-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "su/owned-child-status-and-signals",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -105784,11 +106059,24 @@
             {
               "id": "r3",
               "behavior": "Fork/wait errors are diagnosed.",
-              "coverage": "missing",
-              "gap": "Requires injection.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "su-bounded-owned-fork-eagain-r1",
+                  "status": "PASS",
+                  "run": "su-v7-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "su-bounded-owned-wait-echild-r1",
+                  "status": "PASS",
+                  "run": "su-v7-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -111253,55 +111541,89 @@
         },
         {
           "topic": "uclampset/defer_all_tasks_preflight",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-a gets and validates every thread before setting any thread.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Observable as a get-before-set ordering through SECCOMP-NOTIFY, or semantically through r2.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-alltasks-success",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-dynamic-alltasks"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-alltasks-validation",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-dynamic-alltasks"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "A validation failure on a later thread (for example its current max of 100 against a requested -m 900 with no -M) rejects the whole request, and earlier threads keep their clamps.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Reachable unprivileged with helper threads holding different clamps.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-alltasks-validation",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-dynamic-alltasks"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "A read failure on a later thread (sched_getattr error) gives no partial mutation.",
-              "coverage": "missing",
-              "gap": "No deterministic unprivileged way exists to make one thread's getattr fail. SECCOMP-NOTIFY can return ESRCH for that TID's sched_getattr.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-alltasks-readfail",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-dynamic-alltasks"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Per-TID get/set logging matches the expected sequence.",
-              "coverage": "missing",
-              "gap": "Needs SECCOMP-NOTIFY.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-alltasks-success",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-dynamic-alltasks"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "uclampset/defer_command_mode",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -111370,79 +111692,137 @@
             {
               "id": "r5",
               "behavior": "Builtin versus external dispatch: a shell builtin name as the command is executed the documented way (command-run.h).",
-              "coverage": "missing",
-              "gap": "Unexecuted. util-linux can only exec external commands, so this part is a candidate contract.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-command-dispatch",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-dynamic-dispatch"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
         {
           "topic": "uclampset/defer_pid_query",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "`uclampset -p PID` prints '<comm> (<pid>) util_clamp: min: N max: M' for an owned child, with values equal to the child's own sched_getattr read-back (python3 ctypes) and matching util-linux uclampset bytes.",
-              "coverage": "partial",
-              "gap": "The target readback is from the parent observer; child-self sched_getattr readback was not retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "devices-uclamp-query-r1",
                   "status": "PASS",
                   "run": "device-v8-uclamp-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-query-self",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-dynamic-query"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "`-p 0` reports the caller under its real PID.",
-              "coverage": "missing",
-              "gap": "Unexecuted.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-query-p0",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-dynamic-query"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "comm fallback: a task whose comm is empty (set by the helper through prctl(PR_SET_NAME, b'')) prints the numeric PID in place of comm.",
-              "coverage": "missing",
-              "gap": "Unexecuted. util-linux behavior for an empty comm must come from its run.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-query-empty",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-dynamic-query"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "With -a, every TID of a multi-threaded owned helper (known thread count, per-thread clamps) is listed, one line each.",
-              "coverage": "missing",
-              "gap": "Unexecuted. Thread order follows /proc/PID/task readdir order on both sides.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-query-threads",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-dynamic-query"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "Queries perform no scheduler writes: a SECCOMP-FILTER KILL on sched_setattr does not trigger, and the clamps are unchanged.",
-              "coverage": "partial",
-              "gap": "No SECCOMP-FILTER KILL witness for sched_setattr was retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "devices-uclamp-query-r1",
                   "status": "PASS",
                   "run": "device-v8-uclamp-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-query-self",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-dynamic-query"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-query-p0",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-dynamic-query"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-query-empty",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-dynamic-query"
+                },
+                {
+                  "group": "shell",
+                  "id": "uclamp-followup-query-threads",
+                  "status": "PASS",
+                  "run": "uclamp-followup40-dynamic-query"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -114872,9 +115252,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 215,
+        "UNRESOLVED": 210,
         "FAIL": 186,
-        "PASS": 199
+        "PASS": 204
       },
       "migration_without_complete_evidence": []
     }

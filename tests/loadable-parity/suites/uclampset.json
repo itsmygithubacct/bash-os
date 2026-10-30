@@ -82,9 +82,30 @@
     },
     {
       "id": "defer_pid_query",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check query formatting for one task and task enumeration with -a, without changing scheduler state.",
-      "reason": "Remaining obligations: r1: The target readback is from the parent observer; child-self sched_getattr readback was not retained.; r2: Unexecuted.; r3: Unexecuted. util-linux behavior for an empty comm must come from its run.; r4: Unexecuted. Thread order follows /proc/PID/task readdir order on both sides.; r5: No SECCOMP-FILTER KILL witness for sched_setattr was retained."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "devices-uclamp-query-r1"
+        },
+        {
+          "group": "shell",
+          "id": "uclamp-followup-query-empty"
+        },
+        {
+          "group": "shell",
+          "id": "uclamp-followup-query-p0"
+        },
+        {
+          "group": "shell",
+          "id": "uclamp-followup-query-self"
+        },
+        {
+          "group": "shell",
+          "id": "uclamp-followup-query-threads"
+        }
+      ]
     },
     {
       "id": "defer_pid_setter",
@@ -94,9 +115,22 @@
     },
     {
       "id": "defer_all_tasks_preflight",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check that -a reads and validates every thread before setting any thread, including a later-thread failure.",
-      "reason": "Missing fixtures only. Validation failure is reachable with owned threads, and read-failure injection plus call logging use SECCOMP-NOTIFY in the modern plain driver."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "uclamp-followup-alltasks-readfail"
+        },
+        {
+          "group": "shell",
+          "id": "uclamp-followup-alltasks-success"
+        },
+        {
+          "group": "shell",
+          "id": "uclamp-followup-alltasks-validation"
+        }
+      ]
     },
     {
       "id": "defer_system_files",
@@ -106,9 +140,18 @@
     },
     {
       "id": "defer_command_mode",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check that command mode applies clamps only in a child, preserves literal argv, and propagates exit and lookup status.",
-      "reason": "Remaining obligations: r5: Unexecuted. util-linux can only exec external commands, so this part is a candidate contract."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "devices-uclamp-command-r1"
+        },
+        {
+          "group": "shell",
+          "id": "uclamp-followup-command-dispatch"
+        }
+      ]
     },
     {
       "id": "private-system-file-model",

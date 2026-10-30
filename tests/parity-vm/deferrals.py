@@ -18,6 +18,7 @@ import tarfile
 import uuid
 
 import schema
+import primary_ns_native_control as native_control
 
 
 REPO = Path(__file__).resolve().parents[2]
@@ -139,6 +140,11 @@ def validate(ledger, repo=REPO):
                   "uncovered requirement without a specific gap: " + topic)
             check(coverage != "covered" or not requirement.get("gap", "").strip(),
                   "covered requirement still has a gap: " + topic)
+            if topic == "ns/ns-unshare-namespaces" and rid == "r1":
+                check(requirement.get("control_support") == {"type":"ns-native-inodes-paired-v1", "id":"ns-native-inodes-r2"},
+                      "native unshare r1 requires the fixed control-support reference")
+            else:
+                check("control_support" not in requirement, "unreviewed control-support reference")
             for reference in evidence:
                 check(reference.get("group") in GROUPS and reference.get("id")
                       and reference.get("assertion", "").strip(), "invalid evidence reference: " + topic)
@@ -343,6 +349,12 @@ def load_run(spec, expected_binary, expected_build=None, repo=REPO):
         if spec["evidence_format"] == "primary-qualified-watch337-r3-v1":
             from primary_watch337_evidence import load_qualified_watch337_run
             return load_qualified_watch337_run(spec, expected_binary, expected_build)
+        if spec["evidence_format"] == "primary-qualified-uclamp-followup40-v1":
+            from primary_uclamp40_evidence import load_qualified_uclamp40
+            return load_qualified_uclamp40(spec, expected_binary, expected_build)
+        if spec["evidence_format"] == "primary-qualified-su-v7-bounded-v1":
+            from primary_su_v7_evidence import load_qualified_su_v7
+            return load_qualified_su_v7(spec, expected_binary, expected_build)
         if spec["evidence_format"] == "primary-qualified-device-v8-rtc-calendar-v1":
             from primary_calendar_evidence import load_qualified_rtc_calendar
             return load_qualified_rtc_calendar(spec, expected_binary, expected_build)
@@ -438,7 +450,7 @@ def load_run(spec, expected_binary, expected_build=None, repo=REPO):
     return selected, metadata
 
 
-def assess(requirement, evidence, fixtures, sources):
+def assess(requirement, evidence, fixtures, sources, control_ok=False, topic=None):
     observations = []
     for reference in requirement["evidence"]:
         name = key(reference)
@@ -455,12 +467,20 @@ def assess(requirement, evidence, fixtures, sources):
             status = "INCOMPLETE"
         observations.append({"group": name[0], "id": name[1], "status": status, "run": item["run"]})
     executed = bool(observations) and all(o["status"] in EXECUTED for o in observations)
-    complete = requirement["coverage"] == "covered" and executed
-    return {"id": requirement["id"], "behavior": requirement["behavior"],
-            "coverage": requirement["coverage"], "gap": requirement.get("gap", ""),
-            "evidence": observations, "fully_exercised": complete,
-            "result": ("FAIL" if any(o["status"] == "FAIL" for o in observations) else "PASS")
-                      if complete else "UNRESOLVED"}
+    native_r1 = ((topic == "ns/ns-unshare-namespaces" and requirement.get("id") == "r1")
+                 or requirement.get("control_support") == {"type":"ns-native-inodes-paired-v1", "id":"ns-native-inodes-r2"}
+                 or (requirement.get("id") == "r1" and requirement.get("behavior") ==
+                     "ns unshare user,mount,net,ipc,uts,cgroup changes the caller's /proc/self/ns/<type> inode for each requested type and leaves others unchanged"))
+    complete = requirement["coverage"] == "covered" and executed and (not native_r1 or control_ok is True)
+    result = {"id": requirement["id"], "behavior": requirement["behavior"],
+              "coverage": requirement["coverage"], "gap": requirement.get("gap", ""),
+              "evidence": observations, "fully_exercised": complete,
+              "result": ("FAIL" if any(o["status"] == "FAIL" for o in observations) else "PASS")
+                        if complete else "UNRESOLVED"}
+    if native_r1:
+        result["control_support"] = {"type":"ns-native-inodes-paired-v1", "verified":control_ok is True,
+                                     "candidate_behavior_count":0}
+    return result
 
 
 def reconcile(ledger, configuration, repo=REPO):
@@ -471,7 +491,7 @@ def reconcile(ledger, configuration, repo=REPO):
         binary = file_digest(spec["binary"])
         evidence, runs = {}, []
         for run in spec["runs"]:
-            if run.get("evidence_format") in ("primary-qualified-controller-v1", "primary-qualified-clock342-v1", "primary-qualified-syslog309-v1", "primary-qualified-ncdu294-v1", "primary-qualified-broker286-v1", "primary-qualified-modern293-v1", "primary-qualified-watch293-v1", "primary-qualified-watch337-r3-v1", "primary-qualified-top371-v1", "primary-qualified-device-v8-uclamp-v1", "primary-qualified-device-v8-rtc-effects-v1", "primary-qualified-device-v8-rtc-calendar-v1"):
+            if run.get("evidence_format") in ("primary-qualified-controller-v1", "primary-qualified-clock342-v1", "primary-qualified-syslog309-v1", "primary-qualified-ncdu294-v1", "primary-qualified-broker286-v1", "primary-qualified-modern293-v1", "primary-qualified-watch293-v1", "primary-qualified-watch337-r3-v1", "primary-qualified-top371-v1", "primary-qualified-device-v8-uclamp-v1", "primary-qualified-device-v8-rtc-effects-v1", "primary-qualified-device-v8-rtc-calendar-v1", "primary-qualified-su-v7-bounded-v1", "primary-qualified-uclamp-followup40-v1"):
                 check(Path(spec["binary"]).is_absolute()
                       and spec["binary"] == run.get("core_binary_path"),
                       "controller evidence requires the configured recorded core binary")
@@ -482,8 +502,10 @@ def reconcile(ledger, configuration, repo=REPO):
                 check(name not in evidence, "ambiguous evidence selection: " + repr(name))
                 evidence[name] = item
         entries = []
+        native_control_ok = native_control.status(configuration, build)
         for entry in ledger["entries"]:
-            requirements = [assess(r, evidence, fixtures, sources) for r in entry["requirements"]]
+            requirements = [assess(r, evidence, fixtures, sources, native_control_ok, entry["topic"])
+                            for r in entry["requirements"]]
             complete = all(r["fully_exercised"] for r in requirements)
             entries.append({"topic": entry["topic"], "migration": entry.get("migration"),
                             "coverage": entry["coverage"], "fully_exercised": complete,

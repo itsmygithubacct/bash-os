@@ -1,0 +1,140 @@
+{
+  "cases": [
+    {
+      "comparison": "Retain raw notification identity, bootstrap, PTY transcript, native controls and durable reached assertions. Never infer a candidate result from an infrastructure or cleanup failure. Device absence is real guest state; synthetic EAGAIN/ECHILD and dumpability deviation are explicitly scoped.",
+      "covers": [
+        "su/kernel-token-protocol"
+      ],
+      "diagnostic_files": [
+        "su-bounded-observations.jsonl",
+        "su-bounded-control-fork.jsonl",
+        "su-bounded-control-wait.jsonl",
+        "su-bounded-control-exec.jsonl",
+        "su-bounded-candidate.jsonl",
+        "su-bounded-control-fork.jsonl.bootstrap",
+        "su-bounded-control-wait.jsonl.bootstrap",
+        "su-bounded-control-exec.jsonl.bootstrap",
+        "su-bounded-candidate.jsonl.bootstrap",
+        "su-bounded-candidate.output"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "features": [
+        "seccomp-notify"
+      ],
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/auth-client-argon2-cli-r1.py": "54051e50d17c3799b4143b01e583b5cd0001e7a258fd0713085a172bed9754f9",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/su-bounded-fixture-r1.py": "278f8b1b9289d166ac5f917161ec5fc58d0287edac7c02b99ac67054bdb38b46",
+        "helpers/su-notify-observer-r1.py": "12b71a3aba7e88aed57815ba0cf2df7f713053251bf238d444003882056679e6"
+      },
+      "id": "su-bounded-absent-device-noexec-r1",
+      "kind": "contract",
+      "loadable": "su",
+      "oracle": "Independent native fork, wait/reap and exec-notification controls, synthetic Argon2 CLI known answer, root-protected absent-device state and exact guest-owned process PID/birth observations.",
+      "purpose": "Correct synthetic password, actual absent device and no target exec.",
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/su-bounded-fixture-r1.py \"$BASH\" noexec",
+      "setup_script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/su-bounded-fixture-r1.py setup",
+      "setup_timeout": 60,
+      "stderr": "",
+      "stdout": "su-bounded observed\n",
+      "timeout": 60
+    },
+    {
+      "comparison": "Retain raw notification identity, bootstrap, PTY transcript, native controls and durable reached assertions. Never infer a candidate result from an infrastructure or cleanup failure. Device absence is real guest state; synthetic EAGAIN/ECHILD and dumpability deviation are explicitly scoped.",
+      "covers": [
+        "su/owned-child-status-and-signals"
+      ],
+      "diagnostic_files": [
+        "su-bounded-observations.jsonl",
+        "su-bounded-control-fork.jsonl",
+        "su-bounded-control-wait.jsonl",
+        "su-bounded-control-exec.jsonl",
+        "su-bounded-candidate.jsonl",
+        "su-bounded-control-fork.jsonl.bootstrap",
+        "su-bounded-control-wait.jsonl.bootstrap",
+        "su-bounded-control-exec.jsonl.bootstrap",
+        "su-bounded-candidate.jsonl.bootstrap",
+        "su-bounded-candidate.output"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "features": [
+        "seccomp-notify"
+      ],
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/auth-client-argon2-cli-r1.py": "54051e50d17c3799b4143b01e583b5cd0001e7a258fd0713085a172bed9754f9",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/su-bounded-fixture-r1.py": "278f8b1b9289d166ac5f917161ec5fc58d0287edac7c02b99ac67054bdb38b46",
+        "helpers/su-notify-observer-r1.py": "12b71a3aba7e88aed57815ba0cf2df7f713053251bf238d444003882056679e6"
+      },
+      "id": "su-bounded-owned-fork-eagain-r1",
+      "kind": "contract",
+      "loadable": "su",
+      "oracle": "Independent native fork, wait/reap and exec-notification controls, synthetic Argon2 CLI known answer, root-protected absent-device state and exact guest-owned process PID/birth observations.",
+      "purpose": "Identify the owned su fork notification and inject EAGAIN.",
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/su-bounded-fixture-r1.py \"$BASH\" fork",
+      "setup_script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/su-bounded-fixture-r1.py setup",
+      "setup_timeout": 60,
+      "stderr": "",
+      "stdout": "su-bounded observed\n",
+      "timeout": 60
+    },
+    {
+      "comparison": "Retain raw notification identity, bootstrap, PTY transcript, native controls and durable reached assertions. Never infer a candidate result from an infrastructure or cleanup failure. Device absence is real guest state; synthetic EAGAIN/ECHILD and dumpability deviation are explicitly scoped.",
+      "covers": [
+        "su/owned-child-status-and-signals"
+      ],
+      "diagnostic_files": [
+        "su-bounded-observations.jsonl",
+        "su-bounded-control-fork.jsonl",
+        "su-bounded-control-wait.jsonl",
+        "su-bounded-control-exec.jsonl",
+        "su-bounded-candidate.jsonl",
+        "su-bounded-control-fork.jsonl.bootstrap",
+        "su-bounded-control-wait.jsonl.bootstrap",
+        "su-bounded-control-exec.jsonl.bootstrap",
+        "su-bounded-candidate.jsonl.bootstrap",
+        "su-bounded-candidate.output"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "features": [
+        "seccomp-notify"
+      ],
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/auth-client-argon2-cli-r1.py": "54051e50d17c3799b4143b01e583b5cd0001e7a258fd0713085a172bed9754f9",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/su-bounded-fixture-r1.py": "278f8b1b9289d166ac5f917161ec5fc58d0287edac7c02b99ac67054bdb38b46",
+        "helpers/su-notify-observer-r1.py": "12b71a3aba7e88aed57815ba0cf2df7f713053251bf238d444003882056679e6"
+      },
+      "id": "su-bounded-owned-wait-echild-r1",
+      "kind": "contract",
+      "loadable": "su",
+      "oracle": "Independent native fork, wait/reap and exec-notification controls, synthetic Argon2 CLI known answer, root-protected absent-device state and exact guest-owned process PID/birth observations.",
+      "purpose": "Identify and hold the owned su child, inject ECHILD on the exact parent wait and release it for same-parent reap.",
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/su-bounded-fixture-r1.py \"$BASH\" wait",
+      "setup_script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/su-bounded-fixture-r1.py setup",
+      "setup_timeout": 60,
+      "stderr": "",
+      "stdout": "su-bounded observed\n",
+      "timeout": 60
+    }
+  ],
+  "schema": 1
+}

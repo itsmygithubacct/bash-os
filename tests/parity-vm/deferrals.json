@@ -27592,12 +27592,12 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required.; r5: The unprivileged UTS EPERM agrees with unshare; unsupported-namespace EINVAL was not exercised.",
+      "current_reason": "R5: The unprivileged UTS EPERM agrees with unshare; unsupported-namespace EINVAL was not exercised.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "ns unshare user,mount,net,ipc,uts,cgroup changes the caller's /proc/self/ns/<type> inode for each requested type and leaves others unchanged",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -27612,7 +27612,11 @@
               "definition_sha256": "8ece93d13249708e14dc7bea928f20ee273670a83cb7f24a859c25b941d560af"
             }
           ],
-          "gap": "The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required."
+          "gap": "",
+          "control_support": {
+            "type": "ns-native-inodes-paired-v1",
+            "id": "ns-native-inodes-r2"
+          }
         },
         {
           "id": "r2",
@@ -27691,7 +27695,7 @@
           "gap": ""
         }
       ],
-      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The candidate's requested and unchanged namespace inodes are retained across the separate requests. Native setup succeeds, but comparable before/after native inode observations for all requested types were not retained. The original comparison remains incomplete; no extra all-six simultaneous invocation is required. Primary-receipted PID/time observations cover r2 and the actual repeated PID request r3. No repeated time request is claimed."
+      "notes": "Preserve original obligations and existing companion evidence. Three framework failures per build remain visible. Namespace uid 0 is mapped to unprivileged guest uid 2000; initial-user-namespace root cases remain excluded. This review executed no namespace, fixture, mock, candidate or reference behavior. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. Historical r1 gap before the native-inode controls: candidate requested and unchanged namespace inodes were retained across separate requests, while the native setup lacked comparable before/after inode observations. No extra all-six simultaneous candidate invocation is required. R1 control support uses a primary-issued, source-authorized control-only receipt and remains conditional on successful verification. Primary-receipted PID/time observations cover r2 and the actual repeated PID request r3. No repeated time request is claimed."
     },
     {
       "topic": "ntp/ntp-nts-ke-query",
@@ -39397,9 +39401,9 @@
         "purpose": "Check token mint/consume request fields, expiry, failure handling, and request cleanup before any credential transition.",
         "reason": "Requires an independently reviewed mock for /dev/bashos-auth in a disposable VM or syscall fixture. The live authority device and kernel authorization are not exercised."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r4: Observable now via the PTY password path (correct password -> 'kernel auth: /dev/bashos-auth: No such file or directory', status 1, no target shell marker).",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original requirements are supported by prior evidence and bounded paired SU v7 observations; no general authentication, actual dumpability or real credential transition is implied.",
       "requirements": [
         {
           "id": "r1",
@@ -39446,12 +39450,19 @@
         {
           "id": "r4",
           "behavior": "Absent device fails closed with a diagnostic and no exec.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Observable now via the PTY password path (correct password -> 'kernel auth: /dev/bashos-auth: No such file or directory', status 1, no target shell marker)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "su-bounded-absent-device-noexec-r1",
+              "assertion": "Both builds observe the absent real authority device diagnostic and status 1 with no target exec notification or marker; the observer acknowledges the non-dumpable request without applying it.",
+              "definition_sha256": "fa2fd5d2f1a80fcb511ffa0d45355a86ee0d2236f655c455eecfe0b40c8666bb"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "su.c bsu_kernel_proof, bsu_consume_auth_token_fd. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r2: The original permits the device mock. Its matching mint and consume trace immediately precedes the first credential-transition attempt, which is deliberately denied. This exercises the specified ordering without claiming a completed credential transition or real kernel enforcement. r3: Mocked mint failure, consume failure and expiry each terminate without any recorded credential-call attempt; the guest control tests observer and replies. Both cases PASS for the monitored calls; actual live kernel expiry is outside this mock."
+      "notes": "su.c bsu_kernel_proof, bsu_consume_auth_token_fd. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r2: The original permits the device mock. Its matching mint and consume trace immediately precedes the first credential-transition attempt, which is deliberately denied. This exercises the specified ordering without claiming a completed credential transition or real kernel enforcement. r3: Mocked mint failure, consume failure and expiry each terminate without any recorded credential-call attempt; the guest control tests observer and replies. Both cases PASS for the monitored calls; actual live kernel expiry is outside this mock. The SU v7 noexec trace acknowledges non-dumpability without applying it; fork/wait errors are injected and the same-parent reap proves collection only."
     },
     {
       "topic": "su/owned-child-status-and-signals",
@@ -39461,9 +39472,9 @@
         "purpose": "Check child exit and signal status propagation, fork/wait errors, parent-shell state preservation, and repeated invocation behavior.",
         "reason": "Requires a bounded disposable child-process fixture with mocked authentication and credential operations. Any signals must target only owned fixture children; this suite sends none."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: Requires injection.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original requirements are supported by prior evidence and bounded paired SU v7 observations; no general authentication, actual dumpability or real credential transition is implied.",
       "requirements": [
         {
           "id": "r1",
@@ -39496,9 +39507,22 @@
         {
           "id": "r3",
           "behavior": "Fork/wait errors are diagnosed.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Requires injection."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "su-bounded-owned-fork-eagain-r1",
+              "assertion": "Both builds observe owned-parent fork EAGAIN injection followed by the fork diagnostic and status 1; independently completed native controls and supervision establish the bounded witness.",
+              "definition_sha256": "fd3a4edc41db8202044bf8460c0aaba7653fab8eaa6b5c86ae0242962f3a0ff9"
+            },
+            {
+              "group": "shell",
+              "id": "su-bounded-owned-wait-echild-r1",
+              "assertion": "Both builds observe owned-parent wait ECHILD injection followed by the waitpid diagnostic and status 1, with the held same-birth child subsequently released and reaped by its parent.",
+              "definition_sha256": "973de275c78dceec135ec432fa52bef0f8da7ab7762a3c67a11ae8ec3fa02abb"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
@@ -39515,7 +39539,7 @@
           "gap": ""
         }
       ],
-      "notes": "su.c parent waitpid loop and tty snapshot restore. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "su.c parent waitpid loop and tty snapshot restore. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. The SU v7 noexec trace acknowledges non-dumpability without applying it; fork/wait errors are injected and the same-parent reap proves collection only."
     },
     {
       "topic": "su/password-and-lockout-flow",
@@ -44815,40 +44839,74 @@
         "purpose": "Check that -a reads and validates every thread before setting any thread, including a later-thread failure.",
         "reason": "Future run needs a disposable VM or controlled syscall mock with multiple owned threads whose current clamps differ, per-TID get/set logging, and injectable later-thread read/validation failures. Require all gets before the first set and no partial mutation when preflight fails."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Missing fixtures only. Validation failure is reachable with owned threads, and read-failure injection plus call logging use SECCOMP-NOTIFY in the modern plain driver.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original requirements have paired bounded evidence; preserve earlier references and candidate failures.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-a gets and validates every thread before setting any thread.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Observable as a get-before-set ordering through SECCOMP-NOTIFY, or semantically through r2."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "uclamp-followup-alltasks-success",
+              "assertion": "Both builds observe the three owned TIDs, all reads before any writes, expected per-TID sequence and readback.",
+              "definition_sha256": "04ff1bc174ced0d5fdd22df660e3c2c1a4d0778dfbbc88967990b64ac057e4aa"
+            },
+            {
+              "group": "shell",
+              "id": "uclamp-followup-alltasks-validation",
+              "assertion": "Both builds observe rejection on the later owned TID before any write and unchanged attributes.",
+              "definition_sha256": "20df6aba7d9dfab7173a8a9b2a2d404c80a680a724d84d565e7bfc328098fb72"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "A validation failure on a later thread (for example its current max of 100 against a requested -m 900 with no -M) rejects the whole request, and earlier threads keep their clamps.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Reachable unprivileged with helper threads holding different clamps."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "uclamp-followup-alltasks-validation",
+              "assertion": "Both builds observe rejection on the later owned TID before any write and unchanged attributes.",
+              "definition_sha256": "20df6aba7d9dfab7173a8a9b2a2d404c80a680a724d84d565e7bfc328098fb72"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "A read failure on a later thread (sched_getattr error) gives no partial mutation.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No deterministic unprivileged way exists to make one thread's getattr fail. SECCOMP-NOTIFY can return ESRCH for that TID's sched_getattr."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "uclamp-followup-alltasks-readfail",
+              "assertion": "Both builds observe an injected later-TID sched_getattr ESRCH, rejection before any write and unchanged attributes.",
+              "definition_sha256": "acffa74e04b72751ad19ff92a5c5b8689bd58a017c79363dbfc3141ab4236ba7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Per-TID get/set logging matches the expected sequence.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs SECCOMP-NOTIFY."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "uclamp-followup-alltasks-success",
+              "assertion": "Both builds observe the three owned TIDs, all reads before any writes, expected per-TID sequence and readback.",
+              "definition_sha256": "04ff1bc174ced0d5fdd22df660e3c2c1a4d0778dfbbc88967990b64ac057e4aa"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Source: loadables/uclampset.c (buclamp_set_tasks prepares every TID with buclamp_prepare before setting). The no-partial-mutation guarantee is a bash-os design contract, not util-linux parity. Label the comparison semantic."
+      "notes": "Source: loadables/uclampset.c (buclamp_set_tasks prepares every TID with buclamp_prepare before setting). The no-partial-mutation guarantee is a bash-os design contract, not util-linux parity. Label the comparison semantic. UCLAMP follow-up evidence is bounded to the observed cases; the static all-tasks poweroff remains 255 under its exact primary lifecycle disposition, with SSH failure cause unobserved."
     },
     {
       "topic": "uclampset/defer_command_mode",
@@ -44858,9 +44916,9 @@
         "purpose": "Check that command mode applies clamps only in a child, preserves literal argv, and propagates exit and lookup status.",
         "reason": "Future run needs a disposable VM with a reviewed scheduler syscall mock or supported uclamp kernel and a private fixture executable. Verify child-only changes, parent state preservation, literal arguments (including spaces and empty strings), builtin/external dispatch, normal exit status, and command-not-found behavior."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r5: Unexecuted. util-linux can only exec external commands, so this part is a candidate contract.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original requirements have paired bounded evidence; preserve earlier references and candidate failures.",
       "requirements": [
         {
           "id": "r1",
@@ -44921,12 +44979,19 @@
         {
           "id": "r5",
           "behavior": "Builtin versus external dispatch: a shell builtin name as the command is executed the documented way (command-run.h).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. util-linux can only exec external commands, so this part is a candidate contract."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "uclamp-followup-command-dispatch",
+              "assertion": "Both builds execute the shell builtin and retain the marker, while the external shadow control changes it and exits 73.",
+              "definition_sha256": "9fd1363515b6695b21279f1e9f1b3ddb26fc8d37b04d9aea407fa0a63e4debb2"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "Source: loadables/uclampset.c:603-670 (validates before fork, re-reads after a reset-on-fork parent, execvp). Primary-receipted command observations cover child/parent clamps, literal argv, exit status and missing command. Printf output and status do not distinguish builtin from external dispatch; r5 remains unobserved."
+      "notes": "Source: loadables/uclampset.c:603-670 (validates before fork, re-reads after a reset-on-fork parent, execvp). Primary-receipted command observations cover child/parent clamps, literal argv, exit status and missing command. Printf output and status do not distinguish builtin from external dispatch; r5 remains unobserved. UCLAMP follow-up evidence is bounded to the observed cases; the static all-tasks poweroff remains 255 under its exact primary lifecycle disposition, with SSH failure cause unobserved."
     },
     {
       "topic": "uclampset/defer_pid_query",
@@ -44936,61 +45001,112 @@
         "purpose": "Check query formatting for one task and task enumeration with -a, without changing scheduler state.",
         "reason": "Future run needs a disposable Linux VM with a controlled owned process and known thread set, plus an independent sched_getattr oracle for each TID. Verify PID 0 handling, comm fallback, output values, and that querying makes no scheduler writes. Do not use a host task."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: The target readback is from the parent observer; child-self sched_getattr readback was not retained.; r2: Unexecuted.; r3: Unexecuted. util-linux behavior for an empty comm must come from its run.; r4: Unexecuted. Thread order follows /proc/PID/task readdir order on both sides.; r5: No SECCOMP-FILTER KILL witness for sched_setattr was retained.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All original requirements have paired bounded evidence; preserve earlier references and candidate failures.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "`uclampset -p PID` prints '<comm> (<pid>) util_clamp: min: N max: M' for an owned child, with values equal to the child's own sched_getattr read-back (python3 ctypes) and matching util-linux uclampset bytes.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "devices-uclamp-query-r1",
               "assertion": "Both builds query an owned child and match util-linux bytes against attributes read by the parent observer. The required child-self sched_getattr readback was not retained.",
               "definition_sha256": "42db3f630a2db9d91ff5efd842091f1836774a86e0e61190a24cf41f4079a1e4"
+            },
+            {
+              "group": "shell",
+              "id": "uclamp-followup-query-self",
+              "assertion": "Both builds query an owned child, retain its own sched_getattr readback and match independent native output; a kill-on-sched_setattr filter remains untriggered.",
+              "definition_sha256": "0cf1251d2688e184604005403ca32458628eacfe1063c3eaa5a5522a14cdbb03"
             }
           ],
-          "gap": "The target readback is from the parent observer; child-self sched_getattr readback was not retained."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "`-p 0` reports the caller under its real PID.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "uclamp-followup-query-p0",
+              "assertion": "Both builds report the caller under its real PID, with before/after attributes and a kill-on-sched_setattr filter.",
+              "definition_sha256": "987bdfdaf150b2a9663803a5cc10807852e74a4e14be3b0155e1d4c54a2ec6ee"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "comm fallback: a task whose comm is empty (set by the helper through prctl(PR_SET_NAME, b'')) prints the numeric PID in place of comm.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. util-linux behavior for an empty comm must come from its run."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "uclamp-followup-query-empty",
+              "assertion": "Both builds report the numeric PID for an owned task with empty comm, retaining independent native output and the write-kill filter.",
+              "definition_sha256": "82e49db8d5305f567201f4c0b8f00ec75124e3f0dbc8e3c2fec9ed4281f25268"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "With -a, every TID of a multi-threaded owned helper (known thread count, per-thread clamps) is listed, one line each.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unexecuted. Thread order follows /proc/PID/task readdir order on both sides."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "uclamp-followup-query-threads",
+              "assertion": "Both builds enumerate the three owned TIDs and their independently read clamps, with a write-kill filter.",
+              "definition_sha256": "0d650e01759d84d3ec67c5053aac4a2530c707f50a820cad5107d8fcc3737249"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Queries perform no scheduler writes: a SECCOMP-FILTER KILL on sched_setattr does not trigger, and the clamps are unchanged.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "devices-uclamp-query-r1",
               "assertion": "The owned child attributes remain unchanged after the query; no kill-on-sched_setattr filter was used.",
               "definition_sha256": "42db3f630a2db9d91ff5efd842091f1836774a86e0e61190a24cf41f4079a1e4"
+            },
+            {
+              "group": "shell",
+              "id": "uclamp-followup-query-self",
+              "assertion": "Both builds query an owned child, retain its own sched_getattr readback and match independent native output; a kill-on-sched_setattr filter remains untriggered.",
+              "definition_sha256": "0cf1251d2688e184604005403ca32458628eacfe1063c3eaa5a5522a14cdbb03"
+            },
+            {
+              "group": "shell",
+              "id": "uclamp-followup-query-p0",
+              "assertion": "Both builds report the caller under its real PID, with before/after attributes and a kill-on-sched_setattr filter.",
+              "definition_sha256": "987bdfdaf150b2a9663803a5cc10807852e74a4e14be3b0155e1d4c54a2ec6ee"
+            },
+            {
+              "group": "shell",
+              "id": "uclamp-followup-query-empty",
+              "assertion": "Both builds report the numeric PID for an owned task with empty comm, retaining independent native output and the write-kill filter.",
+              "definition_sha256": "82e49db8d5305f567201f4c0b8f00ec75124e3f0dbc8e3c2fec9ed4281f25268"
+            },
+            {
+              "group": "shell",
+              "id": "uclamp-followup-query-threads",
+              "assertion": "Both builds enumerate the three owned TIDs and their independently read clamps, with a write-kill filter.",
+              "definition_sha256": "0d650e01759d84d3ec67c5053aac4a2530c707f50a820cad5107d8fcc3737249"
             }
           ],
-          "gap": "No SECCOMP-FILTER KILL witness for sched_setattr was retained."
+          "gap": ""
         }
       ],
-      "notes": "Source: loadables/uclampset.c:214-248 (comm fallback, used when the comm read fails or is empty) and :253-317 (task collection, which reads /proc/PID/task). Primary-receipted bounded query observations retain the parent-observer limitation; no child-self readback or syscall no-write filter is claimed."
+      "notes": "Source: loadables/uclampset.c:214-248 (comm fallback, used when the comm read fails or is empty) and :253-317 (task collection, which reads /proc/PID/task). Primary-receipted bounded query observations retain the parent-observer limitation; no child-self readback or syscall no-write filter is claimed. UCLAMP follow-up evidence is bounded to the observed cases; the static all-tasks poweroff remains 255 under its exact primary lifecycle disposition, with SSH failure cause unobserved."
     },
     {
       "topic": "uclampset/defer_pid_setter",
