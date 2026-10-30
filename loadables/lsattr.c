@@ -40,8 +40,8 @@ static const struct { unsigned int bit; char ch; } lsattr_flagtab[] = {
     { 0x00000040u, 'd' }, { 0x00000080u, 'A' }, { 0x00000004u, 'c' },
     { 0x00000800u, 'E' }, { 0x00004000u, 'j' }, { 0x00001000u, 'I' },
     { 0x00008000u, 't' }, { 0x00020000u, 'T' }, { 0x00080000u, 'e' },
-    { 0x10000000u, 'N' }, { 0x00800000u, 'C' }, { 0x02000000u, 'x' },
-    { 0x00100000u, 'V' }, { 0x40000000u, 'F' }, { 0x20000000u, 'P' },
+    { 0x00800000u, 'C' }, { 0x02000000u, 'x' }, { 0x40000000u, 'F' },
+    { 0x10000000u, 'N' }, { 0x20000000u, 'P' }, { 0x00100000u, 'V' },
     { 0x00000400u, 'm' },
 };
 #define LSATTR_NFLAGS (sizeof lsattr_flagtab / sizeof lsattr_flagtab[0])
