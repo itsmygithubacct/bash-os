@@ -1,21 +1,24 @@
 {
-  "schema": "farm600-sftp-navigation-gate-v1",
-  "scope": "sftp/session-navigation-listing r3; quoted relative cd followed by ls; no claim for binary transfers or SSH authentication",
+  "schema": "farm600-sftp-navigation-gate-v2",
+  "scope": "sftp/session-navigation-listing r3: quoted and escaped relative cd followed by listing; no binary confinement, SSH authentication or encryption claim",
   "mandatory_primary_gate": {
-    "per_side_controls": [
-      "Require guest setup status 0, no harness_error, and untruncated native-control-peer.jsonl, native-control-peer-ready.json, native-control.out, native-control.err, nav-control.out, nav-control.err, nav-control-invocations.jsonl, and adapter-control.txt.",
-      "Independently bind both helper hashes and copied adapter identity to the fixture. Verify the native ready address and PID against the recorded setup peer-pid, synthetic-control pwd, cd and tree-backed ls records and their selected-needle result. Require the stock navigation control to have zero status, to select selected-needle and exclude both decoys, and to record a successful SFTP-server invocation without adapter error.",
-      "Reference and candidate each use fresh setup; never reuse one side\u2019s controls as the other side\u2019s control."
+    "identity": [
+      "For each fresh side require guard-setup.json and the corresponding guard-candidate.json or guard-reference.json, untruncated; verify identical canonical token against protected controller provenance, uid/euid 2000, cwd and HOME. Require the peer-case identity event to match the same token and credentials. Setup or identity failure is harness ERROR. No uid-2000 product_uuid read is required."
+    ],
+    "controls": [
+      "Require setup status 0 and complete untruncated native-controls.json, nav-control.out, nav-control.err, nav-control-invocations.jsonl and adapter-control.txt; validate suite and all helper pins and the copied stock adapter hash.",
+      "Validate each of valid, extra and short peer control records independently: loopback ready PID matches recorded spawned PID; clean finished event and no peer-error; stock control client output and stderr complete; valid has the three expected raw framed requests, exact response bytes and EOF with no trailing bytes; extra captures exact extra bytes after the framed request through EOF; short records the observed incomplete declared body. Decode and recompute raw/header/command/stdin/trailing consistency and lengths; do not rely on control labels alone.",
+      "Independently recompute the listing selftest from saved base64 samples: exact expected listing is accepted, similarly named entries and a name outside the reference ls segment are rejected. Validate the stock SFTP control performed the quoted cd and ls, returned status 0, and the complete ls segment contains exactly the one expected entry; it must have an SFTP-server invocation and no adapter error. Each candidate and reference side performs its own controls."
     ],
     "reference": [
-      "Require reference stdout status=0, selected=1, decoys-absent=1, peer-stage=observed and actual bounded client output and adapter invocation records proving sftp-server execution with no error. Require unchanged reference fixture tree and expected input files."
+      "Require reference-side guard and successful completed stock OpenSSH SFTP invocation, full untruncated stdout/stderr, status 0, and the exact ls segment between the echoed ls and bye markers to consist only of selected-needle; require expected unchanged fixture tree. A failed native reference control or missing required output is ERROR/inconclusive, never a product failure."
     ],
     "candidate": [
-      "Require bounded complete client stdout/stderr, candidate status, peer status and native-peer.jsonl including initial header, command bytes, decoded requests and terminal event; validate ready PID/address/port against the recorded peer PID and helper identity.",
-      "A behavioral PASS requires peer status 0, a finished event, exactly three complete requests pwd, cd into the quoted directory, and ls in that directory, with empty stdin and zero peer status; compare raw command and lengths, selected name in client listing, decoys absent, and untouched fixture tree against the independently validated reference.",
-      "A reached mismatch can be FAIL only if setup controls passed, the reference is valid, peer recorded the affected product command and response and the relevant listing attempt is observed; retain all request bytes, response/error, client status and tree observations. A malformed/wrong cd that prevents the listing does not establish the r3 listing obligation.",
-      "Missing records, setup/control failure, unexplained peer death, timeouts, truncated bytes or an unobserved listing are ERROR or inconclusive/unreached, not a product PASS or completed r3 coverage. Do not treat generic runner FAIL alone as evidence."
+      "Require corresponding candidate guard, bounded complete client output, peer status and PID matching ready-case.json, and untruncated peer-case.jsonl with identity and finished events. Reconstruct every request from captured raw base64: parse header, declared lengths, exact command and stdin, EOF-complete trailing bytes and response.",
+      "A PASS for r3 requires three completed requests in order for initial pwd, cd to space dir, and ls in that directory; declared stdin and observed trailing bytes are empty, all peer responses succeed and the ls response is exactly the real selected tree. Candidate output must be exactly the documented remote-pwd prefix followed by the single complete selected-needle listing line. Compare the selected tree and reference result, not a substring.",
+      "A fully captured reached listing mismatch after passing controls is a candidate FAIL; a malformed or wrong cd that prevents the relevant listing remains unreached for r3 and must not erase existing quoted-form FAIL evidence. Complete malformed frames and captured unexpected trailing bytes may be reported as reached protocol mismatches without asserting that an unobserved listing was exercised.",
+      "A peer error, no EOF, missing/truncated record, control failure or uncertain setup is ERROR/inconclusive; never use generic runner labels alone as coverage. Apply the gate independently to each form and frozen build."
     ],
-    "limits": "The native peer admits only bounded framed commands and never executes an arbitrary shell. The reference adapter selects stock OpenSSH sftp-server; that server is not claimed to confine paths, so this case makes no claim for binary-get-put r1/r2. Actual runtime and evidence integration are separately owned."
+    "limits": "The independent stock OpenSSH SFTP server is tree-backed but is not claimed to confine paths; binary-get-put r1/r2 remain partially uncovered with the capability request retained. No source observation is runtime evidence."
   }
 }
