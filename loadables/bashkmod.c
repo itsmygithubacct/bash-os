@@ -757,11 +757,13 @@ bk_run_directive (const char *kind, const char *cmdline)
         return EXECUTION_FAILURE;
     }
     free (copy);
-    if (WIFEXITED (status) && WEXITSTATUS (status) == 0)
-        return EXECUTION_SUCCESS;
-    if (WIFEXITED (status))
-        builtin_error ("modprobe: %s directive exited %d", kind, WEXITSTATUS (status));
-    else if (WIFSIGNALED (status))
+    if (WIFEXITED (status)) {
+        int code = WEXITSTATUS (status);
+        if (code != 0)
+            builtin_error ("modprobe: %s directive exited %d", kind, code);
+        return code;
+    }
+    if (WIFSIGNALED (status))
         builtin_error ("modprobe: %s directive killed by signal %d", kind, WTERMSIG (status));
     else
         builtin_error ("modprobe: %s directive failed", kind);
@@ -1385,11 +1387,24 @@ static int
 bk_modprobe_apply_name (const char *name, int dry, int depth,
                         char visited[][256], int nvisited)
 {
-    struct bk_modprobe_plan plan;
-    int rc = bk_plan_modprobe (name, 0, NULL, &plan);
+    /* paths[256][PATH_MAX] makes one plan about 1 MiB. A depth0..depth9
+       softdep chain stacked one plan per frame and terminated 139 before
+       bk_modprobe_apply_plan could return EX_USAGE. Stop before that frame
+       is allocated, and keep each accepted frame off the stack. */
+    if (depth > BK_SOFTDEP_DEPTH_MAX || nvisited >= BK_SOFTDEP_DEPTH_MAX + 1) {
+        builtin_error ("modprobe: softdep recursion too deep at %s", name);
+        return EX_USAGE;
+    }
+    struct bk_modprobe_plan *plan = malloc (sizeof *plan);
+    if (!plan) {
+        builtin_error ("modprobe: out of memory");
+        return EXECUTION_FAILURE;
+    }
+    int rc = bk_plan_modprobe (name, 0, NULL, plan);
     if (rc == EXECUTION_SUCCESS)
-        rc = bk_modprobe_apply_plan (&plan, dry, depth, visited, nvisited);
-    bk_modprobe_plan_free (&plan);
+        rc = bk_modprobe_apply_plan (plan, dry, depth, visited, nvisited);
+    bk_modprobe_plan_free (plan);
+    free (plan);
     return rc;
 }
 
