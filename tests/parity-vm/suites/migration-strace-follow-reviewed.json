@@ -9,8 +9,8 @@
       "kind": "contract",
       "purpose": "Check that -f reports tagged child syscalls and that the parent reaps the child and its status propagates.",
       "covers": ["strace/follow-children"],
-      "oracle": "Guest-only parser controls, direct deterministic tracee and independent native ptrace observer run in each case setup. The owned tracee forks one child, records both identities and the child wait status, verifies ECHILD on a second wait and exits 42. Native control records the fork event and per-PID syscall observations. A failed setup is an infrastructure error. The primary explicitly accepted native ground truth for the literal requirement; GNU strace is not executed or claimed equivalent.",
-      "comparison": "Each candidate invocation must independently record identities, child reaping and status, and complete parent and child PID-tagged syscall entries and compatible results. Consume every byte as a complete bounded syscall entry, result or known event; allow interleaved entries and events, and record strict physical-line failures separately. Retain candidate and stage diagnostics. Primary must apply the pinned independent gate, including rejection of ambiguous attribution, missing/truncated artifacts and infrastructure errors; runner labels alone are not evidence.",
+      "oracle": "Guest-only parser controls, direct deterministic tracee and independent native ptrace observer run in each case setup. The owned tracee forks one child, records both identities and the child wait status, verifies ECHILD on a second wait and exits 42. The native control records the fork, the child's initial SIGSTOP context and per-PID syscall observations. A failed setup is an infrastructure error. The primary explicitly accepted native ground truth for the literal requirement; GNU strace is not executed or claimed equivalent.",
+      "comparison": "Each candidate invocation independently records identities, child reaping and status, and complete parent and child PID-tagged syscall entries and compatible results. Consume every byte as a bounded entry, result or known event, including up to two child SIGSTOP records in the initial fork context. Retain strict physical-line findings and every complete result-attribution history. Primary must apply the pinned gate, including rejection of multiple surviving histories, search bounds, missing/truncated artifacts and infrastructure errors; transient ambiguity alone is not final ambiguity and runner labels alone are not evidence.",
       "requires": ["gcc", "python3"],
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-follow-reviewed.py setup\n",
       "candidate_script": "printf 'follow\\n' >\"$HOME/candidate.start\" || exit 125\nrc=0\nstrace -f -- ./follow-tracee >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/candidate.status\" || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-follow-reviewed.py follow\n",
@@ -21,10 +21,10 @@
       "setup_timeout": 60,
       "diagnostic_files": ["setup-controls.json", "parser-controls.json", "gcc.out", "gcc.err", "direct.out", "direct.err", "direct.status", "native.out", "native.err", "native.status", "candidate.start", "candidate.out", "candidate.err", "candidate.status", "assertions.json"],
       "helpers_sha256": {
-        "helpers/strace-follow-reviewed.py": "69aa7e1b6398a827d4f4f5209c4b0213a82867c8d6320e838ec5af39962eb509",
+        "helpers/strace-follow-reviewed.py": "99572ba149cdf007d62257a6e36dc5a4e908015bb8af1537b5656823b883ac27",
         "helpers/strace-follow-reviewed.tracee.c": "d11a405d3356c054f7682e4a1e813e37df8f5b2489ad18df16618ae9bdc81a8d",
-        "helpers/strace-follow-reviewed.control.c": "4c1e9ad3fc0f02995c1c968d8b120eb4139af8781d49f54be51555146eaccccd",
-        "helpers/strace-follow-reviewed.gate.json": "07dd7d205f11d351abe7a46f7f183742c4eb13c51de5bcc16c42f25bccccb0e3"
+        "helpers/strace-follow-reviewed.control.c": "5570bb17332d50370037ef42cb212a5efdc60fc361d0e22bafff4f63e1765bbf",
+        "helpers/strace-follow-reviewed.gate.json": "85ed8dda5bbb4dc6e8bb828c1744b2dfe48a70f61df14cc805870e6037e985e3"
       }
     },
     {
@@ -47,10 +47,10 @@
       "setup_timeout": 60,
       "diagnostic_files": ["setup-controls.json", "parser-controls.json", "gcc.out", "gcc.err", "direct.out", "direct.err", "direct.status", "native.out", "native.err", "native.status", "candidate.start", "candidate.out", "candidate.err", "candidate.status", "assertions.json"],
       "helpers_sha256": {
-        "helpers/strace-follow-reviewed.py": "69aa7e1b6398a827d4f4f5209c4b0213a82867c8d6320e838ec5af39962eb509",
+        "helpers/strace-follow-reviewed.py": "99572ba149cdf007d62257a6e36dc5a4e908015bb8af1537b5656823b883ac27",
         "helpers/strace-follow-reviewed.tracee.c": "d11a405d3356c054f7682e4a1e813e37df8f5b2489ad18df16618ae9bdc81a8d",
-        "helpers/strace-follow-reviewed.control.c": "4c1e9ad3fc0f02995c1c968d8b120eb4139af8781d49f54be51555146eaccccd",
-        "helpers/strace-follow-reviewed.gate.json": "07dd7d205f11d351abe7a46f7f183742c4eb13c51de5bcc16c42f25bccccb0e3"
+        "helpers/strace-follow-reviewed.control.c": "5570bb17332d50370037ef42cb212a5efdc60fc361d0e22bafff4f63e1765bbf",
+        "helpers/strace-follow-reviewed.gate.json": "85ed8dda5bbb4dc6e8bb828c1744b2dfe48a70f61df14cc805870e6037e985e3"
       }
     }
   ]

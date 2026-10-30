@@ -20,6 +20,7 @@ int main(void)
         perror("exec"); _exit(96);
     }
     int s, alive = 1, root_ok = 0, child_ok = 0, root_live = 1, child_live = 0;
+    int fork_seen = 0, child_stop_seen = 0, child_syscall_seen = 0;
     pid_t first;
     do first = waitpid(root, &s, 0); while (first < 0 && errno == EINTR);
     if (first != root) { root_live = 0; goto fail; }
@@ -53,18 +54,28 @@ int main(void)
         if (p != root && p != child) goto fail;
         if (event == PTRACE_EVENT_FORK) {
             unsigned long n = 0;
-            if (p != root || ptrace(PTRACE_GETEVENTMSG, p, 0, &n) < 0 || !n ||
+            if (fork_seen || p != root || ptrace(PTRACE_GETEVENTMSG, p, 0, &n) < 0 || !n ||
                 (child != -1 && child != (pid_t)n)) goto fail;
             if (child == -1) { child = (pid_t)n; child_live = 1; alive++; }
+            fork_seen = 1;
             fprintf(stderr, "FORK %ld %ld\n", (long)p, (long)child);
+        } else if (p == child && sig == SIGSTOP && event == 0) {
+            if (child_stop_seen || child_syscall_seen) goto fail;
+            child_stop_seen = 1;
+            fprintf(stderr, "STOP %ld %d %u\n", (long)p, sig, event);
         } else if (sig == (SIGTRAP | 0x80)) {
             struct user_regs_struct r;
+            if (p == child) {
+                if (!child_stop_seen) goto fail;
+                child_syscall_seen = 1;
+            }
             if (ptrace(PTRACE_GETREGS, p, 0, &r) < 0) goto fail;
             fprintf(stderr, "CALL %ld %ld %ld\n", (long)p, (long)r.orig_rax, (long)r.rax);
-        } else if (sig != SIGSTOP && sig != SIGTRAP) deliver = sig;
+        } else if (sig == SIGSTOP) goto fail;
+        else if (sig != SIGTRAP) deliver = sig;
         if (ptrace(PTRACE_SYSCALL, p, 0, (void *)(long)deliver) < 0) goto fail;
     }
-    return root_ok && child_ok && child > 0 ? 0 : 98;
+    return root_ok && child_ok && child > 0 && fork_seen && child_stop_seen && child_syscall_seen ? 0 : 98;
 fail:
     perror("native control");
     if (root_live) kill(root, SIGKILL);

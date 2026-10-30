@@ -11,6 +11,8 @@ import sys
 
 ROOT = Path('/opt/bashos-parity/harness/helpers')
 LIMIT = 256 * 1024
+MAX_HISTORIES = 64
+MAX_TOKENS = 100
 TAG = r'\[pid ([1-9][0-9]*)\] '
 ARGS = r'(?:"(?:\\.|[^"\\\n])*"|[^()\[\]"\n])*'
 ENTRY = re.compile(TAG + r'([a-z_][a-z_0-9]*)\((' + ARGS + r')\)')
@@ -18,6 +20,16 @@ EVENT = re.compile(TAG + r'(\+\+\+ (?:exec|new child [1-9][0-9]*|exited with [0-
 TAIL = re.compile(r' = (\?|[0-9]+|-1 errno=[0-9]+)\n')
 PTR = r'(?:NULL|0x[0-9a-f]+|[0-9]+)'
 STRING = r'"(?:\\.|[^"\\\n])*"'
+
+
+class TraceSearchBound(Exception):
+    def __init__(self, reason, offset, histories):
+        super().__init__(reason)
+        self.details = {'search_bound': True, 'reason': reason, 'offset': offset,
+                        'partial_histories': [{'pending': sorted(pending), 'wait_results': sorted(waits),
+                                               'assignments': list(history)}
+                                              for pending, waits, history in histories],
+                        'partial_histories_recorded': len(histories)}
 
 
 def save(path, value):
@@ -81,7 +93,7 @@ def physical_line_failures(trace):
     return failures
 
 
-def trace_assert(trace, parent, child, follow):
+def trace_assert(trace, parent, child, follow, history_limit=MAX_HISTORIES, token_limit=MAX_TOKENS):
     """Consume every byte as a complete entry, result or known event.
 
     Result tails have no PID; explore all compatible assignments while preserving
@@ -94,15 +106,18 @@ def trace_assert(trace, parent, child, follow):
     if follow:
         expected.update({(child, n): 1 for n in ('getpid', 'getppid', 'write', 'exit_group')})
     calls, events = {}, []
-    # State: outstanding (pid, syscall) pairs and observed successful/reaped waits.
-    states = {(frozenset(), frozenset())}
+    # Keep distinct result-assignment histories even when pending states merge.
+    # Pending entries carry their byte offsets, including repeated wait4 calls.
+    states = [(frozenset(), frozenset(), ())]
     pos = 0
-    ambiguous = 0
+    branches = 0
+    peak = 1
     tokens = 0
+    child_stops = 0
     while pos < len(trace):
         tokens += 1
-        if tokens > 100:
-            raise ValueError('too many trace tokens')
+        if tokens > token_limit:
+            raise TraceSearchBound('trace token limit', pos, states)
         event = EVENT.match(trace, pos)
         entry = ENTRY.match(trace, pos)
         tail = TAIL.match(trace, pos)
@@ -114,19 +129,29 @@ def trace_assert(trace, parent, child, follow):
             valid = (description == '+++ exec +++' and pid == parent or
                      description == f'+++ new child {child} +++' and pid == parent and follow or
                      description == f'+++ exited with {42 if pid == parent else 23} +++' or
-                     description == '--- signal 17 ---' and pid == parent)
+                     description == '--- signal 17 ---' and pid == parent or
+                     description == '--- signal 19 ---' and pid == child and follow)
             if not valid:
                 raise ValueError('unexpected event: ' + description)
-            if description != '--- signal 17 ---' and [pid, description] in events:
+            if description not in ('--- signal 17 ---', '--- signal 19 ---') and [pid, description] in events:
                 raise ValueError('duplicate event')
+            if description == '--- signal 19 ---':
+                if calls.get((parent, 'fork')) != 1 or any(p == child for p, _ in calls):
+                    raise ValueError('child stop outside initial fork context')
+                if child_stops >= 2:
+                    raise TraceSearchBound('child initial stop limit', pos, states)
+                child_stops += 1
             if description == '+++ exec +++':
-                states = {(pending, waits) for pending, waits in states if (parent, 'execve') in pending}
+                states = [(pending, waits, history) for pending, waits, history in states
+                          if any(p == parent and n == 'execve' for p, n, _ in pending)]
             elif description.startswith('+++ new child '):
-                states = {(pending, waits) for pending, waits in states if (parent, 'fork') in pending}
+                states = [(pending, waits, history) for pending, waits, history in states
+                          if any(p == parent and n == 'fork' for p, n, _ in pending)]
             elif description.startswith('+++ exited with '):
                 if calls.get((pid, 'exit_group')) != 1:
                     raise ValueError('exit event before exit_group')
-                states = {(pending, waits) for pending, waits in states if all(p != pid for p, _ in pending)}
+                states = [(pending, waits, history) for pending, waits, history in states
+                          if all(p != pid for p, _, _ in pending)]
             if not states:
                 raise ValueError('event inconsistent with pending syscalls')
             events.append([pid, description])
@@ -138,21 +163,25 @@ def trace_assert(trace, parent, child, follow):
                 raise ValueError('unexpected PID or syscall')
             entry_returns(pid, name, args, parent, child)
             calls[key] = calls.get(key, 0) + 1
-            if calls[key] > (4 if name == 'wait4' else 1):
-                raise ValueError('duplicate or excessive syscall entries')
-            next_states = set()
-            for pending, waits in states:
-                if all(p != pid for p, _ in pending):
-                    next_states.add((pending | {key}, waits))
+            if name == 'wait4' and calls[key] > 4:
+                raise TraceSearchBound('wait4 entry limit', pos, states)
+            if name != 'wait4' and calls[key] > 1:
+                raise ValueError('duplicate syscall entries')
+            next_states = []
+            for pending, waits, history in states:
+                if all(p != pid for p, _, _ in pending):
+                    next_states.append((pending | {(pid, name, pos)}, waits, history))
             if not next_states:
                 raise ValueError('new syscall before previous syscall completed')
             states = next_states
             pos = entry.end()
         elif tail:
             value = tail.group(1)
-            next_states = set()
-            for pending, waits in states:
-                for pid, name in pending:
+            next_states = []
+            branched = False
+            for pending, waits, history in states:
+                compatible = 0
+                for pid, name, entry_pos in sorted(pending):
                     # Argument validation was performed at entry; return sets do
                     # not depend on the already-validated argument text.
                     options = ({'0'} if name == 'execve' else
@@ -163,24 +192,39 @@ def trace_assert(trace, parent, child, follow):
                                {'?'} if name == 'exit_group' else
                                {str(len((f'C {child} {parent} 0 0 0\n' if pid == child else f'P {parent} {child} {child} {23 << 8} -10\n').encode('ascii')))})
                     if value in options:
+                        compatible += 1
                         new_waits = waits | ({value} if name == 'wait4' and value in {str(child), '-1 errno=10'} else set())
-                        next_states.add((pending - {(pid, name)}, frozenset(new_waits)))
+                        assignment = {'entry_offset': entry_pos, 'result_offset': pos, 'pid': pid,
+                                      'syscall': name, 'value': value}
+                        next_states.append((pending - {(pid, name, entry_pos)}, frozenset(new_waits), history + (assignment,)))
+                        if len(next_states) > history_limit:
+                            raise TraceSearchBound('result history limit', pos, next_states)
+                if compatible > 1:
+                    branched = True
             if not next_states:
                 raise ValueError('orphan or incompatible syscall result')
-            if len(next_states) > 1:
-                ambiguous += 1
+            if branched:
+                branches += 1
             states = next_states
+            peak = max(peak, len(states))
             pos = tail.end()
         else:
             raise ValueError('unconsumed or malformed trace at byte %d' % pos)
     if any(calls.get(k) != v for k, v in expected.items()) or not 2 <= calls.get((parent, 'wait4'), 0) <= 4:
         raise ValueError('missing required syscall observations')
-    if not any(not pending and {str(child), '-1 errno=10'} <= waits for pending, waits in states):
+    if child_stops and [parent, f'+++ new child {child} +++'] not in events:
+        raise ValueError('child stop without a matching fork event')
+    complete = [history for pending, waits, history in states
+                if not pending and {str(child), '-1 errno=10'} <= waits]
+    if not complete:
         raise ValueError('incomplete syscall results or missing wait results')
     # Strict physical-line shape is retained separately, not used as a proxy for
     # whether the fully consumed interleaved stream is coherent.
     return {'parent': parent, 'child': child, 'calls': {f'{p}:{n}': v for (p, n), v in calls.items()},
-            'events': events, 'ambiguous_result_steps': ambiguous, 'physical_line_failures': physical_line_failures(trace),
+            'events': events, 'child_initial_stops': child_stops,
+            'transient_branch_steps': branches, 'peak_live_histories': peak,
+            'complete_history_count': len(complete), 'complete_histories': [list(h) for h in complete],
+            'search_bound': False, 'physical_line_failures': physical_line_failures(trace),
             'all_bytes_consumed': True, 'tokens': tokens}
 
 
@@ -209,11 +253,38 @@ def parser_controls(home):
                              f'[pid 321] write(1, 0x123, {c_len}) = {c_len}\n[pid 321] exit_group(23) = ?\n'
                              ' = 321\n[pid 123] wait4(321, 0x123, 0, NULL) = -1 errno=10\n'
                              f'[pid 123] write(1, 0x123, {p_len}) = {p_len}\n[pid 123] exit_group(42) = ?\n')
-        for name, value, following in [('plain', plain, False), ('follow', follow, True),
-                                        ('exec-interleaving', interleaved_exec, True), ('pid-interleaving', interleaved_calls, True)]:
+        resolved = (a + ' = 0\n[pid 123] getpid() = 123\n[pid 123] fork()'
+                    '[pid 123] +++ new child 321 +++\n[pid 321] --- signal 19 ---\n = 321\n'
+                    '[pid 321] --- signal 19 ---\n[pid 321] getpid()'
+                    '[pid 123] wait4(321, 0x123, 0, NULL) = 321\n'
+                    '[pid 321] getppid() = 123\n'
+                    f'[pid 321] write(1, 0x123, {c_len}) = {c_len}\n[pid 321] exit_group(23) = ?\n'
+                    ' = 321\n[pid 123] wait4(321, 0x123, 0, NULL) = -1 errno=10\n'
+                    f'[pid 123] write(1, 0x123, {p_len}) = {p_len}\n[pid 123] exit_group(42) = ?\n')
+        early_stop = resolved.replace('[pid 123] +++ new child 321 +++\n[pid 321] --- signal 19 ---\n',
+                                      '[pid 321] --- signal 19 ---\n[pid 123] +++ new child 321 +++\n')
+        for name, value, following, histories in [
+                ('plain', plain, False, 1), ('follow', follow, True, 1),
+                ('exec-interleaving', interleaved_exec, True, 1),
+                ('pid-interleaving-final-ambiguity', interleaved_calls, True, 2),
+                ('resolved-ambiguity-child-stops', resolved, True, 1),
+                ('child-stop-before-fork-event', early_stop, True, 1)]:
             result = trace_assert(value, parent, child, following)
             if 'interleaving' in name and not result['physical_line_failures']:
                 raise ValueError('interleaved positive lacked physical-line finding')
+            if result['complete_history_count'] != histories:
+                raise ValueError(name + ' has wrong final history count')
+            if name in ('resolved-ambiguity-child-stops', 'pid-interleaving-final-ambiguity') and result['transient_branch_steps'] == 0:
+                raise ValueError(name + ' did not branch')
+            if name == 'pid-interleaving-final-ambiguity' and result['complete_histories'][0] == result['complete_histories'][1]:
+                raise ValueError('distinct attribution histories were merged')
+            if name == 'resolved-ambiguity-child-stops':
+                assigned = result['complete_histories'][0]
+                match = [item for item in assigned if item['pid'] == child and item['syscall'] == 'getpid']
+                if len(match) != 1 or match[0]['result_offset'] != value.index(' = 321\n', value.index('[pid 123] wait4')):
+                    raise ValueError('resolved result was attributed to the wrong syscall')
+            if name in ('resolved-ambiguity-child-stops', 'child-stop-before-fork-event') and result['child_initial_stops'] != 2:
+                raise ValueError(name + ' lost child stop events')
             record['positive'].append(name)
             save(path, record)
         negatives = {
@@ -235,6 +306,12 @@ def parser_controls(home):
             'wrong-child-result': lambda: trace_assert(follow.replace('getppid() = 123', 'getppid() = 999'), parent, child, True),
             'wrong-child-exit': lambda: trace_assert(follow.replace('exit_group(23)', 'exit_group(24)'), parent, child, True),
             'malformed-event': lambda: trace_assert(interleaved_exec.replace('+++ exec +++', '+++ exec broken +++'), parent, child, True),
+            'wrong-stop-pid': lambda: trace_assert(resolved.replace('[pid 321] --- signal 19 ---', '[pid 999] --- signal 19 ---', 1), parent, child, True),
+            'parent-stop': lambda: trace_assert(resolved.replace('[pid 321] --- signal 19 ---', '[pid 123] --- signal 19 ---', 1), parent, child, True),
+            'stop-after-child-syscall': lambda: trace_assert(resolved.replace('[pid 321] getppid()', '[pid 321] --- signal 19 ---\n[pid 321] getppid()'), parent, child, True),
+            'stop-before-fork': lambda: trace_assert(resolved.replace('[pid 123] fork()', '[pid 321] --- signal 19 ---\n[pid 123] fork()', 1), parent, child, True),
+            'stop-without-fork-event': lambda: trace_assert(resolved.replace('[pid 123] +++ new child 321 +++\n', ''), parent, child, True),
+            'child-stop-without-follow': lambda: trace_assert(plain + '[pid 321] --- signal 19 ---\n', parent, child, False),
         }
         for name, control in negatives.items():
             try:
@@ -244,6 +321,26 @@ def parser_controls(home):
                 save(path, record)
                 continue
             raise ValueError('parser accepted invalid control ' + name)
+        try:
+            trace_assert(resolved.replace('[pid 321] getpid()', '[pid 321] --- signal 19 ---\n[pid 321] getpid()', 1), parent, child, True)
+        except TraceSearchBound as error:
+            if error.details['reason'] != 'child initial stop limit' or not error.details['partial_histories']:
+                raise ValueError('stop bound did not retain partial attribution')
+            record['positive'].append('bounded-child-stops-inconclusive')
+            save(path, record)
+        else:
+            raise ValueError('excess stop control did not trigger search bound')
+        for name, kwargs, reason in [('bounded-result-histories-inconclusive', {'history_limit': 1}, 'result history limit'),
+                                     ('bounded-token-count-inconclusive', {'token_limit': 1}, 'trace token limit')]:
+            try:
+                trace_assert(interleaved_calls, parent, child, True, **kwargs)
+            except TraceSearchBound as error:
+                if error.details['reason'] != reason or not error.details['partial_histories']:
+                    raise ValueError(name + ' lost partial attribution')
+                record['positive'].append(name)
+                save(path, record)
+            else:
+                raise ValueError(name + ' did not trigger search bound')
         record['completed'] = True
     except Exception as error:
         record['error'] = str(error)
@@ -328,6 +425,18 @@ def setup(home):
                     raise ValueError('native fork, syscall, wait or exit observations missing or duplicated')
                 if not 2 <= log.count(f'CALL {parent} 61 -38\n') <= 4:
                     raise ValueError('native wait syscall entries missing or excessive')
+                stop = f'STOP {child} 19 0\n'
+                if log.count(stop) != 1 or log.count('STOP ') != 1:
+                    raise ValueError('native initial child SIGSTOP missing, duplicated or wrong PID')
+                stop_at = log.index(stop)
+                fork_at = log.index(f'FORK {parent} {child}\n')
+                first_child_call = log.index(f'CALL {child} ')
+                if stop_at >= first_child_call:
+                    raise ValueError('native child SIGSTOP did not precede first child syscall stop')
+                report['native_initial_stop'] = {'parent': parent, 'child': child, 'signal': 19,
+                                                 'event': 0, 'stop_offset': stop_at, 'fork_offset': fork_at,
+                                                 'first_child_call_offset': first_child_call,
+                                                 'fork_event_before_stop': fork_at < stop_at}
         report['stage'] = 'done'
         report['complete'] = True
     except Exception as error:
@@ -372,6 +481,9 @@ def verify(home, follow):
                 if trace is not None:
                     try:
                         report['observations']['trace'] = trace_assert(trace, parent, child, follow)
+                    except TraceSearchBound as error:
+                        report['observations']['trace'] = error.details
+                        report['infrastructure_errors'].append('trace attribution search bound: ' + str(error))
                     except ValueError as error:
                         report['product_failures'].append('trace: ' + str(error))
             except (ValueError, UnicodeError) as error:
