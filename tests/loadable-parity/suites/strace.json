@@ -108,9 +108,18 @@
     },
     {
       "id": "follow-children",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check that -f reports syscalls from a fixture's child process and distinguish those records from the non-following mode.",
-      "reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. "
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-strace-follow-child-r1-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-strace-no-follow-child-r2-r3"
+        }
+      ]
     },
     {
       "id": "attach-existing-pid",

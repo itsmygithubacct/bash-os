@@ -39153,33 +39153,60 @@
         "purpose": "Check that -f reports syscalls from a fixture's child process and distinguish those records from the non-following mode.",
         "reason": "Requires a future disposable Linux VM with ptrace allowed for fork/clone tracing, a reviewed relative-path fixture that forks and waits for one bounded child, and GNU strace as the independent reference. The fixture must remain private to that VM."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "The legacy runner's mandatory seccomp filter denies ptrace (tests/loadable-parity/runner.py), but the VM plain driver applies no such filter and a uid-2000 shell may ptrace its own descendants. GNU strace is not in the image (image.lock.json packages); a deterministic tracee can be compiled in the guest with the image's build-essential (`cc -static -nostdlib` program issuing a fixed syscall sequence), which is an independent oracle for which calls occur. ",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All three original requirements have paired, independently audited observations on the frozen x86_64 candidates. Each invocation establishes its own direct/native controls, identities, complete trace attribution and child reaping.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-f traces syscalls of forked children with PID tags.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-follow-child-r1-r3",
+              "assertion": "Both frozen builds report the controlled fork child with its own PID-tagged getpid, getppid, write and exit records. Per-invocation direct and native controls establish the child identity and fork context, and the independent raw audit finds exactly one complete compatible result history.",
+              "definition_sha256": "cbe325b1f890a7cd38b7194f1c5c6e87a6d98833cfd4b9173c76687b78783995"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Without -f, child syscalls are absent.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-no-follow-child-r2-r3",
+              "assertion": "Without -f, each controlled child runs and is reaped, but the complete trace contains only parent records. The independent raw audit consumes every trace byte and rejects foreign or child PID records.",
+              "definition_sha256": "6928be20156de0637b9d3569784f315dfde727134b561a44d9d59c40ab882f50"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "The child is waited for and the parent status propagates.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-strace-follow-child-r1-r3",
+              "assertion": "The parent records the matching forked and waited child, encoded child exit status 23 and ECHILD on a second wait, then returns status 42. Per-invocation direct and native observations independently establish the fixture.",
+              "definition_sha256": "cbe325b1f890a7cd38b7194f1c5c6e87a6d98833cfd4b9173c76687b78783995"
+            },
+            {
+              "group": "shell",
+              "id": "migration-strace-no-follow-child-r2-r3",
+              "assertion": "The parent-only tracing invocation likewise records matching child reaping, child status 23, ECHILD on a second wait and propagated parent status 42.",
+              "definition_sha256": "6928be20156de0637b9d3569784f315dfde727134b561a44d9d59c40ab882f50"
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "strace.c PTRACE_O_TRACEFORK|VFORK|CLONE."
+      "notes": "strace.c PTRACE_O_TRACEFORK|VFORK|CLONE. Direct execution and native ptrace controls establish these literal kernel-event behaviors; GNU strace was not executed and no GNU output equivalence is claimed. The independent gate validates causal fork ordering and exactly one complete attribution history. Physical-line failures remain recorded separately; this does not establish signal-delivery parity or validate later source repairs."
     },
     {
       "topic": "strace/output-file-routing",

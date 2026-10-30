@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "63aae8c9f69132a1ec5470dad8c825bebe11dfd3e5b5019f43d74b2f2a3a53f0",
+  "ledger_sha256": "119c2199db8067b89bf58de9ab53060afbf9b2a38ae9c100b64beacbf3acf2b9",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
     "partial": 94,
-    "full": 398,
-    "none": 108
+    "full": 399,
+    "none": 107
   },
   "migrations": {
-    "deferred": 202,
-    "replacement": 398
+    "deferred": 201,
+    "replacement": 399
   },
   "pending_full_topics": [],
   "builds": {
@@ -8100,6 +8100,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793392783.1056733
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "strace-follow-static-v3-r2",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "bf270189bf1fe7eebdeacd21717b71d72fb8008bbb43bea949063b675aed3160",
+            "provenance.json": "051affd2e8b97c01c1e9ec817d155ce09588ba003491637cb45b54b84a8f6275",
+            "payload.tar": "d3dff2ba8bd17a4d3d231bfce510616d8abe5febbad33931fb0d98830804a852",
+            "evidence.tar": "270dba66f496158094cb29c0b23d3eff1ea4bbbd2c59f475f32f165a602f0b9f"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793394703.2495284
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -48278,37 +48304,64 @@
         },
         {
           "topic": "strace/follow-children",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-f traces syscalls of forked children with PID tags.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strace-follow-child-r1-r3",
+                  "status": "PASS",
+                  "run": "strace-follow-static-v3-r2"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Without -f, child syscalls are absent.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strace-no-follow-child-r2-r3",
+                  "status": "PASS",
+                  "run": "strace-follow-static-v3-r2"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "The child is waited for and the parent status propagates.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strace-follow-child-r1-r3",
+                  "status": "PASS",
+                  "run": "strace-follow-static-v3-r2"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-strace-no-follow-child-r2-r3",
+                  "status": "PASS",
+                  "run": "strace-follow-static-v3-r2"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -57995,9 +58048,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 202,
+        "UNRESOLVED": 201,
         "FAIL": 190,
-        "PASS": 208
+        "PASS": 209
       },
       "migration_without_complete_evidence": []
     },
@@ -66087,6 +66140,32 @@
             "forced_stop": false,
             "poweroff_request": 0,
             "stopped_at": 1793392938.2802947
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "strace-follow-dynamic-v3",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "e97009e7ab80f2a6bda461c1c6cf1223ee17fb9bd839d64071a321ca285fd27c",
+            "provenance.json": "9a77b856fd2d0b2c85a1bfa88a7cdd07eb1d2293ad7532e166b6fc54812ddabc",
+            "payload.tar": "255b440b9a0bbb26430a12c60a543d62545517ac4d03eccf2d8eaf1929de7e94",
+            "evidence.tar": "a8cd44b97352f8f83b36c41e11c9744a48f9625cc72112bf98aa5ce27aacef7c"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793394592.6753516
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -106265,37 +106344,64 @@
         },
         {
           "topic": "strace/follow-children",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "-f traces syscalls of forked children with PID tags.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strace-follow-child-r1-r3",
+                  "status": "PASS",
+                  "run": "strace-follow-dynamic-v3"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "Without -f, child syscalls are absent.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strace-no-follow-child-r2-r3",
+                  "status": "PASS",
+                  "run": "strace-follow-dynamic-v3"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "The child is waited for and the parent status propagates.",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-strace-follow-child-r1-r3",
+                  "status": "PASS",
+                  "run": "strace-follow-dynamic-v3"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-strace-no-follow-child-r2-r3",
+                  "status": "PASS",
+                  "run": "strace-follow-dynamic-v3"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -115982,9 +116088,9 @@
         }
       ],
       "results": {
-        "UNRESOLVED": 202,
+        "UNRESOLVED": 201,
         "FAIL": 189,
-        "PASS": 209
+        "PASS": 210
       },
       "migration_without_complete_evidence": []
     }
