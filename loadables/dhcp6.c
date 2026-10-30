@@ -448,11 +448,12 @@ static int d6_solicit_exchange (const char *iface, const char *dest_str,
   if (iface && *iface)
     { setsockopt (fd, SOL_SOCKET, SO_BINDTODEVICE, iface, strlen (iface));
       setsockopt (fd, IPPROTO_IPV6, IPV6_MULTICAST_IF, &ifindex, sizeof ifindex); }
+  unsigned short client_port = d6_port ("BASHDHCP6_CLIENT_PORT", 546);
   struct sockaddr_in6 la; memset (&la, 0, sizeof la);
   la.sin6_family = AF_INET6; la.sin6_addr = in6addr_any;
-  la.sin6_port = htons (d6_port ("BASHDHCP6_CLIENT_PORT", 546));
+  la.sin6_port = htons (client_port);
   if (bind (fd, (struct sockaddr *) &la, sizeof la) < 0)
-    { builtin_error ("solicit: bind [::]:546: %s", strerror (errno)); close (fd); return -1; }
+    { builtin_error ("solicit: bind [::]:%u: %s", (unsigned) client_port, strerror (errno)); close (fd); return -1; }
 
   unsigned xid = (unsigned) (time (NULL) & 0xffffff);
   unsigned char buf[D6_MAX]; size_t n;
@@ -652,10 +653,11 @@ int dhcp6_builtin (WORD_LIST *list)
       if (iface && *iface)
         { setsockopt (fd, SOL_SOCKET, SO_BINDTODEVICE, iface, strlen (iface));
           setsockopt (fd, IPPROTO_IPV6, IPV6_MULTICAST_IF, &ifindex, sizeof ifindex); }
+      unsigned short client_port = d6_port ("BASHDHCP6_CLIENT_PORT", 546);
       struct sockaddr_in6 la; memset (&la, 0, sizeof la);
-      la.sin6_family = AF_INET6; la.sin6_addr = in6addr_any; la.sin6_port = htons (d6_port ("BASHDHCP6_CLIENT_PORT", 546));
+      la.sin6_family = AF_INET6; la.sin6_addr = in6addr_any; la.sin6_port = htons (client_port);
       if (bind (fd, (struct sockaddr *) &la, sizeof la) < 0)
-        { builtin_error ("inforequest: bind [::]:546: %s", strerror (errno)); close (fd); return EXECUTION_FAILURE; }
+        { builtin_error ("inforequest: bind [::]:%u: %s", (unsigned) client_port, strerror (errno)); close (fd); return EXECUTION_FAILURE; }
       unsigned xid = (unsigned) (time (NULL) & 0xffffff);
       unsigned char buf[D6_MAX];
       size_t n = d6_build (buf, sizeof buf, D6_INFOREQ, xid, cid, cid_len, NULL, 0,
