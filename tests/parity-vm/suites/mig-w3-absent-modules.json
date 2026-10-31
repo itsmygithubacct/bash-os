@@ -4,16 +4,16 @@
     {
       "id": "mig-w3-uv-forward-args",
       "loadable": "uv",
-      "kind": "contract",
       "covers": [
         "uv/forwarding-env-status"
       ],
       "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\nfor a in \"$@\"; do printf \"[%s]\\n\" \"$a\"; done\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\n",
-      "script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nuv alpha \"\" \"two words\" 'dollar$sign' \"*\"\necho \"status=$?\"\n",
+      "candidate_script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nuv alpha \"\" \"two words\" 'dollar$sign' \"*\"\necho \"status=$?\"\n",
+      "reference_script": "UVH=\"$PWD/pkgroot/lib/bash-os/libexec/uv/uv\"\nuv() { \"$UVH\" \"$@\"; }\nuv alpha \"\" \"two words\" 'dollar$sign' \"*\"\necho \"status=$?\"\n",
       "stdout": "[alpha]\n[]\n[two words]\n[dollar$sign]\n[*]\nstatus=0\n",
       "expected_status": 0,
       "requires": [],
-      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent); expected values derived from the stand-in's own printf format, not from candidate output. ",
+      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent). There is no GNU uv: the reference side is a shell function that emulates the documented contract by running the same stand-in helper, so it validates the fixture and the expected bytes; the expected values come from the stand-in's printf format, not from candidate output. ",
       "comparison": "r1: arguments including an empty word and a spaced word reach the helper verbatim, one argv element each The frozen payload ships neither a uv builtin nor a uv.so, and no pinned upstream uv executable; the package root contains only the shell-script stand-in at libexec/uv/uv, so the builtin cannot be loaded and the helper is never reached on either build.",
       "group": "shell",
       "driver": "plain"
@@ -21,16 +21,16 @@
     {
       "id": "mig-w3-uv-forward-env",
       "loadable": "uv",
-      "kind": "contract",
       "covers": [
         "uv/forwarding-env-status"
       ],
       "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\nprintf \"exported=%s\\n\" \"${UVW3_EXPORTED-unset}\"; printf \"plain=%s\\n\" \"${UVW3_PLAIN-unset}\"\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\n",
-      "script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nexport UVW3_EXPORTED=visible\nUVW3_PLAIN=hidden\nuv run\necho \"status=$?\"\n",
+      "candidate_script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nexport UVW3_EXPORTED=visible\nUVW3_PLAIN=hidden\nuv run\necho \"status=$?\"\n",
+      "reference_script": "UVH=\"$PWD/pkgroot/lib/bash-os/libexec/uv/uv\"\nuv() { \"$UVH\" \"$@\"; }\nexport UVW3_EXPORTED=visible\nUVW3_PLAIN=hidden\nuv run\necho \"status=$?\"\n",
       "stdout": "exported=visible\nplain=unset\nstatus=0\n",
       "expected_status": 0,
       "requires": [],
-      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent); expected values derived from the stand-in's own printf format, not from candidate output. ",
+      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent). There is no GNU uv: the reference side is a shell function that emulates the documented contract by running the same stand-in helper, so it validates the fixture and the expected bytes; the expected values come from the stand-in's printf format, not from candidate output. ",
       "comparison": "r2: an exported variable is visible to the helper, unexported variables are not The frozen payload ships neither a uv builtin nor a uv.so, and no pinned upstream uv executable; the package root contains only the shell-script stand-in at libexec/uv/uv, so the builtin cannot be loaded and the helper is never reached on either build.",
       "group": "shell",
       "driver": "plain"
@@ -38,16 +38,16 @@
     {
       "id": "mig-w3-uv-forward-status",
       "loadable": "uv",
-      "kind": "contract",
       "covers": [
         "uv/forwarding-env-status"
       ],
       "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\nexit \"${1:-0}\"\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\n",
-      "script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nuv 0; echo \"s0=$?\"\nuv 7; echo \"s7=$?\"\nuv 200; echo \"s200=$?\"\n",
+      "candidate_script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nuv 0; echo \"s0=$?\"\nuv 7; echo \"s7=$?\"\nuv 200; echo \"s200=$?\"\n",
+      "reference_script": "UVH=\"$PWD/pkgroot/lib/bash-os/libexec/uv/uv\"\nuv() { \"$UVH\" \"$@\"; }\nuv 0; echo \"s0=$?\"\nuv 7; echo \"s7=$?\"\nuv 200; echo \"s200=$?\"\n",
       "stdout": "s0=0\ns7=7\ns200=200\n",
       "expected_status": 0,
       "requires": [],
-      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent); expected values derived from the stand-in's own printf format, not from candidate output. ",
+      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent). There is no GNU uv: the reference side is a shell function that emulates the documented contract by running the same stand-in helper, so it validates the fixture and the expected bytes; the expected values come from the stand-in's printf format, not from candidate output. ",
       "comparison": "r3: the helper's exit status is returned unchanged for 0, 7 and 200 The frozen payload ships neither a uv builtin nor a uv.so, and no pinned upstream uv executable; the package root contains only the shell-script stand-in at libexec/uv/uv, so the builtin cannot be loaded and the helper is never reached on either build.",
       "group": "shell",
       "driver": "plain"
@@ -55,16 +55,16 @@
     {
       "id": "mig-w3-uv-after-cd",
       "loadable": "uv",
-      "kind": "contract",
       "covers": [
         "uv/helper-resolution-after-cd"
       ],
       "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\necho \"stand-in-ran:$1\"\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\n",
-      "script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\ncd elsewhere\nuv ping\necho \"status=$?\"\n",
+      "candidate_script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\ncd elsewhere\nuv ping\necho \"status=$?\"\n",
+      "reference_script": "UVH=\"$PWD/pkgroot/lib/bash-os/libexec/uv/uv\"\nuv() { \"$UVH\" \"$@\"; }\ncd elsewhere\nuv ping\necho \"status=$?\"\n",
       "stdout": "stand-in-ran:ping\nstatus=0\n",
       "expected_status": 0,
       "requires": [],
-      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent); expected values derived from the stand-in's own printf format, not from candidate output. uv.so is loaded from a path relative to the starting directory and the shell then changes directory; uv_builtin_load resolves the sibling helper to an absolute path at load time.",
+      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent). There is no GNU uv: the reference side is a shell function that emulates the documented contract by running the same stand-in helper, so it validates the fixture and the expected bytes; the expected values come from the stand-in's printf format, not from candidate output. uv.so is loaded from a path relative to the starting directory and the shell then changes directory; uv_builtin_load resolves the sibling helper to an absolute path at load time.",
       "comparison": "r1: a uv.so loaded from the relative package path pkgroot/lib/bash-os/loadables still finds ../libexec/uv/uv after cd into another directory The frozen payload ships neither a uv builtin nor a uv.so, and no pinned upstream uv executable; the package root contains only the shell-script stand-in at libexec/uv/uv, so the builtin cannot be loaded and the helper is never reached on either build.",
       "group": "shell",
       "driver": "plain"
@@ -72,16 +72,16 @@
     {
       "id": "mig-w3-uv-local-project",
       "loadable": "uv",
-      "kind": "contract",
       "covers": [
         "uv/local-project-operation"
       ],
       "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\n# Stand-in for the one upstream uv operation used here: \"uv init --bare NAME\" creates only pyproject.toml.\n# This is NOT upstream uv: no pinned upstream uv executable exists in the image or payload.\n[ \"$1\" = init ] && [ \"$2\" = --bare ] || { echo \"unsupported: $*\" >&2; exit 2; }\n/bin/mkdir -p \"$3\" && printf '[project]\\nname = \"%s\"\\nversion = \"0.1.0\"\\n' \"$3\" > \"$3/pyproject.toml\"\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\n",
-      "script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nuv init --bare tinyproj; echo \"status=$?\"\nfor f in tinyproj/*; do echo \"$f\"; done\n{ read -r _; read -r l; echo \"$l\"; } < tinyproj/pyproject.toml\n",
+      "candidate_script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nuv init --bare tinyproj; echo \"status=$?\"\nfor f in tinyproj/*; do echo \"$f\"; done\n{ read -r _; read -r l; echo \"$l\"; } < tinyproj/pyproject.toml\n",
+      "reference_script": "UVH=\"$PWD/pkgroot/lib/bash-os/libexec/uv/uv\"\nuv() { \"$UVH\" \"$@\"; }\nuv init --bare tinyproj; echo \"status=$?\"\nfor f in tinyproj/*; do echo \"$f\"; done\n{ read -r _; read -r l; echo \"$l\"; } < tinyproj/pyproject.toml\n",
       "stdout": "status=0\ntinyproj/pyproject.toml\nname = \"tinyproj\"\n",
       "expected_status": 0,
       "requires": [],
-      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent); expected values derived from the stand-in's own printf format, not from candidate output. Upstream uv init --bare (uv documentation, 'Creating projects') writes only pyproject.toml with [project] name; no network is used for it.",
+      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent). There is no GNU uv: the reference side is a shell function that emulates the documented contract by running the same stand-in helper, so it validates the fixture and the expected bytes; the expected values come from the stand-in's printf format, not from candidate output. Upstream uv init --bare (uv documentation, 'Creating projects') writes only pyproject.toml with [project] name; no network is used for it.",
       "comparison": "r1: a local-project operation (uv init --bare on a tiny directory) leaves exactly the expected tree without network access; only a stand-in helper is available because no pinned upstream uv exists The frozen payload ships neither a uv builtin nor a uv.so, and no pinned upstream uv executable; the package root contains only the shell-script stand-in at libexec/uv/uv, so the builtin cannot be loaded and the helper is never reached on either build.",
       "group": "shell",
       "driver": "plain"
@@ -121,16 +121,16 @@
     {
       "id": "mig-w3-uv-signal-defaults",
       "loadable": "uv",
-      "kind": "contract",
       "covers": [
         "uv/signal-status-mapping"
       ],
       "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\ncase \"$1\" in\n  mask) while read -r k v rest; do case $k in SigIgn:|SigCgt:)\n          printf '%s INT=%d QUIT=%d\\n' \"$k\" $(( (0x$v >> 1) & 1 )) $(( (0x$v >> 2) & 1 ));; esac; done < /proc/self/status ;;\n  term) kill -TERM $$ ;;\n  kill) kill -KILL $$ ;;\n  usr1) kill -USR1 $$ ;;\nesac\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\n",
-      "script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\ntrap 'echo trap-fired' INT QUIT\nuv mask\necho \"status=$?\"\n",
+      "candidate_script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\ntrap 'echo trap-fired' INT QUIT\nuv mask\necho \"status=$?\"\n",
+      "reference_script": "UVH=\"$PWD/pkgroot/lib/bash-os/libexec/uv/uv\"\nuv() { \"$UVH\" \"$@\"; }\ntrap 'echo trap-fired' INT QUIT\nuv mask\necho \"status=$?\"\n",
       "stdout": "SigIgn: INT=0 QUIT=0\nSigCgt: INT=0 QUIT=0\nstatus=0\n",
       "expected_status": 0,
       "requires": [],
-      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent); expected values derived from the stand-in's own printf format, not from candidate output. execve resets caught handlers to SIG_DFL; uv_reset_job_signals restores INT/QUIT to SIG_DFL unless trapped-ignored; the stand-in reads its own /proc/self/status.",
+      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent). There is no GNU uv: the reference side is a shell function that emulates the documented contract by running the same stand-in helper, so it validates the fixture and the expected bytes; the expected values come from the stand-in's printf format, not from candidate output. execve resets caught handlers to SIG_DFL; uv_reset_job_signals restores INT/QUIT to SIG_DFL unless trapped-ignored; the stand-in reads its own /proc/self/status.",
       "comparison": "r1: although the calling script trapped INT and QUIT, the helper starts with both at default disposition (neither ignored nor caught) The frozen payload ships neither a uv builtin nor a uv.so, and no pinned upstream uv executable; the package root contains only the shell-script stand-in at libexec/uv/uv, so the builtin cannot be loaded and the helper is never reached on either build.",
       "group": "shell",
       "driver": "plain"
@@ -138,16 +138,16 @@
     {
       "id": "mig-w3-uv-signal-status",
       "loadable": "uv",
-      "kind": "contract",
       "covers": [
         "uv/signal-status-mapping"
       ],
       "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\ncase \"$1\" in\n  mask) while read -r k v rest; do case $k in SigIgn:|SigCgt:)\n          printf '%s INT=%d QUIT=%d\\n' \"$k\" $(( (0x$v >> 1) & 1 )) $(( (0x$v >> 2) & 1 ));; esac; done < /proc/self/status ;;\n  term) kill -TERM $$ ;;\n  kill) kill -KILL $$ ;;\n  usr1) kill -USR1 $$ ;;\nesac\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\n",
-      "script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nuv term; echo \"term=$?\"\nuv kill; echo \"kill=$?\"\nuv usr1; echo \"usr1=$?\"\n",
+      "candidate_script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nuv term; echo \"term=$?\"\nuv kill; echo \"kill=$?\"\nuv usr1; echo \"usr1=$?\"\n",
+      "reference_script": "UVH=\"$PWD/pkgroot/lib/bash-os/libexec/uv/uv\"\nuv() { \"$UVH\" \"$@\"; }\nuv term; echo \"term=$?\"\nuv kill; echo \"kill=$?\"\nuv usr1; echo \"usr1=$?\"\n",
       "stdout": "term=143\nkill=137\nusr1=138\n",
       "expected_status": 0,
       "requires": [],
-      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent); expected values derived from the stand-in's own printf format, not from candidate output. 128+N mapping with N = 15, 9, 10 (signal(7)); the stand-in signals only its own pid.",
+      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent). There is no GNU uv: the reference side is a shell function that emulates the documented contract by running the same stand-in helper, so it validates the fixture and the expected bytes; the expected values come from the stand-in's printf format, not from candidate output. 128+N mapping with N = 15, 9, 10 (signal(7)); the stand-in signals only its own pid.",
       "comparison": "r2: a helper that kills itself with SIGTERM, SIGKILL and SIGUSR1 yields 143, 137 and 138 The frozen payload ships neither a uv builtin nor a uv.so, and no pinned upstream uv executable; the package root contains only the shell-script stand-in at libexec/uv/uv, so the builtin cannot be loaded and the helper is never reached on either build.",
       "group": "shell",
       "driver": "plain"
@@ -450,7 +450,7 @@
           "expect": ">>> "
         },
         {
-          "send": "import sys; sys.stdout.write('marker\\n')\r"
+          "send": "print('marker')\r"
         },
         {
           "expect": "marker\\r\\n(?:\\x1b\\[\\?2004[hl])*>>> "
