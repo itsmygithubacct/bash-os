@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w2-dns-rfc5011-poll-rollover",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-slave-transfer-poll"
+      ],
+      "purpose": "rfc5011-poll fetches the apex DNSKEY RRset from a loopback server and drives one rollover step per poll at injected --now values (add pending, still pending, promote) (r4).",
+      "oracle": "RFC 5011 s2.4.1 add/promote hold-down semantics and RFC 4034 Appendix B key tags (checked against the RFC 4034 s5.4 example tag 60485) computed independently in Python; the primary is a Python UDP DNSKEY responder that also records the queries it saw.",
+      "comparison": "Three candidate polls at --now 1000/1050/1100 with --hold-down 100 against a loopback responder returning keys K1 (already active) and K2 (new); the helper checks the printed transitions, the active/previous/candidate anchor files and that the server saw three DNSKEY queries for the zone.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dnskey.py": "0e202340dcbabae2b1b6ac4b4c36e594cc815e01789e36ff2ed10e203aa659aa"
+      },
+      "setup_script": "mkfifo w.fifo\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-dnskey.py prep\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-dnskey.py\nexport BASHDNS_SERVER_PORT=5390\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5390 ready 2> serve.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\nfor t in 1000 1050 1100; do\n  dns rfc5011-poll --anchor-dir anchors --zone rollover.test -s 127.0.0.1 --now $t --hold-down 100 > out-$t.txt 2> err-$t.txt\n  echo \"$?\" >> rcs.txt\ndone\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "verified rfc5011-poll failed=0\n",
+      "stderr": "",
+      "timeout": 30
+    }
+  ]
+}

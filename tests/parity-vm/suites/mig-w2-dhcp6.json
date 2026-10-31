@@ -1,0 +1,645 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w2-dhcp6-inforequest-fields",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_inforequest_exchange"
+      ],
+      "purpose": "inforequest transmits a type-11 message with CLIENTID, ELAPSED_TIME, ORO 23,24 and no IA (r1).",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=547 \"$PY\" \"$H\" server info sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\ndhcp6 inforequest -i veth0 -w 2 > out.txt 2> err.txt; rc=$?\necho \"inforequest-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify inforequest-fields\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "inforequest-rc=0\nverified inforequest-fields failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-dhcp6-inforequest-reply-dns",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_inforequest_exchange"
+      ],
+      "purpose": "The REPLY with the matching xid is decoded and its DNS servers printed; a wrong-xid REPLY is ignored (r2).",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=547 \"$PY\" \"$H\" server info-noise sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\ndhcp6 inforequest -i veth0 -w 2 > out.txt 2> err.txt; rc=$?\necho \"inforequest-rc=$rc\"\necho \"stderr=[$(< err.txt)]\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify inforequest-dns out.txt\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "inforequest-rc=0\nstderr=[]\nverified inforequest-dns failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-dhcp6-inforequest-reply-domains",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_inforequest_exchange"
+      ],
+      "purpose": "The REPLY domain list (option 24) is decoded and output (r2).",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=547 \"$PY\" \"$H\" server info sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\ndhcp6 inforequest -i veth0 -w 2 > out.txt 2> err.txt; rc=$?\necho \"inforequest-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify inforequest-domains out.txt\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "inforequest-rc=0\nverified inforequest-domains failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-dhcp6-inforequest-reply-bind",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_inforequest_exchange"
+      ],
+      "purpose": "With -V the REPLY DNS servers are bound to the associative array (r2).",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=547 \"$PY\" \"$H\" server info sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\ndeclare -A R\ndhcp6 inforequest -i veth0 -w 2 -V R > out.txt 2> err.txt; rc=$?\necho \"inforequest-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\nfor k in \"${!R[@]}\"; do echo \"$k=${R[$k]}\"; done > bind.txt\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify inforequest-dns bind.txt\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "inforequest-rc=0\nstdout=[]\nverified inforequest-dns failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-dhcp6-inforequest-retransmit",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_inforequest_exchange"
+      ],
+      "purpose": "With no REPLY the INFORMATION-REQUEST is sent three times and the command fails with status 1 and 'no REPLY (timeout)' (r3).",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=547 \"$PY\" \"$H\" server silent sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\ndhcp6 inforequest -i veth0 -w 1 > out.txt 2> err.txt; rc=$?\necho \"inforequest-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\nsettle 0.2\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify retransmit INFORMATION-REQUEST 1.0\n\"$PY\" \"$H\" verify stderr-contains err.txt \"no REPLY (timeout)\"\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "inforequest-rc=1\nstdout=[]\nverified retransmit failed=0\nverified stderr-contains failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-dhcp6-inforequest-default-transport",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_inforequest_exchange"
+      ],
+      "purpose": "By default the client binds UDP 546 and sends to ff02::1:2 port 547 (r4).",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=547 \"$PY\" \"$H\" server info sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\ndhcp6 inforequest -i veth0 -w 2 > out.txt 2> err.txt; rc=$?\necho \"inforequest-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify inforequest-default-transport\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "inforequest-rc=0\nverified inforequest-default-transport failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-dhcp6-inforequest-override-transport",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_inforequest_exchange"
+      ],
+      "purpose": "BASHDHCP6_CLIENT_PORT sets the bound client port and -S sends to a unicast server address (r4).",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=5470 \"$PY\" \"$H\" server info sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\nBASHDHCP6_CLIENT_PORT=54600 BASHDHCP6_SERVER_PORT=5470 dhcp6 inforequest -i veth0 -w 2 -S fe80::a02 > out.txt 2> err.txt; rc=$?\necho \"inforequest-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify inforequest-override-transport\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "inforequest-rc=0\nverified inforequest-override-transport failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-dhcp6-solicit-fields",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_solicit_exchange"
+      ],
+      "purpose": "SOLICIT carries CLIENTID, ELAPSED_TIME, IA_NA with the requested IAID and the default DNS ORO (r1).",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=547 \"$PY\" \"$H\" server full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\ndhcp6 solicit -i veth0 --iaid 7 -w 1 > out.txt 2> err.txt; rc=$?\necho \"solicit-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify solicit-fields\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "solicit-rc=0\nverified solicit-fields failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-dhcp6-solicit-rapid-form",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_solicit_exchange"
+      ],
+      "purpose": "--rapid adds the RAPID_COMMIT option to the SOLICIT (r1).",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=547 \"$PY\" \"$H\" server rapid sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\ndhcp6 solicit -i veth0 --iaid 7 -w 1 --rapid > out.txt 2> err.txt; rc=$?\necho \"solicit-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify solicit-rapid-pd rapid\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "solicit-rc=0\nverified solicit-rapid-pd failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-dhcp6-solicit-pd-form",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_solicit_exchange"
+      ],
+      "purpose": "--pd N adds an IA_PD with that IAID to the SOLICIT (r1).",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=547 \"$PY\" \"$H\" server full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\ndhcp6 solicit -i veth0 --iaid 7 -w 1 --pd 9 > out.txt 2> err.txt; rc=$?\necho \"solicit-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify solicit-rapid-pd pd\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "solicit-rc=0\nverified solicit-rapid-pd failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-dhcp6-solicit-request-follows",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_solicit_exchange"
+      ],
+      "purpose": "A wrong-xid ADVERTISE from another server is ignored; the REQUEST carries the genuine server DUID and offered IAADDR (r2).",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=547 \"$PY\" \"$H\" server noise sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\ndhcp6 solicit -i veth0 --iaid 7 -w 1 > out.txt 2> err.txt; rc=$?\necho \"solicit-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify request-follows\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "solicit-rc=0\nverified request-follows failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-dhcp6-solicit-reply-print",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_solicit_exchange"
+      ],
+      "purpose": "The accepted REPLY is decoded and printed with every documented field (r3).",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=547 \"$PY\" \"$H\" server full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\ndhcp6 solicit -i veth0 --iaid 7 -w 1 > out.txt 2> err.txt; rc=$?\necho \"solicit-rc=$rc\"\necho \"stderr=[$(< err.txt)]\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify solicit-output out.txt\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "solicit-rc=0\nstderr=[]\nverified solicit-output failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-dhcp6-solicit-reply-bind",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_solicit_exchange"
+      ],
+      "purpose": "With -V the accepted REPLY is bound to the associative array (r3).",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=547 \"$PY\" \"$H\" server full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\ndeclare -A R\ndhcp6 solicit -i veth0 --iaid 7 -w 1 -V R > out.txt 2> err.txt; rc=$?\necho \"solicit-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\nfor k in \"${!R[@]}\"; do echo \"$k=${R[$k]}\"; done > bind.txt\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify solicit-output bind.txt\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "solicit-rc=0\nstdout=[]\nverified solicit-output failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-dhcp6-solicit-no-advertise",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_solicit_exchange"
+      ],
+      "purpose": "With no ADVERTISE the SOLICIT is sent three times and the command fails with status 1 and 'no ADVERTISE (timeout)' (r4).",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=547 \"$PY\" \"$H\" server silent sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\ndhcp6 solicit -i veth0 --iaid 7 -w 1 > out.txt 2> err.txt; rc=$?\necho \"solicit-rc=$rc\"\nsettle 0.2\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify retransmit SOLICIT 1.0\n\"$PY\" \"$H\" verify stderr-contains err.txt \"no ADVERTISE (timeout)\"\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "solicit-rc=1\nverified retransmit failed=0\nverified stderr-contains failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-dhcp6-solicit-no-reply",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_solicit_exchange"
+      ],
+      "purpose": "With an ADVERTISE but no REPLY the REQUEST is sent three times and the command fails with status 1 and 'no REPLY (timeout)' (r4).",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=547 \"$PY\" \"$H\" server advertise-only sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\ndhcp6 solicit -i veth0 --iaid 7 -w 1 > out.txt 2> err.txt; rc=$?\necho \"solicit-rc=$rc\"\nsettle 0.2\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify retransmit REQUEST 1.0\n\"$PY\" \"$H\" verify stderr-contains err.txt \"no REPLY (timeout)\"\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "solicit-rc=1\nverified retransmit failed=0\nverified stderr-contains failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-dhcp6-solicit-rapid-direct",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_solicit_exchange"
+      ],
+      "purpose": "--rapid accepts a direct REPLY to the SOLICIT and sends no REQUEST (r5).",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=547 \"$PY\" \"$H\" server rapid sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\ndhcp6 solicit -i veth0 --iaid 7 -w 1 --rapid > out.txt 2> err.txt; rc=$?\necho \"solicit-rc=$rc\"\necho \"stderr=[$(< err.txt)]\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify rapid-direct\n\"$PY\" \"$H\" verify rapid-output out.txt\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "solicit-rc=0\nstderr=[]\nverified rapid-direct failed=0\nverified rapid-output failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    }
+  ]
+}

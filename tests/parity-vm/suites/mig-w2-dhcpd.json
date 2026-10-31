@@ -1,0 +1,615 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w2-dhcpd-serve-offer",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/serve-and-run-exchange"
+      ],
+      "purpose": "serve answers a broadcast DISCOVER with an OFFER from the first free pool address with the configured options (r1).",
+      "oracle": "RFC 2131 message layout decoded by an independent Python codec over frames sniffed on the peer side of a veth pair; the peer sends the DHCP messages the scenario names and checks the server replies and lease/hook files.",
+      "comparison": "Candidate dhcpd serve/run in a mapped user namespace on a veth pair; the independent Python peer in a second network namespace is the DHCP client or relay. Failing assertions print one line each and the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
+        "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP addr add 192.0.2.1/24 dev veth0 || die addr\n$IP link set veth0 up || die up\ndhcpd serve -c server.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer discover sync.fifo go.fifo  2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify offer\n",
+        "server.conf": "pool 192.0.2.100 192.0.2.150\nnetmask 255.255.255.0\ngateway 192.0.2.254\ndns 192.0.2.53\ndomain lab.test\nserver_id 192.0.2.1\nlease 3600\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "verified offer failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd-serve-ack-persists-lease",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/serve-and-run-exchange"
+      ],
+      "purpose": "A REQUEST yields an ACK and the serve path persists the lease (MAC, IP, expiry, hostname) (r2).",
+      "oracle": "RFC 2131 message layout decoded by an independent Python codec over frames sniffed on the peer side of a veth pair; the peer sends the DHCP messages the scenario names and checks the server replies and lease/hook files.",
+      "comparison": "Candidate dhcpd serve/run in a mapped user namespace on a veth pair; the independent Python peer in a second network namespace is the DHCP client or relay. Failing assertions print one line each and the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
+        "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP addr add 192.0.2.1/24 dev veth0 || die addr\n$IP link set veth0 up || die up\ndhcpd serve -c server.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer exchange sync.fifo go.fifo  2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify ack-persist\n",
+        "server.conf": "pool 192.0.2.100 192.0.2.150\nnetmask 255.255.255.0\ngateway 192.0.2.254\ndns 192.0.2.53\ndomain lab.test\nserver_id 192.0.2.1\nlease 3600\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "verified ack-persist failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd-serve-pool-allocation",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/serve-and-run-exchange"
+      ],
+      "purpose": "An existing client keeps its address, distinct clients get distinct addresses and an exhausted pool answers nothing (r3).",
+      "oracle": "RFC 2131 message layout decoded by an independent Python codec over frames sniffed on the peer side of a veth pair; the peer sends the DHCP messages the scenario names and checks the server replies and lease/hook files.",
+      "comparison": "Candidate dhcpd serve/run in a mapped user namespace on a veth pair; the independent Python peer in a second network namespace is the DHCP client or relay. Failing assertions print one line each and the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
+        "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP addr add 192.0.2.1/24 dev veth0 || die addr\n$IP link set veth0 up || die up\ndhcpd serve -c server.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer pool sync.fifo go.fifo  2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify pool\n",
+        "server.conf": "pool 192.0.2.100 192.0.2.101\nnetmask 255.255.255.0\ngateway 192.0.2.254\ndns 192.0.2.53\ndomain lab.test\nserver_id 192.0.2.1\nlease 3600\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "verified pool failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd-serve-broadcast-to-68",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/serve-and-run-exchange"
+      ],
+      "purpose": "A direct (giaddr 0) reply is broadcast to 255.255.255.255 UDP 68 from port 67 (r4).",
+      "oracle": "RFC 2131 message layout decoded by an independent Python codec over frames sniffed on the peer side of a veth pair; the peer sends the DHCP messages the scenario names and checks the server replies and lease/hook files.",
+      "comparison": "Candidate dhcpd serve/run in a mapped user namespace on a veth pair; the independent Python peer in a second network namespace is the DHCP client or relay. Failing assertions print one line each and the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
+        "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP addr add 192.0.2.1/24 dev veth0 || die addr\n$IP link set veth0 up || die up\ndhcpd serve -c server.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer discover sync.fifo go.fifo  2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify broadcast\n",
+        "server.conf": "pool 192.0.2.100 192.0.2.150\nnetmask 255.255.255.0\ngateway 192.0.2.254\ndns 192.0.2.53\ndomain lab.test\nserver_id 192.0.2.1\nlease 3600\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "verified broadcast failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd-run-creates-state-dir",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/serve-and-run-exchange"
+      ],
+      "purpose": "run -d STATEDIR creates the state directory and then serves (r5).",
+      "oracle": "RFC 2131 message layout decoded by an independent Python codec over frames sniffed on the peer side of a veth pair; the peer sends the DHCP messages the scenario names and checks the server replies and lease/hook files.",
+      "comparison": "Candidate dhcpd serve/run in a mapped user namespace on a veth pair; the independent Python peer in a second network namespace is the DHCP client or relay. Failing assertions print one line each and the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
+        "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP addr add 192.0.2.1/24 dev veth0 || die addr\n$IP link set veth0 up || die up\ndhcpd run -d state -c server.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer discover sync.fifo go.fifo  2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nwait \"$peer\" 2>/dev/null\nprintf \"state-dir=%s\\n\" \"$([[ -d state ]] && echo present || echo missing)\"\n\"$PY\" \"$H\" verify run-serves\n",
+        "server.conf": "pool 192.0.2.100 192.0.2.150\nnetmask 255.255.255.0\ngateway 192.0.2.254\ndns 192.0.2.53\ndomain lab.test\nserver_id 192.0.2.1\nlease 3600\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "state-dir=present\nverified run-serves failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd-serve-once-one-message",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/serve-and-run-exchange"
+      ],
+      "purpose": "serve --once handles one message and returns status 0; a later message is not answered (r6).",
+      "oracle": "RFC 2131 message layout decoded by an independent Python codec over frames sniffed on the peer side of a veth pair; the peer sends the DHCP messages the scenario names and checks the server replies and lease/hook files.",
+      "comparison": "Candidate dhcpd serve/run in a mapped user namespace on a veth pair; the independent Python peer in a second network namespace is the DHCP client or relay. Failing assertions print one line each and the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
+        "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP addr add 192.0.2.1/24 dev veth0 || die addr\n$IP link set veth0 up || die up\ndhcpd serve --once -c server.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer once sync.fifo go.fifo  2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nwait \"$srv\"; echo \"serve-rc=$?\"\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify once-messages\n",
+        "server.conf": "pool 192.0.2.100 192.0.2.150\nnetmask 255.255.255.0\ngateway 192.0.2.254\ndns 192.0.2.53\ndomain lab.test\nserver_id 192.0.2.1\nlease 3600\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "serve-rc=0\nverified once-messages failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd-decline-quarantine",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/decline-release-and-hook"
+      ],
+      "purpose": "DHCPDECLINE with option 50 quarantines that address: a following DISCOVER gets a different address and the address is offered again after expiry (r1).",
+      "oracle": "RFC 2131 message layout decoded by an independent Python codec over frames sniffed on the peer side of a veth pair; the peer sends the DHCP messages the scenario names and checks the server replies and lease/hook files.",
+      "comparison": "Candidate dhcpd serve/run in a mapped user namespace on a veth pair; the independent Python peer in a second network namespace is the DHCP client or relay. Failing assertions print one line each and the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
+        "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP addr add 192.0.2.1/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nexport BASHDHCPD_DECLINE_QUARANTINE_SEC=2\ndhcpd serve -c server.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer decline-quarantine sync.fifo go.fifo  2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify quarantine\n",
+        "server.conf": "pool 192.0.2.100 192.0.2.150\nnetmask 255.255.255.0\ngateway 192.0.2.254\ndns 192.0.2.53\ndomain lab.test\nserver_id 192.0.2.1\nlease 3600\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "verified quarantine failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 55
+    },
+    {
+      "id": "mig-w2-dhcpd-decline-removes-lease",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/decline-release-and-hook"
+      ],
+      "purpose": "DECLINE removes the client persisted lease (r2).",
+      "oracle": "RFC 2131 message layout decoded by an independent Python codec over frames sniffed on the peer side of a veth pair; the peer sends the DHCP messages the scenario names and checks the server replies and lease/hook files.",
+      "comparison": "Candidate dhcpd serve/run in a mapped user namespace on a veth pair; the independent Python peer in a second network namespace is the DHCP client or relay. Failing assertions print one line each and the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
+        "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP addr add 192.0.2.1/24 dev veth0 || die addr\n$IP link set veth0 up || die up\ndhcpd serve -c server.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer decline-lease sync.fifo go.fifo  2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify decline-removes-lease\n",
+        "server.conf": "pool 192.0.2.100 192.0.2.150\nnetmask 255.255.255.0\ngateway 192.0.2.254\ndns 192.0.2.53\ndomain lab.test\nserver_id 192.0.2.1\nlease 3600\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "verified decline-removes-lease failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd-release-removes-lease",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/decline-release-and-hook"
+      ],
+      "purpose": "RELEASE removes the client lease from the lease file (r3).",
+      "oracle": "RFC 2131 message layout decoded by an independent Python codec over frames sniffed on the peer side of a veth pair; the peer sends the DHCP messages the scenario names and checks the server replies and lease/hook files.",
+      "comparison": "Candidate dhcpd serve/run in a mapped user namespace on a veth pair; the independent Python peer in a second network namespace is the DHCP client or relay. Failing assertions print one line each and the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
+        "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP addr add 192.0.2.1/24 dev veth0 || die addr\n$IP link set veth0 up || die up\ndhcpd serve -c server.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer release-lease sync.fifo go.fifo  2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify release-removes-lease\n",
+        "server.conf": "pool 192.0.2.100 192.0.2.150\nnetmask 255.255.255.0\ngateway 192.0.2.254\ndns 192.0.2.53\ndomain lab.test\nserver_id 192.0.2.1\nlease 3600\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "verified release-removes-lease failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd-release-runs-hook",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/decline-release-and-hook"
+      ],
+      "purpose": "lease-exec runs on commit and then on release with BASHDHCPD_ACTION=release and the client MAC and IP (r5).",
+      "oracle": "RFC 2131 message layout decoded by an independent Python codec over frames sniffed on the peer side of a veth pair; the peer sends the DHCP messages the scenario names and checks the server replies and lease/hook files.",
+      "comparison": "Candidate dhcpd serve/run in a mapped user namespace on a veth pair; the independent Python peer in a second network namespace is the DHCP client or relay. Failing assertions print one line each and the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
+        "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP addr add 192.0.2.1/24 dev veth0 || die addr\n$IP link set veth0 up || die up\ndhcpd serve -c server.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer release-lease sync.fifo go.fifo  2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify hook-lines hook.log\n",
+        "server.conf": "pool 192.0.2.100 192.0.2.150\nnetmask 255.255.255.0\ngateway 192.0.2.254\ndns 192.0.2.53\ndomain lab.test\nserver_id 192.0.2.1\nlease 3600\nlease-exec echo \"$BASHDHCPD_ACTION $BASHDHCPD_MAC $BASHDHCPD_IP\" >> hook.log\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd.json",
+        "serve.err",
+        "hook.log"
+      ],
+      "expected_status": 0,
+      "stdout": "verified hook-lines failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd-relay-reply-port-67",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/relay-proxy-pxe"
+      ],
+      "purpose": "A relayed request is answered unicast to giaddr on UDP 67 with giaddr echoed (r2).",
+      "oracle": "RFC 2131 message layout decoded by an independent Python codec over frames sniffed on the peer side of a veth pair; the peer sends the DHCP messages the scenario names and checks the server replies and lease/hook files.",
+      "comparison": "Candidate dhcpd serve/run in a mapped user namespace on a veth pair; the independent Python peer in a second network namespace is the DHCP client or relay. Failing assertions print one line each and the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
+        "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP addr add 192.0.2.1/24 dev veth0 || die addr\n$IP link set veth0 up || die up\ndhcpd serve -c server.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer relay sync.fifo go.fifo 67 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify relay-reply 67\n",
+        "server.conf": "pool 192.0.2.100 192.0.2.150\nnetmask 255.255.255.0\ngateway 192.0.2.254\ndns 192.0.2.53\ndomain lab.test\nserver_id 192.0.2.1\nlease 3600\nsubnet 192.0.2.0 255.255.255.0 {\n  pool 192.0.2.200 192.0.2.210\n  gateway 192.0.2.254\n  dns 192.0.2.53\n}\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "verified relay-reply failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd-relay-reply-port-override",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/relay-proxy-pxe"
+      ],
+      "purpose": "BASHDHCPD_RELAY_PORT redirects the reply to the relay (r2).",
+      "oracle": "RFC 2131 message layout decoded by an independent Python codec over frames sniffed on the peer side of a veth pair; the peer sends the DHCP messages the scenario names and checks the server replies and lease/hook files.",
+      "comparison": "Candidate dhcpd serve/run in a mapped user namespace on a veth pair; the independent Python peer in a second network namespace is the DHCP client or relay. Failing assertions print one line each and the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
+        "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP addr add 192.0.2.1/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nexport BASHDHCPD_RELAY_PORT=6700\ndhcpd serve -c server.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer relay sync.fifo go.fifo 6700 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify relay-reply 6700\n",
+        "server.conf": "pool 192.0.2.100 192.0.2.150\nnetmask 255.255.255.0\ngateway 192.0.2.254\ndns 192.0.2.53\ndomain lab.test\nserver_id 192.0.2.1\nlease 3600\nsubnet 192.0.2.0 255.255.255.0 {\n  pool 192.0.2.200 192.0.2.210\n  gateway 192.0.2.254\n  dns 192.0.2.53\n}\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "verified relay-reply failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd-proxy-dhcp-socket",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/relay-proxy-pxe"
+      ],
+      "purpose": "With proxy-dhcp on the server binds UDP 4011 and answers offer-only PXE replies to the source address and port (r4).",
+      "oracle": "RFC 2131 message layout decoded by an independent Python codec over frames sniffed on the peer side of a veth pair; the peer sends the DHCP messages the scenario names and checks the server replies and lease/hook files.",
+      "comparison": "Candidate dhcpd serve/run in a mapped user namespace on a veth pair; the independent Python peer in a second network namespace is the DHCP client or relay. Failing assertions print one line each and the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
+        "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP addr add 192.0.2.1/24 dev veth0 || die addr\n$IP link set veth0 up || die up\ndhcpd serve -c server.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer proxy sync.fifo go.fifo  2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify proxy\n",
+        "server.conf": "server_id 192.0.2.1\nproxy-dhcp on\nnext-server 192.0.2.1\nbootfile pxelinux.0\ntftp-server tftp.lab.test\ndns 192.0.2.53\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "verified proxy failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd-pxe-vendor-gating-negative",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/relay-proxy-pxe"
+      ],
+      "purpose": "With pxe-vendor-match on, a request without option 60 or with a non-PXE vendor class gets no next-server siaddr, options 66/67/43 or BOOTP file; a PXEClient request does (r5).",
+      "oracle": "PXE gating semantics from the configuration documentation (options gated by option 60 PXEClient when pxe-vendor-match is on); BOOTP/DHCP field offsets from RFC 2131 decoded by an independent Python codec.",
+      "comparison": "Offline respond over three requests (no vendor, MSFT 5.0, PXEClient) against a PXE configuration; the independent decoder checks siaddr, options 66/67/43 and the BOOTP file field.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
+        "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py mkreq\n",
+      "setup_timeout": 10,
+      "files": {
+        "pxe.conf": "pool 192.0.2.100 192.0.2.150\nnetmask 255.255.255.0\ngateway 192.0.2.254\ndns 192.0.2.53\ndomain lab.test\nserver_id 192.0.2.1\nlease 3600\nnext-server 192.0.2.99\ntftp-server tftp.lab.test\nbootfile pxelinux.0\npxe-vendor-match on\n"
+      },
+      "script": "for n in none msft pxe; do dhcpd respond \"$(< req-$n.hex)\" -c pxe.conf -l leases-$n > reply-$n.hex 2> err-$n.txt; echo \"respond-$n-rc=$?\"; done\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py verify pxe-gating\n",
+      "diagnostic_files": [
+        "reply-none.hex",
+        "reply-msft.hex",
+        "reply-pxe.hex"
+      ],
+      "expected_status": 0,
+      "stdout": "respond-none-rc=0\nrespond-msft-rc=0\nrespond-pxe-rc=0\nverified pxe-gating failed=0\n",
+      "stderr": "",
+      "timeout": 20
+    },
+    {
+      "id": "mig-w2-dhcpd-serve-once-idle-return",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/serve-and-run-exchange"
+      ],
+      "purpose": "serve --once with no traffic returns status 0 after one idle one-second wait (r6).",
+      "oracle": "Documented bounded behavior (--once counts an idle one-second select as the iteration), measured with the shell EPOCHREALTIME clock around the call.",
+      "comparison": "Single candidate invocation inside a mapped user namespace on loopback with an unprivileged server port; elapsed wall time is bracketed between 0.8 s and 2.5 s.",
+      "requires": [
+        "unshare"
+      ],
+      "features": [
+        "userns"
+      ],
+      "files": {
+        "case.sh": "export BASHDHCPD_SERVER_PORT=6700\nstart=$EPOCHREALTIME\ndhcpd serve --once -c server.conf -l leases > serve.out 2> serve.err\nrc=$?\nend=$EPOCHREALTIME\nms=$(( (${end/./} - ${start/./}) / 1000 ))\necho \"serve-rc=$rc\"\necho \"returned-after-one-idle-second=$([[ $ms -ge 800 && $ms -le 2500 ]] && echo yes || echo \"no-${ms}ms\")\"\n",
+        "server.conf": "pool 192.0.2.100 192.0.2.150\nnetmask 255.255.255.0\ngateway 192.0.2.254\ndns 192.0.2.53\ndomain lab.test\nserver_id 192.0.2.1\nlease 3600\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "expected_status": 0,
+      "stdout": "serve-rc=0\nreturned-after-one-idle-second=yes\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 20
+    }
+  ]
+}
