@@ -1,0 +1,260 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w8-vi-left-right-home-end",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Left, right, up, down, Home and End decode as cursor keys: each is followed by x so the deleted character shows where the cursor was.",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "key": "right"
+        },
+        {
+          "key": "right"
+        },
+        {
+          "send": "x"
+        },
+        {
+          "key": "end"
+        },
+        {
+          "send": "x"
+        },
+        {
+          "key": "left"
+        },
+        {
+          "send": "x"
+        },
+        {
+          "key": "home"
+        },
+        {
+          "send": "x"
+        },
+        {
+          "key": "down"
+        },
+        {
+          "key": "right"
+        },
+        {
+          "send": "x"
+        },
+        {
+          "key": "up"
+        },
+        {
+          "send": "x"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/terminal-keys-resize"
+      ],
+      "files": {
+        "note": "abcdef\nghijkl\n"
+      },
+      "expected_files": {
+        "note": "b\ngijkl\n"
+      },
+      "oracle": "Debian 13 vi (vim.tiny 9.1) on the reference PATH as vi; cursor-key bytes chosen by the PTY driver from the DECCKM mode the program selected; file results compared byte for byte. Expected file derived by hand from vi motions: right,right,x -> abdef; End,x -> abde; left,x -> abe; Home,x -> be; down,right,x deletes h on line 2; up,x -> b.",
+      "comparison": "Exact resulting file. Both builds must produce the independently derived text b / gijkl.",
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-vi-page-up-down",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Page Down scrolls forward about a screen, Page Up scrolls back; the line deleted afterwards shows where the cursor ended.",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$"
+            }
+          }
+        },
+        {
+          "key": "page_down"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-0(2[0-3]|1[89])$"
+            }
+          }
+        },
+        {
+          "key": "page_down"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "key": "page_up"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "dd"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/terminal-keys-resize"
+      ],
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\nline-081\nline-082\nline-083\nline-084\nline-085\nline-086\nline-087\nline-088\nline-089\nline-090\nline-091\nline-092\nline-093\nline-094\nline-095\nline-096\nline-097\nline-098\nline-099\nline-100\n"
+      },
+      "oracle": "Debian 13 vi (vim.tiny 9.1) on the reference PATH as vi; cursor-key bytes chosen by the PTY driver from the DECCKM mode the program selected; file results compared byte for byte. The first page-down screen must start near line 20-23 (a screen minus overlap), checked as a screen row. The final file is compared with the reference vi.",
+      "comparison": "Screen row 0 after the first Page Down must be in the vim range line-018..line-023; the resulting file is compared between reference vi and candidate (parity on the file tree).",
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-vi-resize-cursor-offscreen",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Jump to line 28 on a 24-row screen, shrink to 10 rows: the viewport must scroll so that the cursor line is still visible, and dd then deletes that line.",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-01$"
+            }
+          }
+        },
+        {
+          "send": "28G"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "resize": [
+            10,
+            60
+          ]
+        },
+        {
+          "screen": {
+            "contains": [
+              "^line-28$"
+            ],
+            "lacks": [
+              "^line-01$"
+            ]
+          }
+        },
+        {
+          "send": "dd"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/terminal-keys-resize"
+      ],
+      "files": {
+        "note": "line-01\nline-02\nline-03\nline-04\nline-05\nline-06\nline-07\nline-08\nline-09\nline-10\nline-11\nline-12\nline-13\nline-14\nline-15\nline-16\nline-17\nline-18\nline-19\nline-20\nline-21\nline-22\nline-23\nline-24\nline-25\nline-26\nline-27\nline-28\nline-29\nline-30\n"
+      },
+      "expected_files": {
+        "note": "line-01\nline-02\nline-03\nline-04\nline-05\nline-06\nline-07\nline-08\nline-09\nline-10\nline-11\nline-12\nline-13\nline-14\nline-15\nline-16\nline-17\nline-18\nline-19\nline-20\nline-21\nline-22\nline-23\nline-24\nline-25\nline-26\nline-27\nline-29\nline-30\n"
+      },
+      "oracle": "Debian 13 vi (vim.tiny 9.1) on the reference PATH as vi; cursor-key bytes chosen by the PTY driver from the DECCKM mode the program selected; file results compared byte for byte. vim keeps the cursor line visible after SIGWINCH; the deleted line is derived from the 28G jump, not from candidate output.",
+      "comparison": "After the resize the screen contains line-28 and no longer line-01; dd must delete line 28 from the file.",
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-vi-term-vt100-keys",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "With TERM=vt100 the program selects its own cursor-key mode; the PTY driver sends the matching bytes, and down,down,dd,right,x edits the right lines.",
+      "script": "export TERM=vt100\nvi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "key": "down"
+        },
+        {
+          "key": "down"
+        },
+        {
+          "send": "dd"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "key": "right"
+        },
+        {
+          "send": "x"
+        },
+        {
+          "settle_ms": 100
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/terminal-keys-resize"
+      ],
+      "files": {
+        "note": "one\ntwo\nthree\nfour\n"
+      },
+      "expected_files": {
+        "note": "one\ntwo\nour\n"
+      },
+      "oracle": "Debian 13 vi (vim.tiny 9.1) on the reference PATH as vi; cursor-key bytes chosen by the PTY driver from the DECCKM mode the program selected; file results compared byte for byte. Expected: dd on line 3 leaves one,two,four; right then x deletes the f of four. Hand-derived.",
+      "comparison": "Exact file text one/two/our; vt100 selects a different key table than the default xterm-256color.",
+      "timeout": 15
+    }
+  ]
+}

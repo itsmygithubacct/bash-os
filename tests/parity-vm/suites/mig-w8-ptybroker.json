@@ -1,0 +1,144 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w8-ptybroker-control-role-busy",
+      "loadable": "ptybroker",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "attach control gives the controller role (status controller=1); a second control attach is rejected with EBUSY and does not change the counts; an observer can still attach next to the controller and is counted separately.",
+      "script": "root=$HOME/br\n/usr/bin/mkdir -m 700 \"$root\" || exit 125\ntrap 'ptybroker terminate \"$root\" s >/dev/null 2>&1' EXIT\nfield() { local s=$1 k=$2; [[ $s =~ (^| )$k=([0-9-]+) ]] && printf '%s' \"${BASH_REMATCH[2]}\"; }\nptybroker create \"$root\" s -- /usr/bin/cat >/dev/null 2>&1; echo \"create=$?\" > rc\nptybroker attach \"$root\" s control h1 2>e-c1; echo \"control1=$?\" >> rc\nst=$(ptybroker status \"$root\" s); echo \"after-c1 controller=$(field \"$st\" controller) observers=$(field \"$st\" observers)\" > roles\nptybroker attach \"$root\" s control h2 2>e-c2; echo \"control2=$?\" >> rc\n[[ $(<e-c2) == *\"Device or resource busy\"* ]] && echo busy > c2-diag || echo \"other:$(<e-c2)\" > c2-diag\nst=$(ptybroker status \"$root\" s); echo \"after-c2 controller=$(field \"$st\" controller) observers=$(field \"$st\" observers)\" >> roles\nptybroker attach \"$root\" s observe o1 2>e-o1; echo \"observe-with-controller=$?\" >> rc\nst=$(ptybroker status \"$root\" s); echo \"after-o1 controller=$(field \"$st\" controller) observers=$(field \"$st\" observers)\" >> roles\n",
+      "expected_status": 0,
+      "stdout": "",
+      "covers": [
+        "ptybroker/roles_and_handle_scope"
+      ],
+      "expected_files": {
+        "rc": "create=0\ncontrol1=0\ncontrol2=1\nobserve-with-controller=0\n",
+        "roles": "after-c1 controller=1 observers=0\nafter-c2 controller=1 observers=0\nafter-o1 controller=1 observers=1\n",
+        "c2-diag": "busy\n"
+      },
+      "kind": "contract",
+      "oracle": "Documented ptybroker interface (docs/ptybroker.md: one controller and eight observers per session, handles belong to the creating process, terminate waits for descendant cleanup) observed with independent /proc process checks and status key=value fields. No reference executable exists; contract cases.",
+      "comparison": "Exit codes and the controller/observers fields of ptybroker status after each attach; the diagnostic must be the EBUSY text.",
+      "requires": [
+        "mkdir",
+        "cat"
+      ],
+      "timeout": 25
+    },
+    {
+      "id": "mig-w8-ptybroker-observer-limit-and-receive",
+      "loadable": "ptybroker",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Eight observers attach (documented limit); the ninth is rejected with EBUSY; all eight receive the bytes the child echoes; observers do not occupy the controller slot, so a controller can still attach.",
+      "script": "root=$HOME/br\n/usr/bin/mkdir -m 700 \"$root\" || exit 125\ntrap 'ptybroker terminate \"$root\" s >/dev/null 2>&1' EXIT\nfield() { local s=$1 k=$2; [[ $s =~ (^| )$k=([0-9-]+) ]] && printf '%s' \"${BASH_REMATCH[2]}\"; }\nptybroker create \"$root\" s -- /usr/bin/cat >/dev/null 2>&1; echo \"create=$?\" > rc\nfor i in 1 2 3 4 5 6 7 8; do\n  ptybroker attach \"$root\" s observe \"o$i\" 2>\"e-o$i\"; echo \"observer$i=$?\" >> rc\ndone\nptybroker attach \"$root\" s observe o9 2>e-o9; echo \"observer9=$?\" >> rc\n[[ $(<e-o9) == *\"Device or resource busy\"* ]] && echo busy > o9-diag || echo \"other:$(<e-o9)\" > o9-diag\nst=$(ptybroker status \"$root\" s); echo \"observers=$(field \"$st\" observers) controller=$(field \"$st\" controller)\" > roles\nptybroker send \"$root\" s $'ping-w8\\n'; echo \"send=$?\" >> rc\nn=0\nfor i in 1 2 3 4 5 6 7 8; do\n  h=o$i; got=0\n  for k in 1 2 3 4 5 6 7 8; do\n    ev=''\n    ptybroker receive \"$h\" 1 ev 2000 >>\"obs$i.out\" 2>/dev/null || break\n    [[ $ev == output* ]] && grep_ok=1\n    [[ $(< \"obs$i.out\") == *ping-w8* ]] && { got=1; break; }\n  done\n  (( got )) && n=$((n+1))\ndone\necho \"observers-receiving=$n\" >> roles\nptybroker attach \"$root\" s control hc 2>e-ctl; echo \"control-after-observers=$?\" >> rc\n",
+      "expected_status": 0,
+      "stdout": "",
+      "covers": [
+        "ptybroker/roles_and_handle_scope"
+      ],
+      "expected_files": {
+        "rc": "create=0\nobserver1=0\nobserver2=0\nobserver3=0\nobserver4=0\nobserver5=0\nobserver6=0\nobserver7=0\nobserver8=0\nobserver9=1\nsend=0\ncontrol-after-observers=0\n",
+        "o9-diag": "busy\n",
+        "roles": "observers=8 controller=0\nobservers-receiving=8\n"
+      },
+      "kind": "contract",
+      "oracle": "Documented ptybroker interface (docs/ptybroker.md: one controller and eight observers per session, handles belong to the creating process, terminate waits for descendant cleanup) observed with independent /proc process checks and status key=value fields. No reference executable exists; contract cases.",
+      "comparison": "Exit codes of nine observe attaches, status observers=8 controller=0, each observer's received payload containing the marker, and a later control attach succeeding.",
+      "requires": [
+        "mkdir",
+        "cat",
+        "grep"
+      ],
+      "timeout": 40
+    },
+    {
+      "id": "mig-w8-ptybroker-detach-releases-role",
+      "loadable": "ptybroker",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "detach HANDLE releases the controller role (controller=0) while the session child stays alive (running=1, /proc entry present); a new control attach then succeeds.",
+      "script": "root=$HOME/br\n/usr/bin/mkdir -m 700 \"$root\" || exit 125\ntrap 'ptybroker terminate \"$root\" s >/dev/null 2>&1' EXIT\nfield() { local s=$1 k=$2; [[ $s =~ (^| )$k=([0-9-]+) ]] && printf '%s' \"${BASH_REMATCH[2]}\"; }\nptybroker create \"$root\" s -- /usr/bin/sleep 30 >/dev/null 2>&1; echo \"create=$?\" > rc\nst=$(ptybroker status \"$root\" s); cpid=$(field \"$st\" child_pid); echo \"$cpid\" > cpid\nptybroker attach \"$root\" s control h1 2>/dev/null; echo \"control1=$?\" >> rc\nptybroker detach \"$h1\" 2>e-d1; echo \"detach=$?\" >> rc\nst=$(ptybroker status \"$root\" s); echo \"after-detach controller=$(field \"$st\" controller) running=$(field \"$st\" running)\" > roles\n[[ -d /proc/$cpid ]] && echo child-alive > alive || echo child-gone > alive\nptybroker attach \"$root\" s control h2 2>e-c2; echo \"control-again=$?\" >> rc\nst=$(ptybroker status \"$root\" s); echo \"after-reattach controller=$(field \"$st\" controller) running=$(field \"$st\" running)\" >> roles\nptybroker detach \"$h2\" 2>/dev/null; echo \"detach2=$?\" >> rc\n",
+      "expected_status": 0,
+      "stdout": "",
+      "covers": [
+        "ptybroker/roles_and_handle_scope"
+      ],
+      "expected_files": {
+        "rc": "create=0\ncontrol1=0\ndetach=0\ncontrol-again=0\ndetach2=0\n",
+        "roles": "after-detach controller=0 running=1\nafter-reattach controller=1 running=1\n",
+        "alive": "child-alive\n"
+      },
+      "kind": "contract",
+      "oracle": "Documented ptybroker interface (docs/ptybroker.md: one controller and eight observers per session, handles belong to the creating process, terminate waits for descendant cleanup) observed with independent /proc process checks and status key=value fields. No reference executable exists; contract cases. Child liveness from /proc/PID.",
+      "comparison": "status controller/running fields before and after detach, /proc liveness of the child pid, and the new attach exit status.",
+      "requires": [
+        "mkdir",
+        "sleep"
+      ],
+      "timeout": 25
+    },
+    {
+      "id": "mig-w8-ptybroker-stale-and-foreign-handles",
+      "loadable": "ptybroker",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "A handle used from a subshell (another process) is rejected for receive, detach and fd without disturbing the attachment; the owner can still use it (receive times out with 124); after detach the same handle is stale and every use is rejected; the foreign detach did not release the observer.",
+      "script": "root=$HOME/br\n/usr/bin/mkdir -m 700 \"$root\" || exit 125\ntrap 'ptybroker terminate \"$root\" s >/dev/null 2>&1' EXIT\nfield() { local s=$1 k=$2; [[ $s =~ (^| )$k=([0-9-]+) ]] && printf '%s' \"${BASH_REMATCH[2]}\"; }\nptybroker create \"$root\" s -- /usr/bin/sleep 30 >/dev/null 2>&1; echo \"create=$?\" > rc\nptybroker attach \"$root\" s control h1 2>/dev/null; echo \"attach=$?\" >> rc\nptybroker attach \"$root\" s observe o1 2>/dev/null; echo \"attach-observe=$?\" >> rc\n( ptybroker receive \"$o1\" 1 ev 50 >/dev/null 2>sub-err; echo \"subshell-receive=$?\" > sub-rc\n  ptybroker detach \"$o1\" 2>sub-det-err; echo \"subshell-detach=$?\" >> sub-rc\n  ptybroker fd \"$o1\" fdvar 2>sub-fd-err; echo \"subshell-fd=$?\" >> sub-rc )\nfor k in 1 2 3 4 5 6; do ptybroker receive \"$o1\" 1 ev 50 >/dev/null 2>/dev/null; r=$?; [[ $r == 124 ]] && break; done; echo \"owner-receive-drain=$r\" >> rc\nptybroker detach \"$h1\" 2>/dev/null; echo \"detach=$?\" >> rc\nptybroker detach \"$h1\" 2>e-again; echo \"detach-again=$?\" >> rc\nptybroker receive \"$h1\" 1 ev 50 >/dev/null 2>e-recv; echo \"receive-stale=$?\" >> rc\nptybroker fd \"$h1\" fdv 2>e-fd; echo \"fd-stale=$?\" >> rc\nfor f in sub-err sub-det-err sub-fd-err e-again e-recv e-fd; do [[ -s $f ]] && echo \"$f=diagnosed\" >> diag || echo \"$f=silent\" >> diag; done\nst=$(ptybroker status \"$root\" s); echo \"controller=$(field \"$st\" controller) observers=$(field \"$st\" observers)\" > roles\n",
+      "expected_status": 0,
+      "stdout": "",
+      "covers": [
+        "ptybroker/roles_and_handle_scope"
+      ],
+      "expected_files": {
+        "rc": "create=0\nattach=0\nattach-observe=0\nowner-receive-drain=124\ndetach=0\ndetach-again=1\nreceive-stale=1\nfd-stale=1\n",
+        "sub-rc": "subshell-receive=1\nsubshell-detach=1\nsubshell-fd=1\n",
+        "diag": "sub-err=diagnosed\nsub-det-err=diagnosed\nsub-fd-err=diagnosed\ne-again=diagnosed\ne-recv=diagnosed\ne-fd=diagnosed\n",
+        "roles": "controller=0 observers=1\n"
+      },
+      "kind": "contract",
+      "oracle": "Documented ptybroker interface (docs/ptybroker.md: one controller and eight observers per session, handles belong to the creating process, terminate waits for descendant cleanup) observed with independent /proc process checks and status key=value fields. No reference executable exists; contract cases.",
+      "comparison": "Exit statuses and diagnostics for foreign-process and stale-handle use, the owner's later successful receive (timeout 124), and status controller/observers showing the failed foreign detach released nothing.",
+      "requires": [
+        "mkdir",
+        "sleep"
+      ],
+      "timeout": 25
+    },
+    {
+      "id": "mig-w8-ptybroker-terminate-descendants",
+      "loadable": "ptybroker",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "terminate ends the session child and its descendants, including a grandchild in the same session and one that started its own session, and has already waited for them when it returns; an unrelated sentinel process started outside the broker survives; the session directory is removed.",
+      "script": "root=$HOME/br\n/usr/bin/mkdir -m 700 \"$root\" || exit 125\ntrap 'ptybroker terminate \"$root\" s >/dev/null 2>&1; [[ -n $sent ]] && kill $sent 2>/dev/null' EXIT\nfield() { local s=$1 k=$2; [[ $s =~ (^| )$k=([0-9-]+) ]] && printf '%s' \"${BASH_REMATCH[2]}\"; }\nexec 9<>fifo\n/usr/bin/sleep 61 & sent=$!\necho \"$sent\" > sentinel.pid\nptybroker create \"$root\" s -- \"$BASH\" --noprofile --norc ./child.sh >/dev/null 2>e-create; echo \"create=$?\" > rc\nfor ((i=0; i<100; i++)); do [[ -s ready && -s gc-sess.pid ]] && break; read -t 0.1 -u 9 x; done\nst=$(ptybroker status \"$root\" s); cpid=$(field \"$st\" child_pid)\nsame=$(<gc-same.pid); sess=$(<gc-sess.pid)\nfor p in $cpid $same $sess $sent; do [[ -d /proc/$p ]] && echo \"before $p alive\" >> live || echo \"before $p gone\" >> live; done\necho \"child=$([[ $cpid != \"\" && $cpid != 0 ]] && echo set)\" > pids\n[[ $cpid != $same && $same != $sess && $sess != $sent ]] && echo distinct >> pids\nptybroker terminate \"$root\" s 2>e-term; echo \"terminate=$?\" >> rc\n[[ -d /proc/$cpid ]] && echo child-alive > after || echo child-gone > after\n[[ -d /proc/$same ]] && echo same-session-grandchild-alive >> after || echo same-session-grandchild-gone >> after\n[[ -d /proc/$sess ]] && echo own-session-grandchild-alive >> after || echo own-session-grandchild-gone >> after\n[[ -d /proc/$sent ]] && echo sentinel-alive >> after || echo sentinel-gone >> after\n[[ -e $root/s ]] && echo session-dir-present >> after || echo session-dir-removed >> after\nkill $sent; wait $sent 2>/dev/null; sent=''\n",
+      "expected_status": 0,
+      "stdout": "",
+      "covers": [
+        "ptybroker/child_exit_and_cleanup"
+      ],
+      "files": {
+        "child.sh": "/usr/bin/sleep 62 &\necho $! > gc-same.pid\n/usr/bin/setsid \"$BASH\" --noprofile --norc -c 'echo $$ > gc-sess.pid; exec /usr/bin/sleep 64' &\necho ready > ready\nwait\n"
+      },
+      "expected_files": {
+        "rc": "create=0\nterminate=0\n",
+        "pids": "child=set\ndistinct\n",
+        "after": "child-gone\nsame-session-grandchild-gone\nown-session-grandchild-gone\nsentinel-alive\nsession-dir-removed\n"
+      },
+      "kind": "contract",
+      "oracle": "Documented ptybroker interface (docs/ptybroker.md: one controller and eight observers per session, handles belong to the creating process, terminate waits for descendant cleanup) observed with independent /proc process checks and status key=value fields. No reference executable exists; contract cases. Liveness is read from /proc/PID immediately after terminate returns, with no wait, so it measures the acknowledgment ordering.",
+      "comparison": "Exit statuses, /proc existence of the child, both grandchildren and the sentinel straight after terminate, and removal of the session directory.",
+      "requires": [
+        "mkdir",
+        "sleep",
+        "setsid",
+        "mkfifo",
+        "seq"
+      ],
+      "setup_script": "/usr/bin/mkfifo fifo\n",
+      "timeout": 40
+    }
+  ]
+}
