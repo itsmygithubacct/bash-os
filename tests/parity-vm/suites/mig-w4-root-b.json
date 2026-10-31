@@ -29,6 +29,33 @@
       "stderr": ""
     },
     {
+      "id": "mig-w4-root-sudo-target-groups",
+      "loadable": "sudo",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "The sudo root route resolves the target from passwd (default root), builds the group vector from /etc/group memberships plus the account's own gid, lets -g choose the primary gid while keeping the account's own gid, sets no_new_privs only for non-root targets, and refuses an unknown user or group before any child starts.",
+      "oracle": "Kernel credentials of the child as printed by its own /proc/self/status (Uid, Gid, Groups, NoNewPrivs), GNU id -G for the membership oracle, and absence of a marker file a GNU touch child would create; passwd/group rows are private bind mounts.",
+      "comparison": "Exact stdout: per invocation the child's Uid/Gid/Groups/NoNewPrivs lines, a flag against GNU id -G, and for the two unknown-name invocations the status, diagnostic and marker state.",
+      "covers": [
+        "sudo/root-credential-drop"
+      ],
+      "requires": [
+        "id",
+        "mount",
+        "paste",
+        "sort",
+        "touch",
+        "tr"
+      ],
+      "script": "P=$PWD\nH=/opt/bashos-parity/harness/helpers\ncat > \"$P/passwd.fx\" <<'X'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/tmp/parity-case/home-alice:/bin/bash\nbob:x:3002:3002:Bob:/tmp/parity-case/no-such-home:/bin/bash\nX\ncat > \"$P/group.fx\" <<'X'\nroot:x:0:\nalice:x:3001:alice\nbob:x:3002:\nstaff:x:4000:alice\nwheel:x:4001:alice,bob\nops:x:5000:\nX\n/usr/bin/mount --bind \"$P/passwd.fx\" /etc/passwd || echo \"MOUNT-FAIL passwd\"\n/usr/bin/mount --bind \"$P/group.fx\" /etc/group || echo \"MOUNT-FAIL group\"\n/usr/bin/mkdir -m 755 \"$P/home-alice\"\nsnap() { local l; set -f; while IFS= read -r l; do case $l in Uid:*|Gid:*|Groups:*|NoNewPrivs:*) echo $l;; esac; done < /proc/$BASHPID/status; set +f; }\n\ncat > \"$P/show.sh\" <<'X'\n#!/bin/bash\nset -f\nwhile IFS= read -r l; do case $l in Uid:*|Gid:*|Groups:*|NoNewPrivs:*) echo $l;; esac; done < /proc/self/status\nX\n/usr/bin/chmod 755 \"$P/show.sh\"\n\nlab() { local t=$1 l; while IFS= read -r l; do echo \"$t $l\"; done; }\n\noa=$(/usr/bin/id -G alice | /usr/bin/tr ' ' '\\n' | /usr/bin/sort -n | /usr/bin/paste -sd, )\nsudo $P/show.sh 2>&1 | lab root-default\nsudo -u alice $P/show.sh 2>&1 | lab alice\ng=$(sudo -u alice $P/show.sh | { while IFS= read -r l; do [[ $l == Groups:* ]] && echo \"${l#Groups: }\"; done; })\n[[ ${g// /,} == \"$oa\" ]] && echo \"alice groups-match-id=yes\" || echo \"alice groups-match-id=no[$g|$oa]\"\nsudo -u alice -g ops $P/show.sh 2>&1 | lab alice-g-ops\nsudo -u bob $P/show.sh 2>&1 | lab bob\nsudo -u nosuch /usr/bin/touch \"$P/marker-user\" 2> \"$P/err1\"; rc=$?; e=$(< \"$P/err1\")\necho \"unknown-user rc=$rc message=$([[ $e == *\"sudo: unknown user: nosuch\"* ]] && echo yes || echo no) marker=$([[ -e $P/marker-user ]] && echo present || echo absent)\"\nsudo -u alice -g nosuchgrp /usr/bin/touch \"$P/marker-group\" 2> \"$P/err2\"; rc=$?; e=$(< \"$P/err2\")\necho \"unknown-group rc=$rc message=$([[ $e == *\"sudo: unknown group: nosuchgrp\"* ]] && echo yes || echo no) marker=$([[ -e $P/marker-group ]] && echo present || echo absent)\"\n",
+      "expected_status": 0,
+      "timeout": 40,
+      "stdout": "root-default Uid: 0 0 0 0\nroot-default Gid: 0 0 0 0\nroot-default Groups: 0\nroot-default NoNewPrivs: 0\nalice Uid: 3001 3001 3001 3001\nalice Gid: 3001 3001 3001 3001\nalice Groups: 3001 4000 4001\nalice NoNewPrivs: 1\nalice groups-match-id=yes\nalice-g-ops Uid: 3001 3001 3001 3001\nalice-g-ops Gid: 5000 5000 5000 5000\nalice-g-ops Groups: 3001 4000 4001 5000\nalice-g-ops NoNewPrivs: 1\nbob Uid: 3002 3002 3002 3002\nbob Gid: 3002 3002 3002 3002\nbob Groups: 3002 4001\nbob NoNewPrivs: 1\nunknown-user rc=1 message=yes marker=absent\nunknown-group rc=1 message=yes marker=absent\n",
+      "stderr": ""
+    },
+    {
       "id": "mig-w4-root-doas-child-hygiene",
       "loadable": "doas",
       "group": "shell",
